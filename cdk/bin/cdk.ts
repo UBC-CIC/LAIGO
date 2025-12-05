@@ -2,6 +2,7 @@
 import * as cdk from 'aws-cdk-lib';
 import { CdkStack } from '../lib/cdk-stack';
 import { VpcStack } from '../lib/vpc-stack';
+import { DatabaseStack } from '../lib/database-stack';
 
 const app = new cdk.App();
 
@@ -19,5 +20,6 @@ const env: cdk.Environment = {
 
 
 const vpc = new VpcStack(app, `${StackPrefix}-VpcStack`, {env, stackPrefix: StackPrefix});
+const db = new DatabaseStack(app, `${StackPrefix}-DatabaseStack`, vpc, {env});
 
 
