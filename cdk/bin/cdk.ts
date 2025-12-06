@@ -3,6 +3,7 @@ import * as cdk from 'aws-cdk-lib';
 import { CdkStack } from '../lib/cdk-stack';
 import { VpcStack } from '../lib/vpc-stack';
 import { DatabaseStack } from '../lib/database-stack';
+import { DBFlowStack } from '../lib/dbFlow-stack';
 
 const app = new cdk.App();
 
@@ -21,5 +22,5 @@ const env: cdk.Environment = {
 
 const vpc = new VpcStack(app, `${StackPrefix}-VpcStack`, {env, stackPrefix: StackPrefix});
 const db = new DatabaseStack(app, `${StackPrefix}-DatabaseStack`, vpc, {env});
-
+const dbFlow = new DBFlowStack(app, `${StackPrefix}-DBFlowStack`, vpc, db, {env})
 
