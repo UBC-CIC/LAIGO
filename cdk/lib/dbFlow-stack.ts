@@ -92,7 +92,7 @@ export class DBFlowStack extends Stack {
       environment: {
         DB_SECRET_NAME: db.secretPathAdminName,
         DB_USER_SECRET_NAME: db.secretPathUser.secretName,
-        DB_PROXY: db.secretPathTableCreator.secretName,
+        DB_TABLE_CREATOR_SECRET_NAME: db.secretPathTableCreator.secretName,
       },
       vpc: db.dbInstance.vpc,
       code: lambda.Code.fromAsset("lambda/db_setup"),
