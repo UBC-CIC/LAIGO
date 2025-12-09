@@ -1,0 +1,100 @@
+openapi: 3.0.0
+info:
+  title: LAIGO API
+  version: 1.0.0
+  description: API for LAIGO AI Assistant with role-based access control
+
+x-amazon-apigateway-request-validators:
+  all:
+    validateRequestBody: true
+    validateRequestParameters: true
+
+components:
+  securitySchemes:
+    adminAuthorizer:
+      type: apiKey
+      name: Authorization
+      in: header
+      x-amazon-apigateway-authtype: custom
+      x-amazon-apigateway-authorizer:
+        type: token
+        authorizerUri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${adminLambdaAuthorizer.Arn}/invocations
+        authorizerResultTtlInSeconds: 300
+    
+    instructorAuthorizer:
+      type: apiKey
+      name: Authorization
+      in: header
+      x-amazon-apigateway-authtype: custom
+      x-amazon-apigateway-authorizer:
+        type: token
+        authorizerUri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${instructorLambdaAuthorizer.Arn}/invocations
+        authorizerResultTtlInSeconds: 300
+    
+    studentAuthorizer:
+      type: apiKey
+      name: Authorization
+      in: header
+      x-amazon-apigateway-authtype: custom
+      x-amazon-apigateway-authorizer:
+        type: token
+        authorizerUri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${studentLambdaAuthorizer.Arn}/invocations
+        authorizerResultTtlInSeconds: 300
+
+paths:
+  /admin/health:
+    get:
+      summary: Admin health check
+      security:
+        - adminAuthorizer: []
+      x-amazon-apigateway-integration:
+        type: mock
+        requestTemplates:
+          application/json: '{"statusCode": 200}'
+        responses:
+          default:
+            statusCode: 200
+            responseTemplates:
+              application/json: '{"status": "ok", "role": "admin"}'
+      responses:
+        '200':
+          description: Success
+
+  /instructor/health:
+    get:
+      summary: Instructor health check
+      security:
+        - instructorAuthorizer: []
+      x-amazon-apigateway-integration:
+        type: mock
+        requestTemplates:
+          application/json: '{"statusCode": 200}'
+        responses:
+          default:
+            statusCode: 200
+            responseTemplates:
+              application/json: '{"status": "ok", "role": "instructor"}'
+      responses:
+        '200':
+          description: Success
+
+  /student/health:
+    get:
+      summary: Student health check
+      security:
+        - studentAuthorizer: []
+      x-amazon-apigateway-integration:
+        type: mock
+        requestTemplates:
+          application/json: '{"statusCode": 200}'
+        responses:
+          default:
+            statusCode: 200
+            responseTemplates:
+              application/json: '{"status": "ok", "role": "student"}'
+      responses:
+        '200':
+          description: Success

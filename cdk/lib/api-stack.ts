@@ -237,8 +237,8 @@ export class ApiGatewayStack extends cdk.Stack {
     );
 
     // Store Cognito configuration in Secrets Manager for frontend application
-    const secretsName = `${id}-OER_Cognito_Secrets`;
-    const secret = new secretsmanager.Secret(scope, secretsName, {
+    const secretsName = `${id}-LAIGO_Cognito_Secrets`;
+    this.secret = new secretsmanager.Secret(scope, secretsName, {
       secretName: secretsName,
       description: "Cognito Secrets for authentication",
       secretObjectValue: {
@@ -584,13 +584,92 @@ export class ApiGatewayStack extends cdk.Stack {
     );
     lambdaRole.attachInlinePolicy(adminAddUserToGroupPolicyLambda);
 
-    // Attach IAM roles to identity pool for authenticated and unauthenticated access
+    // Attach IAM roles to identity pool with role mapping based on Cognito groups
     new cognito.CfnIdentityPoolRoleAttachment(this, `${id}-IdentityPoolRoles`, {
       identityPoolId: this.identityPool.ref,
       roles: {
-        authenticated: adminRole.roleArn, // Role for authenticated users
+        authenticated: studentRole.roleArn, // Default role for authenticated users
         unauthenticated: unauthenticatedRole.roleArn, // Role for unauthenticated users
       },
     });
+
+
+    const adminAuthorizationFunction = new lambda.Function(
+      this,
+      `${id}-admin-authorization-api-gateway`,
+      {
+        runtime: lambda.Runtime.NODEJS_20_X,
+        code: lambda.Code.fromAsset("lambda/adminAuthorizerFunction"),
+        handler: "adminAuthorizerFunction.handler",
+        timeout: Duration.seconds(300),
+        vpc: vpcStack.vpc,
+        environment: {
+          SM_COGNITO_CREDENTIALS: this.secret.secretName,
+        },
+        functionName: `${id}-adminLambdaAuthorizer`,
+        memorySize: 512,
+        layers: [jwt],
+        role: lambdaRole,
+      }
+    );
+
+    adminAuthorizationFunction.grantInvoke(
+      new iam.ServicePrincipal("apigateway.amazonaws.com")
+    );
+
+    const apiGW_adminAuthorizationFunction = adminAuthorizationFunction.node
+      .defaultChild as lambda.CfnFunction;
+    apiGW_adminAuthorizationFunction.overrideLogicalId("adminLambdaAuthorizer");
+
+    const studentAuthFunction = new lambda.Function(
+      this,
+      `${id}-student-authorization-api-gateway`,
+      {
+        runtime: lambda.Runtime.NODEJS_20_X,
+        code: lambda.Code.fromAsset("lambda/studentAuthorizerFunction"),
+        handler: "studentAuthorizerFunction.handler",
+        timeout: Duration.seconds(300),
+        memorySize: 256,
+        layers: [jwt],
+        role: lambdaRole,
+        environment: {
+          SM_COGNITO_CREDENTIALS: this.secret.secretName,
+        },
+        functionName: `${id}-studentLambdaAuthorizer`,
+      }
+    );
+    studentAuthFunction.grantInvoke(
+      new iam.ServicePrincipal("apigateway.amazonaws.com")
+    );
+
+    const apiGW_studentauthorizationFunction = studentAuthFunction.node
+      .defaultChild as lambda.CfnFunction;
+    apiGW_studentauthorizationFunction.overrideLogicalId("studentLambdaAuthorizer");
+
+
+    const instructorAuthFunction = new lambda.Function(
+      this,
+      `${id}-instructor-authorization-api-gateway`,
+      {
+        runtime: lambda.Runtime.NODEJS_20_X,
+        code: lambda.Code.fromAsset("lambda/instructorAuthorizerFunction"),
+        handler: "instructorAuthorizerFunction.handler",
+        timeout: Duration.seconds(300),
+        memorySize: 256,
+        layers: [jwt],
+        role: lambdaRole,
+        environment: {
+          SM_COGNITO_CREDENTIALS: this.secret.secretName,
+        },
+        functionName: `${id}-instructorLambdaAuthorizer`,
+      }
+    );
+    instructorAuthFunction.grantInvoke(
+      new iam.ServicePrincipal("apigateway.amazonaws.com")
+    );
+
+    const apiGW_instructorAuthorizationFunction = instructorAuthFunction.node
+      .defaultChild as lambda.CfnFunction;
+    apiGW_instructorAuthorizationFunction.overrideLogicalId("instructorLambdaAuthorizer");
   }
 }
