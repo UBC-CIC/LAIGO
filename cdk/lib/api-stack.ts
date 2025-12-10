@@ -109,7 +109,7 @@ export class ApiGatewayStack extends cdk.Stack {
 
     // Create Cognito user pool for user authentication
     const userPoolName = `${id}-UserPool`;
-    this.userPool = new cognito.UserPool(scope, `${id}-pool`, {
+    this.userPool = new cognito.UserPool(this, `${id}-pool`, {
       userPoolName: userPoolName,
       signInAliases: {
         email: true, // Allow sign-in with email
@@ -222,7 +222,7 @@ export class ApiGatewayStack extends cdk.Stack {
 
     // Create Cognito identity pool for AWS credential federation
     this.identityPool = new cognito.CfnIdentityPool(
-      scope,
+      this,
       `${id}-identity-pool`,
       {
         allowUnauthenticatedIdentities: true, // Allow unauthenticated access
@@ -238,7 +238,7 @@ export class ApiGatewayStack extends cdk.Stack {
 
     // Store Cognito configuration in Secrets Manager for frontend application
     const secretsName = `${id}-LAIGO_Cognito_Secrets`;
-    this.secret = new secretsmanager.Secret(scope, secretsName, {
+    this.secret = new secretsmanager.Secret(this, secretsName, {
       secretName: secretsName,
       description: "Cognito Secrets for authentication",
       secretObjectValue: {
@@ -383,7 +383,7 @@ export class ApiGatewayStack extends cdk.Stack {
     wafAssociation.node.addDependency(this.api.deploymentStage);
 
     // Create IAM role for authenticated admin users
-    const adminRole = new iam.Role(scope, `${id}-AdminRole`, {
+    const adminRole = new iam.Role(this, `${id}-AdminRole`, {
       assumedBy: new iam.FederatedPrincipal(
         "cognito-identity.amazonaws.com",
         {
@@ -398,7 +398,7 @@ export class ApiGatewayStack extends cdk.Stack {
       ),
     });
 
-    const studentRole = new iam.Role(scope, `${id}-StudentRole`, {
+    const studentRole = new iam.Role(this, `${id}-StudentRole`, {
       assumedBy: new iam.FederatedPrincipal(
         "cognito-identity.amazonaws.com",
         {
@@ -413,7 +413,7 @@ export class ApiGatewayStack extends cdk.Stack {
       ),
     });
 
-    const instructorRole = new iam.Role(scope, `${id}-InstructorRole`, {
+    const instructorRole = new iam.Role(this, `${id}-InstructorRole`, {
       assumedBy: new iam.FederatedPrincipal(
         "cognito-identity.amazonaws.com",
         {
@@ -431,7 +431,7 @@ export class ApiGatewayStack extends cdk.Stack {
 
     // Grant admin role permissions to invoke API Gateway endpoints
     adminRole.attachInlinePolicy(
-      new iam.Policy(scope, `${id}-AdminPolicy`, {
+      new iam.Policy(this, `${id}-AdminPolicy`, {
         statements: [
           createPolicyStatement(
             ["execute-api:Invoke"],
@@ -447,7 +447,7 @@ export class ApiGatewayStack extends cdk.Stack {
 
     // Grant instructor role permissions to invoke API Gateway endpoints
     instructorRole.attachInlinePolicy(
-      new iam.Policy(scope, `${id}-InstructorPolicy`, {
+      new iam.Policy(this, `${id}-InstructorPolicy`, {
         statements: [
           createPolicyStatement(
             ["execute-api:Invoke"],
@@ -461,7 +461,7 @@ export class ApiGatewayStack extends cdk.Stack {
 
     // Grant student role permissions to invoke API Gateway endpoints
     studentRole.attachInlinePolicy(
-      new iam.Policy(scope, `${id}-StudentPolicy`, {
+      new iam.Policy(this, `${id}-StudentPolicy`, {
         statements: [
           createPolicyStatement(
             ["execute-api:Invoke"],
@@ -475,7 +475,7 @@ export class ApiGatewayStack extends cdk.Stack {
 
     // Create IAM role for unauthenticated users
     const unauthenticatedRole = new iam.Role(
-      scope,
+      this,
       `${id}-UnauthenticatedRole`,
       {
         assumedBy: new iam.FederatedPrincipal(
