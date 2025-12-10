@@ -3,13 +3,13 @@ import * as cdk from "aws-cdk-lib";
 import { VpcStack } from "../lib/vpc-stack";
 import { DatabaseStack } from "../lib/database-stack";
 import { DBFlowStack } from "../lib/dbFlow-stack";
-import { CICDStack } from "../lib/cicd-stack.";
+import { CICDStack } from "../lib/cicd-stack"
 import { ApiGatewayStack } from "../lib/api-stack";
 import { AmplifyStack } from "../lib/amplify-stack";
 
 const app = new cdk.App();
 
-// Parse params from command line
+// Parse params from command line with defaults
 const StackPrefix = app.node.tryGetContext("StackPrefix");
 const version = app.node.tryGetContext("Version");
 const environment = app.node.tryGetContext("Environment");
