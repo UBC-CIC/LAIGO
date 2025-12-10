@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 import * as cdk from "aws-cdk-lib";
-import { CdkStack } from "../lib/cdk-stack";
 import { VpcStack } from "../lib/vpc-stack";
 import { DatabaseStack } from "../lib/database-stack";
 import { DBFlowStack } from "../lib/dbFlow-stack";
 import { CICDStack } from "../lib/cicd-stack.";
+import { ApiGatewayStack } from "../lib/api-stack";
+import { AmplifyStack } from "../lib/amplify-stack";
 
 const app = new cdk.App();
 
@@ -28,6 +29,7 @@ const db = new DatabaseStack(app, `${StackPrefix}-DatabaseStack`, vpc, { env });
 const dbFlow = new DBFlowStack(app, `${StackPrefix}-DBFlowStack`, vpc, db, {
   env,
 });
+
 const cicd = new CICDStack(app, `${StackPrefix}-CICDStack`, {
   env,
   githubRepo: githubRepo,
@@ -38,9 +40,20 @@ const cicd = new CICDStack(app, `${StackPrefix}-CICDStack`, {
       name: "dataIngestion",
       functionName: `${StackPrefix}-Api-DataIngestionLambdaDockerFunc`,
       sourceDir: "cdk/lambda/data_ingestion",
-    },*/
+      },*/
   ],
   pathFilters: [
     //"cdk/lambda/data_ingestion/**",
   ],
+});
+
+
+const api = new ApiGatewayStack(app, `${StackPrefix}-ApiStack`, db, vpc, {
+  env,
+  ecrRepositories: {},
+});
+
+const amplify = new AmplifyStack(app, `${StackPrefix}-AmplifyStack`, api, {
+  env,
+  githubRepo: githubRepo,
 });
