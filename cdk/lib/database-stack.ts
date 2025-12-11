@@ -100,7 +100,7 @@ export class DatabaseStack extends Stack {
       `${id}-rdsParameterGroup`,
       {
         engine: rds.DatabaseInstanceEngine.postgres({
-          version: rds.PostgresEngineVersion.VER_16_8,
+          version: rds.PostgresEngineVersion.VER_17_4,
         }),
         description: "Custom parameter group for LAIGO database",
         parameters: {
@@ -176,49 +176,49 @@ export class DatabaseStack extends Stack {
       );
     });
 
-    // Create IAM role for RDS Proxy to manage database connections
-    const rdsProxyRole = new iam.Role(this, `${id}-DBProxyRole`, {
-      assumedBy: new iam.ServicePrincipal("rds.amazonaws.com"),
-    });
+  //   // Create IAM role for RDS Proxy to manage database connections
+  //   const rdsProxyRole = new iam.Role(this, `${id}-DBProxyRole`, {
+  //     assumedBy: new iam.ServicePrincipal("rds.amazonaws.com"),
+  //   });
 
-    // Grant permission for RDS Proxy to connect to databases
-    rdsProxyRole.addToPolicy(
-      new iam.PolicyStatement({
-        resources: ["*"],
-        actions: ["rds-db:connect"], // Allow database connections
-      })
-    );
+  //   // Grant permission for RDS Proxy to connect to databases
+  //   rdsProxyRole.addToPolicy(
+  //     new iam.PolicyStatement({
+  //       resources: ["*"],
+  //       actions: ["rds-db:connect"], // Allow database connections
+  //     })
+  //   );
 
-    // Create RDS Proxy for connection pooling and credential management
-    const secretPathAdmin = secretmanager.Secret.fromSecretNameV2(
-      this,
-      "AdminSecret",
-      this.secretPathAdminName
-    );
+  //   // Create RDS Proxy for connection pooling and credential management
+  //   const secretPathAdmin = secretmanager.Secret.fromSecretNameV2(
+  //     this,
+  //     "AdminSecret",
+  //     this.secretPathAdminName
+  //   );
 
-    const rdsProxy = this.dbInstance.addProxy(id + "-proxy", {
-      secrets: [
-        this.secretPathUser!, // Application user credentials
-        this.secretPathTableCreator!, // Table creator credentials
-        secretPathAdmin, // Admin credentials
-      ],
-      vpc: vpcStack.vpc,
-      role: rdsProxyRole,
-      securityGroups: this.dbInstance.connections.securityGroups, // Use same security groups as database
-      requireTLS: false, // Disable TLS requirement for development
-    });
+  //   const rdsProxy = this.dbInstance.addProxy(id + "-proxy", {
+  //     secrets: [
+  //       this.secretPathUser!, // Application user credentials
+  //       this.secretPathTableCreator!, // Table creator credentials
+  //       secretPathAdmin, // Admin credentials
+  //     ],
+  //     vpc: vpcStack.vpc,
+  //     role: rdsProxyRole,
+  //     securityGroups: this.dbInstance.connections.securityGroups, // Use same security groups as database
+  //     requireTLS: false, // Disable TLS requirement for development
+  //   });
 
-    // Fix for CDK not automatically setting the target group name
-    let targetGroup = rdsProxy.node.children.find((child: any) => {
-      return child instanceof rds.CfnDBProxyTargetGroup;
-    }) as rds.CfnDBProxyTargetGroup;
+  //   // Fix for CDK not automatically setting the target group name
+  //   let targetGroup = rdsProxy.node.children.find((child: any) => {
+  //     return child instanceof rds.CfnDBProxyTargetGroup;
+  //   }) as rds.CfnDBProxyTargetGroup;
 
-    targetGroup.addPropertyOverride("TargetGroupName", "default");
+  //   targetGroup.addPropertyOverride("TargetGroupName", "default");
 
-    // Grant the proxy role permission to connect to the database instance
-    this.dbInstance.grantConnect(rdsProxyRole);
+  //   // Grant the proxy role permission to connect to the database instance
+  //   this.dbInstance.grantConnect(rdsProxyRole);
 
-    // Store the proxy endpoint for use by other stacks
-    this.rdsProxyEndpoint = rdsProxy.endpoint;
+  //   // Store the proxy endpoint for use by other stacks
+  //   this.rdsProxyEndpoint = rdsProxy.endpoint;
   }
 }

@@ -25,10 +25,16 @@ const vpc = new VpcStack(app, `${StackPrefix}-VpcStack`, {
   env,
   stackPrefix: StackPrefix,
 });
+
 const db = new DatabaseStack(app, `${StackPrefix}-DatabaseStack`, vpc, { env });
+// Ensure database waits for VPC
+db.addDependency(vpc);
+
 const dbFlow = new DBFlowStack(app, `${StackPrefix}-DBFlowStack`, vpc, db, {
   env,
 });
+// Ensure dbFlow waits for database
+dbFlow.addDependency(db);
 
 // const cicd = new CICDStack(app, `${StackPrefix}-CICDStack`, {
 //   env,
@@ -47,13 +53,17 @@ const dbFlow = new DBFlowStack(app, `${StackPrefix}-DBFlowStack`, vpc, db, {
 //   ],
 // });
 
-
 const api = new ApiGatewayStack(app, `${StackPrefix}-ApiStack`, db, vpc, {
   env,
   ecrRepositories: {},
 });
+// Ensure API waits for database and dbFlow (change to CICD stack later)
+api.addDependency(db);
+api.addDependency(dbFlow);
 
 const amplify = new AmplifyStack(app, `${StackPrefix}-AmplifyStack`, api, {
   env,
   githubRepo: githubRepo,
 });
+// Ensure Amplify waits for API
+amplify.addDependency(api);
