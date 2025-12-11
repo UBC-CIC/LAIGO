@@ -249,7 +249,7 @@ export class ApiGatewayStack extends cdk.Stack {
           this.appClient.userPoolClientId
         ),
         VITE_AWS_REGION: cdk.SecretValue.unsafePlainText(
-          cdk.Stack.of(scope).region
+          this.region
         ),
         VITE_IDENTITY_POOL_ID: cdk.SecretValue.unsafePlainText(
           this.identityPool.ref
