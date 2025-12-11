@@ -30,22 +30,22 @@ const dbFlow = new DBFlowStack(app, `${StackPrefix}-DBFlowStack`, vpc, db, {
   env,
 });
 
-const cicd = new CICDStack(app, `${StackPrefix}-CICDStack`, {
-  env,
-  githubRepo: githubRepo,
-  environmentName: environment,
-  lambdaFunctions: [
-    /* Example entry for additional Lambda functions and path filters
-    {
-      name: "dataIngestion",
-      functionName: `${StackPrefix}-Api-DataIngestionLambdaDockerFunc`,
-      sourceDir: "cdk/lambda/data_ingestion",
-      },*/
-  ],
-  pathFilters: [
-    //"cdk/lambda/data_ingestion/**",
-  ],
-});
+// const cicd = new CICDStack(app, `${StackPrefix}-CICDStack`, {
+//   env,
+//   githubRepo: githubRepo,
+//   environmentName: environment,
+//   lambdaFunctions: [
+//     /* Example entry for additional Lambda functions and path filters
+//     {
+//       name: "dataIngestion",
+//       functionName: `${StackPrefix}-Api-DataIngestionLambdaDockerFunc`,
+//       sourceDir: "cdk/lambda/data_ingestion",
+//       },*/
+//   ],
+//   pathFilters: [
+//     //"cdk/lambda/data_ingestion/**",
+//   ],
+// });
 
 
 const api = new ApiGatewayStack(app, `${StackPrefix}-ApiStack`, db, vpc, {
