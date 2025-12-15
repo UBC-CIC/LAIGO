@@ -639,7 +639,8 @@ export class ApiGatewayStack extends cdk.Stack {
         code: lambda.Code.fromAsset("lambda/studentAuthorizerFunction"),
         handler: "studentAuthorizerFunction.handler",
         timeout: Duration.seconds(300),
-        memorySize: 256, // Lower memory since no VPC overhead
+        vpc: vpcStack.vpc, // VPC access for database connectivity if needed
+        memorySize: 512, // Lower memory since no VPC overhead
         layers: [jwt], // JWT verification library
         role: lambdaRole,
         environment: {
@@ -671,7 +672,8 @@ export class ApiGatewayStack extends cdk.Stack {
         code: lambda.Code.fromAsset("lambda/instructorAuthorizerFunction"),
         handler: "instructorAuthorizerFunction.handler",
         timeout: Duration.seconds(300),
-        memorySize: 256, // Lower memory since no VPC overhead
+        vpc: vpcStack.vpc,
+        memorySize: 512, // Lower memory since no VPC overhead
         layers: [jwt], // JWT verification library
         role: lambdaRole,
         environment: {
@@ -696,12 +698,16 @@ export class ApiGatewayStack extends cdk.Stack {
     // Cognito Pre-Signup Lambda Trigger
     // Validates email domains and prevents unauthorized registrations
     const preSignupLambda = new lambda.Function(this, "PreSignupLambda", {
-      runtime: lambda.Runtime.NODEJS_20_X,
+      runtime: lambda.Runtime.NODEJS_22_X,
       handler: "preSignup.handler",
       code: lambda.Code.fromAsset("lambda/authorization"),
       environment: {
-        ALLOWED_EMAIL_DOMAINS: "your-ssm-parameter-name", // SSM parameter with allowed domains
+        ALLOWED_EMAIL_DOMAINS: "/LAIGO/AllowedEmailDomains", // SSM parameter with allowed domains
       },
+      vpc: vpcStack.vpc,
+      functionName: `${id}-preSignupLambda`,
+      memorySize: 128,
+      role: lambdaRole
     });
 
     // Cognito Post-Confirmation Lambda Trigger
@@ -713,11 +719,16 @@ export class ApiGatewayStack extends cdk.Stack {
         runtime: lambda.Runtime.NODEJS_20_X,
         handler: "addStudentOnSignUp.handler",
         code: lambda.Code.fromAsset("lambda/authorization"),
+        timeout: Duration.seconds(300),
         vpc: vpcStack.vpc, // VPC access for database connectivity
         environment: {
           SM_DB_CREDENTIALS: db.secretPathAdminName, // Database admin credentials
           RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint, // RDS Proxy for connection pooling
         },
+        functionName: `${id}-addStudentOnSignUp`,
+        memorySize: 128,
+        layers: [postgres],
+        role: lambdaRole,
       }
     );
 
@@ -729,12 +740,17 @@ export class ApiGatewayStack extends cdk.Stack {
       {
         runtime: lambda.Runtime.NODEJS_20_X,
         handler: "adjustUserRoles.handler",
+        timeout: Duration.seconds(300),
         code: lambda.Code.fromAsset("lambda/authorization"),
         vpc: vpcStack.vpc, // VPC access for database connectivity
         environment: {
           SM_DB_CREDENTIALS: db.secretPathAdminName, // Database admin credentials
           RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint, // RDS Proxy for connection pooling
         },
+        functionName: `${id}-adjustUserRoles`,
+        memorySize: 512,
+        layers: [postgres],
+        role: lambdaRole,
       }
     );
 
