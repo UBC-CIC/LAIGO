@@ -1,13 +1,37 @@
+@import url("https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap");
 @import "tailwindcss";
 
 :root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  --text: #050315;
+  --text-secondary: #6e6e6e;
+  --text-button: #f0f0f0;
+  --background: #ffffff;
+  --background-translucent: hwb(from var(--background) h w b / 0.8);
+  --background2: #f5f5f5;
+  --background3: #ffffff;
+  --header: #ffffff;
+  --header-text: var(--primary);
+  --primary: #111835;
+  --secondary: oklch(from var(--primary) calc(l * 1.5) c h);
+  --accent: #1c187a;
+  --bot-text: var(--background);
+  --sender-text: #f0f0f0;
+  --input: #c4c4c4;
+  --placeholder-text: #696873;
+  --green-text: #2e9832;
+  --border: #cccccc;
+  --feedback: #3b58ff;
+  --disclaimer-border: #d4dbdf;
+
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
 
   color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
+  color: #213547;
+  background-color: #ffffff;
+  
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -15,14 +39,47 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
+@media (prefers-color-scheme: dark) {
+  :root {
+    --text: #ffffff;
+    --text-secondary: #aaaaaa;
+    --green-text: #65ff6a;
+    --text-button: #0e0e0e;
+    --background: #2c2c2c;
+    --background-translucent: hwb(from var(--background) h w b / 0.8);
+    --background2: #171717;
+    --background3: #444444;
+    --header: #171717;
+    --header-text: #ffffff;
+    --primary: #3b82f6;
+    --secondary: #466ec4;
+    --accent: #3949ff;
+    --bot-text: --background;
+    --sender-text: #424141;
+    --input: #5c5c5c;
+    --placeholder-text: #8e8e8e;
+    --border: #5c5c5c;
+    --feedback: #769aff;
+    --disclaimer-border: #424242;
+
+    color: var(--text);
+    background-color: var(--background);
+  }
+
+  a {
+    color: #5289ff;
+  }
+  a:hover {
+    color: #79a8ff;
+  }
+  button {
+    background-color: #333;
+    color: white;
+  }
 }
-a:hover {
-  color: #535bf2;
-}
+
+
+
 
 body {
   margin: 0;
@@ -44,13 +101,13 @@ button {
   font-size: 1em;
   font-weight: 500;
   font-family: inherit;
-  background-color: #1a1a1a;
+  background-color: #ffffff;
   cursor: pointer;
   transition: border-color 0.25s;
 }
-button:hover {
-  border-color: #646cff;
-}
+/* button:hover {
+  border-color: #099433;
+} */
 button:focus,
 button:focus-visible {
   outline: 4px auto -webkit-focus-ring-color;
@@ -61,10 +118,126 @@ button:focus-visible {
     color: #213547;
     background-color: #ffffff;
   }
+  a {
+    color: #4f6cee;
+    text-decoration: inherit;
+  }
   a:hover {
-    color: #747bff;
+    color: #3d32d4;
   }
   button {
     background-color: #f9f9f9;
   }
+}
+
+.typing-indicator {
+  display: flex;
+  justify-content: space-between;
+  width: 50px;
+  align-items: center;
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  margin: 0 3px;
+  border-radius: 50%;
+  background-color: var(--text);
+  opacity: 0;
+  animation: dot-blink 1.4s infinite both;
+}
+
+.dot:nth-child(1) {
+  animation-delay: 0s;
+}
+
+.dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes dot-blink {
+  0%, 100% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.markdown > * {
+  all: revert;
+}
+
+.note-text-area {
+  border: 1px solid transparent;
+  border-radius: 1%;
+  outline: none;
+  transition: border 0.2s ease-in-out;
+}
+
+
+
+.note-text-area::placeholder {
+  color:#b89d24a8;
+}
+
+@media print {
+	body {
+		margin: 0 !important;
+	}
+}
+
+.main-container {
+  width: 100%;
+  height: 100vh; /* Full viewport height */
+  margin: 0 auto;
+  border: none;
+  background-color: rgba(0,0,0,0);
+  display: flex;
+  flex-direction: column;
+}
+
+.ck.ck-balloon-panel.ck-balloon-panel_visible {
+  z-index: 99999;
+}
+
+.ck.ck-balloon-panel.ck-powered-by-balloon {
+  z-index: -100;
+  opacity: 0;
+}
+
+.editor-container_classic-editor .editor-container__editor {
+  flex-grow: 1;
+  width: 100%;
+  max-height: 100%; /* Ensures it respects the parent */
+  min-height: 300px; /* Optional: Ensures it has a reasonable min height */
+  border: none !important;
+  background: transparent !important;
+  color: rgb(36, 36, 36);
+}
+
+.ck-content {
+  font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  line-height: 1.6;
+  word-break: break-word;
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+  max-height: 100%; /* Ensures it respects the parent */
+  color: #303030;
+}
+
+/* Simple animations used by various components */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(12px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
 }

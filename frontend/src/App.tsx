@@ -1,7 +1,11 @@
-import { Authenticator, useAuthenticator } from '@aws-amplify/ui-react'
+import { useEffect, useState } from 'react'
 import { Amplify } from 'aws-amplify'
-import { UserProfile } from './components/UserProfile'
-import '@aws-amplify/ui-react/styles.css'
+import { getCurrentUser, fetchAuthSession } from 'aws-amplify/auth'
+import Login from './pages/Login'
+import StudentDashboard from './components/StudentDashboard'
+import InstructorDashboard from './components/InstructorDashboard'
+import AdminDashboard from './components/AdminDashboard'
+import { CircularProgress, Box } from '@mui/material'
 import './App.css'
 
 // Amplify configuration
@@ -27,7 +31,7 @@ const amplifyConfig = {
           required: true,
         },
       },
-      allowGuestAccess: true,
+      allowGuestAccess: false,
     },
   },
 }
@@ -35,28 +39,90 @@ const amplifyConfig = {
 // Configure Amplify
 Amplify.configure(amplifyConfig)
 
-// Auth wrapper component
-function AuthWrapper({ children }: { children: React.ReactNode }) {
-  const { user } = useAuthenticator()
-  return user ? <>{children}</> : null
+interface UserInfo {
+  userId: string
+  email: string
+  firstName: string
+  lastName: string
+  groups: string[]
 }
 
 function App() {
-  return (
-    <Authenticator>
-      <div className="app">
-        <h1>LAIGO Application</h1>
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [userInfo, setUserInfo] = useState<UserInfo | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    checkAuthState()
+  }, [])
+
+  const checkAuthState = async () => {
+    try {
+      const user = await getCurrentUser()
+      const session = await fetchAuthSession()
+      
+      if (user && session.tokens?.idToken) {
+        const idToken = session.tokens.idToken
+        const payload = idToken.payload
         
-        <AuthWrapper>
-          <UserProfile />
-          
-          <div className="main-content">
-            <h2>Welcome to your authenticated app!</h2>
-            <p>You are now signed in and can access protected content.</p>
-          </div>
-        </AuthWrapper>
-      </div>
-    </Authenticator>
+        const userInfo: UserInfo = {
+          userId: payload.sub as string,
+          email: payload.email as string,
+          firstName: payload.given_name as string || '',
+          lastName: payload.family_name as string || '',
+          groups: payload['cognito:groups'] as string[] || ['student']
+        }
+        
+        setUserInfo(userInfo)
+        setIsAuthenticated(true)
+      }
+    } catch (error) {
+      console.log('User not authenticated:', error)
+      setIsAuthenticated(false)
+      setUserInfo(null)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const getUserRole = (groups: string[]): string => {
+    if (groups.includes('admin')) return 'admin'
+    if (groups.includes('instructor')) return 'instructor'
+    return 'student'
+  }
+
+  const renderDashboard = () => {
+    if (!userInfo) return null
+    
+    const role = getUserRole(userInfo.groups)
+    
+    switch (role) {
+      case 'admin':
+        return <AdminDashboard userInfo={userInfo} />
+      case 'instructor':
+        return <InstructorDashboard userInfo={userInfo} />
+      case 'student':
+      default:
+        return <StudentDashboard userInfo={userInfo} />
+    }
+  }
+
+  if (loading) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="100vh">
+        <CircularProgress />
+      </Box>
+    )
+  }
+
+  if (!isAuthenticated) {
+    return <Login />
+  }
+
+  return (
+    <div className="app">
+      {renderDashboard()}
+    </div>
   )
 }
 
