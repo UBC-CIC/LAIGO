@@ -1,5 +1,5 @@
 // Database connection utility
-const { initializeConnection } = require("./lib.js");
+const { initializeConnection } = require("./initializeConnection.js");
 // AWS SDK imports for Cognito Identity Provider
 const {
   CognitoIdentityProviderClient,
