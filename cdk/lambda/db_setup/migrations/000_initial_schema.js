@@ -3,7 +3,7 @@ exports.up = (pgm) => {
     CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
     -- Create enums
-    CREATE TYPE user_role AS ENUM ('junior', 'senior', 'admin');
+    CREATE TYPE user_role AS ENUM ('student', 'instructor', 'admin');
     CREATE TYPE case_status AS ENUM ('in_progress', 'submitted', 'reviewed');
     CREATE TYPE block_type AS ENUM ('intake', 'issues', 'research', 'argument', 'contrarian', 'policy');
     CREATE TYPE prompt_category AS ENUM ('reasoning', 'assessment');
