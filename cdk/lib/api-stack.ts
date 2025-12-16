@@ -716,7 +716,7 @@ export class ApiGatewayStack extends cdk.Stack {
       this,
       "PostConfirmationLambda",
       {
-        runtime: lambda.Runtime.NODEJS_20_X,
+        runtime: lambda.Runtime.NODEJS_22_X,
         handler: "addStudentOnSignUp.handler",
         code: lambda.Code.fromAsset("lambda/authorization"),
         timeout: Duration.seconds(300),
@@ -738,7 +738,7 @@ export class ApiGatewayStack extends cdk.Stack {
       this,
       "PreTokenGenerationLambda",
       {
-        runtime: lambda.Runtime.NODEJS_20_X,
+        runtime: lambda.Runtime.NODEJS_22_X,
         handler: "adjustUserRoles.handler",
         timeout: Duration.seconds(300),
         code: lambda.Code.fromAsset("lambda/authorization"),
