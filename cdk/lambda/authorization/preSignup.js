@@ -12,29 +12,66 @@ exports.handler = async (event) => {
   const parameterName = process.env.ALLOWED_EMAIL_DOMAINS;
 
   try {
+    if (!parameterName) {
+      throw new Error("Environment variable ALLOWED_EMAIL_DOMAINS is not set");
+    }
+
     // Retrieve allowed email domains from SSM Parameter Store
     const getParameterCommand = new GetParameterCommand({
       Name: parameterName,
       WithDecryption: true, // Decrypt if parameter is encrypted
     });
     const data = await ssmClient.send(getParameterCommand);
-    
-    // Parse comma-separated list of allowed domains
-    const allowedDomains = data.Parameter.Value.split(",");
-    
-    // Extract email and domain from user attributes
-    const email = event.request.userAttributes.email;
-    const emailDomain = email.split("@")[1];
 
-    // Reject signup if email domain is not in allowed list
-    if (!allowedDomains.includes(emailDomain)) {
+    if (!data || !data.Parameter || !data.Parameter.Value) {
+      throw new Error(`SSM parameter ${parameterName} not found or has no value`);
+    }
+
+    // Parse comma-separated list of allowed domains (trim and lowercase for robust comparison)
+    const allowedDomains = data.Parameter.Value
+      .split(",")
+      .map((d) => d.trim().toLowerCase())
+      .filter(Boolean);
+
+    console.log("PreSignUp: allowedDomains=", allowedDomains);
+
+    if (allowedDomains.length === 0) {
+      throw new Error(`SSM parameter ${parameterName} contains no allowed domains`);
+    }
+
+    // Extract email and domain from user attributes
+    const email = event?.request?.userAttributes?.email;
+
+    if (!email) {
+      console.error("PreSignUp: no email attribute provided; rejecting signup");
+      throw new Error("Email attribute is required for signup");
+    }
+
+    const parts = email.split("@");
+    if (parts.length < 2) {
+      throw new Error(`Invalid email address provided: ${email}`);
+    }
+    const emailDomain = parts.slice(1).join("@").trim().toLowerCase();
+
+    console.log("PreSignUp: email=", email, "emailDomain=", emailDomain);
+
+    // Accept only exact domain matches (no subdomain matching)
+    const isAllowed = allowedDomains.some((allowed) => {
+      if (allowed === "*") return true; // wildcard allows all
+      return allowed === emailDomain; // exact match only
+    });
+
+    // Reject signup if email domain is not allowed
+    if (!isAllowed) {
+      console.error(`PreSignUp: domain \"${emailDomain}\" not allowed; allowedDomains=${allowedDomains.join(",")}`);
       throw new Error(`Signup not allowed for email domain: ${emailDomain}`);
     }
 
-    // Return event to continue signup process
+    // All good — continue signup
     return event;
   } catch (error) {
-    console.error(error);
-    throw new Error("Error validating email domain during pre-signup.");
+    console.error("PreSignUp error:", error);
+    // Rethrow the original error so CloudWatch/Cognito get the specific message
+    throw error;
   }
 };
