@@ -695,6 +695,103 @@ export class ApiGatewayStack extends cdk.Stack {
       "instructorLambdaAuthorizer"
     );
 
+    // create new cognito lambda role for cognito triggers
+    const cognitoRole = new iam.Role(this, `${id}-CognitoLambdaRole`, {
+      roleName: `${id}-CognitoLambdaRole`,
+      assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
+    });
+
+
+    // Grant access to Secrets Manager
+    cognitoRole.addToPolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: [
+          //Secrets Manager
+          "secretsmanager:GetSecretValue",
+          "secretsmanager:PutSecretValue",
+        ],
+        resources: [
+          `arn:aws:secretsmanager:${this.region}:${this.account}:secret:*`,
+        ],
+      })
+    );
+
+    // Grant permission to add users to an IAM group
+    cognitoRole.addToPolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["iam:AddUserToGroup"],
+        resources: [
+          `arn:aws:iam::${this.account}:user/*`,
+          `arn:aws:iam::${this.account}:group/*`,
+        ],
+      })
+    );
+
+    // Grant access to EC2
+    cognitoRole.addToPolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: [
+          "ec2:CreateNetworkInterface",
+          "ec2:DescribeNetworkInterfaces",
+          "ec2:DeleteNetworkInterface",
+          "ec2:AssignPrivateIpAddresses",
+          "ec2:UnassignPrivateIpAddresses",
+        ],
+        resources: ["*"], // must be *
+      })
+    );
+
+    // Grant access to log
+    cognitoRole.addToPolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: [
+          //Logs
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents",
+        ],
+        resources: ["arn:aws:logs:*:*:*"],
+      })
+    );
+
+    // Policy to allow Cognito admin actions for user group management
+    const adminAddUserToGroupPolicy = new iam.Policy(
+      this,
+      `${id}-AdminAddUserToGroupPolicy`,
+      {
+        statements: [
+          new iam.PolicyStatement({
+            effect: iam.Effect.ALLOW,
+            actions: [
+              "cognito-idp:AdminAddUserToGroup",
+              "cognito-idp:AdminRemoveUserFromGroup",
+              "cognito-idp:AdminGetUser",
+              "cognito-idp:AdminListGroupsForUser",
+            ],
+            resources: [
+              `arn:aws:cognito-idp:${this.region}:${this.account}:userpool/${this.userPool.userPoolId}`,
+            ],
+          }),
+        ],
+      }
+    );
+    // Attach the inline policy to the role
+    cognitoRole.attachInlinePolicy(adminAddUserToGroupPolicy);
+
+    // Grant access to SSM parameters for allowed email domains
+    cognitoRole.addToPolicy(
+      new iam.PolicyStatement({
+        actions: ["ssm:GetParameter"],
+        resources: [`arn:aws:ssm:${this.region}:${this.account}:parameter/*`],
+      })
+    );
+
+
+
     // Cognito Pre-Signup Lambda Trigger
     // Validates email domains and prevents unauthorized registrations
     const preSignupLambda = new lambda.Function(this, "PreSignupLambda", {
@@ -707,7 +804,7 @@ export class ApiGatewayStack extends cdk.Stack {
       vpc: vpcStack.vpc,
       functionName: `${id}-preSignupLambda`,
       memorySize: 128,
-      role: lambdaRole
+      role: cognitoRole,
     });
 
     // Cognito Post-Confirmation Lambda Trigger
@@ -728,7 +825,7 @@ export class ApiGatewayStack extends cdk.Stack {
         functionName: `${id}-addStudentOnSignUp`,
         memorySize: 128,
         layers: [postgres],
-        role: lambdaRole,
+        role: cognitoRole,
       }
     );
 
@@ -750,7 +847,7 @@ export class ApiGatewayStack extends cdk.Stack {
         functionName: `${id}-adjustUserRoles`,
         memorySize: 512,
         layers: [postgres],
-        role: lambdaRole,
+        role: cognitoRole,
       }
     );
 
