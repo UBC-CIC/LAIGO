@@ -219,7 +219,7 @@ const Login = () => {
 
       <div style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "16px", transition: "all 0.3s ease", opacity: 0, animation: 'fadeIn 0.6s forwards', minHeight: '100vh', backgroundColor: 'var(--background2)' }}>
         <Box sx={{ width: "100%", maxWidth: 420, animation: 'slideUp 0.6s ease-out', border: "1px solid var(--border)", borderRadius: 2, padding: 2, backgroundColor: "var(--background)" }}>
-          <Typography variant="h5" fontWeight={600} textAlign="left" mb={2} sx={{ color: "var(--text)", fontFamily: "Outfit", fontSize: 22, transition: "all 0.3s ease", }}>
+          <Typography variant="h5" fontWeight={600} textAlign="left" mb={2} sx={{ color: "var(--text)", fontFamily: "var(--font-family)", fontSize: 22, transition: "all 0.3s ease", }}>
           <div style={{ opacity: 0, animation: 'fadeIn 0.6s forwards', display: 'flex', alignItems: 'center', gap: '8px'}}>
           <img src={logo} alt="Logo" style={{ width: "50px", height: "50px" }} />
             {isReset ? "Reset Password" : isSignUp ? "Create Account" : "Legal Aid Tool"}
@@ -231,7 +231,7 @@ const Login = () => {
             {isConfirmingSignUp ? (
               <>
                 <TextField fullWidth label="Confirmation Code" margin="normal" value={confirmationCode} onChange={(e) => setConfirmationCode(e.target.value)} sx={inputStyles} />
-                <Button type="submit" fullWidth variant="contained" sx={{ mt: 2, color: "white", backgroundColor: "var(--primary)", boxShadow: 'none', borderRadius: 2, fontFamily: 'Outfit', "&:hover": {backgroundColor: "var(--secondary)", boxShadow: "none",} }}>
+                <Button type="submit" fullWidth variant="contained" sx={{ mt: 2, color: "white", backgroundColor: "var(--primary)", boxShadow: 'none', borderRadius: 2, fontFamily: 'var(--font-family)', "&:hover": {backgroundColor: "var(--secondary)", boxShadow: "none",} }}>
                 {loading ? <CircularProgress size={24} color="inherit" /> : "Confirm Sign Up" }
                 </Button>
                 <Box mt={2} textAlign="center">
@@ -261,8 +261,8 @@ const Login = () => {
                         <TextField fullWidth label="New Password" type="password" margin="normal" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} sx={inputStyles} />
                       </>
                     )}
-                    {step === "requestReset" && <Button fullWidth onClick={handleReset} variant="contained" sx={{ mt: 2, color: "white", backgroundColor: "var(--primary)", boxShadow: 'none', borderRadius: 2, fontFamily: 'Outfit', "&:hover": {backgroundColor: "var(--secondary)", boxShadow: "none",} }}>Send Reset Code</Button>}
-                    {step === "confirmReset" && <Button type="submit" fullWidth variant="contained" sx={{ mt: 2, color: "white", backgroundColor: "var(--primary)", boxShadow: 'none', borderRadius: 2, fontFamily: 'Outfit', "&:hover": {backgroundColor: "var(--secondary)", boxShadow: "none",} }}>Confirm Reset</Button>}
+                    {step === "requestReset" && <Button fullWidth onClick={handleReset} variant="contained" sx={{ mt: 2, color: "white", backgroundColor: "var(--primary)", boxShadow: 'none', borderRadius: 2, fontFamily: 'var(--font-family)', "&:hover": {backgroundColor: "var(--secondary)", boxShadow: "none",} }}>Send Reset Code</Button>}
+                    {step === "confirmReset" && <Button type="submit" fullWidth variant="contained" sx={{ mt: 2, color: "white", backgroundColor: "var(--primary)", boxShadow: 'none', borderRadius: 2, fontFamily: 'var(--font-family)', "&:hover": {backgroundColor: "var(--secondary)", boxShadow: "none",} }}>Confirm Reset</Button>}
                     <Box mt={2} textAlign="center">
                       <Link href="#" onClick={(e) => { e.preventDefault(); setIsReset(false); }} underline="hover" sx={{ fontSize: 14, color: "var(--primary)" }}>Back to Sign In</Link>
                     </Box>
@@ -360,7 +360,7 @@ const Login = () => {
                           fontWeight: 600, 
                           mb: 0.3, 
                           display: 'block',
-                          fontFamily: 'Outfit',
+                          fontFamily: 'var(--font-family)',
                           fontSize: '0.65rem'
                         }}>
                           Requirements:
@@ -380,7 +380,7 @@ const Login = () => {
                             </Box>
                             <Typography variant="caption" sx={{ 
                               color: passwordRequirements.minLength ? '#4caf50' : 'var(--placeholder-text)',
-                              fontFamily: 'Outfit',
+                              fontFamily: 'var(--font-family)',
                               fontSize: '0.65rem'
                             }}>
                               At least 12 characters
@@ -400,7 +400,7 @@ const Login = () => {
                             </Box>
                             <Typography variant="caption" sx={{ 
                               color: passwordRequirements.hasLowercase ? '#4caf50' : 'var(--placeholder-text)',
-                              fontFamily: 'Outfit',
+                              fontFamily: 'var(--font-family)',
                               fontSize: '0.65rem'
                             }}>
                               One lowercase letter
@@ -420,7 +420,7 @@ const Login = () => {
                             </Box>
                             <Typography variant="caption" sx={{ 
                               color: passwordRequirements.hasUppercase ? '#4caf50' : 'var(--placeholder-text)',
-                              fontFamily: 'Outfit',
+                              fontFamily: 'var(--font-family)',
                               fontSize: '0.65rem'
                             }}>
                               One uppercase letter
@@ -440,7 +440,7 @@ const Login = () => {
                             </Box>
                             <Typography variant="caption" sx={{ 
                               color: passwordRequirements.hasNumber ? '#4caf50' : 'var(--placeholder-text)',
-                              fontFamily: 'Outfit',
+                              fontFamily: 'var(--font-family)',
                               fontSize: '0.65rem'
                             }}>
                               One number
@@ -460,7 +460,7 @@ const Login = () => {
                             </Box>
                             <Typography variant="caption" sx={{ 
                               color: passwordRequirements.hasSpecialChar ? '#4caf50' : 'var(--placeholder-text)',
-                              fontFamily: 'Outfit',
+                              fontFamily: 'var(--font-family)',
                               fontSize: '0.65rem'
                             }}>
                               One special character
@@ -525,7 +525,7 @@ const Login = () => {
                         </Box>
                         <Typography variant="caption" sx={{ 
                           color: passwordRequirements.passwordsMatch ? '#4caf50' : '#f44336',
-                          fontFamily: 'Outfit'
+                          fontFamily: 'var(--font-family)'
                         }}>
                           {passwordRequirements.passwordsMatch ? 'Passwords match' : 'Passwords do not match'}
                         </Typography>
@@ -538,7 +538,7 @@ const Login = () => {
                         </Link>
                       </Box>
                     )}
-                    <Button type="submit" fullWidth variant="contained" sx={{ mt: 2, color: "white", backgroundColor: "var(--primary)", boxShadow: 'none', borderRadius: 2, fontFamily: 'Outfit', "&:hover": {backgroundColor: "var(--secondary)", boxShadow: "none",} }} disabled={loading}>
+                    <Button type="submit" fullWidth variant="contained" sx={{ mt: 2, color: "white", backgroundColor: "var(--primary)", boxShadow: 'none', borderRadius: 2, fontFamily: 'var(--font-family)', "&:hover": {backgroundColor: "var(--secondary)", boxShadow: "none",} }} disabled={loading}>
                       {loading ? <CircularProgress size={24} color="inherit" /> : isSignUp ? "Sign Up" : "Sign In"}
                     </Button>
                     <Box textAlign="center" mt={2}>
