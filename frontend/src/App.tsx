@@ -2,11 +2,11 @@ import { useEffect, useState } from 'react'
 import { Amplify } from 'aws-amplify'
 import { getCurrentUser, fetchAuthSession } from 'aws-amplify/auth'
 import Login from './pages/Login'
-import StudentDashboard from './components/StudentDashboard'
 import InstructorDashboard from './components/InstructorDashboard'
 import AdminDashboard from './components/AdminDashboard'
 import { CircularProgress, Box } from '@mui/material'
 import './App.css'
+import RealStudentHome from './pages/Student/RealStudentHome'
 
 // Amplify configuration
 const amplifyConfig = {
@@ -103,7 +103,7 @@ function App() {
         return <InstructorDashboard userInfo={userInfo} />
       case 'student':
       default:
-        return <StudentDashboard userInfo={userInfo} />
+        return <RealStudentHome />
     }
   }
 

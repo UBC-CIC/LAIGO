@@ -1,0 +1,60 @@
+import React from "react";
+import { Box, Typography, Stack } from "@mui/material";
+import AddBoxOutlinedIcon from "@mui/icons-material/AddBoxOutlined";
+import FolderOpenOutlinedIcon from "@mui/icons-material/FolderOpenOutlined";
+import NotificationsNoneOutlinedIcon from "@mui/icons-material/NotificationsNoneOutlined";
+import AccountCircleOutlinedIcon from "@mui/icons-material/AccountCircleOutlined";
+
+const iconStyle = { color: "#ffffff", fontSize: "1.5rem" };
+const labelStyle = { color: "#b0b0b0", fontSize: "0.7rem", marginTop: "4px" };
+
+type HeaderItemProps = {
+  icon: React.ReactNode;
+  label: string;
+};
+
+const HeaderItem: React.FC<HeaderItemProps> = ({ icon, label }) => (
+  <Stack alignItems="center" sx={{ cursor: "pointer", mx: 2 }}>
+    {icon}
+    <Typography variant="caption" sx={labelStyle}>
+      {label}
+    </Typography>
+  </Stack>
+);
+
+const StudentHeader: React.FC = () => {
+  return (
+    <Box
+      sx={{
+        display: "flex",
+        justifyContent: "flex-end",
+        alignItems: "center",
+        padding: "1rem 2rem",
+        backgroundColor: "#1e1e1e", // Dark header background matching screenshot
+        borderBottom: "1px solid #333",
+        height: "80px",
+      }}
+    >
+      <Box sx={{ display: "flex" }}>
+        <HeaderItem
+          icon={<AddBoxOutlinedIcon sx={iconStyle} />}
+          label="New Case"
+        />
+        <HeaderItem
+          icon={<FolderOpenOutlinedIcon sx={iconStyle} />}
+          label="All Cases"
+        />
+        <HeaderItem
+          icon={<NotificationsNoneOutlinedIcon sx={iconStyle} />}
+          label="Notifications"
+        />
+        <HeaderItem
+          icon={<AccountCircleOutlinedIcon sx={iconStyle} />}
+          label="Aniket"
+        />
+      </Box>
+    </Box>
+  );
+};
+
+export default StudentHeader;
