@@ -5,8 +5,12 @@ import FolderOpenOutlinedIcon from "@mui/icons-material/FolderOpenOutlined";
 import NotificationsNoneOutlinedIcon from "@mui/icons-material/NotificationsNoneOutlined";
 import AccountCircleOutlinedIcon from "@mui/icons-material/AccountCircleOutlined";
 
-const iconStyle = { color: "#ffffff", fontSize: "1.5rem" };
-const labelStyle = { color: "#b0b0b0", fontSize: "0.7rem", marginTop: "4px" };
+const iconStyle = { color: "var(--header-text)", fontSize: "1.5rem" };
+const labelStyle = {
+  color: "var(--text-secondary)",
+  fontSize: "0.7rem",
+  marginTop: "4px",
+};
 
 type HeaderItemProps = {
   icon: React.ReactNode;
@@ -14,9 +18,23 @@ type HeaderItemProps = {
 };
 
 const HeaderItem: React.FC<HeaderItemProps> = ({ icon, label }) => (
-  <Stack alignItems="center" sx={{ cursor: "pointer", mx: 2 }}>
+  <Stack
+    alignItems="center"
+    sx={{
+      cursor: "pointer",
+      mx: 2,
+      p: 1,
+      borderRadius: 1,
+      transition: "color 0.2s ease",
+      '& svg': { transition: "color 0.2s ease" },
+      '&:hover': {
+        '& svg': { color: "var(--text-secondary)" },
+        '& .header-label': { color: "var(--text-secondary)" },
+      },
+    }}
+  >
     {icon}
-    <Typography variant="caption" sx={labelStyle}>
+    <Typography variant="caption" className="header-label" sx={labelStyle}>
       {label}
     </Typography>
   </Stack>
@@ -30,8 +48,7 @@ const StudentHeader: React.FC = () => {
         justifyContent: "flex-end",
         alignItems: "center",
         padding: "1rem 2rem",
-        backgroundColor: "#1e1e1e", // Dark header background matching screenshot
-        borderBottom: "1px solid #333",
+        backgroundColor: "var(--header)", 
         height: "80px",
       }}
     >

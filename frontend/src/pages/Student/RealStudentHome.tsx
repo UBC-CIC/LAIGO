@@ -54,9 +54,9 @@ const RealStudentHome: React.FC = () => {
   return (
     <Box
       sx={{
-        backgroundColor: "#181818", // Deep dark background
+        backgroundColor: "var(--background)", // Deep dark background
         minHeight: "100vh",
-        color: "white",
+        color: "var(--text)",
         display: "flex",
         flexDirection: "column",
       }}
@@ -80,19 +80,19 @@ const RealStudentHome: React.FC = () => {
             placeholder="Search for a case"
             fullWidth
             sx={{
-              backgroundColor: "#2c2c2c",
+              backgroundColor: "var(--background)",
               borderRadius: "4px",
               maxWidth: "100%",
               "& .MuiOutlinedInput-root": {
-                color: "white",
+                color: "var(--text)",
                 "& fieldset": {
-                  borderColor: "#444",
+                  borderColor: "var(--border)",
                 },
                 "&:hover fieldset": {
-                  borderColor: "#666",
+                  borderColor: "var(--text-secondary)",
                 },
                 "&.Mui-focused fieldset": {
-                  borderColor: "#888",
+                  borderColor: "var(--primary)",
                 },
               },
             }}
@@ -100,7 +100,7 @@ const RealStudentHome: React.FC = () => {
               input: {
                 startAdornment: (
                   <InputAdornment position="start">
-                    <SearchIcon sx={{ color: "#aaa" }} />
+                    <SearchIcon sx={{ color: "var(--text-secondary)" }} />
                   </InputAdornment>
                 ),
               },

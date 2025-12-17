@@ -19,9 +19,9 @@ const CaseCard: React.FC<CaseCardProps> = ({
   return (
     <Card
       sx={{
-        backgroundColor: "#2c2c2c", // Dark card background
-        color: "white",
-        border: "1px solid #444",
+        backgroundColor: "var(--background)", // Dark card background
+        color: "var(--text)",
+        border: "1px solid var(--border)",
         borderRadius: "4px",
         boxShadow: "none",
         height: "100%",
@@ -30,15 +30,23 @@ const CaseCard: React.FC<CaseCardProps> = ({
         justifyContent: "space-between",
         alignItems: "flex-start",
         "&:hover": {
-          border: "1px solid #666",
+          border: "1px solid var(--text-secondary)",
         },
       }}
     >
-      <CardContent sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', textAlign: 'left', width: '100%' }}>
+      <CardContent
+        sx={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "flex-start",
+          textAlign: "left",
+          width: "100%",
+        }}
+      >
         <Typography
           variant="caption"
           display="block"
-          sx={{ color: "#aaa", mb: 1 }}
+          sx={{ color: "var(--text-secondary)", mb: 1 }}
         >
           Case: #{caseId}
         </Typography>
@@ -57,7 +65,7 @@ const CaseCard: React.FC<CaseCardProps> = ({
         <Typography
           variant="body2"
           sx={{
-            color: status === "In Progress" ? "#4caf50" : "#ffa726",
+            color: status === "In Progress" ? "var(--green-text)" : "#ffa726",
             fontWeight: "bold",
             mb: 2,
           }}
@@ -66,11 +74,19 @@ const CaseCard: React.FC<CaseCardProps> = ({
         </Typography>
 
         <Box sx={{ mt: "auto" }}>
-          <Typography variant="caption" display="block" sx={{ color: "#ddd" }}>
+          <Typography
+            variant="caption"
+            display="block"
+            sx={{ color: "var(--text)" }}
+          >
             <span style={{ fontWeight: "bold" }}>Jurisdiction:</span>{" "}
             {jurisdiction}
           </Typography>
-          <Typography variant="caption" display="block" sx={{ color: "#ddd" }}>
+          <Typography
+            variant="caption"
+            display="block"
+            sx={{ color: "var(--text)" }}
+          >
             <span style={{ fontWeight: "bold" }}>Date Added:</span> {dateAdded}
           </Typography>
         </Box>
