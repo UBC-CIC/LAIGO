@@ -53,9 +53,9 @@ const CreateCase: React.FC = () => {
       <StudentHeader />
       
       <Container
-        maxWidth="lg"
+        maxWidth="xl"
         sx={{
-          mt: 8,
+          mt: 4,
           mb: 4,
           flexGrow: 1,
           display: "flex",
@@ -77,7 +77,7 @@ const CreateCase: React.FC = () => {
             alignItems: "flex-start",
           }}
         >
-          <Typography variant="h5" sx={{ fontWeight: "bold", mb: 3 }}>
+          <Typography variant="h5" sx={{ mb: 3, color: "var(--text)" }}>
             Create a Case
           </Typography>
 
@@ -94,7 +94,7 @@ const CreateCase: React.FC = () => {
             <Box >
               <Typography
                 variant="subtitle1"
-                sx={{ fontWeight: "bold", mb: 1, color: "var(--text)", textAlign: "left" }}
+                sx={{mb: 1, color: "var(--text)", textAlign: "left" }}
               >
                 Jurisdiction
               </Typography>
@@ -140,7 +140,7 @@ const CreateCase: React.FC = () => {
             <Stack direction="row" alignItems="center" spacing={1}>
               <Typography
                 variant="subtitle1"
-                sx={{ fontWeight: "bold", color: "var(--text)" }}
+                sx={{color: "var(--text)" }}
               >
                 Statute Applicable?
               </Typography>
@@ -184,8 +184,7 @@ const CreateCase: React.FC = () => {
               fullWidth
               sx={{
                 backgroundColor: "#76b9f0",
-                color: "#000",
-                fontWeight: "bold",
+                color: "var(--text)",
                 textTransform: "none",
                 fontSize: "1rem",
                 py: 1.5,
@@ -194,7 +193,7 @@ const CreateCase: React.FC = () => {
                 },
               }}
             >
-              Start Chat
+              START CHAT
             </Button>
           </Stack>
         </Paper>
