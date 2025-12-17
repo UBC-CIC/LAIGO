@@ -1,5 +1,8 @@
 import React from "react";
-import { Card, CardContent, Typography, Box } from "@mui/material";
+import { Card, CardContent, Typography, Box, IconButton, Menu, MenuItem } from "@mui/material";
+import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import ArchiveIcon from '@mui/icons-material/Archive';
 
 interface CaseCardProps {
   caseId: string;
@@ -7,6 +10,8 @@ interface CaseCardProps {
   status: string;
   jurisdiction: string;
   dateAdded: string;
+  onDelete?: (caseId: string) => void;
+  onArchive?: (caseId: string) => void;
 }
 
 const CaseCard: React.FC<CaseCardProps> = ({
@@ -15,11 +20,26 @@ const CaseCard: React.FC<CaseCardProps> = ({
   status,
   jurisdiction,
   dateAdded,
+  onDelete,
+  onArchive,
 }) => {
+  const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
+  const open = Boolean(anchorEl);
+  const handleEllipsisClick = (e: React.MouseEvent<HTMLElement>) => setAnchorEl(e.currentTarget);
+  const handleEllipsisClose = () => setAnchorEl(null);
+  const handleDelete = () => {
+    handleEllipsisClose();
+    if (onDelete) onDelete(caseId);
+  };
+  const handleArchive = () => {
+    handleEllipsisClose();
+    if (onArchive) onArchive(caseId);
+  };
+
   return (
     <Card
       sx={{
-        backgroundColor: "var(--background)", // Dark card background
+        backgroundColor: "var(--background)", // card background
         color: "var(--text)",
         border: "1px solid var(--border)",
         borderRadius: "4px",
@@ -29,6 +49,7 @@ const CaseCard: React.FC<CaseCardProps> = ({
         flexDirection: "column",
         justifyContent: "space-between",
         alignItems: "flex-start",
+        position: 'relative',
         "&:hover": {
           border: "1px solid var(--text-secondary)",
         },
@@ -91,6 +112,54 @@ const CaseCard: React.FC<CaseCardProps> = ({
           </Typography>
         </Box>
       </CardContent>
+
+      {/* Ellipsis button for menu */}
+      <IconButton
+        aria-label="more"
+        aria-controls={open ? `case-menu-${caseId}` : undefined}
+        aria-haspopup="true"
+        onClick={handleEllipsisClick}
+        size="small"
+        sx={{
+          position: 'absolute',
+          right: 8,
+          bottom: 8,
+          color: 'var(--text-secondary)',
+          backgroundColor: 'transparent',
+          '&:hover': { backgroundColor: 'transparent', color: 'var(--text)' },
+          '&:focus': { outline: 'none', boxShadow: 'none' },
+          '&:active': { backgroundColor: 'transparent' },
+        }}
+      >
+        <MoreHorizIcon />
+      </IconButton>
+
+      <Menu
+        id={`case-menu-${caseId}`}
+        anchorEl={anchorEl}
+        open={open}
+        onClose={handleEllipsisClose}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        disableScrollLock
+        PaperProps={{
+          sx: {
+            backgroundColor: 'var(--background3)',
+            color: 'var(--text)',
+            border: '1px solid var(--border)',
+            minWidth: 160,
+          }
+        }}
+      >
+        <MenuItem onClick={handleDelete} sx={{ color: 'var(--text)', gap: 1 }}>
+          <DeleteOutlineIcon sx={{ mr: 1, color: 'var(--text)' }} />
+          Delete
+        </MenuItem>
+        <MenuItem onClick={handleArchive} sx={{ color: 'var(--text)', gap: 1 }}>
+          <ArchiveIcon sx={{ mr: 1, color: 'var(--text)' }} />
+          Archive
+        </MenuItem>
+      </Menu>
     </Card>
   );
 };
