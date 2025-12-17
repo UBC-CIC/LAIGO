@@ -52,6 +52,7 @@ const CaseCard: React.FC<CaseCardProps> = ({
         position: 'relative',
         "&:hover": {
           border: "1px solid var(--text-secondary)",
+          cursor: 'pointer',
         },
       }}
     >
