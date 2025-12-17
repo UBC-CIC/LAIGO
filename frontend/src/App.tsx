@@ -1,12 +1,14 @@
-import { useEffect, useState } from 'react'
-import { Amplify } from 'aws-amplify'
-import { getCurrentUser, fetchAuthSession } from 'aws-amplify/auth'
-import Login from './pages/Login'
-import InstructorDashboard from './components/InstructorDashboard'
-import AdminDashboard from './components/AdminDashboard'
-import { CircularProgress, Box } from '@mui/material'
-import './App.css'
-import RealStudentHome from './pages/Student/RealStudentHome'
+import { useEffect, useState } from "react";
+import { Amplify } from "aws-amplify";
+import { getCurrentUser, fetchAuthSession } from "aws-amplify/auth";
+import { Routes, Route } from "react-router-dom";
+import Login from "./pages/Login";
+import InstructorDashboard from "./components/InstructorDashboard";
+import AdminDashboard from "./components/AdminDashboard";
+import { CircularProgress, Box } from "@mui/material";
+import "./App.css";
+import RealStudentHome from "./pages/Student/RealStudentHome";
+import CreateCase from "./pages/Student/CreateCase";
 
 // Amplify configuration
 const amplifyConfig = {
@@ -25,7 +27,7 @@ const amplifyConfig = {
       loginWith: {
         email: true,
       },
-      signUpVerificationMethod: 'code' as const,
+      signUpVerificationMethod: "code" as const,
       userAttributes: {
         email: {
           required: true,
@@ -34,96 +36,105 @@ const amplifyConfig = {
       allowGuestAccess: false,
     },
   },
-}
+};
 
 // Configure Amplify
-Amplify.configure(amplifyConfig)
+Amplify.configure(amplifyConfig);
 
 interface UserInfo {
-  userId: string
-  email: string
-  firstName: string
-  lastName: string
-  groups: string[]
+  userId: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  groups: string[];
 }
 
 function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
-  const [userInfo, setUserInfo] = useState<UserInfo | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    checkAuthState()
-  }, [])
+    checkAuthState();
+  }, []);
 
   const checkAuthState = async () => {
     try {
-      const user = await getCurrentUser()
-      const session = await fetchAuthSession()
-      
+      const user = await getCurrentUser();
+      const session = await fetchAuthSession();
+
       if (user && session.tokens?.idToken) {
-        const idToken = session.tokens.idToken
-        const payload = idToken.payload
-        
+        const idToken = session.tokens.idToken;
+        const payload = idToken.payload;
+
         const userInfo: UserInfo = {
           userId: payload.sub as string,
           email: payload.email as string,
-          firstName: payload.given_name as string || '',
-          lastName: payload.family_name as string || '',
-          groups: payload['cognito:groups'] as string[] || ['student']
-        }
-        
-        setUserInfo(userInfo)
-        setIsAuthenticated(true)
+          firstName: (payload.given_name as string) || "",
+          lastName: (payload.family_name as string) || "",
+          groups: (payload["cognito:groups"] as string[]) || ["student"],
+        };
+
+        setUserInfo(userInfo);
+        setIsAuthenticated(true);
       }
     } catch (error) {
-      console.log('User not authenticated:', error)
-      setIsAuthenticated(false)
-      setUserInfo(null)
+      console.log("User not authenticated:", error);
+      setIsAuthenticated(false);
+      setUserInfo(null);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const getUserRole = (groups: string[]): string => {
-    if (groups.includes('admin')) return 'admin'
-    if (groups.includes('instructor')) return 'instructor'
-    return 'student'
-  }
+    if (groups.includes("admin")) return "admin";
+    if (groups.includes("instructor")) return "instructor";
+    return "student";
+  };
 
   const renderDashboard = () => {
-    if (!userInfo) return null
-    
-    const role = getUserRole(userInfo.groups)
-    
+    if (!userInfo) return null;
+
+    const role = getUserRole(userInfo.groups);
+
     switch (role) {
-      case 'admin':
-        return <AdminDashboard userInfo={userInfo} />
-      case 'instructor':
-        return <InstructorDashboard userInfo={userInfo} />
-      case 'student':
+      case "admin":
+        return <AdminDashboard userInfo={userInfo} />;
+      case "instructor":
+        return <InstructorDashboard userInfo={userInfo} />;
+      case "student":
       default:
-        return <RealStudentHome />
+        // Use Routes for student navigation
+        return (
+          <Routes>
+            <Route path="/" element={<RealStudentHome />} />
+            <Route path="/create-case" element={<CreateCase />} />
+            {/* Fallback to home */}
+            <Route path="*" element={<RealStudentHome />} />
+          </Routes>
+        );
     }
-  }
+  };
 
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="100vh">
+      <Box
+        display="flex"
+        justifyContent="center"
+        alignItems="center"
+        minHeight="100vh"
+      >
         <CircularProgress />
       </Box>
-    )
+    );
   }
 
   if (!isAuthenticated) {
-    return <Login />
+    return <Login />;
   }
 
-  return (
-    <div className="app">
-      {renderDashboard()}
-    </div>
-  )
+  return <div className="app">{renderDashboard()}</div>;
 }
 
-export default App
+export default App;

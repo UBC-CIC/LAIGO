@@ -1,10 +1,11 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Box, Typography, Stack, Menu, MenuItem } from "@mui/material";
 import CreateNewFolderIcon from "@mui/icons-material/CreateNewFolder";
 import FolderOpenOutlinedIcon from "@mui/icons-material/FolderOpenOutlined";
 import NotificationsNoneOutlinedIcon from "@mui/icons-material/NotificationsNoneOutlined";
 import AccountCircleOutlinedIcon from "@mui/icons-material/AccountCircleOutlined";
-import { signOut } from 'aws-amplify/auth';
+import { signOut } from "aws-amplify/auth";
 
 const iconStyle = { color: "var(--header-text)", fontSize: "1.5rem" };
 const labelStyle = {
@@ -16,22 +17,25 @@ const labelStyle = {
 type HeaderItemProps = {
   icon: React.ReactNode;
   label: string;
+  onClick?: () => void;
 };
 
-const HeaderItem: React.FC<HeaderItemProps> = ({ icon, label }) => (
+const HeaderItem: React.FC<HeaderItemProps> = ({ icon, label, onClick }) => (
   <Stack
     alignItems="center"
+    onClick={onClick}
     sx={{
       cursor: "pointer",
       mx: 2,
       p: 1,
       borderRadius: 1,
       transition: "color 0.2s ease",
-      '& svg': { transition: "color 0.2s ease" },
-      '&:hover': {
-        '& svg': { color: "var(--text-secondary)" },
-        '& .header-label': { color: "var(--text-secondary)" },
+      "& svg": { transition: "color 0.2s ease" },
+      "&:hover": {
+        "& svg": { color: "var(--text-secondary)" },
+        "& .header-label": { color: "var(--text-secondary)" },
       },
+      ...(onClick ? {} : { pointerEvents: "none" }), // Optional safety, though cursor pointer suggests interactive
     }}
   >
     {icon}
@@ -42,7 +46,9 @@ const HeaderItem: React.FC<HeaderItemProps> = ({ icon, label }) => (
 );
 
 const StudentHeader: React.FC = () => {
-  const [profileMenuAnchor, setProfileMenuAnchor] = useState<null | HTMLElement>(null);
+  const navigate = useNavigate();
+  const [profileMenuAnchor, setProfileMenuAnchor] =
+    useState<null | HTMLElement>(null);
 
   const handleProfileClick = (event: React.MouseEvent<HTMLElement>) => {
     setProfileMenuAnchor(event.currentTarget);
@@ -60,7 +66,7 @@ const StudentHeader: React.FC = () => {
 
       // Optionally, you can add navigation or other logic here
     } catch (error) {
-      console.error('Error signing out:', error);
+      console.error("Error signing out:", error);
     }
   };
 
@@ -71,7 +77,7 @@ const StudentHeader: React.FC = () => {
         justifyContent: "flex-end",
         alignItems: "center",
         padding: "1rem 2rem",
-        backgroundColor: "var(--header)", 
+        backgroundColor: "var(--header)",
         height: "80px",
       }}
     >
@@ -79,10 +85,12 @@ const StudentHeader: React.FC = () => {
         <HeaderItem
           icon={<CreateNewFolderIcon sx={iconStyle} />}
           label="New Case"
+          onClick={() => navigate("/create-case")}
         />
         <HeaderItem
           icon={<FolderOpenOutlinedIcon sx={iconStyle} />}
           label="All Cases"
+          onClick={() => navigate("/")}
         />
         <HeaderItem
           icon={<NotificationsNoneOutlinedIcon sx={iconStyle} />}
@@ -96,16 +104,20 @@ const StudentHeader: React.FC = () => {
             p: 1,
             borderRadius: 1,
             transition: "color 0.2s ease",
-            '& svg': { transition: "color 0.2s ease" },
-            '&:hover': {
-              '& svg': { color: "var(--text-secondary)" },
-              '& .header-label': { color: "var(--text-secondary)" },
+            "& svg": { transition: "color 0.2s ease" },
+            "&:hover": {
+              "& svg": { color: "var(--text-secondary)" },
+              "& .header-label": { color: "var(--text-secondary)" },
             },
           }}
           onClick={handleProfileClick}
         >
           <AccountCircleOutlinedIcon sx={iconStyle} />
-          <Typography variant="caption" className="header-label" sx={labelStyle}>
+          <Typography
+            variant="caption"
+            className="header-label"
+            sx={labelStyle}
+          >
             Aniket
           </Typography>
         </Stack>
@@ -115,25 +127,28 @@ const StudentHeader: React.FC = () => {
         anchorEl={profileMenuAnchor}
         open={Boolean(profileMenuAnchor)}
         onClose={handleProfileClose}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-        transformOrigin={{ vertical: 'top', horizontal: 'center' }}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+        transformOrigin={{ vertical: "top", horizontal: "center" }}
         PaperProps={{
           elevation: 0,
           sx: {
-            backgroundColor: 'var(--header)',
-            color: 'var(--text)',
-            boxShadow: 'none',
-          }
+            backgroundColor: "var(--header)",
+            color: "var(--text)",
+            boxShadow: "none",
+          },
         }}
       >
         <MenuItem
           onClick={handleSignOut}
           sx={{
-            color: 'var(--text)',
-            backgroundColor: 'inherit',
-            fontSize: '0.7rem',
+            color: "var(--text)",
+            backgroundColor: "inherit",
+            fontSize: "0.7rem",
             fontFamily: "var(--font-family)",
-            '&:hover': { color: 'var(--text-secondary)', backgroundColor: 'inherit' },
+            "&:hover": {
+              color: "var(--text-secondary)",
+              backgroundColor: "inherit",
+            },
           }}
         >
           Sign Out
