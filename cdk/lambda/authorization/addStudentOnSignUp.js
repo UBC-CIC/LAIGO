@@ -77,7 +77,7 @@ exports.handler = async (event) => {
       console.log("Creating new user in database");
       const newUser = await sqlConnection`
         INSERT INTO "users" (cognito_id, user_email, first_name, last_name, time_account_created, roles, last_sign_in)
-        VALUES (${cognitoUserId}, ${email}, ${firstName}, ${lastName}, CURRENT_TIMESTAMP, ARRAY['student'], CURRENT_TIMESTAMP)
+        VALUES (${cognitoUserId}, ${email}, ${firstName}, ${lastName}, CURRENT_TIMESTAMP, ARRAY['student']::user_role[], CURRENT_TIMESTAMP)
         RETURNING *;
       `;
       

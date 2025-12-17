@@ -85,7 +85,7 @@ exports.handler = async (event) => {
         // If database has admin but Cognito doesn't, demote database role to match Cognito
         await sqlConnection`
           UPDATE "users"
-          SET roles = ${[cognitoNonAdminRole]}
+          SET roles = ARRAY[${cognitoNonAdminRole}]::user_role[]
           WHERE user_email = ${email};
         `;
       } else if (dbRoles.length && dbRoles[0] !== cognitoNonAdminRole) {
