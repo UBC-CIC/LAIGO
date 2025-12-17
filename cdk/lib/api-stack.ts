@@ -864,5 +864,28 @@ export class ApiGatewayStack extends cdk.Stack {
       cognito.UserPoolOperation.PRE_TOKEN_GENERATION, // Triggered before JWT token creation
       preTokenGenerationLambda
     );
+    // --- Student Cases Lambda (GET /student/cases) ---
+    const studentCasesFunction = new lambda.Function(this, `${id}-student-cases-api`, {
+      runtime: lambda.Runtime.NODEJS_22_X,
+      handler: "cases.handler",
+      code: lambda.Code.fromAsset("lambda/handlers"),
+      timeout: Duration.seconds(30),
+      vpc: vpcStack.vpc,
+      environment: {
+        SM_DB_CREDENTIALS: db.secretPathAdminName,
+        RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint,
+      },
+      functionName: `${id}-studentCases`,
+      memorySize: 512,
+      layers: [postgres],
+      role: lambdaRole,
+    });
+    
+    // Allow API Gateway to invoke the student cases lambda
+    studentCasesFunction.grantInvoke(new iam.ServicePrincipal("apigateway.amazonaws.com"));
+    
+    // Override logical ID to reference from OpenAPI document
+    const apiGW_studentCasesFunction = studentCasesFunction.node.defaultChild as lambda.CfnFunction;
+    apiGW_studentCasesFunction.overrideLogicalId("studentCases");
   }
 }

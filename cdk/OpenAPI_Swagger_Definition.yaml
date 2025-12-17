@@ -98,3 +98,43 @@ paths:
       responses:
         '200':
           description: Success
+
+  /student/cases:
+    get:
+      summary: List cases for the authenticated student
+      security:
+        - studentAuthorizer: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${studentCases.Arn}/invocations
+        httpMethod: POST
+        type: aws_proxy
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  cases:
+                    type: array
+                    items:
+                      type: object
+                  pagination:
+                    type: object
+        '400':
+          description: Bad Request
+        '500':
+          description: Internal Server Error
