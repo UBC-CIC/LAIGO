@@ -73,11 +73,14 @@ exports.handler = async (event) => {
         // List cases for a given cognito user id (query param: user_id or cognito_id)
         const limit = Math.min(parseInt(event.queryStringParameters?.limit) || 20, 200);
         const offset = parseInt(event.queryStringParameters?.offset) || 0;
-        const cognitoId = event.queryStringParameters?.user_id || event.queryStringParameters?.cognito_id || null;
+        // Derive Cognito id from the API Gateway authorizer (preferred) or principalId
+        const authorizer = event.requestContext?.authorizer || {};
+        const cognitoId = authorizer?.claims?.sub || authorizer?.principalId;
+        console.log("authorizer info:", authorizer);
 
         if (!cognitoId) {
-          response.statusCode = 400;
-          response.body = JSON.stringify({ error: "Missing user_id (cognito id) in query string" });
+          response.statusCode = 401;
+          response.body = JSON.stringify({ error: "Unauthorized: missing authenticated user id" });
           break;
         }
 
