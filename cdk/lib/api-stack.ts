@@ -887,5 +887,120 @@ export class ApiGatewayStack extends cdk.Stack {
     // Override logical ID to reference from OpenAPI document
     const apiGW_studentCasesFunction = studentCasesFunction.node.defaultChild as lambda.CfnFunction;
     apiGW_studentCasesFunction.overrideLogicalId("studentCases");
+
+    // Create parameters for Bedrock LLM ID, Embedding Model ID, and Table Name in Parameter Store
+    const bedrockLLMParameter = new ssm.StringParameter(this, "BedrockLLMParameter", {
+      parameterName: `/${id}/LAT/BedrockLLMId`,
+      description: "Parameter containing the Bedrock LLM ID",
+      stringValue: "meta.llama3-70b-instruct-v1:0",
+    });
+
+    const embeddingModelParameter = new ssm.StringParameter(this, "EmbeddingModelParameter", {
+      parameterName: `/${id}/LAT/EmbeddingModelId`,
+      description: "Parameter containing the Embedding Model ID",
+      stringValue: "amazon.titan-embed-text-v2:0",
+    });
+
+    const tableNameParameter = new ssm.StringParameter(this, "TableNameParameter", {
+      parameterName: `/${id}/LAT/TableName`,
+      description: "Parameter containing the DynamoDB table name",
+      stringValue: "DynamoDB-Conversation-Table",
+    });
+
+
+    const bedrockPolicyStatement = new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: ["bedrock:InvokeModel"],
+      resources: [
+        `arn:aws:bedrock:${this.region}::foundation-model/meta.llama3-70b-instruct-v1`,
+        `arn:aws:bedrock:${this.region}::foundation-model/meta.llama3-70b-instruct-v1:0`,  // Explicitly add the versioned model
+        `arn:aws:bedrock:${this.region}::foundation-model/amazon.titan-embed-text-v2:0`,  // If using Titan
+      ],
+    }); 
+
+    const caseGenLambdaDockerFunc = new lambda.DockerImageFunction(
+      this,
+      `${id}-CaseLambdaDockerFunction`,
+      {
+        code: lambda.DockerImageCode.fromEcr(
+          props.ecrRepositories["caseGeneration"],
+          {
+            tagOrDigest: "latest",      // or whatever tag you're using
+          }
+        ),
+        memorySize: 512,
+        timeout: cdk.Duration.seconds(300),
+        vpc: vpcStack.vpc,
+        functionName: `${id}-CaseLambdaDockerFunction`,
+        environment: {
+          SM_DB_CREDENTIALS: db.secretPathAdminName,
+          RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint,
+          REGION: this.region,
+          BEDROCK_LLM_PARAM: bedrockLLMParameter.parameterName,
+          EMBEDDING_MODEL_PARAM: embeddingModelParameter.parameterName,
+          TABLE_NAME_PARAM: tableNameParameter.parameterName,
+          TABLE_NAME: "DynamoDB-Conversation-Table",
+        },
+      }
+    );
+
+    // Override the Logical ID of the Lambda Function to get ARN in OpenAPI
+    const cfnCaseGenDockerFunc = caseGenLambdaDockerFunc.node
+      .defaultChild as lambda.CfnFunction;
+    cfnCaseGenDockerFunc.overrideLogicalId("CaseGenLambdaDockerFunc");
+
+    // Add the permission to the Lambda function's policy to allow API Gateway access
+    caseGenLambdaDockerFunc.addPermission("AllowApiGatewayInvoke", {
+      principal: new iam.ServicePrincipal("apigateway.amazonaws.com"),
+      action: "lambda:InvokeFunction",
+      sourceArn: `arn:aws:execute-api:${this.region}:${this.account}:${this.api.restApiId}/*/*/student*`,
+    });
+
+
+    // Attach the corrected Bedrock policy to Lambda
+    caseGenLambdaDockerFunc.addToRolePolicy(bedrockPolicyStatement);
+
+    caseGenLambdaDockerFunc.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: [
+          "bedrock:CreateGuardrail",
+          "bedrock:CreateGuardrailVersion",
+          "bedrock:DeleteGuardrail",
+          "bedrock:ListGuardrails",
+          "bedrock:InvokeGuardrail",
+          "bedrock:ApplyGuardrail"
+        ],
+        resources: ["*"],
+      })
+    );
+
+    // Grant access to Secret Manager
+    caseGenLambdaDockerFunc.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: [
+          //Secrets Manager
+          "secretsmanager:GetSecretValue",
+        ],
+        resources: [
+          `arn:aws:secretsmanager:${this.region}:${this.account}:secret:*`,
+        ],
+      })
+    );
+
+    // Grant access to SSM Parameter Store for specific parameters
+    caseGenLambdaDockerFunc.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["ssm:GetParameter"],
+        resources: [
+          bedrockLLMParameter.parameterArn,
+          embeddingModelParameter.parameterArn,
+          tableNameParameter.parameterArn,
+        ],
+      })
+    );
+
   }
 }

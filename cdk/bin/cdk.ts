@@ -36,30 +36,30 @@ const dbFlow = new DBFlowStack(app, `${StackPrefix}-DBFlowStack`, vpc, db, {
 // Ensure dbFlow waits for database
 dbFlow.addDependency(db);
 
-// const cicd = new CICDStack(app, `${StackPrefix}-CICDStack`, {
-//   env,
-//   githubRepo: githubRepo,
-//   environmentName: environment,
-//   lambdaFunctions: [
-//     /* Example entry for additional Lambda functions and path filters
-//     {
-//       name: "dataIngestion",
-//       functionName: `${StackPrefix}-Api-DataIngestionLambdaDockerFunc`,
-//       sourceDir: "cdk/lambda/data_ingestion",
-//       },*/
-//   ],
-//   pathFilters: [
-//     //"cdk/lambda/data_ingestion/**",
-//   ],
-// });
+const cicd = new CICDStack(app, `${StackPrefix}-CICDStack`, {
+  env,
+  githubRepo: githubRepo,
+  environmentName: environment,
+  lambdaFunctions: [
+    {
+      name: "caseGeneration",
+      functionName: `${StackPrefix}-ApiStack-CaseLambdaDockerFunction`,
+      sourceDir: "cdk/lambda/case_generation",
+    },
+  ],
+  pathFilters: [
+    "cdk/lambda/case_generation/**",
+  ],
+});
 
 const api = new ApiGatewayStack(app, `${StackPrefix}-ApiStack`, db, vpc, {
   env,
-  ecrRepositories: {},
+  ecrRepositories: cicd.ecrRepositories,
 });
 // Ensure API waits for database and dbFlow (change to CICD stack later)
 api.addDependency(db);
 api.addDependency(dbFlow);
+api.addDependency(cicd);
 
 const amplify = new AmplifyStack(app, `${StackPrefix}-AmplifyStack`, api, {
   env,
