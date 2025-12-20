@@ -867,7 +867,7 @@ export class ApiGatewayStack extends cdk.Stack {
     // --- Student Cases Lambda (GET /student/cases) ---
     const lambdaStudentFunction = new lambda.Function(this, `${id}-studentFunction`, {
       runtime: lambda.Runtime.NODEJS_22_X,
-      handler: "cases.handler",
+      handler: "studentFunction.handler",
       code: lambda.Code.fromAsset("lambda/handlers"),
       timeout: Duration.seconds(30),
       vpc: vpcStack.vpc,

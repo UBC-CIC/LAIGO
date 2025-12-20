@@ -58,8 +58,11 @@ async function initializeConnection() {
       groups: "admin", // Only allow users in 'admin' group
       clientId: credentials.VITE_COGNITO_USER_POOL_CLIENT_ID,
     });
+
+    // Log verifier initialization (no secrets)
+    console.log('Admin JWT verifier initialized', { userPoolId: credentials.VITE_COGNITO_USER_POOL_ID });
   } catch (error) {
-    console.error("Error initializing JWT verifier:", error);
+    console.error("Error initializing JWT verifier:", { name: error?.name, message: error?.message });
     throw new Error("Failed to initialize JWT verifier");
   }
 }
@@ -75,6 +78,7 @@ exports.handler = async (event) => {
 
   // Extract JWT token from Authorization header
   const accessToken = event.authorizationToken.toString();
+  console.log('Admin authorizer invoked', { methodArn: event.methodArn, tokenLength: accessToken ? accessToken.length : 0 });
   let payload;
 
   try {
@@ -100,7 +104,7 @@ exports.handler = async (event) => {
 
     return responseStruct;
   } catch (error) {
-    console.error("Authorization error:", error);
+    console.error("Authorization error:", { name: error?.name, message: error?.message, stack: error?.stack });
     // API Gateway requires exact "Unauthorized" message for 401 response
     throw new Error("Unauthorized");
   }
