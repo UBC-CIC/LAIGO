@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useMemo } from "react";
 import {
   Box,
   Typography,
@@ -51,6 +51,24 @@ const mockCases = [
 ];
 
 const RealStudentHome: React.FC = () => {
+  const [query, setQuery] = useState("");
+  const [cases, setCases] = useState<typeof mockCases>(mockCases);
+
+  // Using mock data only for now; search will filter this list
+  const filteredCases = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const source = cases || mockCases;
+    if (!q) return source;
+    return source.filter((c) => {
+      return (
+        (c.title || "").toLowerCase().includes(q) ||
+        (c.jurisdiction || "").toLowerCase().includes(q) ||
+        (c.status || "").toLowerCase().includes(q) ||
+        (c.id || "").toLowerCase().includes(q)
+      );
+    });
+  }, [query, cases]);
+
   return (
     <Box
       sx={{
@@ -96,22 +114,29 @@ const RealStudentHome: React.FC = () => {
                 },
               },
             }}
-            slotProps={{
-              input: {
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon sx={{ color: "var(--text-secondary)" }} />
-                  </InputAdornment>
-                ),
-              },
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon sx={{ color: "var(--text-secondary)" }} />
+                </InputAdornment>
+              ),
             }}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
           />
         </Box>
 
         {/* Cases Grid */}
         <Grid container spacing={3}>
-          {mockCases.map((caseItem, index) => (
-            <Grid size={{ xs: 12, sm: 6, md: 4 }} key={index}>
+          {filteredCases.length === 0 ? (
+            <Grid size={{ xs: 12 }}>
+              <Typography align="center" sx={{ color: "var(--text-secondary)", mt: 2 }}>
+                No cases found
+              </Typography>
+            </Grid>
+          ) : (
+            filteredCases.map((caseItem, index) => (
+               <Grid size={{ xs: 12, sm: 6, md: 4 }} key={index}>
               <CaseCard
                 caseId={caseItem.id}
                 title={caseItem.title}
@@ -120,7 +145,8 @@ const RealStudentHome: React.FC = () => {
                 dateAdded={caseItem.dateAdded}
               />
             </Grid>
-          ))}
+            ))
+          )}
         </Grid>
       </Container>
     </Box>
