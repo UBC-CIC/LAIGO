@@ -7,7 +7,7 @@ import InstructorDashboard from "./components/InstructorDashboard";
 import AdminDashboard from "./components/AdminDashboard";
 import { CircularProgress, Box } from "@mui/material";
 import "./App.css";
-import RealStudentHome from "./pages/Student/RealStudentHome";
+import RealStudentHome from "./pages/Student/StudentDashboard";
 import CreateCase from "./pages/Student/CreateCase";
 
 // Amplify configuration
