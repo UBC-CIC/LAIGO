@@ -115,7 +115,7 @@ paths:
         '200':
           description: Success
 
-  /student/cases:
+  /student/get_cases:
     get:
       summary: List cases for the authenticated student
       security:
