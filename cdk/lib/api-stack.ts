@@ -865,7 +865,7 @@ export class ApiGatewayStack extends cdk.Stack {
       preTokenGenerationLambda
     );
     // --- Student Cases Lambda (GET /student/cases) ---
-    const studentCasesFunction = new lambda.Function(this, `${id}-student-cases-api`, {
+    const lambdaStudentFunction = new lambda.Function(this, `${id}-studentFunction`, {
       runtime: lambda.Runtime.NODEJS_22_X,
       handler: "cases.handler",
       code: lambda.Code.fromAsset("lambda/handlers"),
@@ -875,18 +875,18 @@ export class ApiGatewayStack extends cdk.Stack {
         SM_DB_CREDENTIALS: db.secretPathAdminName,
         RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint,
       },
-      functionName: `${id}-studentCases`,
+      functionName: `${id}-studentFunction`,
       memorySize: 512,
       layers: [postgres],
       role: lambdaRole,
     });
     
     // Allow API Gateway to invoke the student cases lambda
-    studentCasesFunction.grantInvoke(new iam.ServicePrincipal("apigateway.amazonaws.com"));
+    lambdaStudentFunction.grantInvoke(new iam.ServicePrincipal("apigateway.amazonaws.com"));
     
     // Override logical ID to reference from OpenAPI document
-    const apiGW_studentCasesFunction = studentCasesFunction.node.defaultChild as lambda.CfnFunction;
-    apiGW_studentCasesFunction.overrideLogicalId("studentCases");
+    const apiGW_studentCasesFunction = lambdaStudentFunction.node.defaultChild as lambda.CfnFunction;
+    apiGW_studentCasesFunction.overrideLogicalId("studentFunction");
 
     // Create parameters for Bedrock LLM ID, Embedding Model ID, and Table Name in Parameter Store
     const bedrockLLMParameter = new ssm.StringParameter(this, "BedrockLLMParameter", {
