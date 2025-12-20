@@ -864,6 +864,31 @@ export class ApiGatewayStack extends cdk.Stack {
       cognito.UserPoolOperation.PRE_TOKEN_GENERATION, // Triggered before JWT token creation
       preTokenGenerationLambda
     );
+    // Create parameters for Bedrock LLM ID, Embedding Model ID, and Table Name in Parameter Store
+    const bedrockLLMParameter = new ssm.StringParameter(this, "BedrockLLMParameter", {
+      parameterName: `/${id}/LAIGO/BedrockLLMId`,
+      description: "Parameter containing the Bedrock LLM ID",
+      stringValue: "meta.llama3-70b-instruct-v1:0",
+    });
+
+    const embeddingModelParameter = new ssm.StringParameter(this, "EmbeddingModelParameter", {
+      parameterName: `/${id}/LAIGO/EmbeddingModelId`,
+      description: "Parameter containing the Embedding Model ID",
+      stringValue: "amazon.titan-embed-text-v2:0",
+    });
+
+    const tableNameParameter = new ssm.StringParameter(this, "TableNameParameter", {
+      parameterName: `/${id}/LAIGO/TableName`,
+      description: "Parameter containing the DynamoDB table name",
+      stringValue: "DynamoDB-Conversation-Table",
+    });
+
+    const messageLimitParameter = new ssm.StringParameter(this, "MessageLimitParameter", {
+      parameterName: `/${id}/LAIGO/MessageLimit`,
+      description: "Parameter containing the Message Limit for the AI assistant (per day)",
+      stringValue: "Infinity",
+    });
+
     // --- Student Cases Lambda (GET /student/cases) ---
     const lambdaStudentFunction = new lambda.Function(this, `${id}-studentFunction`, {
       runtime: lambda.Runtime.NODEJS_22_X,
@@ -874,6 +899,8 @@ export class ApiGatewayStack extends cdk.Stack {
       environment: {
         SM_DB_CREDENTIALS: db.secretPathAdminName,
         RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint,
+        USER_POOL: this.userPool.userPoolId,
+        MESSAGE_LIMIT: messageLimitParameter.parameterName,
       },
       functionName: `${id}-studentFunction`,
       memorySize: 512,
@@ -883,29 +910,11 @@ export class ApiGatewayStack extends cdk.Stack {
     
     // Allow API Gateway to invoke the student cases lambda
     lambdaStudentFunction.grantInvoke(new iam.ServicePrincipal("apigateway.amazonaws.com"));
+    messageLimitParameter.grantRead(lambdaStudentFunction);
     
     // Override logical ID to reference from OpenAPI document
     const apiGW_studentCasesFunction = lambdaStudentFunction.node.defaultChild as lambda.CfnFunction;
     apiGW_studentCasesFunction.overrideLogicalId("studentFunction");
-
-    // Create parameters for Bedrock LLM ID, Embedding Model ID, and Table Name in Parameter Store
-    const bedrockLLMParameter = new ssm.StringParameter(this, "BedrockLLMParameter", {
-      parameterName: `/${id}/LAT/BedrockLLMId`,
-      description: "Parameter containing the Bedrock LLM ID",
-      stringValue: "meta.llama3-70b-instruct-v1:0",
-    });
-
-    const embeddingModelParameter = new ssm.StringParameter(this, "EmbeddingModelParameter", {
-      parameterName: `/${id}/LAT/EmbeddingModelId`,
-      description: "Parameter containing the Embedding Model ID",
-      stringValue: "amazon.titan-embed-text-v2:0",
-    });
-
-    const tableNameParameter = new ssm.StringParameter(this, "TableNameParameter", {
-      parameterName: `/${id}/LAT/TableName`,
-      description: "Parameter containing the DynamoDB table name",
-      stringValue: "DynamoDB-Conversation-Table",
-    });
 
 
     const bedrockPolicyStatement = new iam.PolicyStatement({
