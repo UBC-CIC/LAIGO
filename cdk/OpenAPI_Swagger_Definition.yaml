@@ -3,11 +3,56 @@ info:
   title: LAIGO API
   version: 1.0.0
   description: API for LAIGO AI Assistant with role-based access control
-
+tags:
+  - name: Student
+    description: endpoints accessible by students
+  - name: Instructor
+    description: endpoints accessible by instructors
+  - name: Admin
+    description: endpoints accessible by admins
 x-amazon-apigateway-request-validators:
   all:
-    validateRequestBody: true
     validateRequestParameters: true
+    validateRequestBody: true
+  params-only:
+    validateRequestParameters": true
+    validateRequestBody": false
+x-amazon-apigateway-request-validator: params-only
+x-amazon-apigateway-gateway-responses:
+  UNAUTHORIZED:
+    statusCode: "401"
+    responseParameters:
+      gatewayresponse.header.Access-Control-Allow-Headers: "'*'"
+      gatewayresponse.header.Access-Control-Allow-Methods: "'*'"
+      gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+    responseTemplates:
+      application/json: |
+        {"message":$context.error.messageString}
+x-common-options: &commonOptions
+  options:
+    summary: CORS support
+    description: |
+      Enable CORS by returning correct headers
+    responses:
+      200:
+        $ref: "#/components/responses/Success"
+    x-amazon-apigateway-integration:
+      type: mock
+      requestTemplates:
+        application/json: |
+          {
+            "statusCode" : 200
+          }
+      responses:
+        default:
+          statusCode: "200"
+          responseParameters:
+            method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+            method.response.header.Access-Control-Allow-Methods: "'*'"
+            method.response.header.Access-Control-Allow-Origin: "'*'"
+          responseTemplates:
+            application/json: |
+              {}
 
 components:
   securitySchemes:
