@@ -11,6 +11,7 @@ import {
   Paper,
   Stack,
   FormGroup,
+  MenuItem,
 } from "@mui/material";
 import StudentHeader from "../../components/StudentHeader";
 
@@ -18,6 +19,22 @@ const CreateCase: React.FC = () => {
   const [isFederal, setIsFederal] = useState(false);
   const [isProvincial, setIsProvincial] = useState(false);
   const [statuteApplicable, setStatuteApplicable] = useState(false);
+  const [broadLaw, setBroadLaw] = useState<string>("");
+
+  const broadLawOptions = [
+    "Criminal Law",
+    "Civil Law",
+    "Family Law",
+    "Business Law",
+    "Environmental Law",
+    "Health Law",
+    "Immigration Law",
+    "Labour Law",
+    "Personal Injury Law",
+    "Tax Law",
+    "Intellectual Property Law",
+    "Other",
+  ];
 
   const inputStyles = {
     transition: "all 0.3s ease",
@@ -84,11 +101,20 @@ const CreateCase: React.FC = () => {
           <Stack spacing={3} width="100%">
             {/* Broad Area of Law */}
             <TextField
+              select
               fullWidth
               label="Broad Area of Law"
+              value={broadLaw}
+              onChange={(e) => setBroadLaw(e.target.value as string)}
               variant="outlined"
-              sx={inputStyles}
-            />
+              sx={{ ...inputStyles, textAlign: "left" }}
+            >
+              {broadLawOptions.map((opt) => (
+                <MenuItem value={opt} key={opt} sx={{ textAlign: 'left' }}>
+                  {opt}
+                </MenuItem>
+              ))}
+            </TextField>
 
             {/* Jurisdiction */}
             <Box >
