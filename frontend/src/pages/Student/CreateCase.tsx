@@ -18,6 +18,7 @@ import StudentHeader from "../../components/StudentHeader";
 const CreateCase: React.FC = () => {
   const [isFederal, setIsFederal] = useState(false);
   const [isProvincial, setIsProvincial] = useState(false);
+  const [province, setProvince] = useState<string>("");
   const [statuteApplicable, setStatuteApplicable] = useState(false);
   const [broadLaw, setBroadLaw] = useState<string>("");
 
@@ -34,6 +35,22 @@ const CreateCase: React.FC = () => {
     "Tax Law",
     "Intellectual Property Law",
     "Other",
+  ];
+
+  const canadianProvinces = [
+    "Alberta",
+    "British Columbia",
+    "Manitoba",
+    "New Brunswick",
+    "Newfoundland and Labrador",
+    "Northwest Territories",
+    "Nova Scotia",
+    "Nunavut",
+    "Ontario",
+    "Prince Edward Island",
+    "Quebec",
+    "Saskatchewan",
+    "Yukon",
   ];
 
   const inputStyles = {
@@ -146,7 +163,11 @@ const CreateCase: React.FC = () => {
                   control={
                     <Checkbox
                       checked={isProvincial}
-                      onChange={(e) => setIsProvincial(e.target.checked)}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setIsProvincial(checked);
+                        if (!checked) setProvince("");
+                      }}
                       sx={{
                         color: "var(--text-secondary)",
                         "&.Mui-checked": { color: "var(--primary)" },
@@ -160,6 +181,24 @@ const CreateCase: React.FC = () => {
                   }
                 />
               </FormGroup>
+
+              {isProvincial && (
+                <TextField
+                  select
+                  fullWidth
+                  label="Province / Territory"
+                  value={province}
+                  onChange={(e) => setProvince(e.target.value as string)}
+                  variant="outlined"
+                  sx={{ ...inputStyles, textAlign: "left" }}
+                >
+                  {canadianProvinces.map((p) => (
+                    <MenuItem value={p} key={p} sx={{ textAlign: 'left' }}>
+                      {p}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              )}
             </Box>
 
             {/* Statute Applicable? */}
