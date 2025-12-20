@@ -216,7 +216,7 @@ exports.handler = async (event) => {
       if (user_id) {
         const data = await sqlConnection`
           SELECT * 
-          FROM "cases" WHERE user_id = ${user_id};
+          FROM "cases" WHERE student_id = ${user_id};
         `;
 
         // Check if data is empty and handle the case
@@ -304,7 +304,7 @@ exports.handler = async (event) => {
         const data = await sqlConnection`
           SELECT * 
           FROM "cases"
-          WHERE user_id = ${user_id}
+          WHERE student_id = ${user_id}
           ORDER BY last_viewed DESC
           LIMIT 6;
         `;
@@ -454,7 +454,7 @@ break;
 
       // Step 2: Get case + owner for the audio file
       const caseResult = await sqlConnection`
-        SELECT af.case_id, c.user_id AS case_owner_id
+        SELECT af.case_id, c.student_id AS case_owner_id
         FROM "audio_files" af
         JOIN "cases" c ON af.case_id = c.case_id
         WHERE af.audio_file_id = ${audioFileId};
@@ -620,7 +620,7 @@ break;
                   FROM cases c
                   JOIN messages m ON c.case_id = m.case_id
                   JOIN users u ON m.instructor_id = u.user_id
-                  WHERE c.user_id = ${user_id}
+                  WHERE c.student_id = ${user_id}
                   AND m.time_sent >= NOW() - INTERVAL '1 week'
                   AND m.is_read = false
                   ORDER BY m.time_sent DESC;
@@ -865,14 +865,14 @@ break;
                   UPDATE messages SET is_read = true WHERE message_id = ${message_id};
                 `;
           
-                // Update case status only if current status is 'Review Feedback'
+                // Update case status only if current status is 'reviewed' (Review Feedback)
                 await sqlConnection`
                   UPDATE cases
-                  SET status = 'In Progress'
+                  SET status = 'in_progress'
                   WHERE case_id = (
                     SELECT case_id FROM messages WHERE message_id = ${message_id}
                   )
-                  AND status = 'Review Feedback';
+                  AND status = 'reviewed';
                 `;
           
                 response.body = JSON.stringify({ success: true });
@@ -931,7 +931,7 @@ break;
                       FROM cases c
                       JOIN messages m ON c.case_id = m.case_id
                       JOIN users u ON m.instructor_id = u.user_id
-                      WHERE c.user_id = ${user_id}
+                      WHERE c.student_id = ${user_id}
                       AND m.time_sent >= NOW() - INTERVAL '1 week'
                       ORDER BY m.time_sent DESC;
                     `;
@@ -1206,7 +1206,7 @@ break;
                     UPDATE "cases"
                     SET 
                         sent_to_review = true,
-                        status = 'Sent to Review'
+                        status = 'submitted'
                     WHERE case_id = ${case_id}; 
                 `;
                 response.statusCode = 200;
@@ -1235,7 +1235,7 @@ break;
                 await sqlConnection`
                     UPDATE "cases"
                     SET 
-                        status = 'Archived'
+                        status = 'archived'
                     WHERE case_id = ${case_id}; 
                 `;
                 response.statusCode = 200;
@@ -1264,7 +1264,7 @@ break;
                 await sqlConnection`
                     UPDATE "cases"
                     SET 
-                        status = 'In Progress'
+                        status = 'in_progress'
                     WHERE case_id = ${case_id}; 
                 `;
                 response.statusCode = 200;

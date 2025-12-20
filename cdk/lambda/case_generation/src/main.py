@@ -234,8 +234,8 @@ def handler(event, context):
             return _response(404, {'error': 'User not found'})
         user_id = row[0]
 
-        cur.execute('''INSERT INTO "cases"(user_id, case_title, case_type, jurisdiction, case_description, province, statute, status, last_updated)
-                       VALUES (%s,%s,%s,%s,%s,%s,%s,'In Progress',CURRENT_TIMESTAMP) RETURNING case_id''',
+        cur.execute('''INSERT INTO "cases"(student_id, case_title, case_type, jurisdiction, case_description, province, statute, status, last_updated)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,'in_progress',CURRENT_TIMESTAMP) RETURNING case_id''',
                     (user_id, case_title, case_type, jurisdiction, case_desc, province, statute))
         case_id = cur.fetchone()[0]
 
