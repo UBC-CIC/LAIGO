@@ -6,6 +6,7 @@ import ArchiveIcon from '@mui/icons-material/Archive';
 
 interface CaseCardProps {
   caseId: string;
+  caseHash?: string;
   title: string;
   status: string;
   jurisdiction: string;
@@ -16,6 +17,7 @@ interface CaseCardProps {
 
 const CaseCard: React.FC<CaseCardProps> = ({
   caseId,
+  caseHash,
   title,
   status,
   jurisdiction,
@@ -70,7 +72,7 @@ const CaseCard: React.FC<CaseCardProps> = ({
           display="block"
           sx={{ color: "var(--text-secondary)", mb: 1 }}
         >
-          Case: #{caseId}
+          Case: #{caseHash ? caseHash : caseId.slice(0, 8)}
         </Typography>
         <Typography
           variant="h6"

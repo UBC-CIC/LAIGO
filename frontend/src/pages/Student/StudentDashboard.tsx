@@ -54,7 +54,7 @@ const mockCases = [
 
 const RealStudentHome: React.FC = () => {
   const [query, setQuery] = useState("");
-  const [cases, setCases] = useState<typeof mockCases | null>(null);
+  const [cases, setCases] = useState<any[] | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
   // Fetch recent cases for the logged-in user using Amplify session token
@@ -109,8 +109,25 @@ const RealStudentHome: React.FC = () => {
           casesArray = data.cases || [];
         }
 
-        const activeCases = casesArray.filter((c) => c.status !== 'Archived');
-        setCases(activeCases as typeof mockCases);
+        // Map backend case objects to UI shape expected by CaseCard (canonical schema fields)
+        const statusMap: Record<string, string> = {
+          in_progress: 'In Progress',
+          submitted: 'Submitted',
+          reviewed: 'Reviewed',
+        };
+
+        const normalized = casesArray.map((c) => {
+          const id = c.case_id;
+          const hash = c.case_hash;
+          const title = c.case_title || 'Untitled Case';
+          const status = statusMap[c.status] ?? c.status ?? '';
+          const jurisdiction = Array.isArray(c.jurisdiction) ? c.jurisdiction.join(', ') : '';
+          const dateAdded = c.last_updated ? new Date(c.last_updated).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' }) : '';
+
+          return { id, hash, title, status, jurisdiction, dateAdded };
+        });
+
+        setCases(normalized as any[]);
       } catch (error) {
         console.error('Error fetching cases:', error);
       } finally {
@@ -211,6 +228,7 @@ const RealStudentHome: React.FC = () => {
                  <Grid size={{ xs: 12, sm: 6, md: 4 }} key={index}>
                 <CaseCard
                   caseId={caseItem.id}
+                  caseHash={caseItem.hash}
                   title={caseItem.title}
                   status={caseItem.status}
                   jurisdiction={caseItem.jurisdiction}
