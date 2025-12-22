@@ -242,7 +242,7 @@ def handler(event, context):
         case_hash = hash_uuid(str(case_id))
         cur.execute('UPDATE "cases" SET case_hash=%s WHERE case_id=%s', (case_hash, case_id))
         conn.commit()
-        cur.close() 
+        cur.close()
 
         try:
             case_title = handle_generate_title(case_id, case_type, jurisdiction, case_desc, province)
@@ -257,6 +257,12 @@ def handler(event, context):
 
     except Exception as err:
         logger.error(f"Error in new_case: {err}", exc_info=True)
+        # Rollback transaction on error
+        try:
+            conn = connect_to_db()
+            conn.rollback()
+        except:
+            pass
         return _response(500, {'error': 'Internal server error'})
 
 
