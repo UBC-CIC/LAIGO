@@ -242,7 +242,7 @@ def handler(event, context):
         case_hash = hash_uuid(str(case_id))
         cur.execute('UPDATE "cases" SET case_hash=%s WHERE case_id=%s', (case_hash, case_id))
         conn.commit()
-        cur.close()
+        cur.close() 
 
         try:
             case_title = handle_generate_title(case_id, case_type, jurisdiction, case_desc, province)
