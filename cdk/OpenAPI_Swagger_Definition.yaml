@@ -326,3 +326,82 @@ paths:
         passthroughBehavior: "when_no_match"
         httpMethod: "POST"
         type: "aws_proxy"
+
+  /student/edit_case:
+    options:
+      summary: CORS support
+      description: |
+        Enable CORS by returning correct headers
+      responses:
+        200:
+          $ref: "#/components/responses/Success"
+      x-amazon-apigateway-integration:
+        type: mock
+        requestTemplates:
+          application/json: |
+            {
+              "statusCode" : 200
+            }
+        responses:
+          default:
+            statusCode: "200"
+            responseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key'"
+              method.response.header.Access-Control-Allow-Methods: "'*'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            responseTemplates:
+              application/json: |
+                {}
+    put:
+      tags:
+        - Student
+      summary: Update notes in a session
+      operationId: update_case_PUT
+      parameters:
+        - in: query
+          name: case_id
+          required: true
+          schema:
+            type: string
+          description: The ID of the case
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                case_title:
+                  type: string
+                case_description:
+                  type: string
+                case_type:
+                  type: string
+                status:
+                  type: string
+                jurisdiction:
+                  type: array
+                  items:
+                    type: string
+                province:
+                  type: string
+                statute:
+                  type: string
+      responses:
+        "200":
+          description: Case updated successfully
+        "400":
+          description: Bad Request
+        "404":
+          description: Case not found
+        "500":
+          description: Internal Server Error
+      security:
+        - studentAuthorizer: []
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${studentFunction.Arn}/invocations"
+        passthroughBehavior: "when_no_match"
+        httpMethod: "POST"
+        type: "aws_proxy" 
+
