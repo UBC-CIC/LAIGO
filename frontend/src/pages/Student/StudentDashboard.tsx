@@ -7,6 +7,8 @@ import {
   Grid as Grid,
   Container,
   CircularProgress,
+  Snackbar,
+  Alert,
 } from "@mui/material";
 import { fetchAuthSession, fetchUserAttributes } from "aws-amplify/auth";
 import SearchIcon from "@mui/icons-material/Search";
@@ -56,6 +58,17 @@ const RealStudentHome: React.FC = () => {
   const [query, setQuery] = useState("");
   const [cases, setCases] = useState<any[] | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+
+  // Snackbar for in-app notifications
+  const [snackbarOpen, setSnackbarOpen] = useState<boolean>(false);
+  const [snackbarMessage, setSnackbarMessage] = useState<string>("");
+  const [snackbarSeverity, setSnackbarSeverity] = useState<'success'|'error'|'info'|'warning'>('info');
+
+  const showSnackbar = (message: string, severity: 'success'|'error'|'info'|'warning' = 'info') => {
+    setSnackbarMessage(message);
+    setSnackbarSeverity(severity);
+    setSnackbarOpen(true);
+  };
 
   // Fetch recent cases for the logged-in user using Amplify session token
   useEffect(() => {
@@ -137,6 +150,36 @@ const RealStudentHome: React.FC = () => {
 
     fetchCases();
   }, []);
+
+  // Delete handler
+  const handleDeleteCase = async (caseId: string) => {
+    try {
+      setLoading(true);
+      const session = await fetchAuthSession();
+      const token = session.tokens?.idToken?.toString();
+      if (!token) throw new Error('No auth token');
+
+      const resp = await fetch(`${import.meta.env.VITE_API_ENDPOINT}/student/delete_case?case_id=${caseId}`, {
+        method: 'DELETE',
+        headers: { Authorization: token },
+      });
+
+      if (!resp.ok) {
+        const text = await resp.text();
+        throw new Error(`Failed to delete case: ${resp.status} ${text}`);
+      }
+
+      // remove from UI
+      setCases((prev) => (prev ? prev.filter((c) => c.id !== caseId) : []));
+      showSnackbar('Case deleted', 'success');
+    } catch (err) {
+      console.error('Delete failed', err);
+      const msg = err instanceof Error ? err.message : 'Failed to delete case';
+      showSnackbar(msg, 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Using fetched data (or empty list) for search/filtering
   const filteredCases = useMemo(() => {
@@ -233,6 +276,7 @@ const RealStudentHome: React.FC = () => {
                   status={caseItem.status}
                   jurisdiction={caseItem.jurisdiction}
                   dateAdded={caseItem.dateAdded}
+                  onDelete={handleDeleteCase}
                 />
               </Grid>
               ))
@@ -240,6 +284,12 @@ const RealStudentHome: React.FC = () => {
           </Grid>
         )}
       </Container>
+
+      <Snackbar open={snackbarOpen} autoHideDuration={4000} onClose={() => setSnackbarOpen(false)}>
+        <Alert onClose={() => setSnackbarOpen(false)} severity={snackbarSeverity} sx={{ width: '100%' }}>
+          {snackbarMessage}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

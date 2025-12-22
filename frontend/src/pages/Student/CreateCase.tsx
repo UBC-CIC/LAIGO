@@ -12,6 +12,8 @@ import {
   Stack,
   FormGroup,
   MenuItem,
+  Snackbar,
+  Alert,
 } from "@mui/material";
 import StudentHeader from "../../components/StudentHeader";
 import { fetchAuthSession } from "aws-amplify/auth";
@@ -25,6 +27,17 @@ const CreateCase: React.FC = () => {
   const [statuteDetails, setStatuteDetails] = useState<string>("");
   const [overview, setOverview] = useState<string>("");
   const [submitting, setSubmitting] = useState<boolean>(false);
+
+  // Snackbar state
+  const [snackbarOpen, setSnackbarOpen] = useState<boolean>(false);
+  const [snackbarMessage, setSnackbarMessage] = useState<string>("");
+  const [snackbarSeverity, setSnackbarSeverity] = useState<'success'|'error'|'info'|'warning'>('info');
+
+  const showSnackbar = (message: string, severity: 'success'|'error'|'info'|'warning' = 'info') => {
+    setSnackbarMessage(message);
+    setSnackbarSeverity(severity);
+    setSnackbarOpen(true);
+  };
 
 
   const broadLawOptions = [
@@ -128,7 +141,7 @@ const CreateCase: React.FC = () => {
         case_title: newCaseData.case_title || "Untitled Case",
         case_type: broadLaw,
         case_description: overview,
-        status: "In Progress",
+        status: "in_progress",
         jurisdiction: jurisdictionArray.length > 0 ? jurisdictionArray : ['Unknown'],
         province: province || "",
         statute: statuteApplicable ? statuteDetails : "",
@@ -154,7 +167,7 @@ const CreateCase: React.FC = () => {
       const editCaseData = await editCaseResp.json();
       console.log('case save response', editCaseData);
 
-      window.alert(`Case created successfully: ${newCaseData.case_title}`);
+      showSnackbar(`Case created successfully: ${newCaseData.case_title}`, 'success');
 
       // reset form
       setIsFederal(false);
@@ -166,7 +179,8 @@ const CreateCase: React.FC = () => {
       setOverview("");
     } catch (err) {
       console.error('Failed to submit case', err);
-      window.alert(`Failed to submit case: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      const msg = err instanceof Error ? err.message : 'Failed to submit case';
+      showSnackbar(msg, 'error');
     } finally {
       setSubmitting(false);
     }
@@ -369,6 +383,12 @@ const CreateCase: React.FC = () => {
           </form>
         </Paper>
       </Container>
+
+      <Snackbar open={snackbarOpen} autoHideDuration={4000} onClose={() => setSnackbarOpen(false)}>
+        <Alert onClose={() => setSnackbarOpen(false)} severity={snackbarSeverity} sx={{ width: '100%' }}>
+          {snackbarMessage}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };
