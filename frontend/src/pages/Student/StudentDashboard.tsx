@@ -122,8 +122,8 @@ const RealStudentHome: React.FC = () => {
           casesArray = data.cases || [];
         }
 
-        // Map backend case objects to UI shape expected by CaseCard (canonical schema fields)
-        const statusMap: Record<string, string> = {
+        // Map backend case objects to UI shape expected by CaseCard (use canonical schema fields)
+        const STATUS_DISPLAY_MAP: Record<string, string> = {
           in_progress: 'In Progress',
           submitted: 'Submitted',
           reviewed: 'Reviewed',
@@ -133,7 +133,7 @@ const RealStudentHome: React.FC = () => {
           const id = c.case_id;
           const hash = c.case_hash;
           const title = c.case_title || 'Untitled Case';
-          const status = statusMap[c.status] ?? c.status ?? '';
+          const status = STATUS_DISPLAY_MAP[c.status] ?? c.status ?? '';
           const jurisdiction = Array.isArray(c.jurisdiction) ? c.jurisdiction.join(', ') : '';
           const dateAdded = c.last_updated ? new Date(c.last_updated).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' }) : '';
 
