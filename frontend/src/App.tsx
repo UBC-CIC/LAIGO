@@ -16,6 +16,7 @@ import {
   CaseSummaries,
   CaseTranscriptions,
   CaseFeedback,
+  Placeholder,
 } from "./pages/Case/Placeholders";
 
 // Amplify configuration
@@ -147,7 +148,33 @@ function App() {
         <Route path="/case/:caseId" element={<SideMenu />}>
           <Route index element={<Navigate to="overview" replace />} />
           <Route path="overview" element={<CaseOverview />} />
-          <Route path="interview" element={<InterviewAssistant />} />
+          <Route path="interview" element={<InterviewAssistant />}>
+            <Route index element={<Navigate to="intake-facts" replace />} />
+            <Route
+              path="intake-facts"
+              element={<Placeholder title="Intake & Facts" />}
+            />
+            <Route
+              path="issue-identification"
+              element={<Placeholder title="Issue Identification" />}
+            />
+            <Route
+              path="research-strategy"
+              element={<Placeholder title="Research Strategy" />}
+            />
+            <Route
+              path="argument-construction"
+              element={<Placeholder title="Argument Construction" />}
+            />
+            <Route
+              path="contrarian-analysis"
+              element={<Placeholder title="Contrarian Analysis" />}
+            />
+            <Route
+              path="policy-context"
+              element={<Placeholder title="Policy Context" />}
+            />
+          </Route>
           <Route path="summaries" element={<CaseSummaries />} />
           <Route path="transcriptions" element={<CaseTranscriptions />} />
           <Route path="feedback" element={<CaseFeedback />} />
