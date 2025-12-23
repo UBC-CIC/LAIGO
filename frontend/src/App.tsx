@@ -9,7 +9,7 @@ import { CircularProgress, Box } from "@mui/material";
 import "./App.css";
 import RealStudentHome from "./pages/Student/StudentDashboard";
 import CreateCase from "./pages/Student/CreateCase";
-import SideMenu from "./pages/Case/SideMenu";
+import CaseLayout from "./pages/Case/CaseLayout";
 import CaseOverview from "./pages/Case/CaseOverview";
 import {
   InterviewAssistant,
@@ -145,7 +145,7 @@ function App() {
     <div className="app">
       <Routes>
         {/* Shared Case Routes - Accessible to all authenticated users */}
-        <Route path="/case/:caseId" element={<SideMenu />}>
+        <Route path="/case/:caseId" element={<CaseLayout />}>
           <Route index element={<Navigate to="overview" replace />} />
           <Route path="overview" element={<CaseOverview />} />
           <Route path="interview" element={<InterviewAssistant />}>

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import {
   Box,
   Drawer,
@@ -8,22 +8,21 @@ import {
   ListItemText,
   Typography,
   Divider,
-  CssBaseline,
 } from "@mui/material";
-import { Outlet, useNavigate, useLocation, useParams } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import { fetchAuthSession } from "aws-amplify/auth";
-import StudentHeader from "../../components/StudentHeader";
 import LockIcon from "@mui/icons-material/Lock";
 
 const drawerWidth = 220;
 
-const SideMenu: React.FC = () => {
-  const { caseId } = useParams();
+interface SideMenuProps {
+  caseTitle: string;
+  loading: boolean;
+}
+
+const SideMenu: React.FC<SideMenuProps> = ({ caseTitle, loading }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const [caseTitle, setCaseTitle] = useState<string>("");
-  const [loading, setLoading] = useState<boolean>(true);
 
   const menuItems = [
     { text: "Case Overview", path: "overview" },
@@ -68,96 +67,14 @@ const SideMenu: React.FC = () => {
     { text: "Case Feedback", path: "feedback" },
   ];
 
-  useEffect(() => {
-    const init = async () => {
-      try {
-        const session = await fetchAuthSession();
-        const token = session.tokens?.idToken?.toString();
-        const cognitoId = session.tokens?.idToken?.payload?.sub;
-        const groups = session.tokens?.idToken?.payload?.[
-          "cognito:groups"
-        ] as string[];
-
-        if (!token || !cognitoId) return; // Handle auth error/redirect?
-
-        // Determine role
-
-        // Fetch Case Data
-        const res = await fetch(
-          `${
-            import.meta.env.VITE_API_ENDPOINT
-          }/student/case_page?case_id=${caseId}&cognito_id=${cognitoId}`,
-          {
-            headers: {
-              Authorization: token,
-              "Content-Type": "application/json",
-            },
-          }
-        );
-
-        if (res.ok) {
-          const data = await res.json();
-          const cData = data.caseData || data;
-          setCaseTitle(cData.case_title || "Untitled Case");
-        }
-
-        // Update view_case if student
-        if (!groups?.includes("instructor") && !groups?.includes("admin")) {
-          await fetch(
-            `${
-              import.meta.env.VITE_API_ENDPOINT
-            }/student/view_case?case_id=${caseId}`,
-            {
-              method: "PUT",
-              headers: {
-                Authorization: token,
-                "Content-Type": "application/json",
-              },
-            }
-          );
-        }
-      } catch (err) {
-        console.error("Error in SideMenu init", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (caseId) {
-      init();
-    }
-  }, [caseId]);
-
   return (
-    <Box sx={{ display: "flex" }}>
-      <CssBaseline />
-      <Box
-        position="fixed"
-        top={0}
-        left={0}
-        width="100%"
-        zIndex={1201} // High z-index to sit above drawer if needed, or drawer sits below?
-        // Usually Header is above Drawer (clipped) or Drawer is full height.
-        // Screenshot shows "Back to Dashboard" at very top of sidebar.
-        // StudentHeader is usually the top navbar.
-        // If I use Clipped drawer, Header is full width.
-        // If I use Permanent drawer, it can be full height.
-        // CaseOverview had Header fixed.
-        // I will put Header fixed at top, margin-left for content?
-        // Let's assume Header is separate and this SideMenu is below it?
-        // Actually, let's keep StudentHeader here for consistency with CaseOverview.
-        bgcolor="white"
-      >
-        <StudentHeader />
-      </Box>
-
-      <Drawer
-        variant="permanent"
-        sx={{
+    <Drawer
+      variant="permanent"
+      sx={{
+        width: drawerWidth,
+        flexShrink: 0,
+        [`& .MuiDrawer-paper`]: {
           width: drawerWidth,
-          flexShrink: 0,
-          [`& .MuiDrawer-paper`]: {
-            width: drawerWidth,
             boxSizing: "border-box",
             backgroundColor: "#1C1C1C", // Dark background from screenshot
             color: "white",
@@ -299,25 +216,7 @@ const SideMenu: React.FC = () => {
             })}
           </List>
         </Box>
-
-        {/* Placeholder for Draggable Notes Toggle if needed later 
-            The user said "Leave ... for later", but mentioned "Toggles ... via a bottom-left notes button".
-            I'll leave it out for now to strictly follow "Leave ... for later".
-        */}
       </Drawer>
-
-      <Box
-        component="main"
-        sx={{
-          flexGrow: 1,
-          p: 3,
-          mt: 8, // For header
-          width: { sm: `calc(100% - ${drawerWidth}px)` },
-        }}
-      >
-        <Outlet />
-      </Box>
-    </Box>
   );
 };
 
