@@ -385,7 +385,7 @@ exports.handler = async (event) => {
       response.body = JSON.stringify({ error: "Case not found" });
       break;
     }
-    const caseOwnerId = caseResult[0].user_id;
+    const caseOwnerId = caseResult[0].student_id;
 
     // Step 3: Check access — either owner OR an instructor of the owner
     let hasAccess = false;
@@ -541,7 +541,7 @@ break;
               response.body = JSON.stringify({ error: "Case not found" });
               break;
             }
-            const caseOwnerId = caseResult[0].user_id;
+            const caseOwnerId = caseResult[0].student_id;
         
             // Step 3: Check access — either owner OR an instructor of the owner
             let hasAccess = false;
