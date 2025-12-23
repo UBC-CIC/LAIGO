@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Amplify } from "aws-amplify";
 import { getCurrentUser, fetchAuthSession } from "aws-amplify/auth";
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import Login from "./pages/Login";
 import InstructorDashboard from "./components/InstructorDashboard";
 import AdminDashboard from "./components/AdminDashboard";
@@ -9,6 +9,14 @@ import { CircularProgress, Box } from "@mui/material";
 import "./App.css";
 import RealStudentHome from "./pages/Student/StudentDashboard";
 import CreateCase from "./pages/Student/CreateCase";
+import SideMenu from "./pages/Case/SideMenu";
+import CaseOverview from "./pages/Case/CaseOverview";
+import {
+  InterviewAssistant,
+  CaseSummaries,
+  CaseTranscriptions,
+  CaseFeedback,
+} from "./pages/Case/Placeholders";
 
 // Amplify configuration
 const amplifyConfig = {
@@ -93,7 +101,7 @@ function App() {
     return "student";
   };
 
-  const renderDashboard = () => {
+  const RoleBasedRoutes = () => {
     if (!userInfo) return null;
 
     const role = getUserRole(userInfo.groups);
@@ -105,12 +113,10 @@ function App() {
         return <InstructorDashboard userInfo={userInfo} />;
       case "student":
       default:
-        // Use Routes for student navigation
         return (
           <Routes>
             <Route path="/" element={<RealStudentHome />} />
             <Route path="/create-case" element={<CreateCase />} />
-            {/* Fallback to home */}
             <Route path="*" element={<RealStudentHome />} />
           </Routes>
         );
@@ -134,7 +140,24 @@ function App() {
     return <Login />;
   }
 
-  return <div className="app">{renderDashboard()}</div>;
+  return (
+    <div className="app">
+      <Routes>
+        {/* Shared Case Routes - Accessible to all authenticated users */}
+        <Route path="/case/:caseId" element={<SideMenu />}>
+          <Route index element={<Navigate to="overview" replace />} />
+          <Route path="overview" element={<CaseOverview />} />
+          <Route path="interview" element={<InterviewAssistant />} />
+          <Route path="summaries" element={<CaseSummaries />} />
+          <Route path="transcriptions" element={<CaseTranscriptions />} />
+          <Route path="feedback" element={<CaseFeedback />} />
+        </Route>
+
+        {/* Dashboard Routes based on Role */}
+        <Route path="/*" element={<RoleBasedRoutes />} />
+      </Routes>
+    </div>
+  );
 }
 
 export default App;
