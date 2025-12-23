@@ -203,6 +203,44 @@ const RealStudentHome: React.FC = () => {
     }
   };
 
+  // Archive handler (only wiring archive button)
+  const handleArchiveCase = async (caseId: string) => {
+    try {
+      setLoading(true);
+      const session = await fetchAuthSession();
+      const token = session.tokens?.idToken?.toString();
+      const cognito_id = session.tokens?.idToken?.payload?.sub;
+      if (!token || !cognito_id) throw new Error("No auth token");
+
+      const resp = await fetch(
+        `${import.meta.env.VITE_API_ENDPOINT}/student/archive_case?case_id=${caseId}&cognito_id=${cognito_id}`,
+        {
+          method: "PUT",
+          headers: { Authorization: token, "Content-Type": "application/json" },
+        }
+      );
+
+      if (!resp.ok) {
+        const text = await resp.text();
+        throw new Error(`Failed to archive case: ${resp.status} ${text}`);
+      }
+
+      // update UI: set status to Archived for the case
+      setCases((prev) =>
+        prev
+          ? prev.map((c) => (c.id === caseId ? { ...c, status: "Archived" } : c))
+          : prev
+      );
+      showSnackbar("Case archived", "success");
+    } catch (err) {
+      console.error("Archive failed", err);
+      const msg = err instanceof Error ? err.message : "Failed to archive case";
+      showSnackbar(msg, "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Using fetched data (or empty list) for search/filtering
   const filteredCases = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -308,6 +346,7 @@ const RealStudentHome: React.FC = () => {
                     jurisdiction={caseItem.jurisdiction}
                     dateAdded={caseItem.dateAdded}
                     onDelete={handleDeleteCase}
+                    onArchive={handleArchiveCase}
                     onClick={(id) => navigate(`/case/${id}/overview`)}
                   />
                 </Grid>
