@@ -37,8 +37,10 @@ const CaseCard: React.FC<CaseCardProps> = ({
 }) => {
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
   const open = Boolean(anchorEl);
-  const handleEllipsisClick = (e: React.MouseEvent<HTMLElement>) =>
+  const handleEllipsisClick = (e: React.MouseEvent<HTMLElement>) => {
+    e.stopPropagation();
     setAnchorEl(e.currentTarget);
+  };
   const handleEllipsisClose = () => setAnchorEl(null);
   const handleDelete = () => {
     handleEllipsisClose();
@@ -156,11 +158,12 @@ const CaseCard: React.FC<CaseCardProps> = ({
         id={`case-menu-${caseId}`}
         anchorEl={anchorEl}
         open={open}
-        onClose={handleEllipsisClose}
+        onClose={(event) => { event?.stopPropagation(); handleEllipsisClose(); }}
         anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
         transformOrigin={{ vertical: "bottom", horizontal: "right" }}
         disableScrollLock
         PaperProps={{
+          onClick: (e: React.MouseEvent) => e.stopPropagation(),
           sx: {
             backgroundColor: "var(--background3)",
             color: "var(--text)",
@@ -169,11 +172,11 @@ const CaseCard: React.FC<CaseCardProps> = ({
           },
         }}
       >
-        <MenuItem onClick={handleDelete} sx={{ color: "var(--text)", gap: 1 }}>
+        <MenuItem onClick={(e) => { e.stopPropagation(); handleDelete(); }} sx={{ color: "var(--text)", gap: 1 }}>
           <DeleteOutlineIcon sx={{ mr: 1, color: "var(--text)" }} />
           Delete
         </MenuItem>
-        <MenuItem onClick={handleArchive} sx={{ color: "var(--text)", gap: 1 }}>
+        <MenuItem onClick={(e) => { e.stopPropagation(); handleArchive(); }} sx={{ color: "var(--text)", gap: 1 }}>
           <ArchiveIcon sx={{ mr: 1, color: "var(--text)" }} />
           Archive
         </MenuItem>
