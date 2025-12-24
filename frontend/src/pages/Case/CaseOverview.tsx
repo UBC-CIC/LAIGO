@@ -711,12 +711,10 @@ const CaseOverview: React.FC = () => {
         open={snackbar.open}
         autoHideDuration={4000}
         onClose={handleSnackbarClose}
-        anchorOrigin={{ vertical: "top", horizontal: "center" }}
       >
         <Alert
           onClose={handleSnackbarClose}
           severity={snackbar.severity}
-          variant="filled"
           sx={{ width: "100%" }}
         >
           {snackbar.message}
