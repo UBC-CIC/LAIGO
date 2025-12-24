@@ -80,7 +80,7 @@ const CaseLayout: React.FC = () => {
         left={0}
         width="100%"
         zIndex={1201}
-        bgcolor="white"
+        bgcolor="var(--header)"
       >
         <StudentHeader />
       </Box>
@@ -93,9 +93,11 @@ const CaseLayout: React.FC = () => {
         component="main"
         sx={{
           flexGrow: 1,
-          p: 3,
-          mt: 8,
+          p: 0,
+          mt: "80px", // match header height
           width: { sm: `calc(100% - 220px)` },
+          minHeight: "calc(100vh - 80px)", // fill remaining viewport
+          color: "var(--text)", // inherit text color from CSS variables
         }}
       >
         <Outlet />

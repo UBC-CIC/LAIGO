@@ -303,7 +303,7 @@ const CaseOverview: React.FC = () => {
 
   return (
     <>
-      <Container sx={{ flexGrow: 1, p: 4, maxWidth: "900px", mx: "auto" }}>
+      <Container sx={{ flexGrow: 1, p: 4, mx: "auto", backgroundColor: "var(--background)"}}>
         {!caseData ? (
           <Box
             display="flex"

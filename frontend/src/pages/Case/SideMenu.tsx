@@ -76,8 +76,8 @@ const SideMenu: React.FC<SideMenuProps> = ({ caseTitle, loading }) => {
         [`& .MuiDrawer-paper`]: {
           width: drawerWidth,
             boxSizing: "border-box",
-            backgroundColor: "#1C1C1C", // Dark background from screenshot
-            color: "white",
+            backgroundColor: "var(--header)",
+            color: "var(--text)",
             marginTop: "64px", // Below header approx height
             height: "calc(100% - 64px)",
             borderRight: "1px solid #333",
@@ -94,13 +94,13 @@ const SideMenu: React.FC<SideMenuProps> = ({ caseTitle, loading }) => {
               mt: 2,
               mb: 2,
               px: 2, // restore padding for non-list items
-              color: "#ccc",
-              "&:hover": { color: "white" },
+              color: "var(--text-secondary)",
+              "&:hover": { color: "var(--text-secondary)" },
             }}
             onClick={() => navigate("/")}
           >
-            <ArrowBackIcon sx={{ mr: 1, fontSize: 20 }} />
-            <Typography variant="body1" fontFamily="Outfit">
+            <ArrowBackIcon sx={{ mr: 1, fontSize: '1rem', color: 'var(--text-secondary)', display: 'inline-flex', verticalAlign: 'middle' }} />
+            <Typography variant="caption" fontFamily="Outfit" sx={{ color: 'var(--text-secondary)', fontSize: '0.7rem', display: 'inline-flex', alignItems: 'center', lineHeight: 1 }}>
               Back to Dashboard
             </Typography>
           </Box>
@@ -110,7 +110,7 @@ const SideMenu: React.FC<SideMenuProps> = ({ caseTitle, loading }) => {
             variant="h6"
             fontFamily="Outfit"
             fontWeight="bold"
-            sx={{ mb: 1, lineHeight: 1.2, px: 2 }} // restore padding
+            sx={{ mb: 1, lineHeight: 1.2, px: 2, fontSize: '0.95rem', textAlign: 'left', width: '100%' }} // smaller title font, left aligned
           >
             {loading ? "Loading..." : caseTitle}
           </Typography>
