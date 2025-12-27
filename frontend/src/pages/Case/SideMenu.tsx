@@ -84,7 +84,16 @@ const SideMenu: React.FC<SideMenuProps> = ({ caseTitle, loading }) => {
           },
         }}
       >
-        <Box sx={{ overflow: "auto", py: 2 }}>
+        <Box
+          sx={{
+            overflow: "auto",
+            py: 2,
+            // Hide native scrollbar but keep scrolling functional
+            '&::-webkit-scrollbar': { width: 0, background: 'transparent' },
+            '-ms-overflow-style': 'none', // IE and Edge
+            scrollbarWidth: 'none', // Firefox
+          }}
+        >
           {/* Back to Dashboard */}
           <Box
             sx={{
