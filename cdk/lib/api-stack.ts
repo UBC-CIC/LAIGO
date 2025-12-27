@@ -1011,5 +1011,124 @@ export class ApiGatewayStack extends cdk.Stack {
       })
     );
 
+    const textGenLambdaDockerFunc = new lambda.DockerImageFunction(
+      this,
+      `${id}-TextGenLambdaDockerFunction`,
+      {
+        code: lambda.DockerImageCode.fromEcr(
+          props.ecrRepositories["textGeneration"],
+          {
+            tagOrDigest: "latest",      // or whatever tag you're using
+          }
+        ),
+        memorySize: 512,
+        timeout: cdk.Duration.seconds(300),
+        vpc: vpcStack.vpc,
+        functionName: `${id}-TextGenLambdaDockerFunction`,
+        environment: {
+          SM_DB_CREDENTIALS: db.secretPathAdminName,
+          RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint,
+          REGION: this.region,
+          BEDROCK_LLM_PARAM: bedrockLLMParameter.parameterName,
+          EMBEDDING_MODEL_PARAM: embeddingModelParameter.parameterName,
+          TABLE_NAME_PARAM: tableNameParameter.parameterName,
+          TABLE_NAME: "DynamoDB-Conversation-Table",
+        },
+      }
+    );
+
+
+
+    // Override the Logical ID of the Lambda Function to get ARN in OpenAPI
+    const cfnTextGenDockerFunc = textGenLambdaDockerFunc.node
+      .defaultChild as lambda.CfnFunction;
+    cfnTextGenDockerFunc.overrideLogicalId("TextGenLambdaDockerFunc");
+
+    // Add the permission to the Lambda function's policy to allow API Gateway access
+    textGenLambdaDockerFunc.addPermission("AllowApiGatewayInvoke", {
+      principal: new iam.ServicePrincipal("apigateway.amazonaws.com"),
+      action: "lambda:InvokeFunction",
+      sourceArn: `arn:aws:execute-api:${this.region}:${this.account}:${this.api.restApiId}/*/*/student*`,
+    });
+
+
+    textGenLambdaDockerFunc.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: [
+          "bedrock:CreateGuardrail",
+          "bedrock:CreateGuardrailVersion",
+          "bedrock:DeleteGuardrail",
+          "bedrock:ListGuardrails",
+          "bedrock:InvokeGuardrail",
+          "bedrock:ApplyGuardrail"
+        ],
+        resources: ["*"],
+      })
+    );
+
+    textGenLambdaDockerFunc.role?.attachInlinePolicy(
+      new iam.Policy(this, "DynamoDBReadWritePolicy", {
+        statements: [
+          new iam.PolicyStatement({
+            actions: [
+              "dynamodb:PutItem",
+              "dynamodb:GetItem",
+              "dynamodb:Query",
+            ],
+            resources: [`arn:aws:dynamodb:${this.region}:${this.account}:table/*`],
+            effect: iam.Effect.ALLOW,
+          }),
+        ],
+      })
+    );
+
+
+    // Attach the corrected Bedrock policy to Lambda
+    textGenLambdaDockerFunc.addToRolePolicy(bedrockPolicyStatement);
+
+    // Grant access to Secret Manager
+    textGenLambdaDockerFunc.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: [
+          //Secrets Manager
+          "secretsmanager:GetSecretValue",
+        ],
+        resources: [
+          `arn:aws:secretsmanager:${this.region}:${this.account}:secret:*`,
+        ],
+      })
+    );
+
+    // Grant access to DynamoDB actions
+    textGenLambdaDockerFunc.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: [
+          "dynamodb:ListTables",
+          "dynamodb:CreateTable",
+          "dynamodb:DescribeTable",
+          "dynamodb:PutItem",
+          "dynamodb:GetItem",
+          "dynamodb:UpdateItem",
+        ],
+        resources: [`arn:aws:dynamodb:${this.region}:${this.account}:table/*`],
+      })
+    );
+
+    // Grant access to SSM Parameter Store for specific parameters
+    textGenLambdaDockerFunc.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["ssm:GetParameter"],
+        resources: [
+          bedrockLLMParameter.parameterArn,
+          embeddingModelParameter.parameterArn,
+          tableNameParameter.parameterArn,
+        ],
+      })
+    );
+
   }
 }
