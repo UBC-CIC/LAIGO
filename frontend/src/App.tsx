@@ -12,12 +12,11 @@ import CreateCase from "./pages/Student/CreateCase";
 import CaseLayout from "./pages/Case/CaseLayout";
 import CaseOverview from "./pages/Case/CaseOverview";
 import {
-  InterviewAssistant,
   CaseSummaries,
   CaseTranscriptions,
   CaseFeedback,
-  Placeholder,
 } from "./pages/Case/Placeholders";
+import InterviewAssistant from "./pages/Case/InterviewAssistant";
 
 // Amplify configuration
 const amplifyConfig = {
@@ -148,33 +147,11 @@ function App() {
         <Route path="/case/:caseId" element={<CaseLayout />}>
           <Route index element={<Navigate to="overview" replace />} />
           <Route path="overview" element={<CaseOverview />} />
-          <Route path="interview" element={<InterviewAssistant />}>
-            <Route index element={<Navigate to="intake-facts" replace />} />
-            <Route
-              path="intake-facts"
-              element={<Placeholder title="Intake & Facts" />}
-            />
-            <Route
-              path="issue-identification"
-              element={<Placeholder title="Issue Identification" />}
-            />
-            <Route
-              path="research-strategy"
-              element={<Placeholder title="Research Strategy" />}
-            />
-            <Route
-              path="argument-construction"
-              element={<Placeholder title="Argument Construction" />}
-            />
-            <Route
-              path="contrarian-analysis"
-              element={<Placeholder title="Contrarian Analysis" />}
-            />
-            <Route
-              path="policy-context"
-              element={<Placeholder title="Policy Context" />}
-            />
-          </Route>
+          <Route
+            path="interview"
+            element={<Navigate to="intake-facts" replace />}
+          />
+          <Route path="interview/:section" element={<InterviewAssistant />} />
           <Route path="summaries" element={<CaseSummaries />} />
           <Route path="transcriptions" element={<CaseTranscriptions />} />
           <Route path="feedback" element={<CaseFeedback />} />
