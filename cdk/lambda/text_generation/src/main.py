@@ -224,7 +224,7 @@ You are NOT allowed to hallucinate, informational accuracy and being up-to-date 
 
 Do not indent your text.'''
 
-def get_system_prompt():
+def get_system_prompt(block_type):
     # Connect to the database
     connection = connect_to_db()
     if connection is None:
@@ -234,13 +234,16 @@ def get_system_prompt():
         cur = connection.cursor()
         logger.info("Connected to RDS instance!")
 
-        # Query to get the latest system prompt based on the time_created
+        # Query to get the active system prompt for the specific block_type
         cur.execute("""
-            SELECT prompt
-            FROM system_prompt
-            ORDER BY time_created DESC
+            SELECT prompt_text
+            FROM prompt_versions
+            WHERE block_type = %s
+              AND is_active = true
+              AND category = 'reasoning'
+            ORDER BY version_number DESC
             LIMIT 1;
-        """)
+        """, (block_type,))
         
         result = cur.fetchone()
         cur.close()
@@ -248,10 +251,10 @@ def get_system_prompt():
         if result:
             # Extract the prompt from the query result
             latest_prompt = result[0]
-            logger.info("Successfully fetched the latest system prompt.")
+            logger.info(f"Successfully fetched the active system prompt for block_type: {block_type}.")
             return latest_prompt
         else:
-            logger.error("No system prompt found in the database.")
+            logger.error(f"No active system prompt found for block_type: {block_type}.")
             return None
     except Exception as e:
         logger.error(f"Error fetching system prompt: {e}")
@@ -340,6 +343,19 @@ def handler(event, context):
     
     query_params = event.get("queryStringParameters", {})
     case_id = query_params.get("case_id", "")
+    sub_route = query_params.get("sub_route", "intake-facts") # Default to intake-facts if missing
+
+    # Map sub_route to block_type enum
+    subroute_map = {
+        "intake-facts": "intake",
+        "issue-identification": "issues",
+        "research-strategy": "research",
+        "argument-construction": "argument",
+        "contrarian-analysis": "contrarian",
+        "policy-context": "policy"
+    }
+    
+    block_type = subroute_map.get(sub_route, "intake") # Default to intake if invalid sub_route
     
     if not case_id:
         return {
@@ -353,9 +369,9 @@ def handler(event, context):
             'body': json.dumps("Missing required parameters: case_id")
         }
 
-    system_prompt = get_system_prompt()
+    system_prompt = get_system_prompt(block_type)
     if system_prompt is None:
-        logger.error(f"Error fetching system prompt")
+        logger.error(f"Error fetching system prompt for block_type: {block_type}")
         return {
             'statusCode': 400,
             "headers": {
@@ -374,7 +390,8 @@ def handler(event, context):
     body = {} if event.get("body") is None else json.loads(event.get("body"))
     question = body.get("message_content", "")
 
-    
+    # Construct unique session ID based on case and subroute
+    session_id = f"{case_id}-{block_type}"
     
     if not question:
         logger.info(f"Start of conversation. Creating conversation history table in DynamoDB.")
@@ -488,7 +505,7 @@ def handler(event, context):
                 llm=llm,
                 history_aware_retriever=history_aware_retriever,
                 table_name=TABLE_NAME,
-                case_id=case_id,
+                case_id=session_id, # Use session_id instead of case_id for chat history
                 system_prompt=system_prompt,
                 case_type=case_type,
                 jurisdiction=jurisdiction,
