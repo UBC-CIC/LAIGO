@@ -46,9 +46,15 @@ const cicd = new CICDStack(app, `${StackPrefix}-CICDStack`, {
       functionName: `${StackPrefix}-ApiStack-CaseLambdaDockerFunction`,
       sourceDir: "cdk/lambda/case_generation",
     },
+    {
+      name: "textGeneration",
+      functionName: `${StackPrefix}-ApiStack-TextGenLambdaDockerFunction`,
+      sourceDir: "cdk/lambda/text_generation",
+    },
   ],
   pathFilters: [
     "cdk/lambda/case_generation/**",
+    "cdk/lambda/text_generation/**",
   ],
 });
 
