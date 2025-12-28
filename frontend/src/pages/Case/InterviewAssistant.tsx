@@ -1,20 +1,100 @@
-import React, { useEffect } from "react";
-import { Box, Container } from "@mui/material";
+import React, { useEffect, useState, useRef } from "react";
+import { Box, Container, CircularProgress } from "@mui/material";
 import { useParams } from "react-router-dom";
+import { fetchAuthSession } from "aws-amplify/auth";
 import UserMessage from "../../components/Chat/UserMessage";
 import AiResponse from "../../components/Chat/AIResponse";
 import ChatBar from "../../components/Chat/ChatBar";
 
+interface Message {
+  type: "human" | "ai";
+  content: string;
+}
+
 const InterviewAssistant: React.FC = () => {
-  const { section } = useParams<{ section: string }>();
+  const { caseId, section } = useParams();
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Logic to determine functionality based on 'section' (e.g., "intake-facts", "issue-identification")
+  // Scroll to bottom on new messages
   useEffect(() => {
-    console.log("Current Interview Section:", section);
-  }, [section]);
+    if (scrollRef.current) {
+      scrollRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages, isLoading]);
 
-  // Use CSS variables from index.css for theme consistency
-  // Assuming the dark theme uses the variables defined in @media (prefers-color-scheme: dark) or similar class
+  // Initialize chat when section changes
+  useEffect(() => {
+    setMessages([]); // Clear history on section switch
+    if (caseId && section) {
+      handleSendMessage("", true); // Send initial trigger for greeting
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [caseId, section]);
+
+  const handleSendMessage = async (message: string, isInitial = false) => {
+    if (!caseId || !section) return;
+
+    if (!isInitial) {
+      setMessages((prev) => [...prev, { type: "human", content: message }]);
+    }
+
+    setIsLoading(true);
+
+    try {
+      const session = await fetchAuthSession();
+      const token = session.tokens?.idToken?.toString();
+
+      if (!token) {
+        console.error("No auth token found");
+        return;
+      }
+
+      const response = await fetch(
+        `${
+          import.meta.env.VITE_API_ENDPOINT
+        }/student/text_generation?case_id=${caseId}&sub_route=${section}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: token,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            message_content: message,
+          }),
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.llm_output) {
+          setMessages((prev) => [
+            ...prev,
+            { type: "ai", content: data.llm_output },
+          ]);
+        }
+      } else {
+        console.error("API Error", response.statusText);
+        setMessages((prev) => [
+          ...prev,
+          {
+            type: "ai",
+            content: "Sorry, I encountered an error connecting to the server.",
+          },
+        ]);
+      }
+    } catch (error) {
+      console.error("Network Error", error);
+      setMessages((prev) => [
+        ...prev,
+        { type: "ai", content: "Sorry, I encountered a network error." },
+      ]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <Box
@@ -41,9 +121,24 @@ const InterviewAssistant: React.FC = () => {
           px: { xs: 2, md: 8 }, // Add more horizontal padding
         }}
       >
-        <UserMessage message="What specific gaps in the 'time of offense' timeline need to be addressed to confirm the alibi viability?" />
+        {messages.map((msg, index) =>
+          msg.type === "human" ? (
+            <UserMessage key={index} message={msg.content} />
+          ) : (
+            <AiResponse key={index} message={msg.content} />
+          )
+        )}
 
-        <AiResponse message="You could look at gaps such as: When the suspect was last seen, When the offence was estimated to occur, and When the alibi was first documented. Based on the inconsistencies you've noticed, which of these areas feels most significant to investigate further? Could more than one gap be influencing the alibi's viability?" />
+        {isLoading && (
+          <Box sx={{ display: "flex", justifyContent: "flex-start", pl: 2 }}>
+            <CircularProgress
+              size={24}
+              sx={{ color: "var(--text-secondary)" }}
+            />
+          </Box>
+        )}
+
+        <div ref={scrollRef} />
       </Container>
 
       {/* Bottom Bar Area */}
@@ -57,7 +152,7 @@ const InterviewAssistant: React.FC = () => {
         }}
       >
         <Container maxWidth="lg" sx={{ px: { xs: 2, md: 8 } }}>
-          <ChatBar />
+          <ChatBar onSendMessage={handleSendMessage} isLoading={isLoading} />
         </Container>
       </Box>
     </Box>

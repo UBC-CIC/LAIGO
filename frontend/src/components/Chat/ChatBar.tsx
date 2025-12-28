@@ -3,7 +3,28 @@ import { Box, InputBase, IconButton } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import SendIcon from "@mui/icons-material/Send";
 
-const ChatBar: React.FC = () => {
+interface ChatBarProps {
+  onSendMessage: (message: string) => void;
+  isLoading: boolean;
+}
+
+const ChatBar: React.FC<ChatBarProps> = ({ onSendMessage, isLoading }) => {
+  const [input, setInput] = React.useState("");
+
+  const handleSend = () => {
+    if (input.trim() && !isLoading) {
+      onSendMessage(input);
+      setInput("");
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
   return (
     <Box
       sx={{
@@ -23,6 +44,10 @@ const ChatBar: React.FC = () => {
 
       <InputBase
         placeholder="Ask me a question"
+        value={input}
+        onChange={(e) => setInput(e.target.value)}
+        onKeyDown={handleKeyDown}
+        disabled={isLoading}
         sx={{
           ml: 2,
           flex: 1,
@@ -36,7 +61,12 @@ const ChatBar: React.FC = () => {
         fullWidth
       />
 
-      <IconButton size="small" sx={{ color: "var(--text)", p: 0.5 }}>
+      <IconButton
+        size="small"
+        sx={{ color: "var(--text)", p: 0.5 }}
+        onClick={handleSend}
+        disabled={isLoading || !input.trim()}
+      >
         <SendIcon
           fontSize="small"
           sx={{ transform: "rotate(-45deg)", mb: 0.5 }}
