@@ -889,6 +889,13 @@ export class ApiGatewayStack extends cdk.Stack {
       stringValue: "Infinity",
     });
 
+    // Create SSM parameter for file size limit
+    const fileSizeLimitParameter = new ssm.StringParameter(this, "FileSizeLimitParameter", {
+      parameterName: `/${id}/LAT/FileSizeLimit`,
+      description: "Parameter containing the file size limit for audio uploads (in MB)",
+      stringValue: "500",
+    });
+
     // --- Student Cases Lambda (GET /student/cases) ---
     const lambdaStudentFunction = new lambda.Function(this, `${id}-studentFunction`, {
       runtime: lambda.Runtime.NODEJS_22_X,
@@ -915,6 +922,44 @@ export class ApiGatewayStack extends cdk.Stack {
     // Override logical ID to reference from OpenAPI document
     const apiGW_studentCasesFunction = lambdaStudentFunction.node.defaultChild as lambda.CfnFunction;
     apiGW_studentCasesFunction.overrideLogicalId("studentFunction");
+
+
+    const lambdaAdminFunction = new lambda.Function(this, `${id}-adminFunction`, {
+      runtime: lambda.Runtime.NODEJS_22_X,
+      code: lambda.Code.fromAsset("lambda/adminFunction"),
+      handler: "adminFunction.handler",
+      timeout: Duration.seconds(300),
+      vpc: vpcStack.vpc,
+      environment: {
+        SM_DB_CREDENTIALS: db.secretPathTableCreator.secretName,
+        RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint,
+        MESSAGE_LIMIT: messageLimitParameter.parameterName,
+        FILE_SIZE_LIMIT: fileSizeLimitParameter.parameterName,
+      },
+      functionName: `${id}-adminFunction`,
+      memorySize: 512,
+      layers: [postgres],
+      role: lambdaRole,
+    });
+
+    // Add the permission to the Lambda function's policy to allow API Gateway access
+    lambdaAdminFunction.addPermission("AllowApiGatewayInvoke", {
+      principal: new iam.ServicePrincipal("apigateway.amazonaws.com"),
+      action: "lambda:InvokeFunction",
+      sourceArn: `arn:aws:execute-api:${this.region}:${this.account}:${this.api.restApiId}/*/*/admin*`,
+    });
+
+    // Allow access for lambda to read and write to message limit parameter
+    messageLimitParameter.grantWrite(lambdaAdminFunction);
+    
+    // Allow access for lambda to read and write to file size limit parameter
+    fileSizeLimitParameter.grantWrite(lambdaAdminFunction);
+    fileSizeLimitParameter.grantRead(lambdaAdminFunction);
+
+    const cfnLambda_Admin = lambdaAdminFunction.node
+      .defaultChild as lambda.CfnFunction;
+    cfnLambda_Admin.overrideLogicalId("adminFunction");
+
 
 
     const bedrockPolicyStatement = new iam.PolicyStatement({
