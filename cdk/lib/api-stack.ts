@@ -915,6 +915,17 @@ export class ApiGatewayStack extends cdk.Stack {
       role: lambdaRole,
     });
     
+    // Allow access to DynamoDB Table for reading chat history
+    lambdaStudentFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ["dynamodb:Query"],
+        resources: [
+          `arn:aws:dynamodb:${this.region}:${this.account}:table/DynamoDB-Conversation-Table`
+        ],
+        effect: iam.Effect.ALLOW
+      })
+    );
+    
     // Allow API Gateway to invoke the student cases lambda
     lambdaStudentFunction.grantInvoke(new iam.ServicePrincipal("apigateway.amazonaws.com"));
     messageLimitParameter.grantRead(lambdaStudentFunction);

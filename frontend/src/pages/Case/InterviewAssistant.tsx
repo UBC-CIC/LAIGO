@@ -15,6 +15,7 @@ const InterviewAssistant: React.FC = () => {
   const { caseId, section } = useParams();
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Scroll to bottom on new messages
@@ -24,22 +25,63 @@ const InterviewAssistant: React.FC = () => {
     }
   }, [messages, isLoading]);
 
-  // Initialize chat when section changes
+  // Fetch chat history when section changes
   useEffect(() => {
-    setMessages([]); // Clear history on section switch
-    if (caseId && section) {
-      handleSendMessage("", true); // Send initial trigger for greeting
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const DEFAULT_GREETING: Message = {
+      type: "ai",
+      content: "Hi, I'm your Legal Interview Assistant. Try asking me to analyze the case to begin!"
+    };
+
+    const fetchChatHistory = async () => {
+      if (!caseId || !section) return;
+
+      setIsLoadingHistory(true);
+      try {
+        const session = await fetchAuthSession();
+        const token = session.tokens?.idToken?.toString();
+
+        if (!token) {
+          console.error("No auth token found");
+          setMessages([DEFAULT_GREETING]);
+          return;
+        }
+
+        const response = await fetch(
+          `${
+            import.meta.env.VITE_API_ENDPOINT
+          }/student/get_messages?case_id=${caseId}&sub_route=${section}`,
+          {
+            method: "GET",
+            headers: {
+              Authorization: token,
+            },
+          }
+        );
+
+        if (response.ok) {
+          const history = await response.json();
+          setMessages(Array.isArray(history) && history.length > 0 ? history : [DEFAULT_GREETING]);
+        } else {
+          if (response.status !== 404) {
+            console.error("Failed to fetch chat history", response.statusText);
+          }
+          setMessages([DEFAULT_GREETING]);
+        }
+      } catch (error) {
+        console.error("Error fetching chat history", error);
+        setMessages([DEFAULT_GREETING]);
+      } finally {
+        setIsLoadingHistory(false);
+      }
+    };
+
+    fetchChatHistory();
   }, [caseId, section]);
 
-  const handleSendMessage = async (message: string, isInitial = false) => {
+  const handleSendMessage = async (message: string) => {
     if (!caseId || !section) return;
 
-    if (!isInitial) {
-      setMessages((prev) => [...prev, { type: "human", content: message }]);
-    }
-
+    setMessages((prev) => [...prev, { type: "human", content: message }]);
     setIsLoading(true);
 
     try {
@@ -121,13 +163,18 @@ const InterviewAssistant: React.FC = () => {
           px: { xs: 2, md: 8 }, // Add more horizontal padding
         }}
       >
-        {messages.map((msg, index) =>
+        {isLoadingHistory ? (
+          <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100%" }}>
+            <CircularProgress sx={{ color: "var(--text-secondary)" }} />
+          </Box>
+        ) : (
+          messages.map((msg, index) =>
           msg.type === "human" ? (
             <UserMessage key={index} message={msg.content} />
           ) : (
             <AiResponse key={index} message={msg.content} />
           )
-        )}
+        ))}
 
         {isLoading && (
           <Box sx={{ display: "flex", justifyContent: "flex-start", pl: 2 }}>

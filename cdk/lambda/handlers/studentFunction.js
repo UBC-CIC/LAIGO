@@ -962,19 +962,34 @@ break;
         case "GET /student/get_messages":
           if (event.queryStringParameters && event.queryStringParameters.case_id) {
             const case_id = event.queryStringParameters.case_id;
+            const sub_route = event.queryStringParameters.sub_route || "intake-facts";
+            
+            // Map sub_route to block_type enum (same as text_generation Lambda)
+            const subrouteMap = {
+              "intake-facts": "intake",
+              "issue-identification": "issues",
+              "research-strategy": "research",
+              "argument-construction": "argument",
+              "contrarian-analysis": "contrarian",
+              "policy-context": "policy"
+            };
+            
+            const block_type = subrouteMap[sub_route] || "intake";
+            const session_id = `${case_id}-${block_type}`;
+            
             try {
-              console.log("Received case_id: ", case_id);
+              console.log("Received case_id: ", case_id, " and sub_route: ", sub_route, " -> session_id: ", session_id);
         
               // Initialize the DynamoDB client
               const { DynamoDBClient, QueryCommand } = require('@aws-sdk/client-dynamodb');
               const ddbClient = new DynamoDBClient();
         
-              // Query DynamoDB for messages with the provided case_id (which is used as SessionId)
+              // Query DynamoDB for messages with the constructed session_id
               const params = {
                 TableName: "DynamoDB-Conversation-Table",
-                KeyConditionExpression: "SessionId = :case_id",
+                KeyConditionExpression: "SessionId = :session_id",
                 ExpressionAttributeValues: {
-                  ":case_id": { S: case_id }
+                  ":session_id": { S: session_id }
                 }
               };
         
