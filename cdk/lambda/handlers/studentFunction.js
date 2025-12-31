@@ -1281,6 +1281,62 @@ break;
         }
          
         break;
+
+        case "PUT /student/unlock_block":
+          if (
+            event.queryStringParameters != null &&
+            event.queryStringParameters.case_id &&
+            event.queryStringParameters.block_type
+          ) {
+            const { case_id, block_type } = event.queryStringParameters;
+            
+            try {
+              // First, get current unlocked_blocks
+              const caseData = await sqlConnection`
+                SELECT unlocked_blocks FROM "cases" WHERE case_id = ${case_id};
+              `;
+
+              if (caseData.length === 0) {
+                response.statusCode = 404;
+                response.body = JSON.stringify({ error: "Case not found" });
+                break;
+              }
+
+              const currentBlocks = caseData[0].unlocked_blocks || [];
+              
+              // Add the new block if not already present
+              if (!currentBlocks.includes(block_type)) {
+                const updatedBlocks = [...currentBlocks, block_type];
+                
+                await sqlConnection`
+                  UPDATE "cases"
+                  SET unlocked_blocks = ${updatedBlocks}
+                  WHERE case_id = ${case_id};
+                `;
+
+                response.statusCode = 200;
+                response.body = JSON.stringify({
+                  message: "Block unlocked successfully",
+                  unlocked_blocks: updatedBlocks
+                });
+              } else {
+                response.statusCode = 200;
+                response.body = JSON.stringify({
+                  message: "Block already unlocked",
+                  unlocked_blocks: currentBlocks
+                });
+              }
+            } catch (err) {
+              response.statusCode = 500;
+              console.error(err);
+              response.body = JSON.stringify({ error: "Internal server error" });
+            }
+          } else {
+            response.statusCode = 400;
+            response.body = JSON.stringify({ error: "case_id and block_type are required" });
+          }
+          break;
+
       default:
         throw new Error(`Unsupported route: "${pathData}"`);
     }

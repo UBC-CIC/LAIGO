@@ -18,9 +18,10 @@ const drawerWidth = 220;
 interface SideMenuProps {
   caseTitle: string;
   loading: boolean;
+  unlockedBlocks: string[];
 }
 
-const SideMenu: React.FC<SideMenuProps> = ({ caseTitle, loading }) => {
+const SideMenu: React.FC<SideMenuProps> = ({ caseTitle, loading, unlockedBlocks }) => {
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -33,32 +34,32 @@ const SideMenu: React.FC<SideMenuProps> = ({ caseTitle, loading }) => {
         {
           text: "Intake & Facts",
           path: "interview/intake-facts",
-          locked: false,
+          blockType: "intake",
         },
         {
           text: "Issue Identification",
           path: "interview/issue-identification",
-          locked: true,
+          blockType: "issues",
         },
         {
           text: "Research Strategy",
           path: "interview/research-strategy",
-          locked: true,
+          blockType: "research",
         },
         {
           text: "Argument Construction",
           path: "interview/argument-construction",
-          locked: true,
+          blockType: "argument",
         },
         {
           text: "Contrarian Analysis",
           path: "interview/contrarian-analysis",
-          locked: true,
+          blockType: "contrarian",
         },
         {
           text: "Policy Context",
           path: "interview/policy-context",
-          locked: true,
+          blockType: "policy",
         },
       ],
     },
@@ -175,11 +176,12 @@ const SideMenu: React.FC<SideMenuProps> = ({ caseTitle, loading }) => {
                         const isSubActive = location.pathname.includes(
                           sub.path
                         );
+                        const isLocked = !!(sub.blockType && !unlockedBlocks.includes(sub.blockType));
                         return (
                           <ListItem key={sub.text} disablePadding>
                             <ListItemButton
-                              disabled={sub.locked}
-                              onClick={() => !sub.locked && navigate(sub.path)}
+                              disabled={isLocked}
+                              onClick={() => !isLocked && navigate(sub.path)}
                               sx={{
                                 py: 0.5,
                                 ml: 1, // gap from grey border
@@ -189,7 +191,7 @@ const SideMenu: React.FC<SideMenuProps> = ({ caseTitle, loading }) => {
                                   ? "rgba(100, 181, 246, 0.15)"
                                   : "transparent",
                                 "&:hover": {
-                                  backgroundColor: sub.locked
+                                  backgroundColor: isLocked
                                     ? "transparent"
                                     : isSubActive
                                     ? "rgba(100, 181, 246, 0.2)"
@@ -204,12 +206,12 @@ const SideMenu: React.FC<SideMenuProps> = ({ caseTitle, loading }) => {
                                   fontSize: "0.85rem",
                                   color: isSubActive
                                     ? "#64B5F6"
-                                    : sub.locked
+                                    : isLocked
                                     ? "#666"
                                     : "rgba(255,255,255,0.7)",
                                 }}
                               />
-                              {sub.locked && (
+                              {isLocked && (
                                 <LockIcon
                                   sx={{ fontSize: 14, color: "#666", mr: 1 }}
                                 />

@@ -8,6 +8,7 @@ import SideMenu from "./SideMenu";
 const CaseLayout: React.FC = () => {
   const { caseId } = useParams();
   const [caseTitle, setCaseTitle] = useState<string>("");
+  const [unlockedBlocks, setUnlockedBlocks] = useState<string[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
@@ -38,6 +39,7 @@ const CaseLayout: React.FC = () => {
           const data = await res.json();
           const cData = data.caseData || data;
           setCaseTitle(cData.case_title || "Untitled Case");
+          setUnlockedBlocks(cData.unlocked_blocks || ["intake"]);
         }
 
         // Update view_case if student
@@ -86,7 +88,7 @@ const CaseLayout: React.FC = () => {
       </Box>
 
       {/* Side Menu */}
-      <SideMenu caseTitle={caseTitle} loading={loading} />
+      <SideMenu caseTitle={caseTitle} loading={loading} unlockedBlocks={unlockedBlocks} />
 
       {/* Main Content Area */}
       <Box

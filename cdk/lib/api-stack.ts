@@ -926,7 +926,7 @@ export class ApiGatewayStack extends cdk.Stack {
 
     const lambdaAdminFunction = new lambda.Function(this, `${id}-adminFunction`, {
       runtime: lambda.Runtime.NODEJS_22_X,
-      code: lambda.Code.fromAsset("lambda/adminFunction"),
+      code: lambda.Code.fromAsset("lambda/handlers"),
       handler: "adminFunction.handler",
       timeout: Duration.seconds(300),
       vpc: vpcStack.vpc,
