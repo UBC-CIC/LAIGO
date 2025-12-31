@@ -1,10 +1,10 @@
-const { initializeConnection } = require("./libadmin.js");
+const { initializeConnection } = require("./initializeConnection.js");
 
 let { SM_DB_CREDENTIALS, RDS_PROXY_ENDPOINT, MESSAGE_LIMIT, FILE_SIZE_LIMIT } =
   process.env;
 
-// SQL conneciton from global variable at libadmin.js
-let sqlConnectionTableCreator = global.sqlConnectionTableCreator;
+// SQL conneciton from global variable at initializeConnection.js
+let sqlConnectionTableCreator = global.sqlConnection;
 
 exports.handler = async (event) => {
   const response = {
