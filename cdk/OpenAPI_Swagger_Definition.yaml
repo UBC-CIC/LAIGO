@@ -122,6 +122,269 @@ paths:
         "200":
           description: Success
 
+  /admin/prompt:
+    options:
+      summary: CORS support
+      description: |
+        Enable CORS by returning correct headers
+      responses:
+        200:
+          $ref: "#/components/responses/Success"
+      x-amazon-apigateway-integration:
+        type: mock
+        requestTemplates:
+          application/json: |
+            {
+              "statusCode" : 200
+            }
+        responses:
+          default:
+            statusCode: "200"
+            responseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            responseTemplates:
+              application/json: |
+                {}
+    post:
+      tags:
+        - Admin
+      summary: Create a prompt version
+      operationId: admin_create_prompt_POST
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - category
+                - block_type
+                - prompt_text
+              properties:
+                category:
+                  type: string
+                  description: Prompt category (e.g., "student_chat", "case_summary")
+                block_type:
+                  type: string
+                  description: Block type for the prompt
+                prompt_text:
+                  type: string
+                  description: The prompt content
+                version_name:
+                  type: string
+                  description: Optional human-friendly version name
+                author_id:
+                  type: string
+                  description: Optional author id
+      responses:
+        "200":
+          description: Prompt version created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  prompt_version_id:
+                    type: integer
+                  category:
+                    type: string
+                  block_type:
+                    type: string
+                  version_number:
+                    type: integer
+                  version_name:
+                    type: string
+                  prompt_text:
+                    type: string
+                  author_id:
+                    type: string
+                  is_active:
+                    type: boolean
+        "400":
+          description: Invalid value
+        "500":
+          description: Internal Server Error
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${adminFunction.Arn}/invocations"
+        passthroughBehavior: "when_no_match"
+        httpMethod: "POST"
+        type: "aws_proxy"
+
+    get:
+      tags:
+        - Admin
+      summary: List all prompt versions
+      operationId: admin_list_prompts_GET
+      responses:
+        "200":
+          description: List of prompt versions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    prompt_version_id:
+                      type: integer
+                    category:
+                      type: string
+                    block_type:
+                      type: string
+                    version_number:
+                      type: integer
+                    version_name:
+                      type: string
+                    prompt_text:
+                      type: string
+                    author_id:
+                      type: string
+                    time_created:
+                      type: string
+                    is_active:
+                      type: boolean
+        "500":
+          description: Internal Server Error
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${adminFunction.Arn}/invocations"
+        passthroughBehavior: "when_no_match"
+        httpMethod: "POST"
+        type: "aws_proxy"
+
+  /admin/prompt/active:
+    options:
+      summary: CORS support
+      description: |
+        Enable CORS by returning correct headers
+      responses:
+        200:
+          $ref: "#/components/responses/Success"
+      x-amazon-apigateway-integration:
+        type: mock
+        requestTemplates:
+          application/json: |
+            {
+              "statusCode" : 200
+            }
+        responses:
+          default:
+            statusCode: "200"
+            responseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            responseTemplates:
+              application/json: |
+                {}
+    get:
+      tags:
+        - Admin
+      summary: Get only active prompts
+      operationId: admin_active_prompts_GET
+      responses:
+        "200":
+          description: List of active prompts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    prompt_version_id:
+                      type: integer
+                    category:
+                      type: string
+                    block_type:
+                      type: string
+                    version_number:
+                      type: integer
+                    version_name:
+                      type: string
+                    prompt_text:
+                      type: string
+                    time_created:
+                      type: string
+        "500":
+          description: Internal Server Error
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${adminFunction.Arn}/invocations"
+        passthroughBehavior: "when_no_match"
+        httpMethod: "POST"
+        type: "aws_proxy"
+
+  /admin/prompt/activate:
+    options:
+      summary: CORS support
+      description: |
+        Enable CORS by returning correct headers
+      responses:
+        200:
+          $ref: "#/components/responses/Success"
+      x-amazon-apigateway-integration:
+        type: mock
+        requestTemplates:
+          application/json: |
+            {
+              "statusCode" : 200
+            }
+        responses:
+          default:
+            statusCode: "200"
+            responseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key'"
+              method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            responseTemplates:
+              application/json: |
+                {}
+    post:
+      tags:
+        - Admin
+      summary: Activate a prompt version
+      operationId: admin_activate_prompt_POST
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - prompt_version_id
+              properties:
+                prompt_version_id:
+                  type: integer
+                  description: The id of the prompt version to activate
+      responses:
+        "200":
+          description: Prompt activated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  category:
+                    type: string
+                  block_type:
+                    type: string
+        "400":
+          description: Invalid value
+        "500":
+          description: Internal Server Error
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${adminFunction.Arn}/invocations"
+        passthroughBehavior: "when_no_match"
+        httpMethod: "POST"
+        type: "aws_proxy"
+
   /instructor/health:
     get:
       summary: Instructor health check
