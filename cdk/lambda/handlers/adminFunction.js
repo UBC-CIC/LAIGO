@@ -103,43 +103,148 @@ exports.handler = async (event) => {
           response.body = JSON.stringify({ error: "Failed to fetch students" });
         }
         break;
-      case "POST /admin/prompt": // Change to POST if inserting a new record
+      case "POST /admin/prompt":
         try {
-          console.log("System prompt update initiated");
+          console.log("System prompt creation initiated");
 
-          // Ensure event.body exists and is valid JSON
           if (!event.body) throw new Error("Request body is missing");
 
-          const { system_prompt } = JSON.parse(event.body);
+          const { category, block_type, prompt_text, version_name, author_id } = JSON.parse(event.body);
 
-          if (!system_prompt)
-            throw new Error("Missing 'system_prompt' in request body");
+          if (!category || !block_type || !prompt_text)
+            throw new Error("Missing required fields: category, block_type, and prompt_text are required");
 
-          // Insert new prompt into system_prompt table
+          // Get the next version number for this category/block_type combination
+          const versionCheck = await sqlConnectionTableCreator`
+            SELECT COALESCE(MAX(version_number), 0) + 1 as next_version
+            FROM "prompt_versions"
+            WHERE category = ${category} AND block_type = ${block_type};
+          `;
+
+          const nextVersion = versionCheck[0].next_version;
+
+          // Insert new prompt into prompt_versions table
           const insertPrompt = await sqlConnectionTableCreator`
-                  INSERT INTO "system_prompt" (prompt)
-                  VALUES (${system_prompt})
-                  RETURNING *;
-              `;
+            INSERT INTO "prompt_versions" (category, block_type, version_number, version_name, prompt_text, author_id, is_active)
+            VALUES (${category}, ${block_type}, ${nextVersion}, ${version_name || null}, ${prompt_text}, ${author_id || null}, false)
+            RETURNING *;
+          `;
 
-          response.body = JSON.stringify(insertPrompt[0]); // Return inserted record
+          response.body = JSON.stringify(insertPrompt[0]);
         } catch (err) {
           response.statusCode = 500;
-          console.error("Error inserting system prompt:", err);
+          console.error("Error inserting prompt version:", err);
           response.body = JSON.stringify({
             error: err.message || "Internal server error",
           });
         }
         break;
       case "GET /admin/prompt":
-        // SQL query to fetch ALL past prompts
-        const system_prompts = await sqlConnectionTableCreator`
-            SELECT prompt, time_created
-            FROM "system_prompt"
-            ORDER BY time_created DESC;
+        try {
+          // Fetch ALL prompt versions, ordered by category, block_type, and version
+          const prompts = await sqlConnectionTableCreator`
+            SELECT 
+              prompt_version_id,
+              category,
+              block_type,
+              version_number,
+              version_name,
+              prompt_text,
+              author_id,
+              time_created,
+              is_active
+            FROM "prompt_versions"
+            ORDER BY category, block_type, version_number DESC;
           `;
 
-        response.body = JSON.stringify(system_prompts);
+          response.body = JSON.stringify(prompts);
+        } catch (err) {
+          response.statusCode = 500;
+          console.error("Error fetching prompt versions:", err);
+          response.body = JSON.stringify({
+            error: err.message || "Internal server error",
+          });
+        }
+        break;
+      case "GET /admin/prompt/active":
+        try {
+          // Fetch only active prompts
+          const activePrompts = await sqlConnectionTableCreator`
+            SELECT 
+              prompt_version_id,
+              category,
+              block_type,
+              version_number,
+              version_name,
+              prompt_text,
+              time_created
+            FROM "prompt_versions"
+            WHERE is_active = true
+            ORDER BY category, block_type;
+          `;
+
+          response.body = JSON.stringify(activePrompts);
+        } catch (err) {
+          response.statusCode = 500;
+          console.error("Error fetching active prompts:", err);
+          response.body = JSON.stringify({
+            error: err.message || "Internal server error",
+          });
+        }
+        break;
+      case "POST /admin/prompt/activate":
+        try {
+          if (!event.body) throw new Error("Request body is missing");
+
+          const { prompt_version_id } = JSON.parse(event.body);
+
+          if (!prompt_version_id)
+            throw new Error("Missing required field: prompt_version_id");
+
+          // Get the category and block_type of the prompt to activate
+          const promptToActivate = await sqlConnectionTableCreator`
+            SELECT category, block_type
+            FROM "prompt_versions"
+            WHERE prompt_version_id = ${prompt_version_id};
+          `;
+
+          if (promptToActivate.length === 0) {
+            throw new Error("Prompt version not found");
+          }
+
+          const { category, block_type } = promptToActivate[0];
+
+          // Begin transaction: deactivate current active prompt and activate new one
+          await sqlConnectionTableCreator.begin(async sql => {
+            // Deactivate any currently active prompt for this category/block_type
+            await sql`
+              UPDATE "prompt_versions"
+              SET is_active = false
+              WHERE category = ${category} 
+                AND block_type = ${block_type} 
+                AND is_active = true;
+            `;
+
+            // Activate the selected prompt
+            await sql`
+              UPDATE "prompt_versions"
+              SET is_active = true
+              WHERE prompt_version_id = ${prompt_version_id};
+            `;
+          });
+
+          response.body = JSON.stringify({
+            message: "Prompt activated successfully",
+            category,
+            block_type
+          });
+        } catch (err) {
+          response.statusCode = 500;
+          console.error("Error activating prompt:", err);
+          response.body = JSON.stringify({
+            error: err.message || "Internal server error",
+          });
+        }
         break;
 
       case "GET /admin/message_limit":
