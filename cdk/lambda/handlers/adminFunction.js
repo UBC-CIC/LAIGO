@@ -21,7 +21,7 @@ exports.handler = async (event) => {
   // Initialize the database connection if not already initialized
   if (!sqlConnectionTableCreator) {
     await initializeConnection(SM_DB_CREDENTIALS, RDS_PROXY_ENDPOINT);
-    sqlConnectionTableCreator = global.sqlConnectionTableCreator;
+    sqlConnectionTableCreator = global.sqlConnection;
   }
 
   // Function to format student full names (lowercase and spaces replaced with "_")
