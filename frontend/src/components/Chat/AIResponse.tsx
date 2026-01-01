@@ -1,7 +1,8 @@
-import React from "react";
+import React, { useState } from "react";
 import { Box, Typography, Button, IconButton, Stack, List, ListItem } from "@mui/material";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import VolumeUpIcon from "@mui/icons-material/VolumeUp";
+import CheckIcon from "@mui/icons-material/Check";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeSanitize from "rehype-sanitize";
@@ -11,9 +12,13 @@ interface AiResponseProps {
 }
 
 const AiResponse: React.FC<AiResponseProps> = ({ message }) => {
+  const [copied, setCopied] = useState(false);
+
   const copyToClipboard = async () => {
     try {
       await navigator.clipboard.writeText(message);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     } catch {
       const textarea = document.createElement("textarea");
       textarea.value = message;
@@ -21,8 +26,10 @@ const AiResponse: React.FC<AiResponseProps> = ({ message }) => {
       textarea.select();
       document.execCommand("copy");
       document.body.removeChild(textarea);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     }
-  };
+  }; 
 
   return (
     <Box
@@ -85,18 +92,20 @@ const AiResponse: React.FC<AiResponseProps> = ({ message }) => {
       <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 1 }}>
         <IconButton
           size="small"
-          sx={{ color: "var(--text-secondary)" }}
+          disableRipple
+          sx={{ color: "var(--text-secondary)", '&.Mui-focusVisible, &:focus, &:focus-visible': { outline: 'none !important', boxShadow: 'none !important', border: 'none !important' } }}
           onClick={copyToClipboard}
-          aria-label="Copy AI response"
+          aria-label={copied ? "Copied" : "Copy AI response"}
         >
-          <ContentCopyIcon fontSize="small" />
-        </IconButton>
-        <IconButton size="small" sx={{ color: "var(--text-secondary)" }}>
+          {copied ? <CheckIcon fontSize="small" sx={{ color: 'var(--text-secondary)' }} /> : <ContentCopyIcon fontSize="small" />}
+        </IconButton> 
+        <IconButton size="small" disableRipple sx={{ color: "var(--text-secondary)", '&.Mui-focusVisible, &:focus, &:focus-visible': { outline: 'none !important', boxShadow: 'none !important', border: 'none !important' } }}>
           <VolumeUpIcon fontSize="small" />
-        </IconButton>
+        </IconButton> 
         <Button
           variant="outlined"
           size="small"
+          disableRipple
           sx={{
             color: "var(--text-secondary)",
             borderColor: "var(--border)",
@@ -109,6 +118,7 @@ const AiResponse: React.FC<AiResponseProps> = ({ message }) => {
               borderColor: "var(--text-secondary)",
               backgroundColor: "rgba(255,255,255,0.05)",
             },
+            '&.Mui-focusVisible, &:focus, &:focus-visible': { outline: 'none !important', boxShadow: 'none !important', border: 'none !important' }
           }}
         >
           GENERATE SUMMARY
