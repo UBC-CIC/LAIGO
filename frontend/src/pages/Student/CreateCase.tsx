@@ -17,6 +17,7 @@ import {
 } from "@mui/material";
 import StudentHeader from "../../components/StudentHeader";
 import { fetchAuthSession } from "aws-amplify/auth";
+import { useNavigate } from "react-router-dom";
 
 const CreateCase: React.FC = () => {
   const [isFederal, setIsFederal] = useState(false);
@@ -91,6 +92,8 @@ const CreateCase: React.FC = () => {
       color: "var(--text)",
     },
   };
+
+  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -177,6 +180,9 @@ const CreateCase: React.FC = () => {
       setBroadLaw("");
       setStatuteDetails("");
       setOverview("");
+
+      // Navigate to the new case's interview page (start at intake section)
+      navigate(`/case/${newCaseData.case_id}/interview/intake-facts`);
     } catch (err) {
       console.error('Failed to submit case', err);
       const msg = err instanceof Error ? err.message : 'Failed to submit case';
