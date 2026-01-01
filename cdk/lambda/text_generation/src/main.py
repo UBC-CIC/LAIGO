@@ -535,9 +535,7 @@ def handler(event, context):
             "Access-Control-Allow-Origin": "*",
             "Access-Control-Allow-Methods": "*",
         },
-        "body": json.dumps({
-            "llm_output": response #.get("llm_output", "LLM failed to create response"),
-        })
+        "body": json.dumps(response)
     }
 
 
