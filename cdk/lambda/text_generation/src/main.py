@@ -9,7 +9,7 @@ import uuid
 from langchain_aws import BedrockEmbeddings
 
 from helpers.vectorstore import get_vectorstore_retriever
-from helpers.chat import get_bedrock_llm, get_initial_student_query, get_student_query, create_dynamodb_history_table, get_response
+from helpers.chat import get_bedrock_llm, get_initial_student_query, create_dynamodb_history_table, get_response
 # # Set up basic logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
@@ -399,7 +399,7 @@ def handler(event, context):
         
     else:
         logger.info(f"Processing student question: {question}")
-        student_query = get_student_query(question)
+        student_query = question.strip()
 
         guardrail_id, guardrail_version = setup_guardrail('text-generation-guardrails')
 

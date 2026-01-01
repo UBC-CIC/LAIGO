@@ -78,22 +78,6 @@ def get_bedrock_llm(
         model_kwargs=dict(temperature=temperature, max_tokens=max_tokens),
     )
 
-def get_student_query(raw_query: str) -> str:
-    """
-    Format the student's raw query into a specific template suitable for processing.
-
-    Args:
-    raw_query (str): The raw query input from the student.
-
-    Returns:
-    str: The formatted query string ready for further processing.
-    """
-    student_query = f"""
-    user
-    {raw_query}
-    
-    """
-    return student_query
 
 def get_initial_student_query(case_type: str, jurisdiction: str, case_description: str) -> str:
     """
@@ -109,7 +93,6 @@ def get_initial_student_query(case_type: str, jurisdiction: str, case_descriptio
     str: The formatted initial query string for the student.
     """
     student_query = f"""
-    user
     Greet me and ask if I'm ready to start talking about the case.
 
     Be prepared to answer questions about the case, with the following context (you do not need to say anything about the context in your response yet, just ingest it):
