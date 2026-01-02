@@ -51,10 +51,16 @@ const cicd = new CICDStack(app, `${StackPrefix}-CICDStack`, {
       functionName: `${StackPrefix}-ApiStack-TextGenLambdaDockerFunction`,
       sourceDir: "cdk/lambda/text_generation",
     },
+    {
+      name: "assessProgress",
+      functionName: `${StackPrefix}-ApiStack-AssessProgressFunction`,
+      sourceDir: "cdk/lambda/assess_progress",
+    },
   ],
   pathFilters: [
     "cdk/lambda/case_generation/**",
     "cdk/lambda/text_generation/**",
+    "cdk/lambda/assess_progress/**",
   ],
 });
 

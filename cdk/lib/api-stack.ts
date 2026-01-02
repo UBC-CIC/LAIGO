@@ -649,7 +649,7 @@ export class ApiGatewayStack extends cdk.Stack {
         functionName: `${id}-studentLambdaAuthorizer`,
       }
     );
-    
+
     // Grant API Gateway permission to invoke the student authorizer
     studentAuthFunction.grantInvoke(
       new iam.ServicePrincipal("apigateway.amazonaws.com")
@@ -682,7 +682,7 @@ export class ApiGatewayStack extends cdk.Stack {
         functionName: `${id}-instructorLambdaAuthorizer`,
       }
     );
-    
+
     // Grant API Gateway permission to invoke the instructor authorizer
     instructorAuthFunction.grantInvoke(
       new iam.ServicePrincipal("apigateway.amazonaws.com")
@@ -700,7 +700,6 @@ export class ApiGatewayStack extends cdk.Stack {
       roleName: `${id}-CognitoLambdaRole`,
       assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
     });
-
 
     // Grant access to Secrets Manager
     cognitoRole.addToPolicy(
@@ -790,18 +789,19 @@ export class ApiGatewayStack extends cdk.Stack {
       })
     );
 
-
-
+    // Cognito Pre-Signup Lambda Trigger
+    // Validates email domains and prevents unauthorized registrations
     // Cognito Pre-Signup Lambda Trigger
     // Validates email domains and prevents unauthorized registrations
     const preSignupLambda = new lambda.Function(this, "PreSignupLambda", {
       runtime: lambda.Runtime.NODEJS_22_X,
       handler: "preSignup.handler",
       code: lambda.Code.fromAsset("lambda/authorization"),
+      timeout: Duration.seconds(30),
+      vpc: vpcStack.vpc,
       environment: {
         ALLOWED_EMAIL_DOMAINS: "/LAIGO/AllowedEmailDomains", // SSM parameter with allowed domains
       },
-      vpc: vpcStack.vpc,
       functionName: `${id}-preSignupLambda`,
       memorySize: 128,
       role: cognitoRole,
@@ -865,93 +865,125 @@ export class ApiGatewayStack extends cdk.Stack {
       preTokenGenerationLambda
     );
     // Create parameters for Bedrock LLM ID, Embedding Model ID, and Table Name in Parameter Store
-    const bedrockLLMParameter = new ssm.StringParameter(this, "BedrockLLMParameter", {
-      parameterName: `/${id}/LAIGO/BedrockLLMId`,
-      description: "Parameter containing the Bedrock LLM ID",
-      stringValue: "meta.llama3-70b-instruct-v1:0",
-    });
+    const bedrockLLMParameter = new ssm.StringParameter(
+      this,
+      "BedrockLLMParameter",
+      {
+        parameterName: `/${id}/LAIGO/BedrockLLMId`,
+        description: "Parameter containing the Bedrock LLM ID",
+        stringValue: "meta.llama3-70b-instruct-v1:0",
+      }
+    );
 
-    const embeddingModelParameter = new ssm.StringParameter(this, "EmbeddingModelParameter", {
-      parameterName: `/${id}/LAIGO/EmbeddingModelId`,
-      description: "Parameter containing the Embedding Model ID",
-      stringValue: "amazon.titan-embed-text-v2:0",
-    });
+    const embeddingModelParameter = new ssm.StringParameter(
+      this,
+      "EmbeddingModelParameter",
+      {
+        parameterName: `/${id}/LAIGO/EmbeddingModelId`,
+        description: "Parameter containing the Embedding Model ID",
+        stringValue: "amazon.titan-embed-text-v2:0",
+      }
+    );
 
-    const tableNameParameter = new ssm.StringParameter(this, "TableNameParameter", {
-      parameterName: `/${id}/LAIGO/TableName`,
-      description: "Parameter containing the DynamoDB table name",
-      stringValue: "DynamoDB-Conversation-Table",
-    });
+    const tableNameParameter = new ssm.StringParameter(
+      this,
+      "TableNameParameter",
+      {
+        parameterName: `/${id}/LAIGO/TableName`,
+        description: "Parameter containing the DynamoDB table name",
+        stringValue: "DynamoDB-Conversation-Table",
+      }
+    );
 
-    const messageLimitParameter = new ssm.StringParameter(this, "MessageLimitParameter", {
-      parameterName: `/${id}/LAIGO/MessageLimit`,
-      description: "Parameter containing the Message Limit for the AI assistant (per day)",
-      stringValue: "Infinity",
-    });
+    const messageLimitParameter = new ssm.StringParameter(
+      this,
+      "MessageLimitParameter",
+      {
+        parameterName: `/${id}/LAIGO/MessageLimit`,
+        description:
+          "Parameter containing the Message Limit for the AI assistant (per day)",
+        stringValue: "Infinity",
+      }
+    );
 
     // Create SSM parameter for file size limit
-    const fileSizeLimitParameter = new ssm.StringParameter(this, "FileSizeLimitParameter", {
-      parameterName: `/${id}/LAT/FileSizeLimit`,
-      description: "Parameter containing the file size limit for audio uploads (in MB)",
-      stringValue: "500",
-    });
+    const fileSizeLimitParameter = new ssm.StringParameter(
+      this,
+      "FileSizeLimitParameter",
+      {
+        parameterName: `/${id}/LAT/FileSizeLimit`,
+        description:
+          "Parameter containing the file size limit for audio uploads (in MB)",
+        stringValue: "500",
+      }
+    );
 
     // --- Student Cases Lambda (GET /student/cases) ---
-    const lambdaStudentFunction = new lambda.Function(this, `${id}-studentFunction`, {
-      runtime: lambda.Runtime.NODEJS_22_X,
-      handler: "studentFunction.handler",
-      code: lambda.Code.fromAsset("lambda/handlers"),
-      timeout: Duration.seconds(30),
-      vpc: vpcStack.vpc,
-      environment: {
-        SM_DB_CREDENTIALS: db.secretPathAdminName,
-        RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint,
-        USER_POOL: this.userPool.userPoolId,
-        MESSAGE_LIMIT: messageLimitParameter.parameterName,
-      },
-      functionName: `${id}-studentFunction`,
-      memorySize: 512,
-      layers: [postgres],
-      role: lambdaRole,
-    });
-    
+    const lambdaStudentFunction = new lambda.Function(
+      this,
+      `${id}-studentFunction`,
+      {
+        runtime: lambda.Runtime.NODEJS_22_X,
+        handler: "studentFunction.handler",
+        code: lambda.Code.fromAsset("lambda/handlers"),
+        timeout: Duration.seconds(30),
+        vpc: vpcStack.vpc,
+        environment: {
+          SM_DB_CREDENTIALS: db.secretPathAdminName,
+          RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint,
+          USER_POOL: this.userPool.userPoolId,
+          MESSAGE_LIMIT: messageLimitParameter.parameterName,
+        },
+        functionName: `${id}-studentFunction`,
+        memorySize: 512,
+        layers: [postgres],
+        role: lambdaRole,
+      }
+    );
+
     // Allow access to DynamoDB Table for reading chat history
     lambdaStudentFunction.addToRolePolicy(
       new iam.PolicyStatement({
         actions: ["dynamodb:Query"],
         resources: [
-          `arn:aws:dynamodb:${this.region}:${this.account}:table/DynamoDB-Conversation-Table`
+          `arn:aws:dynamodb:${this.region}:${this.account}:table/DynamoDB-Conversation-Table`,
         ],
-        effect: iam.Effect.ALLOW
+        effect: iam.Effect.ALLOW,
       })
     );
-    
+
     // Allow API Gateway to invoke the student cases lambda
-    lambdaStudentFunction.grantInvoke(new iam.ServicePrincipal("apigateway.amazonaws.com"));
+    lambdaStudentFunction.grantInvoke(
+      new iam.ServicePrincipal("apigateway.amazonaws.com")
+    );
     messageLimitParameter.grantRead(lambdaStudentFunction);
-    
+
     // Override logical ID to reference from OpenAPI document
-    const apiGW_studentCasesFunction = lambdaStudentFunction.node.defaultChild as lambda.CfnFunction;
+    const apiGW_studentCasesFunction = lambdaStudentFunction.node
+      .defaultChild as lambda.CfnFunction;
     apiGW_studentCasesFunction.overrideLogicalId("studentFunction");
 
-
-    const lambdaAdminFunction = new lambda.Function(this, `${id}-adminFunction`, {
-      runtime: lambda.Runtime.NODEJS_22_X,
-      code: lambda.Code.fromAsset("lambda/handlers"),
-      handler: "adminFunction.handler",
-      timeout: Duration.seconds(300),
-      vpc: vpcStack.vpc,
-      environment: {
-        SM_DB_CREDENTIALS: db.secretPathTableCreator.secretName,
-        RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint,
-        MESSAGE_LIMIT: messageLimitParameter.parameterName,
-        FILE_SIZE_LIMIT: fileSizeLimitParameter.parameterName,
-      },
-      functionName: `${id}-adminFunction`,
-      memorySize: 512,
-      layers: [postgres],
-      role: lambdaRole,
-    });
+    const lambdaAdminFunction = new lambda.Function(
+      this,
+      `${id}-adminFunction`,
+      {
+        runtime: lambda.Runtime.NODEJS_22_X,
+        code: lambda.Code.fromAsset("lambda/handlers"),
+        handler: "adminFunction.handler",
+        timeout: Duration.seconds(300),
+        vpc: vpcStack.vpc,
+        environment: {
+          SM_DB_CREDENTIALS: db.secretPathTableCreator.secretName,
+          RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint,
+          MESSAGE_LIMIT: messageLimitParameter.parameterName,
+          FILE_SIZE_LIMIT: fileSizeLimitParameter.parameterName,
+        },
+        functionName: `${id}-adminFunction`,
+        memorySize: 512,
+        layers: [postgres],
+        role: lambdaRole,
+      }
+    );
 
     // Add the permission to the Lambda function's policy to allow API Gateway access
     lambdaAdminFunction.addPermission("AllowApiGatewayInvoke", {
@@ -962,7 +994,7 @@ export class ApiGatewayStack extends cdk.Stack {
 
     // Allow access for lambda to read and write to message limit parameter
     messageLimitParameter.grantWrite(lambdaAdminFunction);
-    
+
     // Allow access for lambda to read and write to file size limit parameter
     fileSizeLimitParameter.grantWrite(lambdaAdminFunction);
     fileSizeLimitParameter.grantRead(lambdaAdminFunction);
@@ -971,17 +1003,15 @@ export class ApiGatewayStack extends cdk.Stack {
       .defaultChild as lambda.CfnFunction;
     cfnLambda_Admin.overrideLogicalId("adminFunction");
 
-
-
     const bedrockPolicyStatement = new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
       actions: ["bedrock:InvokeModel"],
       resources: [
         `arn:aws:bedrock:${this.region}::foundation-model/meta.llama3-70b-instruct-v1`,
-        `arn:aws:bedrock:${this.region}::foundation-model/meta.llama3-70b-instruct-v1:0`,  // Explicitly add the versioned model
-        `arn:aws:bedrock:${this.region}::foundation-model/amazon.titan-embed-text-v2:0`,  // If using Titan
+        `arn:aws:bedrock:${this.region}::foundation-model/meta.llama3-70b-instruct-v1:0`, // Explicitly add the versioned model
+        `arn:aws:bedrock:${this.region}::foundation-model/amazon.titan-embed-text-v2:0`, // If using Titan
       ],
-    }); 
+    });
 
     const caseGenLambdaDockerFunc = new lambda.DockerImageFunction(
       this,
@@ -990,7 +1020,7 @@ export class ApiGatewayStack extends cdk.Stack {
         code: lambda.DockerImageCode.fromEcr(
           props.ecrRepositories["caseGeneration"],
           {
-            tagOrDigest: "latest",      // or whatever tag you're using
+            tagOrDigest: "latest", // or whatever tag you're using
           }
         ),
         memorySize: 512,
@@ -1021,7 +1051,6 @@ export class ApiGatewayStack extends cdk.Stack {
       sourceArn: `arn:aws:execute-api:${this.region}:${this.account}:${this.api.restApiId}/*/*/student*`,
     });
 
-
     // Attach the corrected Bedrock policy to Lambda
     caseGenLambdaDockerFunc.addToRolePolicy(bedrockPolicyStatement);
 
@@ -1034,7 +1063,7 @@ export class ApiGatewayStack extends cdk.Stack {
           "bedrock:DeleteGuardrail",
           "bedrock:ListGuardrails",
           "bedrock:InvokeGuardrail",
-          "bedrock:ApplyGuardrail"
+          "bedrock:ApplyGuardrail",
         ],
         resources: ["*"],
       })
@@ -1074,7 +1103,7 @@ export class ApiGatewayStack extends cdk.Stack {
         code: lambda.DockerImageCode.fromEcr(
           props.ecrRepositories["textGeneration"],
           {
-            tagOrDigest: "latest",      // or whatever tag you're using
+            tagOrDigest: "latest", // or whatever tag you're using
           }
         ),
         memorySize: 512,
@@ -1093,8 +1122,6 @@ export class ApiGatewayStack extends cdk.Stack {
       }
     );
 
-
-
     // Override the Logical ID of the Lambda Function to get ARN in OpenAPI
     const cfnTextGenDockerFunc = textGenLambdaDockerFunc.node
       .defaultChild as lambda.CfnFunction;
@@ -1107,7 +1134,6 @@ export class ApiGatewayStack extends cdk.Stack {
       sourceArn: `arn:aws:execute-api:${this.region}:${this.account}:${this.api.restApiId}/*/*/student*`,
     });
 
-
     textGenLambdaDockerFunc.addToRolePolicy(
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
@@ -1117,7 +1143,7 @@ export class ApiGatewayStack extends cdk.Stack {
           "bedrock:DeleteGuardrail",
           "bedrock:ListGuardrails",
           "bedrock:InvokeGuardrail",
-          "bedrock:ApplyGuardrail"
+          "bedrock:ApplyGuardrail",
         ],
         resources: ["*"],
       })
@@ -1127,18 +1153,15 @@ export class ApiGatewayStack extends cdk.Stack {
       new iam.Policy(this, "DynamoDBReadWritePolicy", {
         statements: [
           new iam.PolicyStatement({
-            actions: [
-              "dynamodb:PutItem",
-              "dynamodb:GetItem",
-              "dynamodb:Query",
+            actions: ["dynamodb:PutItem", "dynamodb:GetItem", "dynamodb:Query"],
+            resources: [
+              `arn:aws:dynamodb:${this.region}:${this.account}:table/*`,
             ],
-            resources: [`arn:aws:dynamodb:${this.region}:${this.account}:table/*`],
             effect: iam.Effect.ALLOW,
           }),
         ],
       })
     );
-
 
     // Attach the corrected Bedrock policy to Lambda
     textGenLambdaDockerFunc.addToRolePolicy(bedrockPolicyStatement);
@@ -1185,6 +1208,74 @@ export class ApiGatewayStack extends cdk.Stack {
         ],
       })
     );
+    // Create Lambda function for assessing user progress
+    const assessProgressFunction = new lambda.DockerImageFunction(
+      this,
+      "AssessProgressFunction",
+      {
+        code: lambda.DockerImageCode.fromEcr(
+          props.ecrRepositories["assessProgress"],
+          {
+            tagOrDigest: "latest", // or whatever tag you're using
+          }
+        ),
+        timeout: Duration.seconds(300),
+        memorySize: 1024,
+        vpc: vpcStack.vpc,
+        environment: {
+          SM_DB_CREDENTIALS: db.secretPathUser.secretName,
+          REGION: this.region,
+          RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint,
+          BEDROCK_LLM_PARAM: bedrockLLMParameter.parameterName,
+          EMBEDDING_MODEL_PARAM: embeddingModelParameter.parameterName,
+          TABLE_NAME_PARAM: tableNameParameter.parameterName,
+          TABLE_NAME: "DynamoDB-Conversation-Table",
+        },
+      }
+    );
 
+    // Override Logical ID for OpenAPI reference
+    const cfnAssessProgressFunction = assessProgressFunction.node
+      .defaultChild as lambda.CfnFunction;
+    cfnAssessProgressFunction.overrideLogicalId("AssessProgressFunction");
+
+    // Allow API Gateway to invoke
+    assessProgressFunction.addPermission("AllowApiGatewayInvoke", {
+      principal: new iam.ServicePrincipal("apigateway.amazonaws.com"),
+      action: "lambda:InvokeFunction",
+      sourceArn: `arn:aws:execute-api:${this.region}:${this.account}:${this.api.restApiId}/*/*/student*`,
+    });
+
+    // Grant permissions to assessProgressFunction
+    db.secretPathUser.grantRead(assessProgressFunction);
+    assessProgressFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ["bedrock:InvokeModel"],
+        resources: ["*"],
+      })
+    );
+
+    assessProgressFunction.role?.attachInlinePolicy(
+      new iam.Policy(this, "DynamoDBReadWritePolicy", {
+        statements: [
+          new iam.PolicyStatement({
+            actions: ["dynamodb:PutItem", "dynamodb:GetItem", "dynamodb:Query"],
+            resources: [
+              `arn:aws:dynamodb:${this.region}:${this.account}:table/*`,
+            ],
+            effect: iam.Effect.ALLOW,
+          }),
+        ],
+      })
+    );
+
+    assessProgressFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ["ssm:GetParameter"],
+        resources: [
+          `arn:aws:ssm:${this.region}:${this.account}:parameter/laigo/*`,
+        ],
+      })
+    );
   }
 }
