@@ -1013,6 +1013,18 @@ export class ApiGatewayStack extends cdk.Stack {
       ],
     });
 
+    // Shared DynamoDB read/write policy statement for Lambdas that need it
+    const dynamoDBPolicyStatement = new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: [
+        "dynamodb:PutItem",
+        "dynamodb:GetItem",
+        "dynamodb:Query",
+        "dynamodb:UpdateItem",
+      ],
+      resources: [`arn:aws:dynamodb:${this.region}:${this.account}:table/*`],
+    });
+
     const caseGenLambdaDockerFunc = new lambda.DockerImageFunction(
       this,
       `${id}-CaseLambdaDockerFunction`,
@@ -1149,22 +1161,13 @@ export class ApiGatewayStack extends cdk.Stack {
       })
     );
 
-    textGenLambdaDockerFunc.role?.attachInlinePolicy(
-      new iam.Policy(this, "DynamoDBReadWritePolicy", {
-        statements: [
-          new iam.PolicyStatement({
-            actions: ["dynamodb:PutItem", "dynamodb:GetItem", "dynamodb:Query"],
-            resources: [
-              `arn:aws:dynamodb:${this.region}:${this.account}:table/*`,
-            ],
-            effect: iam.Effect.ALLOW,
-          }),
-        ],
-      })
-    );
+
 
     // Attach the corrected Bedrock policy to Lambda
     textGenLambdaDockerFunc.addToRolePolicy(bedrockPolicyStatement);
+
+    // Attach shared DynamoDB policy to text generation lambda
+    textGenLambdaDockerFunc.addToRolePolicy(dynamoDBPolicyStatement);
 
     // Grant access to Secret Manager
     textGenLambdaDockerFunc.addToRolePolicy(
@@ -1255,20 +1258,6 @@ export class ApiGatewayStack extends cdk.Stack {
       })
     );
 
-    assessProgressFunction.role?.attachInlinePolicy(
-      new iam.Policy(this, "DynamoDBReadWritePolicy", {
-        statements: [
-          new iam.PolicyStatement({
-            actions: ["dynamodb:PutItem", "dynamodb:GetItem", "dynamodb:Query"],
-            resources: [
-              `arn:aws:dynamodb:${this.region}:${this.account}:table/*`,
-            ],
-            effect: iam.Effect.ALLOW,
-          }),
-        ],
-      })
-    );
-
     assessProgressFunction.addToRolePolicy(
       new iam.PolicyStatement({
         actions: ["ssm:GetParameter"],
@@ -1277,5 +1266,8 @@ export class ApiGatewayStack extends cdk.Stack {
         ],
       })
     );
+
+    // Attach shared DynamoDB policy to assess progress lambda
+    assessProgressFunction.addToRolePolicy(dynamoDBPolicyStatement);
   }
 }
