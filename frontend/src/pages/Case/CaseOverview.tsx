@@ -18,7 +18,6 @@ import { fetchAuthSession } from "aws-amplify/auth";
 import EditIcon from "@mui/icons-material/Edit";
 import EditOffIcon from "@mui/icons-material/EditOff";
 import SendIcon from "@mui/icons-material/Send";
-import Chip from "@mui/material/Chip";
 import ArchiveIcon from "@mui/icons-material/Archive";
 import UnarchiveIcon from "@mui/icons-material/Unarchive";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
@@ -27,7 +26,7 @@ const CaseOverview: React.FC = () => {
   const { caseId } = useParams();
   const [caseData, setCaseData] = useState<any | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
-  const [summaries, setSummaries] = useState<any[]>([]);
+  const [, setSummaries] = useState<any[]>([]);
   const [editMode, setEditMode] = useState<boolean>(false);
   const [instructors, setInstructors] = useState<any[]>([]);
   const [selectedInstructors, setSelectedInstructors] = useState<string[]>([]);
@@ -383,11 +382,11 @@ const CaseOverview: React.FC = () => {
                       fontFamily: "Inter",
                       fontWeight: 350,
                       px: 2,
-                      color: "white",
+                      color: "var(--text-button)",
                       width: "fit-content",
                       backgroundColor:
                         caseData.status === "Archived"
-                          ? "#ccc"
+                          ? "var(--border)"
                           : "var(--secondary)",
                       py: 1,
                       borderRadius: 10,
@@ -612,15 +611,9 @@ const CaseOverview: React.FC = () => {
                       const isSelected = selectedInstructors.includes(
                         instructor.instructor_id
                       );
-                      const isLastRow =
-                        index >=
-                        instructors.length -
-                          (instructors.length % 2 === 0 ? 2 : 1);
                       return (
                         <Grid
-                          item
-                          xs={12}
-                          md={6}
+                          size={{ xs: 12, md: 6 }}
                           key={instructor.instructor_id || index}
                           onClick={() => {
                             if (instructor.instructor_id) {
@@ -646,10 +639,10 @@ const CaseOverview: React.FC = () => {
                               display: "flex",
                               alignItems: "center",
                               gap: 1.5,
-                              color: isSelected ? "#64B5F6" : "var(--text)",
+                              color: isSelected ? "var(--feedback)" : "var(--text)",
                               transition: "all 0.2s ease",
                               backgroundColor: isSelected
-                                ? "rgba(100, 181, 246, 0.08)"
+                                ? "var(--feedback-bg)"
                                 : "transparent",
                               "&:hover": {
                                 backgroundColor: "var(--background2)",
@@ -702,10 +695,10 @@ const CaseOverview: React.FC = () => {
                       fontWeight: 500,
                       px: 3,
                       py: 1,
-                      color: "white",
-                      backgroundColor: "#64B5F6",
+                      color: "var(--text-button)",
+                      backgroundColor: "var(--feedback)",
                       "&:hover": {
-                        backgroundColor: "#42A5F5",
+                        backgroundColor: "var(--accent)",
                       },
                       "&.Mui-disabled": {
                         backgroundColor: "rgba(255, 255, 255, 0.12)",
@@ -721,7 +714,7 @@ const CaseOverview: React.FC = () => {
                       sx={{
                         fontStyle: "italic",
                         fontSize: "0.85rem",
-                        color: "#888",
+                        color: "var(--text-secondary)",
                         fontFamily: "Outfit",
                       }}
                     >

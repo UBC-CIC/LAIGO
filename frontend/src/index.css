@@ -24,6 +24,7 @@
   --green-text: #2e9832;
   --border: #cccccc;
   --feedback: #3b58ff;
+  --feedback-bg: rgba(59,88,255,0.08);
   --disclaimer-border: #d4dbdf;
 
   font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
@@ -62,6 +63,7 @@
     --placeholder-text: #8e8e8e;
     --border: #5c5c5c;
     --feedback: #769aff;
+    --feedback-bg: rgba(118,154,255,0.08);
     --disclaimer-border: #424242;
 
     color: var(--text);
