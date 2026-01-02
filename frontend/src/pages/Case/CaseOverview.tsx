@@ -21,6 +21,7 @@ import SendIcon from "@mui/icons-material/Send";
 import Chip from "@mui/material/Chip";
 import ArchiveIcon from "@mui/icons-material/Archive";
 import UnarchiveIcon from "@mui/icons-material/Unarchive";
+import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 
 const CaseOverview: React.FC = () => {
   const { caseId } = useParams();
@@ -29,6 +30,7 @@ const CaseOverview: React.FC = () => {
   const [summaries, setSummaries] = useState<any[]>([]);
   const [editMode, setEditMode] = useState<boolean>(false);
   const [instructors, setInstructors] = useState<any[]>([]);
+  const [selectedInstructors, setSelectedInstructors] = useState<string[]>([]);
   const [editedCase, setEditedCase] = useState<any>({
     case_title: "",
     case_description: "",
@@ -51,6 +53,12 @@ const CaseOverview: React.FC = () => {
 
   const handleSnackbarClose = () => {
     setSnackbar((prev) => ({ ...prev, open: false }));
+  };
+
+  const toggleInstructor = (id: string) => {
+    setSelectedInstructors((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+    );
   };
 
   const handleSendForReview = async () => {
@@ -303,7 +311,14 @@ const CaseOverview: React.FC = () => {
 
   return (
     <>
-      <Container sx={{ flexGrow: 1, p: 4, mx: "auto", backgroundColor: "var(--background)"}}>
+      <Container
+        sx={{
+          flexGrow: 1,
+          p: 4,
+          mx: "auto",
+          backgroundColor: "var(--background)",
+        }}
+      >
         {!caseData ? (
           <Box
             display="flex"
@@ -569,29 +584,108 @@ const CaseOverview: React.FC = () => {
                   flexDirection: "column",
                   alignItems: "flex-start",
                   gap: "1em",
+                  width: "100%",
                 }}
               >
-                <div>
-                  The instructor(s) currently able to review your case are:{" "}
-                  {instructors.length === 0
-                    ? "None"
-                    : instructors.map((instructor, index) => (
-                        <Chip
-                          key={index}
-                          label={`${instructor.instructor_name}`}
-                          sx={{
-                            backgroundColor: "var(--background2)",
-                            color: "var(--text)",
-                            fontFamily: "Outfit",
-                            fontWeight: 500,
-                            borderRadius: 10,
-                            transition: "0.2s ease",
-                            ml: 1,
+                <Typography
+                  variant="h6"
+                  sx={{
+                    fontFamily: "Outfit",
+                    fontWeight: 500,
+                    color: "var(--text)",
+                    mb: 1,
+                  }}
+                >
+                  Senior Lawyers Available for Review
+                </Typography>
+
+                <Box
+                  sx={{
+                    border: "1px solid var(--border)",
+                    borderRadius: 1,
+                    width: "100%",
+                    overflow: "hidden",
+                  }}
+                >
+                  <Grid container>
+                    {instructors.map((instructor, index) => {
+                      const isSelected = selectedInstructors.includes(
+                        instructor.instructor_id
+                      );
+                      const isLastRow =
+                        index >=
+                        instructors.length -
+                          (instructors.length % 2 === 0 ? 2 : 1);
+                      return (
+                        <Grid
+                          item
+                          xs={12}
+                          md={6}
+                          key={instructor.instructor_id || index}
+                          onClick={() => {
+                            if (instructor.instructor_id) {
+                              toggleInstructor(instructor.instructor_id);
+                            }
                           }}
-                        />
-                      ))}
-                </div>
-                <Stack direction="column" spacing={1} alignItems="flex-start">
+                          sx={{
+                            cursor: "pointer",
+                            borderBottom: "1px solid var(--border)",
+                            borderRight: {
+                              md:
+                                index % 2 === 0
+                                  ? "1px solid var(--border)"
+                                  : "none",
+                              xs: "none",
+                            },
+                            borderColor: "var(--border)",
+                          }}
+                        >
+                          <Box
+                            sx={{
+                              p: 2,
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 1.5,
+                              color: isSelected ? "#64B5F6" : "var(--text)",
+                              transition: "all 0.2s ease",
+                              backgroundColor: isSelected
+                                ? "rgba(100, 181, 246, 0.08)"
+                                : "transparent",
+                              "&:hover": {
+                                backgroundColor: "var(--background2)",
+                              },
+                            }}
+                          >
+                            <PersonOutlineIcon />
+                            <Typography
+                              sx={{
+                                fontFamily: "Outfit",
+                                fontWeight: 400,
+                                fontSize: "1rem",
+                              }}
+                            >
+                              {instructor.instructor_name}
+                            </Typography>
+                          </Box>
+                        </Grid>
+                      );
+                    })}
+                    {instructors.length === 0 && (
+                      <Box sx={{ p: 3, width: "100%", textAlign: "center" }}>
+                        <Typography color="textSecondary">
+                          No instructors available.
+                        </Typography>
+                      </Box>
+                    )}
+                  </Grid>
+                </Box>
+
+                <Stack
+                  direction="column"
+                  spacing={1}
+                  alignItems="flex-start"
+                  mt={2}
+                >
                   <Button
                     variant="contained"
                     color="primary"
@@ -599,34 +693,27 @@ const CaseOverview: React.FC = () => {
                     onClick={handleSendForReview}
                     disabled={
                       caseData.status === "Sent to Review" ||
-                      instructors.length === 0 ||
+                      selectedInstructors.length === 0 ||
                       caseData.status === "Archived"
                     }
                     sx={{
                       textTransform: "none",
                       fontFamily: "Inter",
-                      fontWeight: 450,
+                      fontWeight: 500,
                       px: 3,
+                      py: 1,
                       color: "white",
-                      width: "fit-content",
-                      backgroundColor:
-                        caseData.status === "Archived"
-                          ? "#ccc"
-                          : "var(--secondary)",
-                      py: 1.5,
-                      borderRadius: 10,
-                      transition: "0.2s ease",
-                      boxShadow: "none",
+                      backgroundColor: "#64B5F6",
                       "&:hover": {
-                        boxShadow: "none",
-                        backgroundColor:
-                          caseData.status === "Archived"
-                            ? "#ccc"
-                            : "var(--primary)",
+                        backgroundColor: "#42A5F5",
+                      },
+                      "&.Mui-disabled": {
+                        backgroundColor: "rgba(255, 255, 255, 0.12)",
+                        color: "rgba(255, 255, 255, 0.3)",
                       },
                     }}
                   >
-                    Send Case for Review
+                    Submit for Review
                   </Button>
 
                   {caseData.status === "Archived" && (
