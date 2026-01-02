@@ -12,6 +12,7 @@ import {
   TextField,
   Snackbar,
   Alert,
+  CircularProgress,
 } from "@mui/material";
 import { useParams } from "react-router-dom";
 import { fetchAuthSession } from "aws-amplify/auth";
@@ -302,9 +303,18 @@ const CaseOverview: React.FC = () => {
 
   if (loading) {
     return (
-      <Typography align="center" mt={5}>
-        Loading...
-      </Typography>
+      <Container
+        maxWidth="lg"
+        sx={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          height: "calc(100vh - 80px)",
+          backgroundColor: "var(--background)",
+        }}
+      >
+        <CircularProgress sx={{ color: "var(--text-secondary)" }} />
+      </Container>
     );
   }
 
@@ -382,7 +392,7 @@ const CaseOverview: React.FC = () => {
                       fontFamily: "Inter",
                       fontWeight: 350,
                       px: 2,
-                      color: "var(--text-button)",
+                      color: "#ffffff",
                       width: "fit-content",
                       backgroundColor:
                         caseData.status === "Archived"
