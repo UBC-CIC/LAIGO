@@ -71,7 +71,7 @@ langchain-aws==0.2.25
     # via -r /app/requirements.in
 langchain-community==0.3.25
     # via -r /app/requirements.in
-langchain-core==0.3.65
+langchain-core==0.3.81
     # via
     #   langchain
     #   langchain-aws
