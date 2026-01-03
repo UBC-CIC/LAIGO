@@ -17,7 +17,8 @@ import {
   CaseFeedback,
 } from "./pages/Case/Placeholders";
 import InterviewAssistant from "./pages/Case/InterviewAssistant";
-import { UserProvider, UserInfo } from "./contexts/UserContext";
+import { UserProvider } from "./contexts/UserContext";
+import type { UserInfo } from "./contexts/UserContext";
 
 // Amplify configuration
 const amplifyConfig = {
