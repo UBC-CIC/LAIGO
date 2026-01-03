@@ -15,7 +15,7 @@ interface AdminDashboardProps {
 
 const AdminDashboard = ({ userInfo }: AdminDashboardProps) => {
   return (
-    <Box>
+    <Box sx={{ backgroundColor: 'var(--background)', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       <AdminHeader />
       <Box p={3}>
         <Typography variant="h4" mb={3}>

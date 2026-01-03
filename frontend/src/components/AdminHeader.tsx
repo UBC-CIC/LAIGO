@@ -95,7 +95,7 @@ const AdminHeader: React.FC = () => {
         <HeaderItem
           icon={<SettingsOutlinedIcon sx={iconStyle} />}
           label="Settings"
-          // Add navigation logic if needed
+          onClick={() => navigate("/ai-configuration")}
         />
         <HeaderItem
           icon={<DescriptionOutlinedIcon sx={iconStyle} />}

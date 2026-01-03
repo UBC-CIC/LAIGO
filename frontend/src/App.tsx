@@ -5,6 +5,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import Login from "./pages/Login";
 import InstructorDashboard from "./components/InstructorDashboard";
 import AdminDashboard from "./pages/Admin/AdminDashboard";
+import AIConfiguration from "./pages/Admin/AIConfiguration";
 import { CircularProgress, Box } from "@mui/material";
 import "./App.css";
 import RealStudentHome from "./pages/Student/StudentDashboard";
@@ -102,7 +103,13 @@ function App() {
 
     switch (role) {
       case "admin":
-        return <AdminDashboard userInfo={userInfo} />;
+        return (
+          <Routes>
+            <Route path="/" element={<AdminDashboard userInfo={userInfo} />} />
+            <Route path="/ai-configuration" element={<AIConfiguration />} />
+            <Route path="*" element={<AdminDashboard userInfo={userInfo} />} />
+          </Routes>
+        );
       case "instructor":
         return <InstructorDashboard userInfo={userInfo} />;
       case "student":
