@@ -4,7 +4,7 @@ import { getCurrentUser, fetchAuthSession } from "aws-amplify/auth";
 import { Routes, Route, Navigate } from "react-router-dom";
 import Login from "./pages/Login";
 import InstructorDashboard from "./components/InstructorDashboard";
-import AdminDashboard from "./components/AdminDashboard";
+import AdminDashboard from "./pages/Admin/AdminDashboard";
 import { CircularProgress, Box } from "@mui/material";
 import "./App.css";
 import RealStudentHome from "./pages/Student/StudentDashboard";
