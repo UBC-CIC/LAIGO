@@ -1,9 +1,10 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Box, Typography, Stack, Menu, MenuItem } from "@mui/material";
-import CreateNewFolderIcon from "@mui/icons-material/CreateNewFolder";
 import FolderOpenOutlinedIcon from "@mui/icons-material/FolderOpenOutlined";
 import NotificationsNoneOutlinedIcon from "@mui/icons-material/NotificationsNoneOutlined";
+import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
+import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
 import AccountCircleOutlinedIcon from "@mui/icons-material/AccountCircleOutlined";
 import { signOut } from "aws-amplify/auth";
 import { useUser } from "../contexts/UserContext";
@@ -36,7 +37,7 @@ const HeaderItem: React.FC<HeaderItemProps> = ({ icon, label, onClick }) => (
         "& svg": { color: "var(--text-secondary)" },
         "& .header-label": { color: "var(--text-secondary)" },
       },
-      ...(onClick ? {} : { pointerEvents: "none" }), // Optional safety, though cursor pointer suggests interactive
+      ...(onClick ? {} : { pointerEvents: "none" }),
     }}
   >
     {icon}
@@ -46,7 +47,7 @@ const HeaderItem: React.FC<HeaderItemProps> = ({ icon, label, onClick }) => (
   </Stack>
 );
 
-const StudentHeader: React.FC = () => {
+const AdminHeader: React.FC = () => {
   const navigate = useNavigate();
   const { userInfo } = useUser();
   const [profileMenuAnchor, setProfileMenuAnchor] =
@@ -65,8 +66,6 @@ const StudentHeader: React.FC = () => {
       await signOut();
       handleProfileClose();
       window.location.href = "/";
-
-      // Optionally, you can add navigation or other logic here
     } catch (error) {
       console.error("Error signing out:", error);
     }
@@ -76,7 +75,7 @@ const StudentHeader: React.FC = () => {
     <Box
       sx={{
         display: "flex",
-        justifyContent: "flex-end",
+        justifyContent: "flex-end", // Aligns items to the right as per StudentHeader
         alignItems: "center",
         padding: "1rem 2rem",
         backgroundColor: "var(--header)",
@@ -84,11 +83,6 @@ const StudentHeader: React.FC = () => {
       }}
     >
       <Box sx={{ display: "flex" }}>
-        <HeaderItem
-          icon={<CreateNewFolderIcon sx={iconStyle} />}
-          label="New Case"
-          onClick={() => navigate("/create-case")}
-        />
         <HeaderItem
           icon={<FolderOpenOutlinedIcon sx={iconStyle} />}
           label="All Cases"
@@ -98,6 +92,17 @@ const StudentHeader: React.FC = () => {
           icon={<NotificationsNoneOutlinedIcon sx={iconStyle} />}
           label="Notifications"
         />
+        <HeaderItem
+          icon={<SettingsOutlinedIcon sx={iconStyle} />}
+          label="Settings"
+          // Add navigation logic if needed
+        />
+        <HeaderItem
+          icon={<DescriptionOutlinedIcon sx={iconStyle} />}
+          label="Waiver"
+          // Add navigation logic if needed
+        />
+
         <Stack
           alignItems="center"
           sx={{
@@ -160,4 +165,4 @@ const StudentHeader: React.FC = () => {
   );
 };
 
-export default StudentHeader;
+export default AdminHeader;

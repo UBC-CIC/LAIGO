@@ -17,6 +17,7 @@ import {
   CaseFeedback,
 } from "./pages/Case/Placeholders";
 import InterviewAssistant from "./pages/Case/InterviewAssistant";
+import { UserProvider, UserInfo } from "./contexts/UserContext";
 
 // Amplify configuration
 const amplifyConfig = {
@@ -48,14 +49,6 @@ const amplifyConfig = {
 
 // Configure Amplify
 Amplify.configure(amplifyConfig);
-
-interface UserInfo {
-  userId: string;
-  email: string;
-  firstName: string;
-  lastName: string;
-  groups: string[];
-}
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -141,26 +134,28 @@ function App() {
   }
 
   return (
-    <div className="app">
-      <Routes>
-        {/* Shared Case Routes - Accessible to all authenticated users */}
-        <Route path="/case/:caseId" element={<CaseLayout />}>
-          <Route index element={<Navigate to="overview" replace />} />
-          <Route path="overview" element={<CaseOverview />} />
-          <Route
-            path="interview"
-            element={<Navigate to="intake-facts" replace />}
-          />
-          <Route path="interview/:section" element={<InterviewAssistant />} />
-          <Route path="summaries" element={<CaseSummaries />} />
-          <Route path="transcriptions" element={<CaseTranscriptions />} />
-          <Route path="feedback" element={<CaseFeedback />} />
-        </Route>
+    <UserProvider value={{ userInfo, setUserInfo }}>
+      <div className="app">
+        <Routes>
+          {/* Shared Case Routes - Accessible to all authenticated users */}
+          <Route path="/case/:caseId" element={<CaseLayout />}>
+            <Route index element={<Navigate to="overview" replace />} />
+            <Route path="overview" element={<CaseOverview />} />
+            <Route
+              path="interview"
+              element={<Navigate to="intake-facts" replace />}
+            />
+            <Route path="interview/:section" element={<InterviewAssistant />} />
+            <Route path="summaries" element={<CaseSummaries />} />
+            <Route path="transcriptions" element={<CaseTranscriptions />} />
+            <Route path="feedback" element={<CaseFeedback />} />
+          </Route>
 
-        {/* Dashboard Routes based on Role */}
-        <Route path="/*" element={<RoleBasedRoutes />} />
-      </Routes>
-    </div>
+          {/* Dashboard Routes based on Role */}
+          <Route path="/*" element={<RoleBasedRoutes />} />
+        </Routes>
+      </div>
+    </UserProvider>
   );
 }
 
