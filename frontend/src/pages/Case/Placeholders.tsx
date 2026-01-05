@@ -18,4 +18,3 @@ export const CaseSummaries = () => <Placeholder title="Case Summaries" />;
 export const CaseTranscriptions = () => (
   <Placeholder title="Case Transcriptions" />
 );
-export const CaseFeedback = () => <Placeholder title="Case Feedback" />;

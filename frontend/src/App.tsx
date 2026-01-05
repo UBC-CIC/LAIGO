@@ -12,11 +12,8 @@ import RealStudentHome from "./pages/Student/StudentDashboard";
 import CreateCase from "./pages/Student/CreateCase";
 import CaseLayout from "./pages/Case/CaseLayout";
 import CaseOverview from "./pages/Case/CaseOverview";
-import {
-  CaseSummaries,
-  CaseTranscriptions,
-  CaseFeedback,
-} from "./pages/Case/Placeholders";
+import { CaseSummaries, CaseTranscriptions } from "./pages/Case/Placeholders";
+import CaseFeedback from "./pages/Case/CaseFeedback";
 import InterviewAssistant from "./pages/Case/InterviewAssistant";
 import { UserProvider } from "./contexts/UserContext";
 import type { UserInfo } from "./contexts/UserContext";
