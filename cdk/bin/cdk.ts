@@ -3,7 +3,7 @@ import * as cdk from "aws-cdk-lib";
 import { VpcStack } from "../lib/vpc-stack";
 import { DatabaseStack } from "../lib/database-stack";
 import { DBFlowStack } from "../lib/dbFlow-stack";
-import { CICDStack } from "../lib/cicd-stack"
+import { CICDStack } from "../lib/cicd-stack";
 import { ApiGatewayStack } from "../lib/api-stack";
 import { AmplifyStack } from "../lib/amplify-stack";
 
@@ -56,11 +56,17 @@ const cicd = new CICDStack(app, `${StackPrefix}-CICDStack`, {
       functionName: `${StackPrefix}-ApiStack-AssessProgressFunction`,
       sourceDir: "cdk/lambda/assess_progress",
     },
+    {
+      name: "audioToText",
+      functionName: `${StackPrefix}-ApiStack-audioToTextFunc`,
+      sourceDir: "cdk/lambda/audioToText",
+    },
   ],
   pathFilters: [
     "cdk/lambda/case_generation/**",
     "cdk/lambda/text_generation/**",
     "cdk/lambda/assess_progress/**",
+    "cdk/lambda/audioToText/**",
   ],
 });
 

@@ -1161,8 +1161,6 @@ export class ApiGatewayStack extends cdk.Stack {
       })
     );
 
-
-
     // Attach the corrected Bedrock policy to Lambda
     textGenLambdaDockerFunc.addToRolePolicy(bedrockPolicyStatement);
 
@@ -1269,5 +1267,220 @@ export class ApiGatewayStack extends cdk.Stack {
 
     // Attach shared DynamoDB policy to assess progress lambda
     assessProgressFunction.addToRolePolicy(dynamoDBPolicyStatement);
+
+    const audioStorageBucket = new s3.Bucket(
+      this,
+      `${id}-audio-prompt-bucket`,
+      {
+        blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+        cors: [
+          {
+            allowedHeaders: ["*"],
+            allowedMethods: [
+              s3.HttpMethods.GET,
+              s3.HttpMethods.PUT,
+              s3.HttpMethods.HEAD,
+              s3.HttpMethods.POST,
+              s3.HttpMethods.DELETE,
+            ],
+            allowedOrigins: ["*"],
+          },
+        ],
+        // When deleting the stack, the bucket will be deleted as well
+        removalPolicy: cdk.RemovalPolicy.DESTROY,
+        autoDeleteObjects: true,
+        enforceSSL: true,
+      }
+    );
+
+    const generatePreSignedURL = new lambda.Function(
+      this,
+      `${id}-GeneratePreSignedURLFunction`,
+      {
+        runtime: lambda.Runtime.PYTHON_3_11,
+        code: lambda.Code.fromAsset("lambda/generatePreSignedURL"),
+        handler: "generatePreSignedURL.lambda_handler",
+        timeout: Duration.seconds(300),
+        memorySize: 128,
+        environment: {
+          BUCKET: audioStorageBucket.bucketName,
+          REGION: this.region,
+        },
+        functionName: `${id}-GeneratePreSignedURLFunction`,
+        layers: [powertoolsLayer],
+      }
+    );
+
+    // Override the Logical ID of the Lambda Function to get ARN in OpenAPI
+    const cfnGeneratePreSignedURL = generatePreSignedURL.node
+      .defaultChild as lambda.CfnFunction;
+    cfnGeneratePreSignedURL.overrideLogicalId("GeneratePreSignedURLFunc");
+
+    // Grant the Lambda function the necessary permissions
+    audioStorageBucket.grantReadWrite(generatePreSignedURL);
+    generatePreSignedURL.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ["s3:PutObject", "s3:GetObject"],
+        resources: [
+          audioStorageBucket.bucketArn,
+          `${audioStorageBucket.bucketArn}/*`,
+        ],
+      })
+    );
+
+    // Add the permission to the Lambda function's policy to allow API Gateway access
+    generatePreSignedURL.addPermission("AllowApiGatewayInvoke", {
+      principal: new iam.ServicePrincipal("apigateway.amazonaws.com"),
+      action: "lambda:InvokeFunction",
+      sourceArn: `arn:aws:execute-api:${this.region}:${this.account}:${this.api.restApiId}/*/*/student*`,
+    });
+
+    this.eventApi = new appsync.GraphqlApi(this, `${id}-EventApi`, {
+      name: `${id}-EventApi`,
+      definition: appsync.Definition.fromFile("./graphql/schema.graphql"),
+      authorizationConfig: {
+        defaultAuthorization: {
+          authorizationType: appsync.AuthorizationType.USER_POOL,
+          userPoolConfig: {
+            userPool: this.userPool,
+            defaultAction: appsync.UserPoolDefaultAction.ALLOW,
+          },
+        },
+        // No additional authorization modes needed
+      },
+      xrayEnabled: true,
+    });
+
+    const notificationFunction = new lambda.Function(
+      this,
+      `${id}-NotificationFunction`,
+      {
+        runtime: lambda.Runtime.PYTHON_3_11,
+        code: lambda.Code.fromAsset("lambda/eventNotification"),
+        handler: "eventNotification.lambda_handler",
+        environment: {
+          APPSYNC_API_URL: this.eventApi.graphqlUrl,
+          APPSYNC_API_ID: this.eventApi.apiId,
+          REGION: this.region,
+        },
+        functionName: `${id}-NotificationFunction`,
+        timeout: cdk.Duration.seconds(300),
+        memorySize: 128,
+        vpc: vpcStack.vpc,
+        role: lambdaRole,
+      }
+    );
+
+    notificationFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["appsync:GraphQL"],
+        resources: [
+          `arn:aws:appsync:${this.region}:${this.account}:apis/${this.eventApi.apiId}/*`,
+        ],
+      })
+    );
+
+    notificationFunction.addPermission("AppSyncInvokePermission", {
+      principal: new iam.ServicePrincipal("appsync.amazonaws.com"),
+      action: "lambda:InvokeFunction",
+      sourceArn: `arn:aws:appsync:${this.region}:${this.account}:apis/${this.eventApi.apiId}/*`,
+    });
+
+    const notificationLambdaDataSource = this.eventApi.addLambdaDataSource(
+      "NotificationLambdaDataSource",
+      notificationFunction
+    );
+
+    notificationLambdaDataSource.createResolver("ResolverEventApi", {
+      typeName: "Mutation",
+      fieldName: "sendNotification",
+      requestMappingTemplate: appsync.MappingTemplate.lambdaRequest(),
+      responseMappingTemplate: appsync.MappingTemplate.lambdaResult(),
+    });
+
+    const audioToTextFunction = new lambda.DockerImageFunction(
+      this,
+      `${id}-audioToTextFunc`,
+      {
+        code: lambda.DockerImageCode.fromEcr(
+          props.ecrRepositories["audioToText"],
+          {
+            tagOrDigest: "latest", // or whatever tag you're using
+          }
+        ),
+        memorySize: 512,
+        timeout: cdk.Duration.seconds(300),
+        vpc: vpcStack.vpc,
+        functionName: `${id}-audioToTextFunc`,
+        environment: {
+          AUDIO_BUCKET: audioStorageBucket.bucketName,
+          SM_DB_CREDENTIALS: db.secretPathUser.secretName,
+          RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint,
+          APPSYNC_API_URL: this.eventApi.graphqlUrl,
+          REGION: this.region,
+        },
+      }
+    );
+
+    const cfnAudioToTextFunction = audioToTextFunction.node
+      .defaultChild as lambda.CfnFunction;
+    cfnAudioToTextFunction.overrideLogicalId("audioToTextFunction");
+    audioStorageBucket.grantRead(audioToTextFunction);
+
+    audioToTextFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["s3:ListBucket"],
+        resources: [audioStorageBucket.bucketArn],
+      })
+    );
+
+    audioToTextFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: [
+          "s3:PutObject",
+          "s3:GetObject",
+          "s3:DeleteObject",
+          "s3:HeadObject",
+        ],
+        resources: [`arn:aws:s3:::${audioStorageBucket.bucketName}/*`],
+      })
+    );
+
+    // Grant access to Secret Manager
+    audioToTextFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: [
+          //Secrets Manager
+          "secretsmanager:GetSecretValue",
+        ],
+        resources: [
+          `arn:aws:secretsmanager:${this.region}:${this.account}:secret:*`,
+        ],
+      })
+    );
+
+    audioToTextFunction.addPermission("AllowApiGatewayInvoke", {
+      principal: new iam.ServicePrincipal("apigateway.amazonaws.com"),
+      action: "lambda:InvokeFunction",
+      sourceArn: `arn:aws:execute-api:${this.region}:${this.account}:${this.api.restApiId}/*/*/student*`,
+    });
+
+    audioToTextFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: [
+          "transcribe:StartTranscriptionJob",
+          "transcribe:GetTranscriptionJob",
+          "transcribe:ListTranscriptionJobs",
+        ],
+        resources: [
+          `arn:aws:transcribe:${this.region}:${this.account}:transcription-job/*`,
+        ], // You can restrict this to specific resources if needed
+      })
+    );
   }
 }
