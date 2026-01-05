@@ -117,6 +117,7 @@ exports.handler = async (event) => {
           response.body = JSON.stringify({ error: "User data is required" });
         }
         break;
+
       case "GET /student/get_name":
         if (
           event.queryStringParameters &&
@@ -1165,7 +1166,8 @@ ORDER BY timestamp DESC;
             await sqlConnection`
                   UPDATE "cases"
                   SET 
-                      student_notes = ${notes}
+                      student_notes = ${notes},
+                      last_updated = NOW()
                   WHERE case_id = ${case_id}; 
               `;
             response.statusCode = 200;

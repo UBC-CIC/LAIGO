@@ -1,9 +1,11 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { Box, CssBaseline } from "@mui/material";
 import { Outlet, useParams } from "react-router-dom";
 import { fetchAuthSession } from "aws-amplify/auth";
+
 import StudentHeader from "../../components/StudentHeader";
 import SideMenu from "./SideMenu";
+import Notepad from "../../components/Notepad";
 
 const CaseLayout: React.FC = () => {
   const { caseId } = useParams();
@@ -11,22 +13,33 @@ const CaseLayout: React.FC = () => {
   const [unlockedBlocks, setUnlockedBlocks] = useState<string[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
+  // Notepad State
+  const [showNotepad, setShowNotepad] = useState(false);
+  const [notepadContent, setNotepadContent] = useState("");
+  const [cognitoId, setCognitoId] = useState<string | null>(null);
+
   useEffect(() => {
     const init = async () => {
       try {
         const session = await fetchAuthSession();
         const token = session.tokens?.idToken?.toString();
-        const cognitoId = session.tokens?.idToken?.payload?.sub;
-        const groups = session.tokens?.idToken?.payload?.["cognito:groups"] as string[];
+        const cId = session.tokens?.idToken?.payload?.sub;
+        const groups = session.tokens?.idToken?.payload?.[
+          "cognito:groups"
+        ] as string[];
 
-        if (!token || !cognitoId) {
+        if (cId) setCognitoId(cId);
+
+        if (!token || !cId) {
           console.error("Authentication required");
           return;
         }
 
         // Fetch Case Data for title
         const res = await fetch(
-          `${import.meta.env.VITE_API_ENDPOINT}/student/case_page?case_id=${caseId}&cognito_id=${cognitoId}`,
+          `${
+            import.meta.env.VITE_API_ENDPOINT
+          }/student/case_page?case_id=${caseId}&cognito_id=${cId}`,
           {
             headers: {
               Authorization: token,
@@ -40,12 +53,15 @@ const CaseLayout: React.FC = () => {
           const cData = data.caseData || data;
           setCaseTitle(cData.case_title || "Untitled Case");
           setUnlockedBlocks(cData.unlocked_blocks || ["intake"]);
+          setNotepadContent(cData.student_notes || "");
         }
 
         // Update view_case if student
         if (!groups?.includes("instructor") && !groups?.includes("admin")) {
           const viewRes = await fetch(
-            `${import.meta.env.VITE_API_ENDPOINT}/student/view_case?case_id=${caseId}`,
+            `${
+              import.meta.env.VITE_API_ENDPOINT
+            }/student/view_case?case_id=${caseId}`,
             {
               method: "PUT",
               headers: {
@@ -71,10 +87,43 @@ const CaseLayout: React.FC = () => {
     }
   }, [caseId]);
 
+  const handleSaveNotes = useCallback(
+    async (content: string) => {
+      if (!caseId || !cognitoId) return;
+      try {
+        const session = await fetchAuthSession();
+        const token = session.tokens?.idToken?.toString();
+
+        // Use PUT /student/notes to save notes
+        await fetch(
+          `${
+            import.meta.env.VITE_API_ENDPOINT
+          }/student/notes?case_id=${caseId}`,
+          {
+            method: "PUT",
+            headers: {
+              Authorization: token || "",
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              case_id: caseId,
+              notes: content,
+            }),
+          }
+        );
+
+        setNotepadContent(content);
+      } catch (e) {
+        console.error("Failed to save notes", e);
+      }
+    },
+    [caseId, cognitoId]
+  );
+
   return (
     <Box sx={{ display: "flex" }}>
       <CssBaseline />
-      
+
       {/* Fixed Header */}
       <Box
         position="fixed"
@@ -88,7 +137,12 @@ const CaseLayout: React.FC = () => {
       </Box>
 
       {/* Side Menu */}
-      <SideMenu caseTitle={caseTitle} loading={loading} unlockedBlocks={unlockedBlocks} />
+      <SideMenu
+        caseTitle={caseTitle}
+        loading={loading}
+        unlockedBlocks={unlockedBlocks}
+        onToggleNotepad={() => setShowNotepad(!showNotepad)}
+      />
 
       {/* Main Content Area */}
       <Box
@@ -98,12 +152,21 @@ const CaseLayout: React.FC = () => {
           p: 0,
           mt: "80px", // match header height
           width: { sm: `calc(100% - 220px)` },
-          minHeight: "calc(100vh - 80px)", // fill remaining viewport
-          color: "var(--text)", // inherit text color from CSS variables
+          minHeight: "calc(100vh - 80px)",
+          color: "var(--text)",
         }}
       >
         <Outlet />
       </Box>
+
+      {/* Draggable Notepad */}
+      {showNotepad && (
+        <Notepad
+          initialContent={notepadContent}
+          onSave={handleSaveNotes}
+          onClose={() => setShowNotepad(false)}
+        />
+      )}
     </Box>
   );
 };

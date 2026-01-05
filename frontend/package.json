@@ -19,10 +19,12 @@
     "aws-amplify": "^6.15.9",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "react-draggable": "^4.5.0",
     "react-markdown": "^8.0.5",
-    "remark-gfm": "^3.0.1",
-    "rehype-sanitize": "^5.0.1",
+    "react-quill-new": "^3.7.0",
     "react-router-dom": "^7.11.0",
+    "rehype-sanitize": "^5.0.1",
+    "remark-gfm": "^3.0.1",
     "tailwindcss": "^4.1.18"
   },
   "devDependencies": {
