@@ -728,18 +728,39 @@ const CaseTranscriptions: React.FC = () => {
         )}
 
         {/* Audio Upload Dialog */}
+        {/* Audio Upload Dialog */}
         <Dialog
           open={uploadDialogOpen}
           onClose={closeUploadDialog}
           maxWidth="sm"
           fullWidth
+          PaperProps={{
+            sx: {
+              backgroundColor: "var(--background)",
+              color: "var(--text)",
+              border: "1px solid var(--border-color)",
+              boxShadow:
+                "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+            },
+          }}
         >
-          <DialogTitle>
+          <DialogTitle
+            sx={{
+              color: "var(--text)",
+              fontFamily: "Outfit",
+              fontWeight: 600,
+            }}
+          >
             Upload Audio File
             <IconButton
               aria-label="close"
               onClick={closeUploadDialog}
-              sx={{ position: "absolute", right: 8, top: 8 }}
+              sx={{
+                position: "absolute",
+                right: 8,
+                top: 8,
+                color: "var(--text-secondary)",
+              }}
             >
               <CloseIcon />
             </IconButton>
@@ -751,11 +772,26 @@ const CaseTranscriptions: React.FC = () => {
                 label="Audio Title"
                 value={audioTitle}
                 onChange={(e) => setAudioTitle(e.target.value)}
-                sx={{ mb: 2 }}
+                sx={{
+                  mb: 2,
+                  "& .MuiInputLabel-root": { color: "var(--text-secondary)" },
+                  "& .MuiInputBase-input": { color: "var(--text)" },
+                  "& .MuiOutlinedInput-root": {
+                    "& fieldset": { borderColor: "var(--border-color)" },
+                    "&:hover fieldset": {
+                      borderColor: "var(--text-secondary)",
+                    },
+                    "&.Mui-focused fieldset": { borderColor: "var(--primary)" },
+                  },
+                }}
                 inputProps={{ maxLength: 100 }}
               />
 
-              <Typography variant="body1" gutterBottom>
+              <Typography
+                variant="body1"
+                gutterBottom
+                sx={{ color: "var(--text)" }}
+              >
                 Select an audio file to upload for transcription
               </Typography>
 
@@ -764,12 +800,15 @@ const CaseTranscriptions: React.FC = () => {
                   sx={{
                     mt: 2,
                     p: 2,
-                    border: "1px solid #e0e0e0",
+                    border: "1px solid var(--border-color)",
                     borderRadius: 1,
+                    backgroundColor: "rgba(255, 255, 255, 0.05)",
                   }}
                 >
-                  <Typography variant="subtitle1">Selected file:</Typography>
-                  <Typography>
+                  <Typography variant="subtitle1" sx={{ color: "var(--text)" }}>
+                    Selected file:
+                  </Typography>
+                  <Typography sx={{ color: "var(--text-secondary)" }}>
                     {audioFile.file.name} (
                     {(audioFile.file.size / 1024 / 1024).toFixed(2)} MB)
                   </Typography>
@@ -779,13 +818,15 @@ const CaseTranscriptions: React.FC = () => {
                   sx={{
                     mt: 2,
                     p: 3,
-                    border: "2px dashed #e0e0e0",
+                    border: "2px dashed var(--border-color)",
                     borderRadius: 1,
                     textAlign: "center",
                     cursor: "pointer",
                     "&:hover": {
-                      backgroundColor: "#f5f5f5",
+                      backgroundColor: "rgba(255, 255, 255, 0.05)",
+                      borderColor: "var(--text-secondary)",
                     },
+                    transition: "all 0.2s ease-in-out",
                   }}
                   onClick={() =>
                     document.getElementById("audio-file-input")?.click()
@@ -799,12 +840,15 @@ const CaseTranscriptions: React.FC = () => {
                     style={{ display: "none" }}
                   />
                   <CloudUploadIcon
-                    sx={{ fontSize: 48, color: "#9e9e9e", mb: 1 }}
+                    sx={{ fontSize: 48, color: "var(--text-secondary)", mb: 1 }}
                   />
-                  <Typography>
+                  <Typography sx={{ color: "var(--text)" }}>
                     Click to select an audio file or drag & drop here
                   </Typography>
-                  <Typography variant="caption" color="textSecondary">
+                  <Typography
+                    variant="caption"
+                    sx={{ color: "var(--text-secondary)" }}
+                  >
                     Supported formats: MP3, WAV, M4A, etc.
                   </Typography>
                 </Box>
@@ -825,6 +869,9 @@ const CaseTranscriptions: React.FC = () => {
                 textTransform: "none",
                 color: "var(--text-secondary)",
                 fontFamily: "Outfit",
+                "&:hover": {
+                  backgroundColor: "rgba(255, 255, 255, 0.05)",
+                },
               }}
             >
               Cancel
@@ -849,6 +896,10 @@ const CaseTranscriptions: React.FC = () => {
                 boxShadow: "none",
                 borderRadius: 5,
                 fontFamily: "Outfit",
+                "&.Mui-disabled": {
+                  backgroundColor: "rgba(255, 255, 255, 0.12)",
+                  color: "rgba(255, 255, 255, 0.3)",
+                },
               }}
             >
               {isUploading ? "Processing..." : "Upload & Transcribe"}
