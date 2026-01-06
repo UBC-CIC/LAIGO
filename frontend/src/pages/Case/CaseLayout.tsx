@@ -5,7 +5,7 @@ import { fetchAuthSession } from "aws-amplify/auth";
 
 import StudentHeader from "../../components/StudentHeader";
 import SideMenu from "./SideMenu";
-import Notepad from "../../components/Notepad";
+import Notepad from "../../components/Case/Notepad";
 
 const CaseLayout: React.FC = () => {
   const { caseId } = useParams();

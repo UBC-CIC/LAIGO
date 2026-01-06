@@ -3,7 +3,7 @@ import { Amplify } from "aws-amplify";
 import { getCurrentUser, fetchAuthSession } from "aws-amplify/auth";
 import { Routes, Route, Navigate } from "react-router-dom";
 import Login from "./pages/Login";
-import InstructorDashboard from "./components/InstructorDashboard";
+import InstructorDashboard from "./pages/Instructor/InstructorDashboard";
 import AdminDashboard from "./pages/Admin/AdminDashboard";
 import AIConfiguration from "./pages/Admin/AIConfiguration";
 import { CircularProgress, Box } from "@mui/material";

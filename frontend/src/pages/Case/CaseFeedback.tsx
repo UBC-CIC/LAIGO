@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Box, Typography, CircularProgress, Container } from "@mui/material";
 import { fetchAuthSession } from "aws-amplify/auth";
 import { useParams } from "react-router-dom";
-import FeedbackMessage from "../../components/FeedbackMessage";
+import FeedbackMessage from "../../components/Case/FeedbackMessage";
 
 // Interface for feedback messages
 interface FeedbackMessageData {
