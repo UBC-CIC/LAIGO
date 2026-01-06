@@ -933,6 +933,7 @@ export class ApiGatewayStack extends cdk.Stack {
           RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint,
           USER_POOL: this.userPool.userPoolId,
           MESSAGE_LIMIT: messageLimitParameter.parameterName,
+          FILE_SIZE_LIMIT: fileSizeLimitParameter.parameterName,
         },
         functionName: `${id}-studentFunction`,
         memorySize: 512,
@@ -957,6 +958,7 @@ export class ApiGatewayStack extends cdk.Stack {
       new iam.ServicePrincipal("apigateway.amazonaws.com")
     );
     messageLimitParameter.grantRead(lambdaStudentFunction);
+    fileSizeLimitParameter.grantRead(lambdaStudentFunction);
 
     // Override logical ID to reference from OpenAPI document
     const apiGW_studentCasesFunction = lambdaStudentFunction.node

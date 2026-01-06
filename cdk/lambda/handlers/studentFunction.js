@@ -6,8 +6,13 @@ const {
   handleError,
   getSqlConnection,
 } = require("./utils/utils");
-let { SM_DB_CREDENTIALS, RDS_PROXY_ENDPOINT, USER_POOL, MESSAGE_LIMIT } =
-  process.env;
+let {
+  SM_DB_CREDENTIALS,
+  RDS_PROXY_ENDPOINT,
+  USER_POOL,
+  MESSAGE_LIMIT,
+  FILE_SIZE_LIMIT,
+} = process.env;
 const {
   CognitoIdentityProviderClient,
   AdminGetUserCommand,
@@ -215,6 +220,26 @@ exports.handler = async (event) => {
         } else {
           response.statusCode = 400;
           response.body = JSON.stringify({ error: "User ID is required" });
+        }
+        break;
+
+      case "GET /student/file_size_limit":
+        try {
+          const { SSMClient, GetParameterCommand } = await import(
+            "@aws-sdk/client-ssm"
+          );
+          const ssm = new SSMClient();
+
+          const result = await ssm.send(
+            new GetParameterCommand({ Name: FILE_SIZE_LIMIT })
+          );
+
+          response.statusCode = 200;
+          response.body = JSON.stringify({ value: result.Parameter.Value });
+        } catch (err) {
+          console.error("Failed to fetch file size limit:", err);
+          response.statusCode = 500;
+          response.body = JSON.stringify({ error: "Internal server error" });
         }
         break;
 
@@ -445,10 +470,10 @@ exports.handler = async (event) => {
             // Step 4: Fetch messages and summaries
             // Step 4: Fetch transcriptions from audio_files for the case
             const transcriptions = await sqlConnection`
-SELECT audio_file_id, file_title, timestamp
+SELECT audio_file_id, file_title, time_uploaded
 FROM "audio_files"
 WHERE case_id = ${caseId}
-ORDER BY timestamp DESC;
+ORDER BY time_uploaded DESC;
 `;
 
             // Step 5: Return transcriptions
