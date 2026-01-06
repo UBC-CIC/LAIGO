@@ -37,7 +37,7 @@ import { v4 as uuidv4 } from "uuid";
 
 interface Transcription {
   audio_file_id: string;
-  timestamp: string;
+  time_uploaded: string;
   file_title: string;
   audio_text?: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -475,14 +475,16 @@ const CaseTranscriptions: React.FC = () => {
     }
 
     doc.text(
-      `Interview Date: ${new Date(transcription.timestamp).toLocaleString()}`,
+      `Interview Date: ${new Date(
+        transcription.time_uploaded
+      ).toLocaleString()}`,
       margin,
       y + 10
     );
 
     doc.save(
       `Case-${caseData.case_hash}:Transcription-${new Date(
-        transcription.timestamp
+        transcription.time_uploaded
       ).toLocaleString("en-US", {
         month: "long",
         day: "numeric",
@@ -638,19 +640,39 @@ const CaseTranscriptions: React.FC = () => {
             <Table>
               <TableHead>
                 <TableRow>
-                  <TableCell sx={{ color: "var(--text)" }}>
+                  <TableCell
+                    sx={{
+                      color: "var(--text)",
+                      borderColor: "rgba(255, 255, 255, 0.2)",
+                    }}
+                  >
                     Interview Date
                   </TableCell>
-                  <TableCell sx={{ color: "var(--text)" }}>Title</TableCell>
-                  <TableCell align="right"></TableCell>
+                  <TableCell
+                    sx={{
+                      color: "var(--text)",
+                      borderColor: "rgba(255, 255, 255, 0.2)",
+                    }}
+                  >
+                    Title
+                  </TableCell>
+                  <TableCell
+                    align="right"
+                    sx={{ borderColor: "rgba(255, 255, 255, 0.2)" }}
+                  ></TableCell>
                 </TableRow>
               </TableHead>
 
               <TableBody>
                 {transcriptions.map((transcription) => (
                   <TableRow key={transcription.audio_file_id}>
-                    <TableCell sx={{ color: "var(--text)" }}>
-                      {new Date(transcription.timestamp).toLocaleString(
+                    <TableCell
+                      sx={{
+                        color: "var(--text)",
+                        borderColor: "rgba(255, 255, 255, 0.2)",
+                      }}
+                    >
+                      {new Date(transcription.time_uploaded).toLocaleString(
                         "en-US",
                         {
                           month: "long",
@@ -662,10 +684,18 @@ const CaseTranscriptions: React.FC = () => {
                         }
                       )}
                     </TableCell>
-                    <TableCell sx={{ color: "var(--text)" }}>
+                    <TableCell
+                      sx={{
+                        color: "var(--text)",
+                        borderColor: "rgba(255, 255, 255, 0.2)",
+                      }}
+                    >
                       {transcription.file_title || "Untitled"}
                     </TableCell>
-                    <TableCell align="right">
+                    <TableCell
+                      align="right"
+                      sx={{ borderColor: "rgba(255, 255, 255, 0.2)" }}
+                    >
                       <Stack
                         direction="row"
                         spacing={1}
@@ -942,6 +972,15 @@ const CaseTranscriptions: React.FC = () => {
           onClose={handleCloseView}
           maxWidth="md"
           fullWidth
+          PaperProps={{
+            sx: {
+              backgroundColor: "var(--background)",
+              color: "var(--text)",
+              border: "1px solid var(--border-color)",
+              boxShadow:
+                "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+            },
+          }}
         >
           <DialogTitle
             sx={{
@@ -949,9 +988,15 @@ const CaseTranscriptions: React.FC = () => {
               justifyContent: "space-between",
               alignItems: "center",
               pr: 6,
+              borderBottom: "1px solid var(--border-color)",
             }}
           >
-            <Typography variant="h6" fontWeight={600}>
+            <Typography
+              variant="h6"
+              fontWeight={600}
+              fontFamily="Outfit"
+              color="var(--text)"
+            >
               Transcription Preview
             </Typography>
             <Stack direction="row" spacing={1} alignItems="center">
@@ -978,13 +1023,28 @@ const CaseTranscriptions: React.FC = () => {
               <IconButton
                 aria-label="close"
                 onClick={handleCloseView}
-                sx={{ position: "absolute", right: 8, top: 8 }}
+                sx={{
+                  position: "absolute",
+                  right: 8,
+                  top: 8,
+                  color: "var(--text-secondary)",
+                }}
               >
                 <CloseIcon />
               </IconButton>
             </Stack>
           </DialogTitle>
-          <DialogContent dividers>
+          <DialogContent
+            dividers
+            sx={{
+              borderColor: "var(--border-color)",
+              color: "var(--text)",
+              "& p": {
+                color: "var(--text)",
+                fontFamily: "Outfit",
+              },
+            }}
+          >
             {selectedTranscription ? (
               <div
                 dangerouslySetInnerHTML={{
@@ -996,9 +1056,10 @@ const CaseTranscriptions: React.FC = () => {
                     ) as string
                   ),
                 }}
+                style={{ fontFamily: "Outfit, sans-serif" }}
               />
             ) : (
-              <Typography variant="body2">
+              <Typography variant="body2" sx={{ color: "var(--text)" }}>
                 No transcription available
               </Typography>
             )}
