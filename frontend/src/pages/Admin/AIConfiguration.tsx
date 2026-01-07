@@ -49,6 +49,7 @@ interface PromptVersion {
 interface SidebarItem {
   id: string;
   label: string;
+  description: string;
 }
 
 interface SidebarSection {
@@ -56,28 +57,82 @@ interface SidebarSection {
   items: SidebarItem[];
 }
 
+// --- Mock Data Setup ---
+
 const SECTIONS: SidebarSection[] = [
   {
     category: "General Settings",
-    items: [{ id: "model-configs", label: "Model Configs" }],
+    items: [
+      {
+        id: "model-configs",
+        label: "Model Configs",
+        description:
+          "Configure the global settings for the AI models, including temperature and model selection, which affect the overall behavior of the system.",
+      },
+    ],
   },
   {
     category: "Reasoning Blocks",
     items: [
-      { id: "intake-facts", label: "Intake & Facts" },
-      { id: "issue-identification", label: "Issue Identification" },
-      { id: "research-strategy", label: "Research Strategy" },
-      { id: "argument-construction", label: "Argument Construction" },
-      { id: "contrarian-analysis", label: "Contrarian Analysis" },
-      { id: "policy-context", label: "Policy Context" },
+      {
+        id: "intake-facts",
+        label: "Intake & Facts",
+        description:
+          "Instructs the AI to guide the user through gathering relevant factual details, establishing a timeline, and identifying missing information to assess the case.",
+      },
+      {
+        id: "issue-identification",
+        label: "Issue Identification",
+        description:
+          "Directs the AI to help the user identify core legal issues based on the facts, exploring potential angles and framing the problem for research.",
+      },
+      {
+        id: "research-strategy",
+        label: "Research Strategy",
+        description:
+          "Guides the AI in helping the user formulate a research plan, identifying relevant case law, statutes, and regulations to support legal arguments.",
+      },
+      {
+        id: "argument-construction",
+        label: "Argument Construction",
+        description:
+          "Structures the AI's assistance in building a persuasive legal argument, synthesizing facts and research into a cohesive narrative for the client.",
+      },
+      {
+        id: "contrarian-analysis",
+        label: "Contrarian Analysis",
+        description:
+          "Instructs the AI to act as a 'Devil's Advocate', challenging arguments, identifying weaknesses, and anticipating opposition to strengthen the case.",
+      },
+      {
+        id: "policy-context",
+        label: "Policy Context",
+        description:
+          "Guides the user to consider broader contexts like comparative precedents, public policy, and Charter issues for a holistic analysis.",
+      },
     ],
   },
   {
     category: "Assessment Prompts",
     items: [
-      { id: "intake-assessment", label: "Intake Assessment" },
-      { id: "issues-assessment", label: "Issues Assessment" },
-      { id: "research-assessment", label: "Research Assessment" },
+      {
+        id: "intake-assessment",
+        label: "Intake Assessment",
+        description:
+          "Defines criteria to evaluate if 'Intake & Facts' is complete. Passing advances the user to 'Issue Identification'.",
+      },
+      {
+        id: "issues-assessment",
+        label: "Issues Assessment",
+        description:
+          "Establishes standards for assessing issue understanding. Success advances the workflow to 'Research Strategy'.",
+      },
+      {
+        id: "research-assessment",
+        label: "Research Assessment",
+        description:
+          "Determines if the research strategy is robust. Approval unlocks advanced blocks (Argument, Contrarian, Policy).",
+      },
     ],
   },
 ];
@@ -250,9 +305,9 @@ const AIConfiguration = () => {
     );
   };
 
-  const activeLabel = SECTIONS.flatMap((s) => s.items).find(
+  const activeItem = SECTIONS.flatMap((s) => s.items).find(
     (i) => i.id === selectedBlockId
-  )?.label;
+  );
 
   const currentVersion = allPrompts.find((p) => p.id === selectedVersionId);
 
@@ -404,13 +459,17 @@ const AIConfiguration = () => {
                       textAlign: "left",
                     }}
                   >
-                    {activeLabel} - Workspace
+                    {activeItem?.label} - Workspace
                   </Typography>
                   <Typography
                     variant="caption"
-                    sx={{ color: "var(--text-secondary)" }}
+                    sx={{
+                      color: "var(--text-secondary)",
+                      textAlign: "left",
+                      display: "block",
+                    }}
                   >
-                    Use the workspace to edit prompts or create new versions.
+                    {activeItem?.description || "Select a block to configure."}
                   </Typography>
                 </Box>
 
@@ -444,7 +503,7 @@ const AIConfiguration = () => {
                       height: "100%",
                       alignItems: "flex-start",
                       color: "var(--text)",
-                      backgroundColor: "var(--background2)",
+                      backgroundColor: "var(--background)",
                       fontFamily: "monospace",
                       fontSize: "0.95rem",
                       "& fieldset": { borderColor: "var(--border)" },
