@@ -56,8 +56,6 @@ interface SidebarSection {
   items: SidebarItem[];
 }
 
-// --- Mock Data Setup ---
-
 const SECTIONS: SidebarSection[] = [
   {
     category: "General Settings",
@@ -126,7 +124,7 @@ const AIConfiguration = () => {
     useState<PromptVersion[]>(INITIAL_PROMPTS);
   const blockPrompts = allPrompts
     .filter((p) => p.blockId === selectedBlockId)
-    .sort((a, b) => b.versionNumber - a.versionNumber); // Newest first
+    .sort((a, b) => b.versionNumber - a.versionNumber);
   const activeVersion = blockPrompts.find((p) => p.isActive);
   const latestVersion = blockPrompts[0];
   const [selectedVersionId, setSelectedVersionId] = useState<string>(
@@ -139,17 +137,23 @@ const AIConfiguration = () => {
   useEffect(() => {
     const version = allPrompts.find((p) => p.id === selectedVersionId);
     if (version) {
-      setEditorContent(version.content);
+      if (editorContent !== version.content) {
+        // eslint-disable-next-line
+        setEditorContent(version.content);
+      }
     } else if (blockPrompts.length > 0) {
-      // Fallback if selection is invalid (e.g. after block switch)
+      // Fallback if selection is invalid
       const fallback = activeVersion?.id || blockPrompts[0].id;
-      setSelectedVersionId(fallback);
+      if (selectedVersionId !== fallback) {
+        setSelectedVersionId(fallback);
+      }
     } else {
-      setEditorContent("");
+      if (editorContent !== "") {
+        setEditorContent("");
+      }
     }
   }, [selectedVersionId, selectedBlockId, allPrompts]);
 
-  // When switching blocks, reset selection to that block's active/latest
   const handleBlockChange = (blockId: string) => {
     setSelectedBlockId(blockId);
     const newBlockPrompts = allPrompts
@@ -278,7 +282,7 @@ const AIConfiguration = () => {
             maxWidth: "1400px",
             display: "flex",
             gap: 4,
-            border: "1px solid rgba(255, 255, 255, 0.1)",
+            border: "1px solid var(--border)",
             borderRadius: 2,
             p: 4,
             backgroundColor: "transparent",
@@ -311,7 +315,7 @@ const AIConfiguration = () => {
                 <Box
                   sx={{
                     ml: 2,
-                    borderLeft: "1px solid rgba(255, 255, 255, 0.1)",
+                    borderLeft: "1px solid var(--border)",
                   }}
                 >
                   <List disablePadding>
@@ -324,14 +328,14 @@ const AIConfiguration = () => {
                             borderRadius: 1,
                             ml: 1,
                             "&.Mui-selected": {
-                              backgroundColor: "rgba(100, 181, 246, 0.15)",
-                              color: "#64B5F6",
+                              backgroundColor: "var(--secondary)",
+                              color: "var(--primary)",
                               "&:hover": {
-                                backgroundColor: "rgba(100, 181, 246, 0.2)",
+                                backgroundColor: "var(--secondary)",
                               },
                             },
                             "&:hover": {
-                              backgroundColor: "rgba(255, 255, 255, 0.05)",
+                              backgroundColor: "var(--secondary)",
                             },
                             py: 0.5,
                             pl: 1,
@@ -343,7 +347,7 @@ const AIConfiguration = () => {
                               fontSize: "0.9rem",
                               color:
                                 selectedBlockId === item.id
-                                  ? "#64B5F6"
+                                  ? "var(--primary)"
                                   : "var(--text-secondary)",
                             }}
                           />
@@ -372,7 +376,7 @@ const AIConfiguration = () => {
               sx={{
                 width: "100%",
                 backgroundColor: "var(--paper)",
-                border: "1px solid rgba(255, 255, 255, 0.1)",
+                border: "1px solid var(--border)",
                 borderRadius: 2,
                 display: "flex",
                 flexDirection: "column",
@@ -384,7 +388,7 @@ const AIConfiguration = () => {
               <Box
                 sx={{
                   p: 2,
-                  borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
+                  borderBottom: "1px solid var(--border)",
                   backgroundColor: "var(--header)",
                   display: "flex",
                   justifyContent: "space-between",
@@ -416,7 +420,7 @@ const AIConfiguration = () => {
                     color="primary"
                     variant="outlined"
                     size="small"
-                    sx={{ borderColor: "rgba(255,255,255,0.2)" }}
+                    sx={{ borderColor: "var(--border)" }}
                   />
                 )}
               </Box>
@@ -440,14 +444,16 @@ const AIConfiguration = () => {
                       height: "100%",
                       alignItems: "flex-start",
                       color: "var(--text)",
-                      backgroundColor: "rgba(0, 0, 0, 0.2)",
+                      backgroundColor: "var(--background2)",
                       fontFamily: "monospace",
                       fontSize: "0.95rem",
-                      "& fieldset": { borderColor: "rgba(255, 255, 255, 0.1)" },
+                      "& fieldset": { borderColor: "var(--border)" },
                       "&:hover fieldset": {
-                        borderColor: "rgba(255, 255, 255, 0.3)",
+                        borderColor: "var(--border)",
                       },
-                      "&.Mui-focused fieldset": { borderColor: "#546bdf" },
+                      "&.Mui-focused fieldset": {
+                        borderColor: "var(--primary)",
+                      },
                     },
                   }}
                 />
@@ -457,7 +463,7 @@ const AIConfiguration = () => {
               <Box
                 sx={{
                   p: 2,
-                  borderTop: "1px solid rgba(255, 255, 255, 0.1)",
+                  borderTop: "1px solid var(--border)",
                   display: "flex",
                   justifyContent: "flex-end",
                   gap: 2,
@@ -479,11 +485,11 @@ const AIConfiguration = () => {
                   onClick={handleSaveCurrent}
                   sx={{
                     color: "var(--text)",
-                    borderColor: "rgba(255, 255, 255, 0.3)",
+                    borderColor: "var(--border)",
                     textTransform: "none",
                     "&:hover": {
                       borderColor: "var(--text)",
-                      backgroundColor: "rgba(255, 255, 255, 0.05)",
+                      backgroundColor: "var(--secondary)",
                     },
                   }}
                 >
@@ -494,11 +500,14 @@ const AIConfiguration = () => {
                   startIcon={<AddIcon />}
                   onClick={handleCreateNewVersion}
                   sx={{
-                    backgroundColor: "#82b1ff",
+                    backgroundColor: "var(--primary)",
                     color: "#000",
                     textTransform: "none",
                     fontWeight: "bold",
-                    "&:hover": { backgroundColor: "#6f9ceb" },
+                    "&:hover": {
+                      backgroundColor: "var(--primary)",
+                      opacity: 0.9,
+                    },
                   }}
                 >
                   Save as New Version
@@ -512,7 +521,7 @@ const AIConfiguration = () => {
               sx={{
                 width: "100%",
                 backgroundColor: "var(--paper)",
-                border: "1px solid rgba(255, 255, 255, 0.1)",
+                border: "1px solid var(--border)",
                 borderRadius: 2,
                 display: "flex",
                 flexDirection: "column",
@@ -532,7 +541,7 @@ const AIConfiguration = () => {
                 <Typography
                   variant="h6"
                   fontWeight="bold"
-                  sx={{ color: "var(--header-text)" }}
+                  sx={{ color: "var(--text)" }}
                 >
                   Version History
                 </Typography>
@@ -544,7 +553,7 @@ const AIConfiguration = () => {
                     <TableRow>
                       <TableCell
                         sx={{
-                          backgroundColor: "var(--background2)",
+                          backgroundColor: "var(--header)",
                           color: "var(--text-secondary)",
                           borderBottom: "1px solid var(--border)",
                         }}
@@ -615,14 +624,7 @@ const AIConfiguration = () => {
                         <TableRow
                           key={version.id}
                           hover
-                          selected={version.id === selectedVersionId}
                           sx={{
-                            "&.Mui-selected": {
-                              backgroundColor: "rgba(130, 177, 255, 0.08)",
-                            },
-                            "&.Mui-selected:hover": {
-                              backgroundColor: "rgba(130, 177, 255, 0.12)",
-                            },
                             "&:last-child td, &:last-child th": { border: 0 },
                           }}
                         >

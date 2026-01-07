@@ -4,7 +4,8 @@
 @import "tailwindcss";
 
 :root {
-  --font-family: 'Outfit', Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  --font-family: "Outfit", Inter, system-ui, Avenir, Helvetica, Arial,
+    sans-serif;
   --text: #050315;
   --text-secondary: #6e6e6e;
   --text-button: #f0f0f0;
@@ -14,8 +15,8 @@
   --background3: #ffffff;
   --header: #ffffff;
   --header-text: var(--primary);
-  --primary: #111835;
-  --secondary: oklch(from var(--primary) calc(l * 1.5) c h);
+  --primary: #64b5f6;
+  --secondary: rgba(100, 181, 246, 0.15);
   --accent: #1c187a;
   --bot-text: var(--background);
   --sender-text: #f0f0f0;
@@ -24,7 +25,7 @@
   --green-text: #2e9832;
   --border: #cccccc;
   --feedback: #3b58ff;
-  --feedback-bg: rgba(59,88,255,0.08);
+  --feedback-bg: rgba(59, 88, 255, 0.08);
   --disclaimer-border: #d4dbdf;
 
   font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
@@ -34,7 +35,6 @@
   color-scheme: light dark;
   color: #213547;
   background-color: #ffffff;
-  
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -54,8 +54,8 @@
     --background3: #444444;
     --header: #171717;
     --header-text: #ffffff;
-    --primary: #3b82f6;
-    --secondary: #466ec4;
+    --primary: #64b5f6;
+    --secondary: rgba(100, 181, 246, 0.15);
     --accent: #3949ff;
     --bot-text: --background;
     --sender-text: #424141;
@@ -63,7 +63,7 @@
     --placeholder-text: #8e8e8e;
     --border: #5c5c5c;
     --feedback: #769aff;
-    --feedback-bg: rgba(118,154,255,0.08);
+    --feedback-bg: rgba(118, 154, 255, 0.08);
     --disclaimer-border: #424242;
 
     color: var(--text);
@@ -81,9 +81,6 @@
     color: white;
   }
 }
-
-
-
 
 body {
   margin: 0;
@@ -165,7 +162,8 @@ button:focus-visible {
 }
 
 @keyframes dot-blink {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 0;
   }
   50% {
@@ -184,16 +182,14 @@ button:focus-visible {
   transition: border 0.2s ease-in-out;
 }
 
-
-
 .note-text-area::placeholder {
-  color:#b89d24a8;
+  color: #b89d24a8;
 }
 
 @media print {
-	body {
-		margin: 0 !important;
-	}
+  body {
+    margin: 0 !important;
+  }
 }
 
 .main-container {
@@ -201,7 +197,7 @@ button:focus-visible {
   height: 100vh; /* Full viewport height */
   margin: 0 auto;
   border: none;
-  background-color: rgba(0,0,0,0);
+  background-color: rgba(0, 0, 0, 0);
   display: flex;
   flex-direction: column;
 }
@@ -226,7 +222,7 @@ button:focus-visible {
 }
 
 .ck-content {
-  font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
   line-height: 1.6;
   word-break: break-word;
   background: transparent !important;
@@ -238,11 +234,23 @@ button:focus-visible {
 
 /* Simple animations used by various components */
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes slideUp {
-  from { transform: translateY(12px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
+  from {
+    transform: translateY(12px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
