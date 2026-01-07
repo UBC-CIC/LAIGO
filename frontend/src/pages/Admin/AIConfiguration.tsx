@@ -7,26 +7,24 @@ import {
   ListItem,
   ListItemButton,
   ListItemText,
-  Select,
-  MenuItem,
   TextField,
   Button,
-  Divider,
   Chip,
   IconButton,
   Tooltip,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
 } from "@mui/material";
-import type { SelectChangeEvent } from "@mui/material";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import SaveIcon from "@mui/icons-material/Save";
 import AddIcon from "@mui/icons-material/Add";
-import EditIcon from "@mui/icons-material/Edit";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import InputIcon from "@mui/icons-material/Input";
 import AdminHeader from "../../components/AdminHeader";
 import { v4 as uuidv4 } from "uuid";
 
@@ -122,35 +120,20 @@ const INITIAL_PROMPTS: PromptVersion[] = [
 ];
 
 const AIConfiguration = () => {
-  // --- State ---
   const [selectedBlockId, setSelectedBlockId] =
     useState<string>("intake-facts");
-
-  // All prompts in "database"
   const [allPrompts, setAllPrompts] =
     useState<PromptVersion[]>(INITIAL_PROMPTS);
-
-  // Derived state: Prompts for current block
   const blockPrompts = allPrompts
     .filter((p) => p.blockId === selectedBlockId)
     .sort((a, b) => b.versionNumber - a.versionNumber); // Newest first
-
-  // Selection State
-  // Default to active version, else latest
   const activeVersion = blockPrompts.find((p) => p.isActive);
   const latestVersion = blockPrompts[0];
   const [selectedVersionId, setSelectedVersionId] = useState<string>(
     activeVersion?.id || latestVersion?.id || ""
   );
 
-  // Editor State
   const [editorContent, setEditorContent] = useState<string>("");
-
-  // UI State
-  const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false);
-  const [renameValue, setRenameValue] = useState("");
-
-  // --- Effects ---
 
   // Update editor content when version changes
   useEffect(() => {
@@ -169,8 +152,6 @@ const AIConfiguration = () => {
   // When switching blocks, reset selection to that block's active/latest
   const handleBlockChange = (blockId: string) => {
     setSelectedBlockId(blockId);
-    // Logic to find best version for this new block handled by effect or needs immediate recalc
-    // Better to do here to avoid flicker
     const newBlockPrompts = allPrompts
       .filter((p) => p.blockId === blockId)
       .sort((a, b) => b.versionNumber - a.versionNumber);
@@ -195,8 +176,6 @@ const AIConfiguration = () => {
     }
   };
 
-  // --- Handlers ---
-
   const handleCreateNewVersion = () => {
     const currentMaxVersion =
       blockPrompts.length > 0
@@ -207,8 +186,8 @@ const AIConfiguration = () => {
       blockId: selectedBlockId,
       versionNumber: currentMaxVersion + 1,
       versionName: `Version ${currentMaxVersion + 1}`,
-      content: editorContent, // Start with current content
-      isActive: false, // New versions shouldn't auto-activate
+      content: editorContent,
+      isActive: false,
       createdAt: new Date().toISOString(),
       author: "Admin User",
     };
@@ -226,20 +205,20 @@ const AIConfiguration = () => {
     alert("Version saved.");
   };
 
-  const handleSetActive = () => {
+  const handleSetActive = (targetId: string = selectedVersionId) => {
     setAllPrompts((prev) =>
       prev.map((p) => {
-        if (p.blockId !== selectedBlockId) return p; // Don't touch other blocks
+        if (p.blockId !== selectedBlockId) return p;
         return {
           ...p,
-          isActive: p.id === selectedVersionId, // Set current to true, others to false
+          isActive: p.id === targetId,
         };
       })
     );
   };
 
-  const handleDelete = () => {
-    const promptToDelete = allPrompts.find((p) => p.id === selectedVersionId);
+  const handleDelete = (targetId: string = selectedVersionId) => {
+    const promptToDelete = allPrompts.find((p) => p.id === targetId);
     if (promptToDelete?.isActive) {
       alert(
         "Cannot delete the active version. Please set another version as active first."
@@ -251,32 +230,21 @@ const AIConfiguration = () => {
         `Are you sure you want to delete "${promptToDelete?.versionName}"?`
       )
     ) {
-      const remaining = blockPrompts.filter((p) => p.id !== selectedVersionId);
-      setAllPrompts((prev) => prev.filter((p) => p.id !== selectedVersionId));
-      if (remaining.length > 0) {
+      const remaining = blockPrompts.filter((p) => p.id !== targetId);
+      setAllPrompts((prev) => prev.filter((p) => p.id !== targetId));
+
+      // If we deleted the currently selected version, switch to another
+      if (selectedVersionId === targetId && remaining.length > 0) {
         setSelectedVersionId(remaining[0].id);
       }
     }
   };
 
-  const openRenameDialog = () => {
-    const p = allPrompts.find((p) => p.id === selectedVersionId);
-    if (p) {
-      setRenameValue(p.versionName);
-      setIsRenameDialogOpen(true);
-    }
-  };
-
-  const confirmRename = () => {
+  const handleNameChange = (id: string, newName: string) => {
     setAllPrompts((prev) =>
-      prev.map((p) =>
-        p.id === selectedVersionId ? { ...p, versionName: renameValue } : p
-      )
+      prev.map((p) => (p.id === id ? { ...p, versionName: newName } : p))
     );
-    setIsRenameDialogOpen(false);
   };
-
-  // --- Render Helpers ---
 
   const activeLabel = SECTIONS.flatMap((s) => s.items).find(
     (i) => i.id === selectedBlockId
@@ -299,7 +267,7 @@ const AIConfiguration = () => {
           flex: 1,
           display: "flex",
           justifyContent: "center",
-          alignItems: "flex-start", // Start aligning from top to allow expansion
+          alignItems: "flex-start",
           p: 4,
           overflow: "auto",
         }}
@@ -307,13 +275,13 @@ const AIConfiguration = () => {
         <Box
           sx={{
             width: "100%",
-            maxWidth: "1400px", // Increased width for better layout
+            maxWidth: "1400px",
             display: "flex",
             gap: 4,
             border: "1px solid rgba(255, 255, 255, 0.1)",
             borderRadius: 2,
             p: 4,
-            backgroundColor: "transparent", // Or a subtle background if needed
+            backgroundColor: "transparent",
           }}
         >
           {/* Sidebar */}
@@ -354,10 +322,10 @@ const AIConfiguration = () => {
                           onClick={() => handleBlockChange(item.id)}
                           sx={{
                             borderRadius: 1,
-                            ml: 1, // Gap from the grey border
+                            ml: 1,
                             "&.Mui-selected": {
-                              backgroundColor: "rgba(100, 181, 246, 0.15)", // Light blue background for active (matched SideMenu)
-                              color: "#64B5F6", // Blue text for active (matched SideMenu)
+                              backgroundColor: "rgba(100, 181, 246, 0.15)",
+                              color: "#64B5F6",
                               "&:hover": {
                                 backgroundColor: "rgba(100, 181, 246, 0.2)",
                               },
@@ -388,317 +356,399 @@ const AIConfiguration = () => {
             ))}
           </Box>
 
-          {/* Main Content */}
-          <Paper
-            elevation={0}
+          {/* Main Content Area */}
+          <Box
             sx={{
               flex: 1,
-              backgroundColor: "var(--paper)",
-              border: "1px solid rgba(255, 255, 255, 0.1)",
-              borderRadius: 2,
               display: "flex",
               flexDirection: "column",
-              overflow: "hidden",
+              gap: 3,
+              minWidth: 0, // Prevent flex item from overflowing
             }}
           >
-            {/* Header / Toolbar */}
-            <Box
+            {/* Workspace Panel */}
+            <Paper
+              elevation={0}
               sx={{
-                p: 3,
-                borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
-                backgroundColor: "rgba(0,0,0,0.02)",
+                width: "100%",
+                backgroundColor: "var(--paper)",
+                border: "1px solid rgba(255, 255, 255, 0.1)",
+                borderRadius: 2,
+                display: "flex",
+                flexDirection: "column",
+                minHeight: "400px",
+                overflow: "hidden",
               }}
             >
+              {/* Workspace Header */}
               <Box
                 sx={{
+                  p: 2,
+                  borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
+                  backgroundColor: "var(--header)",
                   display: "flex",
                   justifyContent: "space-between",
                   alignItems: "center",
-                  mb: 2,
                 }}
               >
                 <Box>
                   <Typography
-                    variant="h5"
-                    sx={{ fontWeight: "bold", color: "var(--text)" }}
-                  >
-                    {activeLabel}
-                  </Typography>
-                  <Box
+                    variant="h6"
                     sx={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 1,
-                      mt: 0.5,
+                      fontWeight: "bold",
+                      color: "var(--text)",
+                      textAlign: "left",
                     }}
                   >
-                    {currentVersion?.isActive ? (
-                      <Chip
-                        icon={<CheckCircleIcon style={{ color: "#4caf50" }} />}
-                        label="Active Version"
-                        size="small"
-                        sx={{
-                          backgroundColor: "rgba(76, 175, 80, 0.1)",
-                          color: "#4caf50",
-                          fontWeight: "bold",
-                        }}
-                      />
-                    ) : (
-                      <Chip
-                        label="Inactive"
-                        size="small"
-                        sx={{
-                          backgroundColor: "rgba(255,255,255,0.05)",
-                          color: "var(--text-secondary)",
-                        }}
-                      />
-                    )}
-                    <Typography variant="caption" color="textSecondary">
-                      Last updated:{" "}
-                      {new Date(
-                        currentVersion?.createdAt || ""
-                      ).toLocaleDateString()}
-                    </Typography>
-                  </Box>
-                </Box>
-              </Box>
-
-              {/* Version Controls */}
-              <Box
-                sx={{
-                  display: "flex",
-                  gap: 2,
-                  alignItems: "center",
-                  flexWrap: "wrap",
-                }}
-              >
-                <Select
-                  value={selectedVersionId}
-                  onChange={(e: SelectChangeEvent) =>
-                    setSelectedVersionId(e.target.value as string)
-                  }
-                  size="small"
-                  sx={{
-                    minWidth: 250,
-                    color: "var(--text)",
-                    borderColor: "rgba(255, 255, 255, 0.23)",
-                    "& .MuiOutlinedInput-notchedOutline": {
-                      borderColor: "rgba(255, 255, 255, 0.23)",
-                    },
-                    "&:hover .MuiOutlinedInput-notchedOutline": {
-                      borderColor: "var(--text)",
-                    },
-                    "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
-                      borderColor: "#546bdf",
-                    },
-                    "& .MuiSvgIcon-root": { color: "var(--text)" },
-                  }}
-                >
-                  {blockPrompts.map((v) => (
-                    <MenuItem key={v.id} value={v.id}>
-                      <Box
-                        sx={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          width: "100%",
-                          alignItems: "center",
-                        }}
-                      >
-                        <Typography variant="body2">{`v${v.versionNumber}: ${v.versionName}`}</Typography>
-                        {v.isActive && (
-                          <CheckCircleIcon
-                            sx={{ fontSize: 16, color: "#4caf50", ml: 1 }}
-                          />
-                        )}
-                      </Box>
-                    </MenuItem>
-                  ))}
-                </Select>
-
-                <Tooltip title="Rename Version">
-                  <IconButton
-                    onClick={openRenameDialog}
-                    size="small"
+                    {activeLabel} - Workspace
+                  </Typography>
+                  <Typography
+                    variant="caption"
                     sx={{ color: "var(--text-secondary)" }}
                   >
-                    <EditIcon />
-                  </IconButton>
-                </Tooltip>
+                    Use the workspace to edit prompts or create new versions.
+                  </Typography>
+                </Box>
 
-                <Tooltip title="Delete Version">
-                  <IconButton
-                    onClick={handleDelete}
-                    size="small"
-                    sx={{
-                      color: "var(--text-secondary)",
-                      "&:hover": { color: "#ef5350" },
-                    }}
-                  >
-                    <DeleteOutlineIcon />
-                  </IconButton>
-                </Tooltip>
-
-                <Divider
-                  orientation="vertical"
-                  flexItem
-                  sx={{ mx: 1, borderColor: "rgba(255,255,255,0.1)" }}
-                />
-
-                {!currentVersion?.isActive && (
-                  <Button
+                {currentVersion && (
+                  <Chip
+                    label={`Editing: ${currentVersion.versionName}`}
+                    color="primary"
                     variant="outlined"
                     size="small"
-                    startIcon={<CheckCircleIcon />}
-                    onClick={handleSetActive}
-                    sx={{
-                      textTransform: "none",
-                      borderColor: "#4caf50",
-                      color: "#4caf50",
-                      "&:hover": {
-                        borderColor: "#43a047",
-                        backgroundColor: "rgba(76, 175, 80, 0.05)",
-                      },
-                    }}
-                  >
-                    Set as Active
-                  </Button>
+                    sx={{ borderColor: "rgba(255,255,255,0.2)" }}
+                  />
                 )}
               </Box>
-            </Box>
 
-            {/* Editor */}
-            <Box
-              sx={{ flex: 1, p: 3, display: "flex", flexDirection: "column" }}
-            >
-              <TextField
-                multiline
-                fullWidth
-                minRows={15}
-                maxRows={25} // Allow it to grow but capped
-                value={editorContent}
-                onChange={(e) => setEditorContent(e.target.value)}
-                placeholder="Enter prompt content here..."
-                variant="outlined"
-                sx={{
-                  flex: 1,
-                  "& .MuiOutlinedInput-root": {
-                    height: "100%", // Fill container
-                    alignItems: "flex-start", // Top align text
-                    color: "var(--text)",
-                    backgroundColor: "rgba(0, 0, 0, 0.2)",
-                    fontFamily: "monospace", // Better for code/prompts
-                    fontSize: "0.95rem",
-                    "& fieldset": { borderColor: "rgba(255, 255, 255, 0.1)" },
-                    "&:hover fieldset": {
-                      borderColor: "rgba(255, 255, 255, 0.3)",
+              {/* Editor */}
+              <Box
+                sx={{ flex: 1, p: 3, display: "flex", flexDirection: "column" }}
+              >
+                <TextField
+                  multiline
+                  fullWidth
+                  minRows={10}
+                  maxRows={25}
+                  value={editorContent}
+                  onChange={(e) => setEditorContent(e.target.value)}
+                  placeholder="Enter prompt content here..."
+                  variant="outlined"
+                  sx={{
+                    flex: 1,
+                    "& .MuiOutlinedInput-root": {
+                      height: "100%",
+                      alignItems: "flex-start",
+                      color: "var(--text)",
+                      backgroundColor: "rgba(0, 0, 0, 0.2)",
+                      fontFamily: "monospace",
+                      fontSize: "0.95rem",
+                      "& fieldset": { borderColor: "rgba(255, 255, 255, 0.1)" },
+                      "&:hover fieldset": {
+                        borderColor: "rgba(255, 255, 255, 0.3)",
+                      },
+                      "&.Mui-focused fieldset": { borderColor: "#546bdf" },
                     },
-                    "&.Mui-focused fieldset": { borderColor: "#546bdf" },
-                  },
-                }}
-              />
-            </Box>
+                  }}
+                />
+              </Box>
 
-            {/* Footer Actions */}
-            <Box
+              {/* Footer Actions */}
+              <Box
+                sx={{
+                  p: 2,
+                  borderTop: "1px solid rgba(255, 255, 255, 0.1)",
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  gap: 2,
+                }}
+              >
+                <Button
+                  variant="text"
+                  startIcon={<RefreshIcon />}
+                  onClick={() =>
+                    setEditorContent(currentVersion?.content || "")
+                  }
+                  sx={{ color: "var(--text-secondary)", textTransform: "none" }}
+                >
+                  Revert Changes
+                </Button>
+                <Button
+                  variant="outlined"
+                  startIcon={<SaveIcon />}
+                  onClick={handleSaveCurrent}
+                  sx={{
+                    color: "var(--text)",
+                    borderColor: "rgba(255, 255, 255, 0.3)",
+                    textTransform: "none",
+                    "&:hover": {
+                      borderColor: "var(--text)",
+                      backgroundColor: "rgba(255, 255, 255, 0.05)",
+                    },
+                  }}
+                >
+                  Save
+                </Button>
+                <Button
+                  variant="contained"
+                  startIcon={<AddIcon />}
+                  onClick={handleCreateNewVersion}
+                  sx={{
+                    backgroundColor: "#82b1ff",
+                    color: "#000",
+                    textTransform: "none",
+                    fontWeight: "bold",
+                    "&:hover": { backgroundColor: "#6f9ceb" },
+                  }}
+                >
+                  Save as New Version
+                </Button>
+              </Box>
+            </Paper>
+
+            {/* Version History Panel */}
+            <Paper
+              elevation={0}
               sx={{
-                p: 2,
-                borderTop: "1px solid rgba(255, 255, 255, 0.1)",
+                width: "100%",
+                backgroundColor: "var(--paper)",
+                border: "1px solid rgba(255, 255, 255, 0.1)",
+                borderRadius: 2,
                 display: "flex",
-                justifyContent: "flex-end",
-                gap: 2,
+                flexDirection: "column",
+                overflow: "hidden",
+                minHeight: "300px",
               }}
             >
-              <Button
-                variant="text"
-                startIcon={<RefreshIcon />}
-                onClick={() => setEditorContent(currentVersion?.content || "")}
-                sx={{ color: "var(--text-secondary)", textTransform: "none" }}
-              >
-                Revert Changes
-              </Button>
-              <Button
-                variant="outlined"
-                startIcon={<SaveIcon />}
-                onClick={handleSaveCurrent}
+              <Box
                 sx={{
-                  color: "var(--text)",
-                  borderColor: "rgba(255, 255, 255, 0.3)",
-                  textTransform: "none",
-                  "&:hover": {
-                    borderColor: "var(--text)",
-                    backgroundColor: "rgba(255, 255, 255, 0.05)",
-                  },
+                  p: 2,
+                  backgroundColor: "var(--header)",
+                  borderBottom: "1px solid var(--border)",
+                  display: "flex",
+                  alignItems: "center",
                 }}
               >
-                Save
-              </Button>
-              <Button
-                variant="contained"
-                startIcon={<AddIcon />}
-                onClick={handleCreateNewVersion}
-                sx={{
-                  backgroundColor: "#82b1ff",
-                  color: "#000",
-                  textTransform: "none",
-                  fontWeight: "bold",
-                  "&:hover": { backgroundColor: "#6f9ceb" },
-                }}
-              >
-                Save as New Version
-              </Button>
-            </Box>
-          </Paper>
+                <Typography
+                  variant="h6"
+                  fontWeight="bold"
+                  sx={{ color: "var(--header-text)" }}
+                >
+                  Version History
+                </Typography>
+              </Box>
+
+              <TableContainer sx={{ flex: 1, overflow: "auto" }}>
+                <Table stickyHeader sx={{ minWidth: 650 }}>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell
+                        sx={{
+                          backgroundColor: "var(--background2)",
+                          color: "var(--text-secondary)",
+                          borderBottom: "1px solid var(--border)",
+                        }}
+                      >
+                        Version
+                      </TableCell>
+                      <TableCell
+                        sx={{
+                          backgroundColor: "var(--header)",
+                          color: "var(--text-secondary)",
+                          borderBottom: "1px solid var(--border)",
+                        }}
+                      >
+                        Name
+                      </TableCell>
+                      <TableCell
+                        sx={{
+                          backgroundColor: "var(--header)",
+                          color: "var(--text-secondary)",
+                          borderBottom: "1px solid var(--border)",
+                        }}
+                      >
+                        Created At
+                      </TableCell>
+                      <TableCell
+                        sx={{
+                          backgroundColor: "var(--header)",
+                          color: "var(--text-secondary)",
+                          borderBottom: "1px solid var(--border)",
+                        }}
+                      >
+                        Author
+                      </TableCell>
+                      <TableCell
+                        sx={{
+                          backgroundColor: "var(--header)",
+                          color: "var(--text-secondary)",
+                          borderBottom: "1px solid var(--border)",
+                        }}
+                      >
+                        Status
+                      </TableCell>
+                      <TableCell
+                        align="right"
+                        sx={{
+                          backgroundColor: "var(--header)",
+                          color: "var(--text-secondary)",
+                          borderBottom: "1px solid var(--border)",
+                        }}
+                      >
+                        Actions
+                      </TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {blockPrompts.length === 0 ? (
+                      <TableRow>
+                        <TableCell
+                          colSpan={6}
+                          align="center"
+                          sx={{ color: "var(--text-secondary)", py: 4 }}
+                        >
+                          No versions found for this block.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      blockPrompts.map((version) => (
+                        <TableRow
+                          key={version.id}
+                          hover
+                          selected={version.id === selectedVersionId}
+                          sx={{
+                            "&.Mui-selected": {
+                              backgroundColor: "rgba(130, 177, 255, 0.08)",
+                            },
+                            "&.Mui-selected:hover": {
+                              backgroundColor: "rgba(130, 177, 255, 0.12)",
+                            },
+                            "&:last-child td, &:last-child th": { border: 0 },
+                          }}
+                        >
+                          <TableCell
+                            sx={{ color: "var(--text)", fontWeight: "bold" }}
+                          >
+                            v{version.versionNumber}
+                          </TableCell>
+                          <TableCell sx={{ color: "var(--text)" }}>
+                            <TextField
+                              value={version.versionName}
+                              onChange={(e) =>
+                                handleNameChange(version.id, e.target.value)
+                              }
+                              variant="standard"
+                              fullWidth
+                              InputProps={{
+                                disableUnderline: true,
+                                sx: {
+                                  fontSize: "0.875rem",
+                                  color: "var(--text)",
+                                  fontWeight: 500,
+                                  backgroundColor: "rgba(255,255,255,0.05)",
+                                  px: 1,
+                                  py: 0.5,
+                                  borderRadius: 1,
+                                  transition: "background-color 0.2s",
+                                  "&:hover": {
+                                    backgroundColor: "rgba(255,255,255,0.1)",
+                                  },
+                                  "&.Mui-focused": {
+                                    backgroundColor: "rgba(255,255,255,0.15)",
+                                    boxShadow: "0 0 0 1px #64B5F6",
+                                  },
+                                },
+                              }}
+                            />
+                          </TableCell>
+                          <TableCell sx={{ color: "var(--text-secondary)" }}>
+                            {new Date(version.createdAt).toLocaleDateString()}
+                          </TableCell>
+                          <TableCell sx={{ color: "var(--text-secondary)" }}>
+                            {version.author}
+                          </TableCell>
+                          <TableCell>
+                            {version.isActive ? (
+                              <Chip
+                                icon={
+                                  <CheckCircleIcon
+                                    style={{ color: "inherit" }}
+                                  />
+                                }
+                                label="Active"
+                                size="small"
+                                sx={{
+                                  backgroundColor: "rgba(76, 175, 80, 0.1)",
+                                  color: "#66bb6a",
+                                  fontWeight: "bold",
+                                  border: "1px solid rgba(76, 175, 80, 0.2)",
+                                }}
+                              />
+                            ) : (
+                              <Button
+                                variant="outlined"
+                                size="small"
+                                color="inherit"
+                                startIcon={<CheckCircleIcon />}
+                                onClick={() => handleSetActive(version.id)}
+                                sx={{
+                                  textTransform: "none",
+                                  color: "var(--text-secondary)",
+                                  borderColor: "rgba(255,255,255,0.2)",
+                                  fontSize: "0.8rem",
+                                  "&:hover": {
+                                    borderColor: "var(--text)",
+                                    backgroundColor: "rgba(255,255,255,0.05)",
+                                  },
+                                }}
+                              >
+                                Set active
+                              </Button>
+                            )}
+                          </TableCell>
+                          <TableCell align="right">
+                            <Box
+                              sx={{
+                                display: "flex",
+                                justifyContent: "flex-end",
+                                gap: 1,
+                              }}
+                            >
+                              <Tooltip title="Load to Workspace">
+                                <IconButton
+                                  size="small"
+                                  onClick={() =>
+                                    setSelectedVersionId(version.id)
+                                  }
+                                  sx={{ color: "#42a5f5" }}
+                                >
+                                  <InputIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="Delete">
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleDelete(version.id)}
+                                  sx={{
+                                    color: "var(--text-secondary)",
+                                    "&:hover": { color: "#ef5350" },
+                                  }}
+                                >
+                                  <DeleteOutlineIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            </Box>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Paper>
+          </Box>
         </Box>
       </Box>
-
-      {/* Rename Dialog */}
-      <Dialog
-        open={isRenameDialogOpen}
-        onClose={() => setIsRenameDialogOpen(false)}
-      >
-        <DialogTitle
-          sx={{ backgroundColor: "var(--header)", color: "var(--text)" }}
-        >
-          Rename Version
-        </DialogTitle>
-        <DialogContent
-          sx={{ backgroundColor: "var(--header)", color: "var(--text)" }}
-        >
-          <TextField
-            autoFocus
-            margin="dense"
-            label="Version Name"
-            fullWidth
-            variant="outlined"
-            value={renameValue}
-            onChange={(e) => setRenameValue(e.target.value)}
-            sx={{
-              "& .MuiInputBase-root": { color: "var(--text)" },
-              "& .MuiInputLabel-root": { color: "var(--text-secondary)" },
-              "& .MuiOutlinedInput-notchedOutline": {
-                borderColor: "rgba(255, 255, 255, 0.3)",
-              },
-            }}
-          />
-        </DialogContent>
-        <DialogActions
-          sx={{ backgroundColor: "var(--header)", color: "var(--text)" }}
-        >
-          <Button
-            onClick={() => setIsRenameDialogOpen(false)}
-            sx={{ color: "var(--text-secondary)" }}
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={confirmRename}
-            variant="contained"
-            sx={{ backgroundColor: "#82b1ff", color: "#000" }}
-          >
-            Rename
-          </Button>
-        </DialogActions>
-      </Dialog>
     </Box>
   );
 };
