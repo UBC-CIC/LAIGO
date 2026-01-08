@@ -1,15 +1,22 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import Draggable from "react-draggable";
 import ReactQuill from "react-quill-new";
 import "react-quill-new/dist/quill.snow.css";
-import { Box, IconButton, Paper, Typography } from "@mui/material";
+import {
+  Box,
+  IconButton,
+  Paper,
+  Typography,
+  CircularProgress,
+} from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
+import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 
 import SaveIcon from "@mui/icons-material/Save";
 
 interface NotepadProps {
   initialContent: string;
-  onSave: (content: string) => void;
+  onSave: (content: string) => Promise<void> | void;
   onClose: () => void;
 }
 
@@ -19,19 +26,39 @@ const Notepad: React.FC<NotepadProps> = ({
   onClose,
 }) => {
   const [content, setContent] = useState(initialContent);
+  const [isSaving, setIsSaving] = useState(false);
+  const [lastSavedContent, setLastSavedContent] = useState(initialContent);
+  const [showSavedIcon, setShowSavedIcon] = useState(false);
   const [position, setPosition] = useState({ x: 100, y: 100 });
   const [size] = useState({ width: 320, height: 400 });
   const nodeRef = useRef(null);
 
+  const handleSave = useCallback(
+    async (contentToSave: string) => {
+      if (contentToSave === lastSavedContent) return;
+      setIsSaving(true);
+      setShowSavedIcon(false);
+      try {
+        await onSave(contentToSave);
+        setLastSavedContent(contentToSave);
+        setShowSavedIcon(true);
+        setTimeout(() => setShowSavedIcon(false), 2000);
+      } catch (error) {
+        console.error("Notepad save error:", error);
+      } finally {
+        setIsSaving(false);
+      }
+    },
+    [lastSavedContent, onSave]
+  );
+
   // Debounce save
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (content !== initialContent) {
-        onSave(content);
-      }
+      handleSave(content);
     }, 2000);
     return () => clearTimeout(timer);
-  }, [content, onSave, initialContent]);
+  }, [content, handleSave]);
 
   return (
     <Draggable
@@ -77,12 +104,30 @@ const Notepad: React.FC<NotepadProps> = ({
           >
             Notepad
           </Typography>
-          <Box>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+            {isSaving ? (
+              <CircularProgress size={16} sx={{ color: "white", mx: 1 }} />
+            ) : showSavedIcon ? (
+              <CheckCircleOutlineIcon
+                sx={{ color: "#4caf50", fontSize: 18, mx: 1 }}
+                titleAccess="Saved"
+              />
+            ) : (
+              content !== lastSavedContent && (
+                <Typography
+                  variant="caption"
+                  sx={{ color: "rgba(255,255,255,0.6)", fontSize: "0.65rem" }}
+                >
+                  Unsaved changes
+                </Typography>
+              )
+            )}
             <IconButton
               size="small"
-              onClick={() => onSave(content)}
+              onClick={() => handleSave(content)}
               title="Save Now"
               sx={{ color: "white" }}
+              disabled={isSaving || content === lastSavedContent}
             >
               <SaveIcon fontSize="small" />
             </IconButton>
