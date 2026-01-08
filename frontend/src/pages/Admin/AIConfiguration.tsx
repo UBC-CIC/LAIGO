@@ -189,6 +189,8 @@ const AIConfiguration = () => {
   const [editorContent, setEditorContent] = useState<string>("");
   const [versionName, setVersionName] = useState<string>("");
 
+  const DRAFT_ID = "new_draft";
+
   // Update editor content when version changes
   useEffect(() => {
     const version = allPrompts.find((p) => p.id === selectedVersionId);
@@ -200,7 +202,7 @@ const AIConfiguration = () => {
       if (versionName !== version.versionName) {
         setVersionName(version.versionName);
       }
-    } else if (blockPrompts.length > 0) {
+    } else if (blockPrompts.length > 0 && selectedVersionId !== DRAFT_ID) {
       // Fallback if selection is invalid
       const fallback = activeVersion?.id || blockPrompts[0].id;
       if (selectedVersionId !== fallback) {
@@ -240,6 +242,10 @@ const AIConfiguration = () => {
       setAllPrompts((prev) => [...prev, defaultPrompt]);
       setSelectedVersionId(defaultPrompt.id);
     }
+  };
+
+  const handleStartDraft = () => {
+    setSelectedVersionId(DRAFT_ID);
   };
 
   const handleCreateNewVersion = () => {
@@ -482,15 +488,57 @@ const AIConfiguration = () => {
                   </Typography>
                 </Box>
 
-                {currentVersion && (
-                  <Chip
-                    label={`Editing: ${currentVersion.versionName}`}
-                    color="primary"
-                    variant="outlined"
-                    size="small"
-                    sx={{ borderColor: "var(--border)" }}
-                  />
-                )}
+                <Box
+                  sx={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: 0.5,
+                  }}
+                >
+                  {selectedVersionId === DRAFT_ID ? (
+                    <Chip
+                      label="New Draft"
+                      color="default"
+                      variant="outlined"
+                      size="small"
+                      sx={{
+                        borderColor: "var(--border)",
+                        fontStyle: "italic",
+                        color: "var(--text-secondary)",
+                      }}
+                    />
+                  ) : (
+                    <>
+                      {currentVersion && (
+                        <Chip
+                          label={`Editing: ${currentVersion.versionName}`}
+                          color="primary"
+                          variant="outlined"
+                          size="small"
+                          sx={{ borderColor: "var(--border)" }}
+                        />
+                      )}
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        startIcon={<AddIcon />}
+                        onClick={handleStartDraft}
+                        sx={{
+                          color: "var(--text)",
+                          borderColor: "var(--border)",
+                          textTransform: "none",
+                          "&:hover": {
+                            borderColor: "var(--text)",
+                            backgroundColor: "var(--secondary)",
+                          },
+                        }}
+                      >
+                        Start New Draft
+                      </Button>
+                    </>
+                  )}
+                </Box>
               </Box>
 
               {/* Editor */}
@@ -576,49 +624,74 @@ const AIConfiguration = () => {
                   gap: 2,
                 }}
               >
-                <Button
-                  variant="text"
-                  startIcon={<RefreshIcon />}
-                  onClick={() =>
-                    setEditorContent(currentVersion?.content || "")
-                  }
-                  sx={{ color: "var(--text-secondary)", textTransform: "none" }}
-                >
-                  Revert Changes
-                </Button>
-                <Button
-                  variant="outlined"
-                  startIcon={<SaveIcon />}
-                  onClick={handleSaveCurrent}
-                  sx={{
-                    color: "var(--text)",
-                    borderColor: "var(--border)",
-                    textTransform: "none",
-                    "&:hover": {
-                      borderColor: "var(--text)",
-                      backgroundColor: "var(--secondary)",
-                    },
-                  }}
-                >
-                  Save
-                </Button>
-                <Button
-                  variant="contained"
-                  startIcon={<AddIcon />}
-                  onClick={handleCreateNewVersion}
-                  sx={{
-                    backgroundColor: "var(--primary)",
-                    color: "var(--text)",
-                    textTransform: "none",
-                    fontWeight: "bold",
-                    "&:hover": {
+                {selectedVersionId === DRAFT_ID ? (
+                  <Button
+                    variant="contained"
+                    startIcon={<AddIcon />}
+                    onClick={handleCreateNewVersion}
+                    sx={{
                       backgroundColor: "var(--primary)",
-                      opacity: 0.9,
-                    },
-                  }}
-                >
-                  Save as New Version
-                </Button>
+                      color: "var(--text)",
+                      textTransform: "none",
+                      fontWeight: "bold",
+                      "&:hover": {
+                        backgroundColor: "var(--primary)",
+                        opacity: 0.9,
+                      },
+                    }}
+                  >
+                    Create New Version
+                  </Button>
+                ) : (
+                  <>
+                    <Button
+                      variant="text"
+                      startIcon={<RefreshIcon />}
+                      onClick={() =>
+                        setEditorContent(currentVersion?.content || "")
+                      }
+                      sx={{
+                        color: "var(--text-secondary)",
+                        textTransform: "none",
+                      }}
+                    >
+                      Revert Changes
+                    </Button>
+                    <Button
+                      variant="outlined"
+                      startIcon={<SaveIcon />}
+                      onClick={handleSaveCurrent}
+                      sx={{
+                        color: "var(--text)",
+                        borderColor: "var(--border)",
+                        textTransform: "none",
+                        "&:hover": {
+                          borderColor: "var(--text)",
+                          backgroundColor: "var(--secondary)",
+                        },
+                      }}
+                    >
+                      Save
+                    </Button>
+                    <Button
+                      variant="contained"
+                      startIcon={<AddIcon />}
+                      onClick={handleCreateNewVersion}
+                      sx={{
+                        backgroundColor: "var(--primary)",
+                        color: "var(--text)",
+                        textTransform: "none",
+                        fontWeight: "bold",
+                        "&:hover": {
+                          backgroundColor: "var(--primary)",
+                          opacity: 0.9,
+                        },
+                      }}
+                    >
+                      Save as New Version
+                    </Button>
+                  </>
+                )}
               </Box>
             </Paper>
 
