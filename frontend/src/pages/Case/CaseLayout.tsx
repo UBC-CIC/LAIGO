@@ -141,7 +141,7 @@ const CaseLayout: React.FC = () => {
         caseTitle={caseTitle}
         loading={loading}
         unlockedBlocks={unlockedBlocks}
-        onToggleNotepad={() => setShowNotepad(!showNotepad)}
+        onToggleNotepad={() => !loading && setShowNotepad(!showNotepad)}
       />
 
       {/* Main Content Area */}

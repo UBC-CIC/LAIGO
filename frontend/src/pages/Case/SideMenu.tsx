@@ -267,15 +267,16 @@ const SideMenu: React.FC<SideMenuProps> = ({
           <ListItem disablePadding>
             <ListItemButton
               onClick={onToggleNotepad}
+              disabled={loading}
               sx={{ "&:hover": { backgroundColor: "rgba(255,255,255,0.05)" } }}
             >
-              <EditNoteIcon sx={{ color: "white", mr: 2 }} />
+              <EditNoteIcon sx={{ color: loading ? "#666" : "white", mr: 2 }} />
               <ListItemText
                 primary="Notepad"
                 primaryTypographyProps={{
                   fontFamily: "Outfit",
                   fontSize: "0.95rem",
-                  color: "white",
+                  color: loading ? "#666" : "white",
                 }}
               />
             </ListItemButton>

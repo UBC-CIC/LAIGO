@@ -33,6 +33,26 @@ const Notepad: React.FC<NotepadProps> = ({
   const [size] = useState({ width: 320, height: 400 });
   const nodeRef = useRef(null);
 
+  // Refs for access during unmount
+  const contentRef = useRef(content);
+  const lastSavedContentRef = useRef(lastSavedContent);
+  const isMountedFn = useRef(true);
+
+  useEffect(() => {
+    isMountedFn.current = true;
+    return () => {
+      isMountedFn.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    contentRef.current = content;
+  }, [content]);
+
+  useEffect(() => {
+    lastSavedContentRef.current = lastSavedContent;
+  }, [lastSavedContent]);
+
   const handleSave = useCallback(
     async (contentToSave: string) => {
       if (contentToSave === lastSavedContent) return;
@@ -40,13 +60,17 @@ const Notepad: React.FC<NotepadProps> = ({
       setShowSavedIcon(false);
       try {
         await onSave(contentToSave);
-        setLastSavedContent(contentToSave);
-        setShowSavedIcon(true);
-        setTimeout(() => setShowSavedIcon(false), 2000);
+        if (isMountedFn.current) {
+          setLastSavedContent(contentToSave);
+          setShowSavedIcon(true);
+          setTimeout(() => {
+            if (isMountedFn.current) setShowSavedIcon(false);
+          }, 2000);
+        }
       } catch (error) {
         console.error("Notepad save error:", error);
       } finally {
-        setIsSaving(false);
+        if (isMountedFn.current) setIsSaving(false);
       }
     },
     [lastSavedContent, onSave]
@@ -59,6 +83,15 @@ const Notepad: React.FC<NotepadProps> = ({
     }, 2000);
     return () => clearTimeout(timer);
   }, [content, handleSave]);
+
+  // Save on unmount if dirty
+  useEffect(() => {
+    return () => {
+      if (contentRef.current !== lastSavedContentRef.current) {
+        onSave(contentRef.current);
+      }
+    };
+  }, [onSave]);
 
   return (
     <Draggable
