@@ -187,6 +187,7 @@ const AIConfiguration = () => {
   );
 
   const [editorContent, setEditorContent] = useState<string>("");
+  const [versionName, setVersionName] = useState<string>("");
 
   // Update editor content when version changes
   useEffect(() => {
@@ -195,6 +196,9 @@ const AIConfiguration = () => {
       if (editorContent !== version.content) {
         // eslint-disable-next-line
         setEditorContent(version.content);
+      }
+      if (versionName !== version.versionName) {
+        setVersionName(version.versionName);
       }
     } else if (blockPrompts.length > 0) {
       // Fallback if selection is invalid
@@ -205,6 +209,9 @@ const AIConfiguration = () => {
     } else {
       if (editorContent !== "") {
         setEditorContent("");
+      }
+      if (versionName !== "") {
+        setVersionName("");
       }
     }
   }, [selectedVersionId, selectedBlockId, allPrompts]);
@@ -244,7 +251,7 @@ const AIConfiguration = () => {
       id: uuidv4(),
       blockId: selectedBlockId,
       versionNumber: currentMaxVersion + 1,
-      versionName: `Version ${currentMaxVersion + 1}`,
+      versionName: versionName || `Version ${currentMaxVersion + 1}`, // User provided or auto-generated
       content: editorContent,
       isActive: false,
       createdAt: new Date().toISOString(),
@@ -258,7 +265,9 @@ const AIConfiguration = () => {
   const handleSaveCurrent = () => {
     setAllPrompts((prev) =>
       prev.map((p) =>
-        p.id === selectedVersionId ? { ...p, content: editorContent } : p
+        p.id === selectedVersionId
+          ? { ...p, content: editorContent, versionName: versionName }
+          : p
       )
     );
     alert("Version saved.");
@@ -486,9 +495,42 @@ const AIConfiguration = () => {
 
               {/* Editor */}
               <Box
-                sx={{ flex: 1, p: 3, display: "flex", flexDirection: "column" }}
+                sx={{
+                  flex: 1,
+                  p: 3,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 2,
+                }}
               >
                 <TextField
+                  label="Version Name"
+                  fullWidth
+                  variant="outlined"
+                  value={versionName}
+                  onChange={(e) => setVersionName(e.target.value)}
+                  sx={{
+                    "& .MuiOutlinedInput-root": {
+                      color: "var(--text)",
+                      backgroundColor: "var(--background)",
+                      "& fieldset": { borderColor: "var(--border)" },
+                      "&:hover fieldset": {
+                        borderColor: "var(--border)",
+                      },
+                      "&.Mui-focused fieldset": {
+                        borderColor: "var(--primary)",
+                      },
+                    },
+                    "& .MuiInputLabel-root": {
+                      color: "var(--text-secondary)",
+                      "&.Mui-focused": {
+                        color: "var(--primary)",
+                      },
+                    },
+                  }}
+                />
+                <TextField
+                  label="Prompt Content"
                   multiline
                   fullWidth
                   minRows={10}
@@ -512,6 +554,12 @@ const AIConfiguration = () => {
                       },
                       "&.Mui-focused fieldset": {
                         borderColor: "var(--primary)",
+                      },
+                    },
+                    "& .MuiInputLabel-root": {
+                      color: "var(--text-secondary)",
+                      "&.Mui-focused": {
+                        color: "var(--primary)",
                       },
                     },
                   }}
@@ -560,7 +608,7 @@ const AIConfiguration = () => {
                   onClick={handleCreateNewVersion}
                   sx={{
                     backgroundColor: "var(--primary)",
-                    color: "#000",
+                    color: "var(--text)",
                     textTransform: "none",
                     fontWeight: "bold",
                     "&:hover": {
