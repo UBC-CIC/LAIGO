@@ -109,10 +109,13 @@ exports.handler = async (event) => {
 
           if (!event.body) throw new Error("Request body is missing");
 
-          const { category, block_type, prompt_text, version_name, author_id } = JSON.parse(event.body);
+          const { category, block_type, prompt_text, version_name, author_id } =
+            JSON.parse(event.body);
 
           if (!category || !block_type || !prompt_text)
-            throw new Error("Missing required fields: category, block_type, and prompt_text are required");
+            throw new Error(
+              "Missing required fields: category, block_type, and prompt_text are required"
+            );
 
           // Get the next version number for this category/block_type combination
           const versionCheck = await sqlConnectionTableCreator`
@@ -126,7 +129,9 @@ exports.handler = async (event) => {
           // Insert new prompt into prompt_versions table
           const insertPrompt = await sqlConnectionTableCreator`
             INSERT INTO "prompt_versions" (category, block_type, version_number, version_name, prompt_text, author_id, is_active)
-            VALUES (${category}, ${block_type}, ${nextVersion}, ${version_name || null}, ${prompt_text}, ${author_id || null}, false)
+            VALUES (${category}, ${block_type}, ${nextVersion}, ${
+            version_name || null
+          }, ${prompt_text}, ${author_id || null}, false)
             RETURNING *;
           `;
 
@@ -215,7 +220,7 @@ exports.handler = async (event) => {
           const { category, block_type } = promptToActivate[0];
 
           // Begin transaction: deactivate current active prompt and activate new one
-          await sqlConnectionTableCreator.begin(async sql => {
+          await sqlConnectionTableCreator.begin(async (sql) => {
             // Deactivate any currently active prompt for this category/block_type
             await sql`
               UPDATE "prompt_versions"
@@ -236,11 +241,111 @@ exports.handler = async (event) => {
           response.body = JSON.stringify({
             message: "Prompt activated successfully",
             category,
-            block_type
+            block_type,
           });
         } catch (err) {
           response.statusCode = 500;
           console.error("Error activating prompt:", err);
+          response.body = JSON.stringify({
+            error: err.message || "Internal server error",
+          });
+        }
+        break;
+      case "POST /admin/prompt/deactivate":
+        try {
+          if (!event.body) throw new Error("Request body is missing");
+
+          const { prompt_version_id } = JSON.parse(event.body);
+
+          if (!prompt_version_id)
+            throw new Error("Missing required field: prompt_version_id");
+
+          // Get the prompt to verify it exists
+          const promptToDeactivate = await sqlConnectionTableCreator`
+            SELECT category, block_type, is_active
+            FROM "prompt_versions"
+            WHERE prompt_version_id = ${prompt_version_id};
+          `;
+
+          if (promptToDeactivate.length === 0) {
+            throw new Error("Prompt version not found");
+          }
+
+          const { category, block_type, is_active } = promptToDeactivate[0];
+
+          // Deactivate the prompt
+          await sqlConnectionTableCreator`
+            UPDATE "prompt_versions"
+            SET is_active = false
+            WHERE prompt_version_id = ${prompt_version_id};
+          `;
+
+          response.body = JSON.stringify({
+            message: "Prompt deactivated successfully",
+            category,
+            block_type,
+            was_active: is_active,
+          });
+        } catch (err) {
+          response.statusCode = 500;
+          console.error("Error deactivating prompt:", err);
+          response.body = JSON.stringify({
+            error: err.message || "Internal server error",
+          });
+        }
+        break;
+      case "DELETE /admin/prompt":
+        try {
+          if (
+            !event.queryStringParameters ||
+            !event.queryStringParameters.prompt_version_id
+          ) {
+            throw new Error(
+              "Missing required query parameter: prompt_version_id"
+            );
+          }
+
+          const prompt_version_id =
+            event.queryStringParameters.prompt_version_id;
+
+          // Get the prompt to verify it exists and check if it's active
+          const promptToDelete = await sqlConnectionTableCreator`
+            SELECT category, block_type, is_active
+            FROM "prompt_versions"
+            WHERE prompt_version_id = ${prompt_version_id};
+          `;
+
+          if (promptToDelete.length === 0) {
+            response.statusCode = 404;
+            throw new Error("Prompt version not found");
+          }
+
+          const { category, block_type, is_active } = promptToDelete[0];
+
+          // Prevent deletion of active prompts
+          if (is_active) {
+            response.statusCode = 400;
+            throw new Error(
+              "Cannot delete an active prompt. Please deactivate it first."
+            );
+          }
+
+          // Delete the prompt
+          await sqlConnectionTableCreator`
+            DELETE FROM "prompt_versions"
+            WHERE prompt_version_id = ${prompt_version_id};
+          `;
+
+          response.body = JSON.stringify({
+            message: "Prompt deleted successfully",
+            category,
+            block_type,
+          });
+        } catch (err) {
+          if (response.statusCode === 200) {
+            response.statusCode = 500;
+          }
+          console.error("Error deleting prompt:", err);
           response.body = JSON.stringify({
             error: err.message || "Internal server error",
           });

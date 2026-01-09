@@ -142,7 +142,7 @@ paths:
             statusCode: "200"
             responseParameters:
               method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key'"
-              method.response.header.Access-Control-Allow-Methods: "'GET,POST,OPTIONS'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,DELETE,OPTIONS'"
               method.response.header.Access-Control-Allow-Origin: "'*'"
             responseTemplates:
               application/json: |
@@ -246,6 +246,45 @@ paths:
                       type: string
                     is_active:
                       type: boolean
+        "500":
+          description: Internal Server Error
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${adminFunction.Arn}/invocations"
+        passthroughBehavior: "when_no_match"
+        httpMethod: "POST"
+        type: "aws_proxy"
+
+    delete:
+      tags:
+        - Admin
+      summary: Delete a prompt version
+      operationId: admin_delete_prompt_DELETE
+      parameters:
+        - in: query
+          name: prompt_version_id
+          required: true
+          schema:
+            type: integer
+          description: The id of the prompt version to delete
+      responses:
+        "200":
+          description: Prompt deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  category:
+                    type: string
+                  block_type:
+                    type: string
+        "400":
+          description: Cannot delete active prompt or invalid request
+        "404":
+          description: Prompt version not found
         "500":
           description: Internal Server Error
       x-amazon-apigateway-integration:
@@ -374,6 +413,75 @@ paths:
                     type: string
                   block_type:
                     type: string
+        "400":
+          description: Invalid value
+        "500":
+          description: Internal Server Error
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${adminFunction.Arn}/invocations"
+        passthroughBehavior: "when_no_match"
+        httpMethod: "POST"
+        type: "aws_proxy"
+
+  /admin/prompt/deactivate:
+    options:
+      summary: CORS support
+      description: |
+        Enable CORS by returning correct headers
+      responses:
+        200:
+          $ref: "#/components/responses/Success"
+      x-amazon-apigateway-integration:
+        type: mock
+        requestTemplates:
+          application/json: |
+            {
+              "statusCode" : 200
+            }
+        responses:
+          default:
+            statusCode: "200"
+            responseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key'"
+              method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            responseTemplates:
+              application/json: |
+                {}
+    post:
+      tags:
+        - Admin
+      summary: Deactivate a prompt version
+      operationId: admin_deactivate_prompt_POST
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - prompt_version_id
+              properties:
+                prompt_version_id:
+                  type: integer
+                  description: The id of the prompt version to deactivate
+      responses:
+        "200":
+          description: Prompt deactivated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  category:
+                    type: string
+                  block_type:
+                    type: string
+                  was_active:
+                    type: boolean
         "400":
           description: Invalid value
         "500":
