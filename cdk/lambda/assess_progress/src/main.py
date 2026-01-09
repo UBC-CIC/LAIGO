@@ -229,7 +229,7 @@ def handler(event, context):
     - Analyze the detailed history against the criteria.
     - Result MUST be a JSON object: {{ "ready": boolean, "reasoning": "brief explanation" }}
     - "ready": true if they have met the main goals and are ready to move on.
-    - "reasoning": 1-2 sentences explaining why they are ready or what is missing.
+    - "reasoning": 3-4 sentences explaining why they are ready or what is missing.
     - Output ONLY the JSON object.
     """
     
