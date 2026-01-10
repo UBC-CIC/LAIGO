@@ -7,6 +7,12 @@ import StudentHeader from "../../components/StudentHeader";
 import SideMenu from "./SideMenu";
 import Notepad from "../../components/Case/Notepad";
 
+// Context type for child routes
+export interface CaseOutletContext {
+  unlockedBlocks: string[];
+  refreshUnlockedBlocks: () => Promise<void>;
+}
+
 const CaseLayout: React.FC = () => {
   const { caseId } = useParams();
   const [caseTitle, setCaseTitle] = useState<string>("");
@@ -17,6 +23,38 @@ const CaseLayout: React.FC = () => {
   const [showNotepad, setShowNotepad] = useState(false);
   const [notepadContent, setNotepadContent] = useState("");
   const [cognitoId, setCognitoId] = useState<string | null>(null);
+
+  // Refresh unlocked blocks from server
+  const refreshUnlockedBlocks = useCallback(async () => {
+    if (!caseId) return;
+    try {
+      const session = await fetchAuthSession();
+      const token = session.tokens?.idToken?.toString();
+      const cId = session.tokens?.idToken?.payload?.sub;
+
+      if (!token || !cId) return;
+
+      const res = await fetch(
+        `${
+          import.meta.env.VITE_API_ENDPOINT
+        }/student/case_page?case_id=${caseId}&cognito_id=${cId}`,
+        {
+          headers: {
+            Authorization: token,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (res.ok) {
+        const data = await res.json();
+        const cData = data.caseData || data;
+        setUnlockedBlocks(cData.unlocked_blocks || ["intake"]);
+      }
+    } catch (err) {
+      console.error("Error refreshing unlocked blocks:", err);
+    }
+  }, [caseId]);
 
   useEffect(() => {
     const init = async () => {
@@ -156,7 +194,14 @@ const CaseLayout: React.FC = () => {
           color: "var(--text)",
         }}
       >
-        <Outlet />
+        <Outlet
+          context={
+            {
+              unlockedBlocks,
+              refreshUnlockedBlocks,
+            } satisfies CaseOutletContext
+          }
+        />
       </Box>
 
       {/* Draggable Notepad */}
