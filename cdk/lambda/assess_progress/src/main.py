@@ -227,8 +227,8 @@ def handler(event, context):
     
     INSTRUCTIONS:
     - Analyze the detailed history against the criteria.
-    - Result MUST be a JSON object: {{ "ready": boolean, "reasoning": "brief explanation" }}
-    - "ready": true if they have met the main goals and are ready to move on.
+    - Result MUST be a JSON object: {{ "progress": int, "reasoning": "brief explanation" }}
+    - "progress": A number between 0 and 5, returning 0 if they have not met the main goals and are not ready to move on. Returning 5 if they have met the main goals and are ready to move on.
     - "reasoning": 3-4 sentences explaining why they are ready or what is missing.
     - Output ONLY the JSON object.
     """
