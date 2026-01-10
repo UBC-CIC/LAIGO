@@ -194,7 +194,7 @@ def handler(event, context):
         logger.info(f"No next step defined for block {block_type} or end of chain.")
         return {
             'statusCode': 200,
-            'body': json.dumps({'unlocked': False, 'reasoning': 'End of progression chain.'})
+            'body': json.dumps({'unlocked': False, 'progress': 0, 'reasoning': 'End of progression chain.'})
         }
     
     session_id = f"{case_id}-{block_type}"
@@ -203,7 +203,7 @@ def handler(event, context):
     if not chat_history:
         return {
             'statusCode': 200,
-            'body': json.dumps({'unlocked': False, 'reasoning': 'Insufficient chat history.'})
+            'body': json.dumps({'unlocked': False, 'progress': 0, 'reasoning': 'Insufficient chat history.'})
         }
         
     prompt_template = get_assessment_prompt_template(block_type)
@@ -254,7 +254,7 @@ def handler(event, context):
             logger.error(f"Failed to parse LLM response as JSON: {response_text}")
             return {
                 'statusCode': 200,
-                'body': json.dumps({'unlocked': False, 'reasoning': 'Error parsing assessment result.'})
+                'body': json.dumps({'unlocked': False, 'progress': 0, 'reasoning': 'Error parsing assessment result.'})
             }
             
         progress = result.get("progress", 0)
@@ -262,6 +262,7 @@ def handler(event, context):
         
         response_data = {
             "unlocked": False,
+            "progress": progress,
             "reasoning": reasoning
         }
         
@@ -273,7 +274,7 @@ def handler(event, context):
                 if unlock_next_block(case_id, target):
                     unlocked_any = True
             
-            response_data["unlocked"] = True
+            response_data["unlocked"] = unlocked_any
             response_data["next_block"] = targets if isinstance(next_step, list) else next_step
             
         return {
