@@ -29,7 +29,8 @@ const InterviewAssistant: React.FC = () => {
   useEffect(() => {
     const DEFAULT_GREETING: Message = {
       type: "ai",
-      content: "Hi, I'm your Legal Interview Assistant. Try asking me to analyze the case to begin!"
+      content:
+        "Hi, I'm your Legal Interview Assistant. Try asking me to analyze the case to begin!",
     };
 
     const fetchChatHistory = async () => {
@@ -60,7 +61,11 @@ const InterviewAssistant: React.FC = () => {
 
         if (response.ok) {
           const history = await response.json();
-          setMessages(Array.isArray(history) && history.length > 0 ? history : [DEFAULT_GREETING]);
+          setMessages(
+            Array.isArray(history) && history.length > 0
+              ? history
+              : [DEFAULT_GREETING]
+          );
         } else {
           if (response.status !== 404) {
             console.error("Failed to fetch chat history", response.statusText);
@@ -164,17 +169,25 @@ const InterviewAssistant: React.FC = () => {
         }}
       >
         {isLoadingHistory ? (
-          <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100%" }}>
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              height: "100%",
+            }}
+          >
             <CircularProgress sx={{ color: "var(--text-secondary)" }} />
           </Box>
         ) : (
           messages.map((msg, index) =>
-          msg.type === "human" ? (
-            <UserMessage key={index} message={msg.content} />
-          ) : (
-            <AiResponse key={index} message={msg.content} />
+            msg.type === "human" ? (
+              <UserMessage key={index} message={msg.content} />
+            ) : (
+              <AiResponse key={index} message={msg.content} />
+            )
           )
-        ))}
+        )}
 
         {isLoading && (
           <Box sx={{ display: "flex", justifyContent: "flex-start", pl: 2 }}>
