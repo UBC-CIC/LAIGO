@@ -172,6 +172,11 @@ const InterviewAssistant: React.FC = () => {
             (m: Message) => m.type === "human"
           ).length;
           setMessageCount(humanMsgCount);
+
+          // Initialize progress bar if there's existing chat history
+          if (Array.isArray(history) && history.length > 0 && showProgressBar) {
+            assessProgress();
+          }
         } else {
           if (response.status !== 404) {
             console.error("Failed to fetch chat history", response.statusText);
@@ -187,6 +192,7 @@ const InterviewAssistant: React.FC = () => {
     };
 
     fetchChatHistory();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [caseId, section]);
 
   const handleSendMessage = async (message: string) => {
