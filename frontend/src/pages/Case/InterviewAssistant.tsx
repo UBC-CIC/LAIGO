@@ -1,5 +1,13 @@
 import React, { useEffect, useState, useRef } from "react";
-import { Box, Container, CircularProgress } from "@mui/material";
+import {
+  Box,
+  Container,
+  CircularProgress,
+  LinearProgress,
+  Typography,
+  Snackbar,
+  Alert,
+} from "@mui/material";
 import { useParams, useOutletContext } from "react-router-dom";
 import { fetchAuthSession } from "aws-amplify/auth";
 import UserMessage from "../../components/Chat/UserMessage";
@@ -38,10 +46,30 @@ const InterviewAssistant: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [messageCount, setMessageCount] = useState(0);
+
+  // Progress & Notification State
+  const [progress, setProgress] = useState(0);
+  const [showSnackbar, setShowSnackbar] = useState(false);
+
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Get current block type from section
   const currentBlock = section ? SUB_ROUTE_TO_BLOCK[section] : null;
+
+  // Determine if we should show the progress bar
+  // Hide if terminal block OR next block(s) are already unlocked
+  const showProgressBar = React.useMemo(() => {
+    if (!currentBlock) return false;
+    const nextStep = PROGRESSION_MAP[currentBlock];
+    if (!nextStep) return false;
+
+    const nextBlocks = Array.isArray(nextStep) ? nextStep : [nextStep];
+    const allNextUnlocked = nextBlocks.every((block) =>
+      unlockedBlocks.includes(block)
+    );
+
+    return !allNextUnlocked;
+  }, [currentBlock, unlockedBlocks]);
 
   // Call assess_progress endpoint
   const assessProgress = async () => {
@@ -70,9 +98,15 @@ const InterviewAssistant: React.FC = () => {
 
       if (response.ok) {
         const data = await response.json();
-        console.log("Assessment result:", data);
+        // data.progress is 0-5. Convert to percentage.
+        // If undefined, default to 0.
+        const currentScore =
+          typeof data.progress === "number" ? data.progress : 0;
+        setProgress((currentScore / 5) * 100);
 
         if (data.unlocked) {
+          // Show snackbar notifying user
+          setShowSnackbar(true);
           // Refresh unlocked blocks from server
           await refreshUnlockedBlocks();
         }
@@ -89,9 +123,10 @@ const InterviewAssistant: React.FC = () => {
     }
   }, [messages, isLoading]);
 
-  // Reset message count and fetch chat history when section changes
+  // Reset state when section changes
   useEffect(() => {
     setMessageCount(0);
+    setProgress(0); // Reset progress on new section
 
     const DEFAULT_GREETING: Message = {
       type: "ai",
@@ -248,6 +283,51 @@ const InterviewAssistant: React.FC = () => {
         overflow: "hidden", // Prevent outer scroll
       }}
     >
+      {/* Progress Bar (Absolute Top) */}
+      {showProgressBar && (
+        <Box
+          sx={{
+            width: "100%",
+            zIndex: 10,
+            backgroundColor: "var(--background-secondary)",
+            backdropFilter: "blur(10px)",
+            borderBottom: "1px solid rgba(255,255,255,0.05)",
+            display: "flex",
+            alignItems: "center",
+            py: "2px",
+            px: 3,
+            gap: 2,
+          }}
+        >
+          <Typography
+            variant="caption"
+            sx={{
+              color: "var(--text-secondary)",
+              fontSize: "0.75rem",
+              whiteSpace: "nowrap",
+              fontFamily: "Outfit",
+            }}
+          >
+            Progress to next block
+          </Typography>
+          <Box sx={{ flexGrow: 1 }}>
+            <LinearProgress
+              variant="determinate"
+              value={progress}
+              sx={{
+                height: 4,
+                borderRadius: 2,
+                backgroundColor: "rgba(255,255,255,0.1)",
+                "& .MuiLinearProgress-bar": {
+                  backgroundColor: "#64B5F6",
+                  borderRadius: 2,
+                },
+              }}
+            />
+          </Box>
+        </Box>
+      )}
+
       {/* Messages Area */}
       <Container
         maxWidth="lg"
@@ -259,6 +339,7 @@ const InterviewAssistant: React.FC = () => {
           overflowY: "auto",
           py: 4,
           px: { xs: 2, md: 8 }, // Add more horizontal padding
+          position: "relative",
         }}
       >
         {isLoadingHistory ? (
@@ -298,8 +379,8 @@ const InterviewAssistant: React.FC = () => {
       <Box
         sx={{
           width: "100%",
-          pb: 4,
-          pt: 2,
+          pb: 2,
+          pt: 1,
           backgroundColor: "var(--background)",
           flexShrink: 0,
         }}
@@ -308,6 +389,32 @@ const InterviewAssistant: React.FC = () => {
           <ChatBar onSendMessage={handleSendMessage} isLoading={isLoading} />
         </Container>
       </Box>
+
+      {/* Unlock Notification Snackbar */}
+      <Snackbar
+        open={showSnackbar}
+        autoHideDuration={6000}
+        onClose={() => setShowSnackbar(false)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+      >
+        <Alert
+          onClose={() => setShowSnackbar(false)}
+          severity="success"
+          variant="filled"
+          sx={{
+            width: "100%",
+            bgcolor: "var(--green-text)", // Success green
+            color: "white",
+            "& .MuiAlert-icon": {
+              color: "white",
+            },
+            fontFamily: "Outfit",
+          }}
+        >
+          Success! You have unlocked the next block. Feel free to proceed or
+          continue asking questions.
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };
