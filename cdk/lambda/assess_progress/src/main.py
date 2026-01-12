@@ -257,7 +257,7 @@ def handler(event, context):
                 'body': json.dumps({'unlocked': False, 'progress': 0, 'reasoning': 'Error parsing assessment result.'})
             }
             
-        progress = result.get("progress", 0)
+        progress = int(result.get("progress", 0))
         reasoning = result.get("reasoning", "No reasoning provided.")
         
         response_data = {
@@ -275,7 +275,6 @@ def handler(event, context):
                     unlocked_any = True
             
             response_data["unlocked"] = unlocked_any
-            response_data["next_block"] = targets if isinstance(next_step, list) else next_step
             
         return {
             'statusCode': 200,
