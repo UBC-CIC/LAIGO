@@ -1222,6 +1222,7 @@ export class ApiGatewayStack extends cdk.Stack {
             tagOrDigest: "latest", // or whatever tag you're using
           }
         ),
+        functionName: `${id}-AssessProgressFunction`,
         timeout: Duration.seconds(300),
         memorySize: 1024,
         vpc: vpcStack.vpc,
