@@ -158,6 +158,18 @@ def unlock_next_block(case_id, next_block):
         connection.rollback()
         output = str(e)
         return False
+        
+def _response(status_code, body):
+    return {
+        'statusCode': status_code,
+        'headers': {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "POST, OPTIONS",
+            "Access-Control-Allow-Headers": "*"
+        },
+        'body': json.dumps(body)
+    }
 
 def handler(event, context):
     logger.info("Assess Progress Lambda function called")
@@ -167,19 +179,13 @@ def handler(event, context):
     try:
         body = json.loads(event.get("body", "{}"))
     except json.JSONDecodeError:
-        return {
-            'statusCode': 400,
-            'body': json.dumps('Invalid JSON body')
-        }
+        return _response(400, 'Invalid JSON body')
         
     case_id = body.get("case_id")
     block_type = body.get("block_type")
     
     if not case_id or not block_type:
-        return {
-            'statusCode': 400,
-            'body': json.dumps('Missing required parameters: case_id, block_type')
-        }
+        return _response(400, 'Missing required parameters: case_id, block_type')
 
     # Determine progression map
     # Intake -> Issues -> Research -> (Argument, Contrarian, Policy)
@@ -192,28 +198,19 @@ def handler(event, context):
     next_step = progression_map.get(block_type)
     if not next_step:
         logger.info(f"No next step defined for block {block_type} or end of chain.")
-        return {
-            'statusCode': 200,
-            'body': json.dumps({'unlocked': False, 'progress': 0, 'reasoning': 'End of progression chain.'})
-        }
+        return _response(200, {'unlocked': False, 'progress': 0, 'reasoning': 'End of progression chain.'})
     
     session_id = f"{case_id}-{block_type}"
     chat_history = fetch_chat_history(session_id)
     
     if not chat_history:
-        return {
-            'statusCode': 200,
-            'body': json.dumps({'unlocked': False, 'progress': 0, 'reasoning': 'Insufficient chat history.'})
-        }
+        return _response(200, {'unlocked': False, 'progress': 0, 'reasoning': 'Insufficient chat history.'})
         
     prompt_template = get_assessment_prompt_template(block_type)
     if not prompt_template:
         logger.error(f"Assessment prompt not found for {block_type}")
         # Fallback or strict fail
-        return {
-            'statusCode': 500,
-            'body': json.dumps('Configuration error: No assessment prompt found.')
-        }
+        return _response(500, 'Configuration error: No assessment prompt found.')
 
     # Construct complete prompt
     system_instruction = f"""
@@ -252,10 +249,7 @@ def handler(event, context):
             result = json.loads(json_str)
         except Exception:
             logger.error(f"Failed to parse LLM response as JSON: {response_text}")
-            return {
-                'statusCode': 200,
-                'body': json.dumps({'unlocked': False, 'progress': 0, 'reasoning': 'Error parsing assessment result.'})
-            }
+            return _response(200, {'unlocked': False, 'progress': 0, 'reasoning': 'Error parsing assessment result.'})
             
         progress = int(result.get("progress", 0))
         reasoning = result.get("reasoning", "No reasoning provided.")
@@ -276,20 +270,8 @@ def handler(event, context):
             
             response_data["unlocked"] = unlocked_any
             
-        return {
-            'statusCode': 200,
-            'headers': {
-                "Content-Type": "application/json",
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "POST, OPTIONS",
-                "Access-Control-Allow-Headers": "*"
-            },
-            'body': json.dumps(response_data)
-        }
+        return _response(200, response_data)
         
     except Exception as e:
         logger.error(f"Error during assessment execution: {e}")
-        return {
-            'statusCode': 500,
-            'body': json.dumps(f"Internal server error: {str(e)}")
-        }
+        return _response(500, f"Internal server error: {str(e)}")
