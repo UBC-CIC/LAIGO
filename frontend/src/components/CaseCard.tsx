@@ -158,7 +158,9 @@ const CaseCard: React.FC<CaseCardProps> = ({
         id={`case-menu-${caseId}`}
         anchorEl={anchorEl}
         open={open}
-        onClose={(event) => { event?.stopPropagation(); handleEllipsisClose(); }}
+        onClose={() => {
+          handleEllipsisClose();
+        }}
         anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
         transformOrigin={{ vertical: "bottom", horizontal: "right" }}
         disableScrollLock
@@ -172,11 +174,23 @@ const CaseCard: React.FC<CaseCardProps> = ({
           },
         }}
       >
-        <MenuItem onClick={(e) => { e.stopPropagation(); handleDelete(); }} sx={{ color: "var(--text)", gap: 1 }}>
+        <MenuItem
+          onClick={(e) => {
+            e.stopPropagation();
+            handleDelete();
+          }}
+          sx={{ color: "var(--text)", gap: 1 }}
+        >
           <DeleteOutlineIcon sx={{ mr: 1, color: "var(--text)" }} />
           Delete
         </MenuItem>
-        <MenuItem onClick={(e) => { e.stopPropagation(); handleArchive(); }} sx={{ color: "var(--text)", gap: 1 }}>
+        <MenuItem
+          onClick={(e) => {
+            e.stopPropagation();
+            handleArchive();
+          }}
+          sx={{ color: "var(--text)", gap: 1 }}
+        >
           <ArchiveIcon sx={{ mr: 1, color: "var(--text)" }} />
           Archive
         </MenuItem>
