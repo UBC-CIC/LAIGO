@@ -120,6 +120,11 @@ def get_case_details(case_id):
 
         if result:
             case_title, case_type, jurisdiction, case_description = result
+            
+            # Handle jurisdiction list
+            if isinstance(jurisdiction, list):
+                jurisdiction = ", ".join(jurisdiction)
+
             logger.info(f"client details found for case_id {case_id}: "
                         f"Title: {case_title} \n Case type: {case_type} \n Jurisdiction: {jurisdiction} \n Case description: {case_description}")
             return case_type, jurisdiction, case_description
@@ -134,37 +139,50 @@ def get_case_details(case_id):
         connection.rollback()
         return None, None, None, None
 
-def update_summaries(case_id, summary):
+def update_summaries(case_id, summary, block_type):
     """
-    Adds a new summary for a given case.
-    Each case can have multiple summaries differentiated by timestamps.
+    Adds a new summary for a given case and block.
+    Each case can have multiple summaries differentiated by block type and timestamps.
     
     Args:
         case_id (str): The ID of the case to update.
         summary (str): The new summary for the case.
+        block_type (str): The block type (intake, issues, research, etc.)
     
     Returns:
         bool: True if successful, False otherwise.
     """
-    logger.info(f"Adding new summary for case_id {case_id}")
+    logger.info(f"Adding new summary for case_id {case_id}, block_type {block_type}")
     connection = connect_to_db()
     if connection is None:
         logger.error("No database connection available.")
         return False
     
+    # Map block_type to human-readable titles
+    block_titles = {
+        "intake": "Intake Facts Summary",
+        "issues": "Issue Identification Summary",
+        "research": "Research Strategy Summary",
+        "argument": "Argument Construction Summary",
+        "contrarian": "Contrarian Analysis Summary",
+        "policy": "Policy Context Summary"
+    }
+    
+    title = block_titles.get(block_type, "Block Summary")
+    
     try:
         cur = connection.cursor()
         logger.info("Connected to RDS instance!")
         
-        # Always insert a new summary with current timestamp
+        # Insert a new summary with block scope and context
         cur.execute("""
-            INSERT INTO summaries (case_id, content, time_created)
-            VALUES (%s, %s, CURRENT_TIMESTAMP)
-        """, (case_id, summary))
+            INSERT INTO summaries (case_id, content, scope, block_context, title, time_created)
+            VALUES (%s, %s, 'block', %s, %s, CURRENT_TIMESTAMP)
+        """, (case_id, summary, block_type, title))
             
         connection.commit()
         cur.close()
-        logger.info(f"Successfully added new summary for case_id {case_id}")
+        logger.info(f"Successfully added new summary for case_id {case_id}, block_type {block_type}")
         return True
 
     except Exception as e:
@@ -180,18 +198,30 @@ def handler(event, context):
     
     Expected event structure:
     {
-        "case_id": "unique_case_id",
-        "dynamodb_table": "chat_history_table_name",
-        "case_type": "optional_case_type",
-        "case_description": "optional_case_description",
-        "jurisdiction": "optional_jurisdiction"
+        "queryStringParameters": {
+            "case_id": "unique_case_id",
+            "sub_route": "intake-facts" | "issue-identification" | etc.
+        }
     }
     """
-    logger.info("Title Generation Lambda function is called!")
+    logger.info("Summary Generation Lambda function is called!")
     initialize_constants()
 
     query_params = event.get("queryStringParameters", {})
     case_id = query_params.get("case_id", "")
+    sub_route = query_params.get("sub_route", "intake-facts")  # Default to intake-facts if missing
+
+    # Map sub_route to block_type enum (same mapping as text_generation)
+    subroute_map = {
+        "intake-facts": "intake",
+        "issue-identification": "issues",
+        "research-strategy": "research",
+        "argument-construction": "argument",
+        "contrarian-analysis": "contrarian",
+        "policy-context": "policy"
+    }
+    
+    block_type = subroute_map.get(sub_route, "intake")  # Default to intake if invalid sub_route
 
     if not case_id:
         return {
@@ -237,9 +267,12 @@ def handler(event, context):
             'body': json.dumps('Error getting LLM from Bedrock')
         }
 
+    # Construct unique session ID based on case and block type (same pattern as text_generation)
+    session_id = f"{case_id}-{block_type}"
+    
     try:
-        logger.info("Retrieving dynamo history")
-        messages = retrieve_dynamodb_history(TABLE_NAME, case_id)
+        logger.info(f"Retrieving dynamo history for session_id: {session_id}")
+        messages = retrieve_dynamodb_history(TABLE_NAME, session_id)
         print("messages: ", messages)
     except Exception as e:
         logger.error(f"Error retrieving dynamo history: {e}")
@@ -275,8 +308,8 @@ def handler(event, context):
             'body': json.dumps('Error getting response')
         }
     try:
-        logger.info("Updating case summary.")
-        update_summaries(case_id, response)
+        logger.info(f"Updating case summary for block_type: {block_type}")
+        update_summaries(case_id, response, block_type)
     except Exception as e:
         logger.error(f"Error updating case summary: {e}")
         return {
