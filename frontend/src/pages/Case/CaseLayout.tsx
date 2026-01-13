@@ -190,7 +190,8 @@ const CaseLayout: React.FC = () => {
           p: 0,
           mt: "80px", // match header height
           width: { sm: `calc(100% - 220px)` },
-          minHeight: "calc(100vh - 80px)",
+          height: "calc(100vh - 80px)",
+          overflowY: "auto",
           color: "var(--text)",
         }}
       >
