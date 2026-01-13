@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -196,7 +196,6 @@ const AIConfiguration = () => {
     const version = allPrompts.find((p) => p.id === selectedVersionId);
     if (version) {
       if (editorContent !== version.content) {
-        // eslint-disable-next-line
         setEditorContent(version.content);
       }
       if (versionName !== version.versionName) {
@@ -216,6 +215,7 @@ const AIConfiguration = () => {
         setVersionName("");
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedVersionId, selectedBlockId, allPrompts]);
 
   const handleBlockChange = (blockId: string) => {
