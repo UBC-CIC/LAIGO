@@ -35,9 +35,13 @@ const Login = () => {
   const [confirmationCode, setConfirmationCode] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [step, setStep] = useState("requestReset");
-  const [isConfirmingSignUp, setIsConfirmingSignUp] = useState(false); 
+  const [isConfirmingSignUp, setIsConfirmingSignUp] = useState(false);
   const [logo, setLogo] = useState("logo_dark.svg");
-  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity?: AlertColor }>({ open: false, message: "", severity: "info" });
+  const [snackbar, setSnackbar] = useState<{
+    open: boolean;
+    message: string;
+    severity?: AlertColor;
+  }>({ open: false, message: "", severity: "info" });
 
   // Password validation state
   const [passwordRequirements, setPasswordRequirements] = useState({
@@ -50,43 +54,56 @@ const Login = () => {
   });
 
   // Check password requirements
-  const checkPasswordRequirements = (password, confirmPwd = confirmPassword) => {
+  const checkPasswordRequirements = (
+    password: string,
+    confirmPwd: string = confirmPassword
+  ) => {
     setPasswordRequirements({
       minLength: password.length >= 12,
       hasLowercase: /[a-z]/.test(password),
       hasUppercase: /[A-Z]/.test(password),
       hasNumber: /\d/.test(password),
       hasSpecialChar: /[!@#$%^&*(),.?":{}|<>]/.test(password),
-      passwordsMatch: password === confirmPwd && password !== '',
+      passwordsMatch: password === confirmPwd && password !== "",
     });
   };
 
   const updateLogoBasedOnTheme = () => {
-    const isDarkMode = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const isDarkMode = window.matchMedia(
+      "(prefers-color-scheme: dark)"
+    ).matches;
     setLogo(isDarkMode ? "/logo_dark.svg" : "/logo_light.svg");
   };
 
   useEffect(() => {
     updateLogoBasedOnTheme();
 
-    const themeChangeListener = (e) => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const themeChangeListener = (_e: MediaQueryListEvent) => {
       updateLogoBasedOnTheme();
     };
-    window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", themeChangeListener);
+    window
+      .matchMedia("(prefers-color-scheme: dark)")
+      .addEventListener("change", themeChangeListener);
 
     return () => {
-      window.matchMedia("(prefers-color-scheme: dark)").removeEventListener("change", themeChangeListener);
+      window
+        .matchMedia("(prefers-color-scheme: dark)")
+        .removeEventListener("change", themeChangeListener);
     };
   }, []);
 
-
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
       if (isSignUp) {
         if (password !== confirmPassword) {
-          setSnackbar({ open: true, message: "Passwords do not match", severity: "error" });
+          setSnackbar({
+            open: true,
+            message: "Passwords do not match",
+            severity: "error",
+          });
           setLoading(false);
           return;
         }
@@ -101,7 +118,11 @@ const Login = () => {
             },
           },
         });
-        setSnackbar({ open: true, message: "Sign up successful. Check your email to confirm.", severity: "success" });
+        setSnackbar({
+          open: true,
+          message: "Sign up successful. Check your email to confirm.",
+          severity: "success",
+        });
         setIsConfirmingSignUp(true); // Set the step to confirmation after sign-up
       } else {
         const user = await signIn({ username: email, password });
@@ -110,13 +131,17 @@ const Login = () => {
         }
       }
     } catch (err) {
-      setSnackbar({ open: true, message: err.message || "Something went wrong", severity: "error" });
+      setSnackbar({
+        open: true,
+        message: (err as Error).message || "Something went wrong",
+        severity: "error",
+      });
     } finally {
       setLoading(false);
     }
   };
 
-  const handleConfirmSignUp = async (e) => {
+  const handleConfirmSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
@@ -124,7 +149,11 @@ const Login = () => {
         username: email,
         confirmationCode,
       });
-      setSnackbar({ open: true, message: "Account confirmed successfully.", severity: "success" });
+      setSnackbar({
+        open: true,
+        message: "Account confirmed successfully.",
+        severity: "success",
+      });
       setIsConfirmingSignUp(false);
       // Auto login after confirmation
       const user = await signIn({ username: email, password });
@@ -132,7 +161,11 @@ const Login = () => {
         window.location.reload();
       }
     } catch (err) {
-      setSnackbar({ open: true, message: err.message, severity: "error" });
+      setSnackbar({
+        open: true,
+        message: (err as Error).message,
+        severity: "error",
+      });
     } finally {
       setLoading(false);
     }
@@ -143,99 +176,223 @@ const Login = () => {
       const output = await resetPassword({ username: email });
       const step = output.nextStep.resetPasswordStep;
       if (step === "CONFIRM_RESET_PASSWORD_WITH_CODE") {
-        setSnackbar({ open: true, message: "Check your email for the confirmation code.", severity: "success" });
+        setSnackbar({
+          open: true,
+          message: "Check your email for the confirmation code.",
+          severity: "success",
+        });
         setStep("confirmReset");
       } else if (step === "DONE") {
-        setSnackbar({ open: true, message: "Password reset already completed.", severity: "success" });
+        setSnackbar({
+          open: true,
+          message: "Password reset already completed.",
+          severity: "success",
+        });
         setIsReset(false);
         setStep("requestReset");
       }
     } catch (err) {
-      setSnackbar({ open: true, message: err.message, severity: "error" });
+      setSnackbar({
+        open: true,
+        message: (err as Error).message,
+        severity: "error",
+      });
     }
   };
 
-  const handleConfirmReset = async (e) => {
+  const handleConfirmReset = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await confirmResetPassword({ username: email, confirmationCode, newPassword });
-      setSnackbar({ open: true, message: "Password reset successfully.", severity: "success" });
+      await confirmResetPassword({
+        username: email,
+        confirmationCode,
+        newPassword,
+      });
+      setSnackbar({
+        open: true,
+        message: "Password reset successfully.",
+        severity: "success",
+      });
       setIsReset(false);
       setStep("requestReset");
       setEmail("");
       setConfirmationCode("");
       setNewPassword("");
     } catch (err) {
-      setSnackbar({ open: true, message: err.message, severity: "error" });
+      setSnackbar({
+        open: true,
+        message: (err as Error).message,
+        severity: "error",
+      });
     }
   };
 
   const inputStyles = {
-    transition: 'all 0.3s ease',
+    transition: "all 0.3s ease",
     input: {
-      WebkitBoxShadow: '0 0 0 1000px var(--background) inset',
-      WebkitTextFillColor: 'var(--text)',
+      WebkitBoxShadow: "0 0 0 1000px var(--background) inset",
+      WebkitTextFillColor: "var(--text)",
     },
-    '& .MuiOutlinedInput-notchedOutline': {
-      borderColor: 'var(--border)',
+    "& .MuiOutlinedInput-notchedOutline": {
+      borderColor: "var(--border)",
     },
-    '&:hover .MuiOutlinedInput-notchedOutline': {
-      borderColor: 'var(--border)',
+    "&:hover .MuiOutlinedInput-notchedOutline": {
+      borderColor: "var(--border)",
     },
-    '& .MuiInputBase-root': {
-      backgroundColor: 'var(--background)',
-      color: 'var(--text)',
+    "& .MuiInputBase-root": {
+      backgroundColor: "var(--background)",
+      color: "var(--text)",
     },
-    '& .MuiInputLabel-root': {
-      color: 'var(--text)',
+    "& .MuiInputLabel-root": {
+      color: "var(--text)",
     },
-    '& .MuiInputLabel-asterisk': {
-    color: '#f44336',
-  },
+    "& .MuiInputLabel-asterisk": {
+      color: "#f44336",
+    },
   };
 
   const iconProps = {
-    sx: { color: 'var(--placeholder-text)', fontSize: 20 },
+    sx: { color: "var(--placeholder-text)", fontSize: 20 },
   };
 
   return (
-    <div style={{ height: "100vh", width: "100vw", backgroundColor: "var(--background2)", transition: "background-color 0.3s ease" }}>
+    <div
+      style={{
+        height: "100vh",
+        width: "100vw",
+        backgroundColor: "var(--background2)",
+        transition: "background-color 0.3s ease",
+      }}
+    >
       <Snackbar
         open={snackbar.open}
         autoHideDuration={6000}
         onClose={() => setSnackbar({ ...snackbar, open: false })}
-        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        anchorOrigin={{ vertical: "top", horizontal: "center" }}
       >
         <Alert
           onClose={() => setSnackbar({ ...snackbar, open: false })}
           severity={snackbar.severity}
-          sx={{ width: '100%' }}
+          sx={{ width: "100%" }}
         >
           {snackbar.message}
         </Alert>
       </Snackbar>
 
-
-
-      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "16px", transition: "all 0.3s ease", opacity: 0, animation: 'fadeIn 0.6s forwards', minHeight: '100vh', backgroundColor: 'var(--background2)' }}>
-        <Box sx={{ width: "100%", maxWidth: 420, animation: 'slideUp 0.6s ease-out', border: "1px solid var(--border)", borderRadius: 2, padding: 2, backgroundColor: "var(--background)" }}>
-          <Typography variant="h5" fontWeight={600} textAlign="left" mb={2} sx={{ color: "var(--text)", fontFamily: "var(--font-family)", fontSize: 22, transition: "all 0.3s ease", }}>
-          <div style={{ opacity: 0, animation: 'fadeIn 0.6s forwards', display: 'flex', alignItems: 'center', gap: '8px'}}>
-          <img src={logo} alt="Logo" style={{ width: "50px", height: "50px" }} />
-            {isReset ? "Reset Password" : isSignUp ? "Create Account" : "Legal Aid Tool"}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          padding: "16px",
+          transition: "all 0.3s ease",
+          opacity: 0,
+          animation: "fadeIn 0.6s forwards",
+          minHeight: "100vh",
+          backgroundColor: "var(--background2)",
+        }}
+      >
+        <Box
+          sx={{
+            width: "100%",
+            maxWidth: 420,
+            animation: "slideUp 0.6s ease-out",
+            border: "1px solid var(--border)",
+            borderRadius: 2,
+            padding: 2,
+            backgroundColor: "var(--background)",
+          }}
+        >
+          <Typography
+            variant="h5"
+            fontWeight={600}
+            textAlign="left"
+            mb={2}
+            sx={{
+              color: "var(--text)",
+              fontFamily: "var(--font-family)",
+              fontSize: 22,
+              transition: "all 0.3s ease",
+            }}
+          >
+            <div
+              style={{
+                opacity: 0,
+                animation: "fadeIn 0.6s forwards",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+              }}
+            >
+              <img
+                src={logo}
+                alt="Logo"
+                style={{ width: "50px", height: "50px" }}
+              />
+              {isReset
+                ? "Reset Password"
+                : isSignUp
+                ? "Create Account"
+                : "Legal Aid Tool"}
             </div>
           </Typography>
 
           {/* Conditional rendering of forms based on state */}
-          <Box component="form" onSubmit={isReset && step === "confirmReset" ? handleConfirmReset : isConfirmingSignUp ? handleConfirmSignUp : handleSubmit}>
+          <Box
+            component="form"
+            onSubmit={
+              isReset && step === "confirmReset"
+                ? handleConfirmReset
+                : isConfirmingSignUp
+                ? handleConfirmSignUp
+                : handleSubmit
+            }
+          >
             {isConfirmingSignUp ? (
               <>
-                <TextField fullWidth label="Confirmation Code" margin="normal" value={confirmationCode} onChange={(e) => setConfirmationCode(e.target.value)} sx={inputStyles} />
-                <Button type="submit" fullWidth variant="contained" sx={{ mt: 2, color: "white", backgroundColor: "var(--primary)", boxShadow: 'none', borderRadius: 2, fontFamily: 'var(--font-family)', "&:hover": {backgroundColor: "var(--secondary)", boxShadow: "none",} }}>
-                {loading ? <CircularProgress size={24} color="inherit" /> : "Confirm Sign Up" }
+                <TextField
+                  fullWidth
+                  label="Confirmation Code"
+                  margin="normal"
+                  value={confirmationCode}
+                  onChange={(e) => setConfirmationCode(e.target.value)}
+                  sx={inputStyles}
+                />
+                <Button
+                  type="submit"
+                  fullWidth
+                  variant="contained"
+                  sx={{
+                    mt: 2,
+                    color: "white",
+                    backgroundColor: "var(--primary)",
+                    boxShadow: "none",
+                    borderRadius: 2,
+                    fontFamily: "var(--font-family)",
+                    "&:hover": {
+                      backgroundColor: "var(--secondary)",
+                      boxShadow: "none",
+                    },
+                  }}
+                >
+                  {loading ? (
+                    <CircularProgress size={24} color="inherit" />
+                  ) : (
+                    "Confirm Sign Up"
+                  )}
                 </Button>
                 <Box mt={2} textAlign="center">
-                  <Link href="#" onClick={(e) => { e.preventDefault(); setIsConfirmingSignUp(false); }} underline="hover" sx={{ fontSize: 14, color: "var(--primary)" }}>Back to Sign In</Link>
+                  <Link
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setIsConfirmingSignUp(false);
+                    }}
+                    underline="hover"
+                    sx={{ fontSize: 14, color: "var(--primary)" }}
+                  >
+                    Back to Sign In
+                  </Link>
                 </Box>
               </>
             ) : (
@@ -251,43 +408,114 @@ const Login = () => {
                       margin="normal"
                       autoComplete="email"
                       value={email}
-                      onChange={(e) => setEmail(e.target.value)} 
-                      InputProps={{ startAdornment: <InputAdornment position="start"><Email {...iconProps} /></InputAdornment> }}
+                      onChange={(e) => setEmail(e.target.value)}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <Email {...iconProps} />
+                          </InputAdornment>
+                        ),
+                      }}
                       sx={inputStyles}
                     />
                     {step === "confirmReset" && (
                       <>
-                        <TextField fullWidth label="Confirmation Code" margin="normal" value={confirmationCode} onChange={(e) => setConfirmationCode(e.target.value)} sx={inputStyles} />
-                        <TextField fullWidth label="New Password" type="password" margin="normal" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} sx={inputStyles} />
+                        <TextField
+                          fullWidth
+                          label="Confirmation Code"
+                          margin="normal"
+                          value={confirmationCode}
+                          onChange={(e) => setConfirmationCode(e.target.value)}
+                          sx={inputStyles}
+                        />
+                        <TextField
+                          fullWidth
+                          label="New Password"
+                          type="password"
+                          margin="normal"
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          sx={inputStyles}
+                        />
                       </>
                     )}
-                    {step === "requestReset" && <Button fullWidth onClick={handleReset} variant="contained" sx={{ mt: 2, color: "white", backgroundColor: "var(--primary)", boxShadow: 'none', borderRadius: 2, fontFamily: 'var(--font-family)', "&:hover": {backgroundColor: "var(--secondary)", boxShadow: "none",} }}>Send Reset Code</Button>}
-                    {step === "confirmReset" && <Button type="submit" fullWidth variant="contained" sx={{ mt: 2, color: "white", backgroundColor: "var(--primary)", boxShadow: 'none', borderRadius: 2, fontFamily: 'var(--font-family)', "&:hover": {backgroundColor: "var(--secondary)", boxShadow: "none",} }}>Confirm Reset</Button>}
+                    {step === "requestReset" && (
+                      <Button
+                        fullWidth
+                        onClick={handleReset}
+                        variant="contained"
+                        sx={{
+                          mt: 2,
+                          color: "white",
+                          backgroundColor: "var(--primary)",
+                          boxShadow: "none",
+                          borderRadius: 2,
+                          fontFamily: "var(--font-family)",
+                          "&:hover": {
+                            backgroundColor: "var(--secondary)",
+                            boxShadow: "none",
+                          },
+                        }}
+                      >
+                        Send Reset Code
+                      </Button>
+                    )}
+                    {step === "confirmReset" && (
+                      <Button
+                        type="submit"
+                        fullWidth
+                        variant="contained"
+                        sx={{
+                          mt: 2,
+                          color: "white",
+                          backgroundColor: "var(--primary)",
+                          boxShadow: "none",
+                          borderRadius: 2,
+                          fontFamily: "var(--font-family)",
+                          "&:hover": {
+                            backgroundColor: "var(--secondary)",
+                            boxShadow: "none",
+                          },
+                        }}
+                      >
+                        Confirm Reset
+                      </Button>
+                    )}
                     <Box mt={2} textAlign="center">
-                      <Link href="#" onClick={(e) => { e.preventDefault(); setIsReset(false); }} underline="hover" sx={{ fontSize: 14, color: "var(--primary)" }}>Back to Sign In</Link>
+                      <Link
+                        href="#"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setIsReset(false);
+                        }}
+                        underline="hover"
+                        sx={{ fontSize: 14, color: "var(--primary)" }}
+                      >
+                        Back to Sign In
+                      </Link>
                     </Box>
                   </>
                 ) : (
                   <>
                     {isSignUp && (
-                      <Box sx={{ display: 'flex', gap: 2 }}>
-                        <TextField 
-                          label="First Name" 
-                          variant="outlined" 
+                      <Box sx={{ display: "flex", gap: 2 }}>
+                        <TextField
+                          label="First Name"
+                          variant="outlined"
                           margin="normal"
-                          required 
-                          value={firstName} 
-                          onChange={(e) => setFirstName(e.target.value)} 
-                          sx={{ ...inputStyles, flex: 1 }} 
-                        />
-                        <TextField 
-                          label="Last Name" 
-                          variant="outlined" 
-                          margin="normal" 
                           required
-                          value={lastName} 
-                          onChange={(e) => setLastName(e.target.value)} 
-                          sx={{ ...inputStyles, flex: 1 }} 
+                          value={firstName}
+                          onChange={(e) => setFirstName(e.target.value)}
+                          sx={{ ...inputStyles, flex: 1 }}
+                        />
+                        <TextField
+                          label="Last Name"
+                          variant="outlined"
+                          margin="normal"
+                          required
+                          value={lastName}
+                          onChange={(e) => setLastName(e.target.value)}
+                          sx={{ ...inputStyles, flex: 1 }}
                         />
                       </Box>
                     )}
@@ -302,7 +530,13 @@ const Login = () => {
                       autoComplete="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      InputProps={{ startAdornment: <InputAdornment position="start"><Email {...iconProps} /></InputAdornment> }}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <Email {...iconProps} />
+                          </InputAdornment>
+                        ),
+                      }}
                       sx={inputStyles}
                     />
                     <TextField
@@ -319,7 +553,11 @@ const Login = () => {
                         if (isSignUp) checkPasswordRequirements(e.target.value);
                       }}
                       InputProps={{
-                        startAdornment: <InputAdornment position="start"><Lock {...iconProps} /></InputAdornment>,
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <Lock {...iconProps} />
+                          </InputAdornment>
+                        ),
                         endAdornment: (
                           <InputAdornment position="end">
                             <IconButton
@@ -328,18 +566,22 @@ const Login = () => {
                               disableRipple
                               sx={{
                                 p: 0.5,
-                                border: 'none',
-                                outline: 'none',
-                                '&:focus': {
-                                  outline: 'none',
-                                  boxShadow: 'none',
+                                border: "none",
+                                outline: "none",
+                                "&:focus": {
+                                  outline: "none",
+                                  boxShadow: "none",
                                 },
-                                '&:hover': {
-                                  backgroundColor: 'transparent',
+                                "&:hover": {
+                                  backgroundColor: "transparent",
                                 },
                               }}
                             >
-                              {showPassword ? <VisibilityOff {...iconProps} /> : <Visibility {...iconProps} />}
+                              {showPassword ? (
+                                <VisibilityOff {...iconProps} />
+                              ) : (
+                                <Visibility {...iconProps} />
+                              )}
                             </IconButton>
                           </InputAdornment>
                         ),
@@ -347,122 +589,242 @@ const Login = () => {
                       sx={inputStyles}
                     />
                     {isSignUp && password && (
-                      <Box sx={{ 
-                        mt: 0.5, 
-                        mb: 0.5, 
-                        p: 0.8, 
-                        backgroundColor: 'var(--background2)', 
-                        borderRadius: 1, 
-                        border: '1px solid var(--border)'
-                      }}>
-                        <Typography variant="caption" sx={{ 
-                          color: 'var(--text)', 
-                          fontWeight: 600, 
-                          mb: 0.3, 
-                          display: 'block',
-                          fontFamily: 'var(--font-family)',
-                          fontSize: '0.65rem'
-                        }}>
+                      <Box
+                        sx={{
+                          mt: 0.5,
+                          mb: 0.5,
+                          p: 0.8,
+                          backgroundColor: "var(--background2)",
+                          borderRadius: 1,
+                          border: "1px solid var(--border)",
+                        }}
+                      >
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            color: "var(--text)",
+                            fontWeight: 600,
+                            mb: 0.3,
+                            display: "block",
+                            fontFamily: "var(--font-family)",
+                            fontSize: "0.65rem",
+                          }}
+                        >
                           Requirements:
                         </Typography>
-                        <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0.5 }}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                            <Box sx={{ 
-                              width: 12, 
-                              height: 12, 
-                              borderRadius: '50%', 
-                              backgroundColor: passwordRequirements.minLength ? '#4caf50' : 'var(--border)',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center'
-                            }}>
-                              {passwordRequirements.minLength && <Typography sx={{ color: 'white', fontSize: 8 }}>✓</Typography>}
+                        <Box
+                          sx={{
+                            display: "grid",
+                            gridTemplateColumns: "1fr 1fr",
+                            gap: 0.5,
+                          }}
+                        >
+                          <Box
+                            sx={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 0.5,
+                            }}
+                          >
+                            <Box
+                              sx={{
+                                width: 12,
+                                height: 12,
+                                borderRadius: "50%",
+                                backgroundColor: passwordRequirements.minLength
+                                  ? "#4caf50"
+                                  : "var(--border)",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                              }}
+                            >
+                              {passwordRequirements.minLength && (
+                                <Typography
+                                  sx={{ color: "white", fontSize: 8 }}
+                                >
+                                  ✓
+                                </Typography>
+                              )}
                             </Box>
-                            <Typography variant="caption" sx={{ 
-                              color: passwordRequirements.minLength ? '#4caf50' : 'var(--placeholder-text)',
-                              fontFamily: 'var(--font-family)',
-                              fontSize: '0.65rem'
-                            }}>
+                            <Typography
+                              variant="caption"
+                              sx={{
+                                color: passwordRequirements.minLength
+                                  ? "#4caf50"
+                                  : "var(--placeholder-text)",
+                                fontFamily: "var(--font-family)",
+                                fontSize: "0.65rem",
+                              }}
+                            >
                               At least 12 characters
                             </Typography>
                           </Box>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                            <Box sx={{ 
-                              width: 12, 
-                              height: 12, 
-                              borderRadius: '50%', 
-                              backgroundColor: passwordRequirements.hasLowercase ? '#4caf50' : 'var(--border)',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center'
-                            }}>
-                              {passwordRequirements.hasLowercase && <Typography sx={{ color: 'white', fontSize: 8 }}>✓</Typography>}
+                          <Box
+                            sx={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 0.5,
+                            }}
+                          >
+                            <Box
+                              sx={{
+                                width: 12,
+                                height: 12,
+                                borderRadius: "50%",
+                                backgroundColor:
+                                  passwordRequirements.hasLowercase
+                                    ? "#4caf50"
+                                    : "var(--border)",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                              }}
+                            >
+                              {passwordRequirements.hasLowercase && (
+                                <Typography
+                                  sx={{ color: "white", fontSize: 8 }}
+                                >
+                                  ✓
+                                </Typography>
+                              )}
                             </Box>
-                            <Typography variant="caption" sx={{ 
-                              color: passwordRequirements.hasLowercase ? '#4caf50' : 'var(--placeholder-text)',
-                              fontFamily: 'var(--font-family)',
-                              fontSize: '0.65rem'
-                            }}>
+                            <Typography
+                              variant="caption"
+                              sx={{
+                                color: passwordRequirements.hasLowercase
+                                  ? "#4caf50"
+                                  : "var(--placeholder-text)",
+                                fontFamily: "var(--font-family)",
+                                fontSize: "0.65rem",
+                              }}
+                            >
                               One lowercase letter
                             </Typography>
                           </Box>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                            <Box sx={{ 
-                              width: 12, 
-                              height: 12, 
-                              borderRadius: '50%', 
-                              backgroundColor: passwordRequirements.hasUppercase ? '#4caf50' : 'var(--border)',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center'
-                            }}>
-                              {passwordRequirements.hasUppercase && <Typography sx={{ color: 'white', fontSize: 8 }}>✓</Typography>}
+                          <Box
+                            sx={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 0.5,
+                            }}
+                          >
+                            <Box
+                              sx={{
+                                width: 12,
+                                height: 12,
+                                borderRadius: "50%",
+                                backgroundColor:
+                                  passwordRequirements.hasUppercase
+                                    ? "#4caf50"
+                                    : "var(--border)",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                              }}
+                            >
+                              {passwordRequirements.hasUppercase && (
+                                <Typography
+                                  sx={{ color: "white", fontSize: 8 }}
+                                >
+                                  ✓
+                                </Typography>
+                              )}
                             </Box>
-                            <Typography variant="caption" sx={{ 
-                              color: passwordRequirements.hasUppercase ? '#4caf50' : 'var(--placeholder-text)',
-                              fontFamily: 'var(--font-family)',
-                              fontSize: '0.65rem'
-                            }}>
+                            <Typography
+                              variant="caption"
+                              sx={{
+                                color: passwordRequirements.hasUppercase
+                                  ? "#4caf50"
+                                  : "var(--placeholder-text)",
+                                fontFamily: "var(--font-family)",
+                                fontSize: "0.65rem",
+                              }}
+                            >
                               One uppercase letter
                             </Typography>
                           </Box>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                            <Box sx={{ 
-                              width: 12, 
-                              height: 12, 
-                              borderRadius: '50%', 
-                              backgroundColor: passwordRequirements.hasNumber ? '#4caf50' : 'var(--border)',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center'
-                            }}>
-                              {passwordRequirements.hasNumber && <Typography sx={{ color: 'white', fontSize: 8 }}>✓</Typography>}
+                          <Box
+                            sx={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 0.5,
+                            }}
+                          >
+                            <Box
+                              sx={{
+                                width: 12,
+                                height: 12,
+                                borderRadius: "50%",
+                                backgroundColor: passwordRequirements.hasNumber
+                                  ? "#4caf50"
+                                  : "var(--border)",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                              }}
+                            >
+                              {passwordRequirements.hasNumber && (
+                                <Typography
+                                  sx={{ color: "white", fontSize: 8 }}
+                                >
+                                  ✓
+                                </Typography>
+                              )}
                             </Box>
-                            <Typography variant="caption" sx={{ 
-                              color: passwordRequirements.hasNumber ? '#4caf50' : 'var(--placeholder-text)',
-                              fontFamily: 'var(--font-family)',
-                              fontSize: '0.65rem'
-                            }}>
+                            <Typography
+                              variant="caption"
+                              sx={{
+                                color: passwordRequirements.hasNumber
+                                  ? "#4caf50"
+                                  : "var(--placeholder-text)",
+                                fontFamily: "var(--font-family)",
+                                fontSize: "0.65rem",
+                              }}
+                            >
                               One number
                             </Typography>
                           </Box>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, gridColumn: 'span 2' }}>
-                            <Box sx={{ 
-                              width: 12, 
-                              height: 12, 
-                              borderRadius: '50%', 
-                              backgroundColor: passwordRequirements.hasSpecialChar ? '#4caf50' : 'var(--border)',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center'
-                            }}>
-                              {passwordRequirements.hasSpecialChar && <Typography sx={{ color: 'white', fontSize: 8 }}>✓</Typography>}
+                          <Box
+                            sx={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 0.5,
+                              gridColumn: "span 2",
+                            }}
+                          >
+                            <Box
+                              sx={{
+                                width: 12,
+                                height: 12,
+                                borderRadius: "50%",
+                                backgroundColor:
+                                  passwordRequirements.hasSpecialChar
+                                    ? "#4caf50"
+                                    : "var(--border)",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                              }}
+                            >
+                              {passwordRequirements.hasSpecialChar && (
+                                <Typography
+                                  sx={{ color: "white", fontSize: 8 }}
+                                >
+                                  ✓
+                                </Typography>
+                              )}
                             </Box>
-                            <Typography variant="caption" sx={{ 
-                              color: passwordRequirements.hasSpecialChar ? '#4caf50' : 'var(--placeholder-text)',
-                              fontFamily: 'var(--font-family)',
-                              fontSize: '0.65rem'
-                            }}>
+                            <Typography
+                              variant="caption"
+                              sx={{
+                                color: passwordRequirements.hasSpecialChar
+                                  ? "#4caf50"
+                                  : "var(--placeholder-text)",
+                                fontFamily: "var(--font-family)",
+                                fontSize: "0.65rem",
+                              }}
+                            >
                               One special character
                             </Typography>
                           </Box>
@@ -480,26 +842,41 @@ const Login = () => {
                         value={confirmPassword}
                         onChange={(e) => {
                           setConfirmPassword(e.target.value);
-                          if (password) checkPasswordRequirements(password, e.target.value);
+                          if (password)
+                            checkPasswordRequirements(password, e.target.value);
                         }}
                         InputProps={{
-                          startAdornment: <InputAdornment position="start"><Lock {...iconProps} /></InputAdornment>,
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <Lock {...iconProps} />
+                            </InputAdornment>
+                          ),
                           endAdornment: (
                             <InputAdornment position="end">
-                              <IconButton onClick={() => setShowConfirmPassword(!showConfirmPassword)} edge="end" disableRipple
-                              sx={{
-                                p: 0.5,
-                                border: 'none',
-                                outline: 'none',
-                                '&:focus': {
-                                  outline: 'none',
-                                  boxShadow: 'none',
-                                },
-                                '&:hover': {
-                                  backgroundColor: 'transparent',
-                                },
-                              }}>
-                                {showConfirmPassword ? <VisibilityOff {...iconProps} /> : <Visibility {...iconProps} />}
+                              <IconButton
+                                onClick={() =>
+                                  setShowConfirmPassword(!showConfirmPassword)
+                                }
+                                edge="end"
+                                disableRipple
+                                sx={{
+                                  p: 0.5,
+                                  border: "none",
+                                  outline: "none",
+                                  "&:focus": {
+                                    outline: "none",
+                                    boxShadow: "none",
+                                  },
+                                  "&:hover": {
+                                    backgroundColor: "transparent",
+                                  },
+                                }}
+                              >
+                                {showConfirmPassword ? (
+                                  <VisibilityOff {...iconProps} />
+                                ) : (
+                                  <Visibility {...iconProps} />
+                                )}
                               </IconButton>
                             </InputAdornment>
                           ),
@@ -508,42 +885,106 @@ const Login = () => {
                       />
                     )}
                     {isSignUp && confirmPassword && (
-                      <Box sx={{ mt: 0.5, display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                        <Box sx={{ 
-                          width: 16, 
-                          height: 16, 
-                          borderRadius: '50%', 
-                          backgroundColor: passwordRequirements.passwordsMatch ? '#4caf50' : '#f44336',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center'
-                        }}>
-                          {passwordRequirements.passwordsMatch ? 
-                            <Typography sx={{ color: 'white', fontSize: 10 }}>✓</Typography> :
-                            <Typography sx={{ color: 'white', fontSize: 10 }}>✗</Typography>
-                          }
+                      <Box
+                        sx={{
+                          mt: 0.5,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 0.5,
+                        }}
+                      >
+                        <Box
+                          sx={{
+                            width: 16,
+                            height: 16,
+                            borderRadius: "50%",
+                            backgroundColor: passwordRequirements.passwordsMatch
+                              ? "#4caf50"
+                              : "#f44336",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                        >
+                          {passwordRequirements.passwordsMatch ? (
+                            <Typography sx={{ color: "white", fontSize: 10 }}>
+                              ✓
+                            </Typography>
+                          ) : (
+                            <Typography sx={{ color: "white", fontSize: 10 }}>
+                              ✗
+                            </Typography>
+                          )}
                         </Box>
-                        <Typography variant="caption" sx={{ 
-                          color: passwordRequirements.passwordsMatch ? '#4caf50' : '#f44336',
-                          fontFamily: 'var(--font-family)'
-                        }}>
-                          {passwordRequirements.passwordsMatch ? 'Passwords match' : 'Passwords do not match'}
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            color: passwordRequirements.passwordsMatch
+                              ? "#4caf50"
+                              : "#f44336",
+                            fontFamily: "var(--font-family)",
+                          }}
+                        >
+                          {passwordRequirements.passwordsMatch
+                            ? "Passwords match"
+                            : "Passwords do not match"}
                         </Typography>
                       </Box>
                     )}
                     {!isSignUp && (
                       <Box textAlign="right" mt={1}>
-                        <Link href="#" underline="hover" onClick={(e) => { e.preventDefault(); setIsReset(true); }} sx={{ fontSize: 13, color: 'var(--primary)' }}>
+                        <Link
+                          href="#"
+                          underline="hover"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setIsReset(true);
+                          }}
+                          sx={{ fontSize: 13, color: "var(--primary)" }}
+                        >
                           Forgot password?
                         </Link>
                       </Box>
                     )}
-                    <Button type="submit" fullWidth variant="contained" sx={{ mt: 2, color: "white", backgroundColor: "var(--primary)", boxShadow: 'none', borderRadius: 2, fontFamily: 'var(--font-family)', "&:hover": {backgroundColor: "var(--secondary)", boxShadow: "none",} }} disabled={loading}>
-                      {loading ? <CircularProgress size={24} color="inherit" /> : isSignUp ? "Sign Up" : "Sign In"}
+                    <Button
+                      type="submit"
+                      fullWidth
+                      variant="contained"
+                      sx={{
+                        mt: 2,
+                        color: "white",
+                        backgroundColor: "var(--primary)",
+                        boxShadow: "none",
+                        borderRadius: 2,
+                        fontFamily: "var(--font-family)",
+                        "&:hover": {
+                          backgroundColor: "var(--secondary)",
+                          boxShadow: "none",
+                        },
+                      }}
+                      disabled={loading}
+                    >
+                      {loading ? (
+                        <CircularProgress size={24} color="inherit" />
+                      ) : isSignUp ? (
+                        "Sign Up"
+                      ) : (
+                        "Sign In"
+                      )}
                     </Button>
                     <Box textAlign="center" mt={2}>
-                      <Link href="#" onClick={(e) => { e.preventDefault(); setIsSignUp(prev => !prev); }} underline="hover" sx={{ fontSize: 14, color: "var(--primary)" }}>
-                        {isSignUp ? "Already have an account? Sign In" : "Don't have an account? Sign Up"}
+                      <Link
+                        href="#"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setIsSignUp((prev) => !prev);
+                        }}
+                        underline="hover"
+                        sx={{ fontSize: 14, color: "var(--primary)" }}
+                      >
+                        {isSignUp
+                          ? "Already have an account? Sign In"
+                          : "Don't have an account? Sign Up"}
                       </Link>
                     </Box>
                   </>
