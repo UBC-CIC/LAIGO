@@ -136,6 +136,7 @@ const RealStudentHome: React.FC = () => {
           in_progress: "In Progress",
           submitted: "Submitted",
           reviewed: "Reviewed",
+          archived: "Archived",
         };
 
         const normalized = casesArray.map((c) => {
@@ -213,7 +214,9 @@ const RealStudentHome: React.FC = () => {
       if (!token || !cognito_id) throw new Error("No auth token");
 
       const resp = await fetch(
-        `${import.meta.env.VITE_API_ENDPOINT}/student/archive_case?case_id=${caseId}&cognito_id=${cognito_id}`,
+        `${
+          import.meta.env.VITE_API_ENDPOINT
+        }/student/archive_case?case_id=${caseId}&cognito_id=${cognito_id}`,
         {
           method: "PUT",
           headers: { Authorization: token, "Content-Type": "application/json" },
@@ -228,7 +231,9 @@ const RealStudentHome: React.FC = () => {
       // update UI: set status to Archived for the case
       setCases((prev) =>
         prev
-          ? prev.map((c) => (c.id === caseId ? { ...c, status: "Archived" } : c))
+          ? prev.map((c) =>
+              c.id === caseId ? { ...c, status: "archived" } : c
+            )
           : prev
       );
       showSnackbar("Case archived", "success");

@@ -152,7 +152,7 @@ const CaseOverview: React.FC = () => {
       if (!response.ok) throw new Error("Failed to archive case");
 
       setCaseData((prev: CaseData | null) =>
-        prev ? { ...prev, status: "Archived" } : prev
+        prev ? { ...prev, status: "archived" } : prev
       );
       setSnackbar({
         open: true,
@@ -401,7 +401,7 @@ const CaseOverview: React.FC = () => {
               </h2>
 
               <div style={{ display: "flex", gap: "1em", flexWrap: "wrap" }}>
-                {caseData.status === "Archived" ? (
+                {caseData.status === "archived" ? (
                   <Button
                     startIcon={<UnarchiveIcon />}
                     variant="outlined"
@@ -433,7 +433,7 @@ const CaseOverview: React.FC = () => {
                       color: "#ffffff",
                       width: "fit-content",
                       backgroundColor:
-                        caseData.status === "Archived"
+                        caseData.status === "archived"
                           ? "var(--border)"
                           : "var(--secondary)",
                       py: 1,
@@ -737,7 +737,7 @@ const CaseOverview: React.FC = () => {
                     disabled={
                       caseData.status === "Sent to Review" ||
                       selectedInstructors.length === 0 ||
-                      caseData.status === "Archived"
+                      caseData.status === "archived"
                     }
                     sx={{
                       textTransform: "none",
@@ -759,7 +759,7 @@ const CaseOverview: React.FC = () => {
                     Submit for Review
                   </Button>
 
-                  {caseData.status === "Archived" && (
+                  {caseData.status === "archived" && (
                     <Typography
                       sx={{
                         fontStyle: "italic",
