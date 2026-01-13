@@ -61,12 +61,18 @@ const cicd = new CICDStack(app, `${StackPrefix}-CICDStack`, {
       functionName: `${StackPrefix}-ApiStack-audioToTextFunc`,
       sourceDir: "cdk/lambda/audioToText",
     },
+    {
+      name: "summaryGeneration",
+      functionName: `${StackPrefix}-ApiStack-SummaryGenerationFunction`,
+      sourceDir: "cdk/lambda/summary_generation",
+    },
   ],
   pathFilters: [
     "cdk/lambda/case_generation/**",
     "cdk/lambda/text_generation/**",
     "cdk/lambda/assess_progress/**",
     "cdk/lambda/audioToText/**",
+    "cdk/lambda/summary_generation/**",
   ],
 });
 

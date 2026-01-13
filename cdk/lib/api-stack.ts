@@ -1487,5 +1487,78 @@ export class ApiGatewayStack extends cdk.Stack {
         ], // You can restrict this to specific resources if needed
       })
     );
+
+    // Create Lambda function for generating case summaries
+    const summaryGenerationFunction = new lambda.DockerImageFunction(
+      this,
+      "SummaryGenerationFunction",
+      {
+        code: lambda.DockerImageCode.fromEcr(
+          props.ecrRepositories["summaryGeneration"],
+          {
+            tagOrDigest: "latest",
+          }
+        ),
+        functionName: `${id}-SummaryGenerationFunction`,
+        timeout: Duration.seconds(300),
+        memorySize: 512,
+        vpc: vpcStack.vpc,
+        environment: {
+          SM_DB_CREDENTIALS: db.secretPathAdminName,
+          REGION: this.region,
+          RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint,
+          BEDROCK_LLM_PARAM: bedrockLLMParameter.parameterName,
+          TABLE_NAME_PARAM: tableNameParameter.parameterName,
+          TABLE_NAME: "DynamoDB-Conversation-Table",
+        },
+      }
+    );
+
+    // Override Logical ID for OpenAPI reference
+    const cfnSummaryGenerationFunction = summaryGenerationFunction.node
+      .defaultChild as lambda.CfnFunction;
+    cfnSummaryGenerationFunction.overrideLogicalId("SummaryGenerationFunction");
+
+    // Allow API Gateway to invoke
+    summaryGenerationFunction.addPermission("AllowApiGatewayInvoke", {
+      principal: new iam.ServicePrincipal("apigateway.amazonaws.com"),
+      action: "lambda:InvokeFunction",
+      sourceArn: `arn:aws:execute-api:${this.region}:${this.account}:${this.api.restApiId}/*/*/student*`,
+    });
+
+    // Grant access to Secret Manager
+    summaryGenerationFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: [
+          //Secrets Manager
+          "secretsmanager:GetSecretValue",
+        ],
+        resources: [
+          `arn:aws:secretsmanager:${this.region}:${this.account}:secret:*`,
+        ],
+      })
+    );
+
+    summaryGenerationFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ["ssm:GetParameter"],
+        resources: [
+          bedrockLLMParameter.parameterArn,
+          tableNameParameter.parameterArn,
+        ],
+      })
+    );
+
+    // Attach shared DynamoDB policy to summary generation lambda
+    summaryGenerationFunction.addToRolePolicy(dynamoDBPolicyStatement);
+
+    // Grant access to Bedrock
+    assessProgressFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ["bedrock:InvokeModel"],
+        resources: ["*"],
+      })
+    );
   }
 }
