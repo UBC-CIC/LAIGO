@@ -23,15 +23,46 @@ import ArchiveIcon from "@mui/icons-material/Archive";
 import UnarchiveIcon from "@mui/icons-material/Unarchive";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 
+interface CaseData {
+  case_id: string;
+  case_hash: string;
+  student_id: string;
+  case_title: string;
+  case_description: string;
+  case_type: string;
+  jurisdiction: string | string[];
+  status: string;
+  province: string;
+  statute: string;
+  time_created: string;
+  last_updated: string;
+  last_viewed?: string;
+  [key: string]: string | string[] | undefined;
+}
+
+interface Instructor {
+  instructor_id: string;
+  instructor_name: string;
+}
+
+interface EditedCase {
+  case_title: string;
+  case_description: string;
+  case_type: string;
+  jurisdiction: string;
+  status: string;
+  province: string;
+  statute: string;
+}
+
 const CaseOverview: React.FC = () => {
   const { caseId } = useParams();
-  const [caseData, setCaseData] = useState<any | null>(null);
+  const [caseData, setCaseData] = useState<CaseData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
-  const [, setSummaries] = useState<any[]>([]);
   const [editMode, setEditMode] = useState<boolean>(false);
-  const [instructors, setInstructors] = useState<any[]>([]);
+  const [instructors, setInstructors] = useState<Instructor[]>([]);
   const [selectedInstructors, setSelectedInstructors] = useState<string[]>([]);
-  const [editedCase, setEditedCase] = useState<any>({
+  const [editedCase, setEditedCase] = useState<EditedCase>({
     case_title: "",
     case_description: "",
     case_type: "",
@@ -120,7 +151,9 @@ const CaseOverview: React.FC = () => {
 
       if (!response.ok) throw new Error("Failed to archive case");
 
-      setCaseData((prev) => (prev ? { ...prev, status: "Archived" } : prev));
+      setCaseData((prev: CaseData | null) =>
+        prev ? { ...prev, status: "Archived" } : prev
+      );
       setSnackbar({
         open: true,
         message: "Case archived successfully.",
@@ -157,7 +190,9 @@ const CaseOverview: React.FC = () => {
 
       if (!response.ok) throw new Error("Failed to unarchive case");
 
-      setCaseData((prev) => (prev ? { ...prev, status: "In Progress" } : prev));
+      setCaseData((prev: CaseData | null) =>
+        prev ? { ...prev, status: "In Progress" } : prev
+      );
       setSnackbar({
         open: true,
         message: "Case successfully unarchived.",
@@ -180,7 +215,9 @@ const CaseOverview: React.FC = () => {
         case_type: caseData.case_type,
         case_description: caseData.case_description,
         status: caseData.status,
-        jurisdiction: caseData.jurisdiction,
+        jurisdiction: Array.isArray(caseData.jurisdiction)
+          ? caseData.jurisdiction.join(", ")
+          : caseData.jurisdiction,
         province: caseData.province,
         statute: caseData.statute,
       });
@@ -217,7 +254,6 @@ const CaseOverview: React.FC = () => {
         const data = await response.json();
         const payload = data.caseData ?? data;
         setCaseData(payload);
-        setSummaries(data.summaries ?? []);
       } catch (error) {
         console.error("Error fetching case data:", error);
         setCaseData(null);
@@ -289,7 +325,9 @@ const CaseOverview: React.FC = () => {
         message: "Case edited successfully!",
         severity: "success",
       });
-      setCaseData((prev) => (prev ? { ...prev, ...editedCase } : editedCase));
+      setCaseData((prev: CaseData | null) =>
+        prev ? { ...prev, ...editedCase } : prev
+      );
       setEditMode(false);
     } catch (error) {
       console.error("Error editing case:", error);
@@ -649,7 +687,9 @@ const CaseOverview: React.FC = () => {
                               display: "flex",
                               alignItems: "center",
                               gap: 1.5,
-                              color: isSelected ? "var(--feedback)" : "var(--text)",
+                              color: isSelected
+                                ? "var(--feedback)"
+                                : "var(--text)",
                               transition: "all 0.2s ease",
                               backgroundColor: isSelected
                                 ? "var(--feedback-bg)"
