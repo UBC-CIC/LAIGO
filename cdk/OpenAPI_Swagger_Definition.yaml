@@ -855,6 +855,71 @@ paths:
         httpMethod: "POST"
         type: "aws_proxy"
 
+  /student/generate_summary:
+    options:
+      summary: CORS support
+      description: |
+        Enable CORS by returning correct headers
+      responses:
+        200:
+          $ref: "#/components/responses/Success"
+      x-amazon-apigateway-integration:
+        type: mock
+        requestTemplates:
+          application/json: |
+            {
+              "statusCode" : 200
+            }
+        responses:
+          default:
+            statusCode: "200"
+            responseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            responseTemplates:
+              application/json: |
+                {}
+    get:
+      tags:
+        - Student
+      summary: Generate a summary for a case block
+      operationId: generate_summary_GET
+      parameters:
+        - in: query
+          name: case_id
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: sub_route
+          required: false
+          schema:
+            type: string
+          description: The sub-route/block type (e.g., intake-facts, issue-identification)
+      responses:
+        "200":
+          description: Summary generated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  llm_output:
+                    type: string
+        "400":
+          description: Bad Request
+        "500":
+          description: Internal Server Error
+      security:
+        - studentAuthorizer: []
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SummaryGenerationFunction.Arn}/invocations"
+        passthroughBehavior: "when_no_match"
+        httpMethod: "POST"
+        type: "aws_proxy"
+
   /student/file_size_limit:
     options:
       summary: CORS support
