@@ -52,10 +52,7 @@ interface CaseData {
   [key: string]: any;
 }
 
-const constructTranscriptionWebSocketUrl = (
-  cognitoToken: string,
-  audioFileId: string
-) => {
+const constructTranscriptionWebSocketUrl = (cognitoToken: string) => {
   const tempUrl = import.meta.env.VITE_GRAPHQL_WS_URL;
   const apiUrl = tempUrl.replace("https://", "wss://");
   const urlObj = new URL(apiUrl);
@@ -277,7 +274,7 @@ const CaseTranscriptions: React.FC = () => {
 
   const setupWebSocket = (cognitoToken: string, audioFileId: string) => {
     return new Promise<void>((resolve, reject) => {
-      const url = constructTranscriptionWebSocketUrl(cognitoToken, audioFileId);
+      const url = constructTranscriptionWebSocketUrl(cognitoToken);
 
       const ws = new WebSocket(url, "graphql-ws");
       wsRef.current = ws;
@@ -359,9 +356,9 @@ const CaseTranscriptions: React.FC = () => {
         setSnackbarMessage("Transcription complete!");
         closeUploadDialog();
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Upload error:", error);
-      setError(error.message || "Failed to upload audio file");
+      setError((error as Error).message || "Failed to upload audio file");
     } finally {
       setIsUploading(false);
       setAudioTitle("");
@@ -1048,7 +1045,6 @@ const CaseTranscriptions: React.FC = () => {
             {selectedTranscription ? (
               <div
                 dangerouslySetInnerHTML={{
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   __html: DOMPurify.sanitize(
                     marked.parse(
                       selectedTranscription.audio_text ||
