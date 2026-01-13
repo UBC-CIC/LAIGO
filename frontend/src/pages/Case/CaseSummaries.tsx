@@ -208,22 +208,89 @@ const CaseSummaries: React.FC = () => {
     <Box
       sx={{
         display: "flex",
-        height: "calc(100vh - 64px)", // Adjust based on header height
+        height: "calc(100vh - 80px)", // Adjust based on header height
+        position: "relative", // Needed for absolute ribbons
         backgroundColor: "var(--background)",
         color: "var(--text)",
         overflow: "hidden",
       }}
     >
+      {/* --- Left Ribbon Trigger --- */}
+      {!leftOpen && (
+        <Box
+          sx={{
+            position: "absolute",
+            left: 0,
+            top: 12, // Align with header icon
+            zIndex: 10,
+            backgroundColor: "var(--background2)",
+            border: "1px solid var(--border)",
+            borderLeft: "none",
+            borderTopRightRadius: "8px",
+            borderBottomRightRadius: "8px",
+            boxShadow: "2px 0 5px rgba(0,0,0,0.1)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: "24px",
+            height: "40px",
+            cursor: "pointer",
+            "&:hover": {
+              backgroundColor: "var(--secondary)",
+            },
+          }}
+          onClick={() => setLeftOpen(true)}
+        >
+          <KeyboardDoubleArrowRightIcon
+            sx={{ fontSize: "16px", color: "var(--text-secondary)" }}
+          />
+        </Box>
+      )}
+
+      {/* --- Right Ribbon Trigger --- */}
+      {!rightOpen && (
+        <Box
+          sx={{
+            position: "absolute",
+            right: 0,
+            top: 12,
+            zIndex: 10,
+            backgroundColor: "var(--background)",
+            border: "1px solid var(--border)",
+            borderRight: "none",
+            borderTopLeftRadius: "8px",
+            borderBottomLeftRadius: "8px",
+            boxShadow: "-2px 0 5px rgba(0,0,0,0.1)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: "24px",
+            height: "40px",
+            cursor: "pointer",
+            "&:hover": {
+              backgroundColor: "var(--secondary)",
+            },
+          }}
+          onClick={() => setRightOpen(true)}
+        >
+          <KeyboardDoubleArrowLeftIcon
+            sx={{ fontSize: "16px", color: "var(--text-secondary)" }}
+          />
+        </Box>
+      )}
+
       {/* --- Left Sidebar (Summaries List) --- */}
       <Box
         sx={{
-          width: leftOpen ? 300 : 50,
+          width: leftOpen ? 220 : 0,
           transition: "width 0.3s ease",
-          borderRight: "1px solid var(--border)",
+          borderRight: leftOpen ? "1px solid var(--border)" : "none",
           backgroundColor: "var(--background2)",
           display: "flex",
           flexDirection: "column",
           flexShrink: 0,
+          whiteSpace: "nowrap",
+          overflow: "hidden", // Hide content when width is 0
         }}
       >
         {/* Header */}
@@ -562,13 +629,15 @@ const CaseSummaries: React.FC = () => {
       {/* --- Right Sidebar (Annotations) --- */}
       <Box
         sx={{
-          width: rightOpen ? 320 : 50,
+          width: rightOpen ? 320 : 0,
           transition: "width 0.3s ease",
-          borderLeft: "1px solid var(--border)",
+          borderLeft: rightOpen ? "1px solid var(--border)" : "none",
           backgroundColor: "var(--background)",
           display: "flex",
           flexDirection: "column",
           flexShrink: 0,
+          whiteSpace: "nowrap",
+          overflow: "hidden",
         }}
       >
         <Box
