@@ -46,6 +46,7 @@ const InterviewAssistant: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [messageCount, setMessageCount] = useState(0);
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
 
   // Progress & Notification State
   const [progress, setProgress] = useState(0);
@@ -113,6 +114,44 @@ const InterviewAssistant: React.FC = () => {
       }
     } catch (error) {
       console.error("Error calling assess_progress:", error);
+    }
+  };
+
+  // Generate summary for current block
+  const handleGenerateSummary = async () => {
+    if (!caseId || !section) return;
+
+    setIsGeneratingSummary(true);
+    try {
+      const session = await fetchAuthSession();
+      const token = session.tokens?.idToken?.toString();
+
+      if (!token) {
+        console.error("No auth token found");
+        return;
+      }
+
+      const response = await fetch(
+        `${
+          import.meta.env.VITE_API_ENDPOINT
+        }/student/generate_summary?case_id=${caseId}&sub_route=${section}`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: token,
+          },
+        }
+      );
+
+      if (response.ok) {
+        console.log("Summary generated successfully");
+      } else {
+        console.error("Failed to generate summary", response.statusText);
+      }
+    } catch (error) {
+      console.error("Error generating summary:", error);
+    } finally {
+      setIsGeneratingSummary(false);
     }
   };
 
@@ -364,7 +403,12 @@ const InterviewAssistant: React.FC = () => {
             msg.type === "human" ? (
               <UserMessage key={index} message={msg.content} />
             ) : (
-              <AiResponse key={index} message={msg.content} />
+              <AiResponse
+                key={index}
+                message={msg.content}
+                onGenerateSummary={handleGenerateSummary}
+                isGeneratingSummary={isGeneratingSummary}
+              />
             )
           )
         )}

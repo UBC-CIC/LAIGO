@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -12,6 +12,7 @@ import {
   Card,
   CardContent,
   Stack,
+  CircularProgress,
 } from "@mui/material";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -24,6 +25,8 @@ import ExpandLess from "@mui/icons-material/ExpandLess";
 import ExpandMore from "@mui/icons-material/ExpandMore";
 import ArticleIcon from "@mui/icons-material/Article";
 import AssignmentIcon from "@mui/icons-material/Assignment";
+import { useParams } from "react-router-dom";
+import { fetchAuthSession } from "aws-amplify/auth";
 
 // --- Types ---
 
@@ -36,14 +39,15 @@ type BlockType =
   | "contrarian"
   | "policy";
 
+// Updated to match API response
 interface Summary {
-  id: string;
-  date: string; // ISO string
+  summary_id: number;
+  case_id: string;
   title: string;
   content: string; // Markdown
-  version: number;
   scope: SummaryScope;
   block_context?: BlockType;
+  time_created: string; // ISO string
 }
 
 interface Annotation {
@@ -57,81 +61,12 @@ interface Annotation {
   comment: string;
 }
 
-// --- Mock Data ---
-
-const MOCK_SUMMARIES: Summary[] = [
-  {
-    id: "sum-1",
-    date: "2025-11-20T09:45:00",
-    title: "Full Case Analysis",
-    version: 2,
-    scope: "full_case",
-    content: `### 1. Factual Foundation
-
-The tenant lodged multiple maintenance complaints over several months regarding unsafe or uninhabitable conditions in her apartment (e.g., structural issues, leaks, or unsanitary conditions—specifics to be filled in once discovery clarifies). The landlord allegedly failed to perform adequate repairs. In response to continued neglect, the tenant withheld a portion of her rent, believing the conditions justified partial nonpayment.
-
-The property manager, acting within his role, scheduled and conducted an inspection purportedly to address the maintenance dispute. During this inspection, the manager and tenant engaged in a heated verbal exchange. According to the tenant, the manager escalated the situation by shoving her, causing minor physical injuries and significant emotional distress. The tenant then filed a federal civil complaint alleging:
-
-(1) violation of habitability obligations,
-(2) unlawful retaliation for asserting tenant rights, and
-(3) landlord liability for the property manager’s assault.
-
-The landlord denies liability, asserting that:
-* the manager’s conduct was not authorized and was outside the scope of employment,
-* the tenant’s rent-withholding was improper, and
-* appropriate repairs were either underway or not required.
-
-### 2. Legal Issues Identified
-
-1. **Habitability Violations**
-   Whether the landlord failed to maintain the premises in a safe and habitable condition as required by the implied warranty of habitability and applicable housing statutes.
-2. **Tenant Retaliation**
-   Whether the confrontation, including the alleged shove, constitutes retaliation for the tenant’s protected activities (complaints, code reports, rent withholding).
-3. **Vicarious Liability for Intentional Torts**
-   Whether the landlord can be held civilly liable for the property manager’s assault under principles of respondeat superior, negligent supervision, negligent hiring, or ratification.
-4. **Scope of Employment**
-   Whether the shove occurred within the "course and scope" of the manager’s duties—i.e., during a landlord–tenant business interaction arising out of the tenancy.
-`,
-  },
-  {
-    id: "sum-2",
-    date: "2025-11-18T15:15:00",
-    title: "Initial Overview",
-    version: 1,
-    scope: "full_case",
-    content: `### Initial Case Overview
-
-Tenant claims landlord failed to repair maintenance issues. Fight ensued with property manager.
-
-**Key Points:**
-- Maintenance requests ignored.
-- Rent withheld.
-- Physical altercation during inspection.
-`,
-  },
-  {
-    id: "sum-3",
-    date: "2025-11-15T10:00:00",
-    title: "Intake Summary",
-    version: 1,
-    scope: "block",
-    block_context: "intake",
-    content: `### Intake Summary
-
-Client: Jane Doe
-Date of Incident: Oct 30, 2025
-Location: 123 Main St, Apt 4B
-
-**Incident Description:**
-Client reports property manager shoved her during an inspection. Police were called but no arrest made. Client seeking damages for emotional distress and physical injury.
-`,
-  },
-];
+// --- Mock Annotations (kept for now) ---
 
 const MOCK_ANNOTATIONS: Annotation[] = [
   {
     id: "ann-1",
-    summaryId: "sum-1",
+    summaryId: "1",
     authorName: "Allan Jordan",
     date: "2025-11-20T10:45:00",
     startOffset: 0,
@@ -142,7 +77,7 @@ const MOCK_ANNOTATIONS: Annotation[] = [
   },
   {
     id: "ann-2",
-    summaryId: "sum-1",
+    summaryId: "1",
     authorName: "Allan Jordan",
     date: "2025-11-17T11:09:00",
     startOffset: 0,
@@ -173,8 +108,11 @@ const formatTime = (dateString: string) => {
 };
 
 const CaseSummaries: React.FC = () => {
-  const [selectedSummaryId, setSelectedSummaryId] = useState<string>(
-    MOCK_SUMMARIES[0].id
+  const { caseId } = useParams();
+  const [summaries, setSummaries] = useState<Summary[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [selectedSummaryId, setSelectedSummaryId] = useState<number | null>(
+    null
   );
   const [leftOpen, setLeftOpen] = useState(true);
   const [rightOpen, setRightOpen] = useState(true);
@@ -185,15 +123,64 @@ const CaseSummaries: React.FC = () => {
     block: true,
   });
 
-  const selectedSummary = MOCK_SUMMARIES.find(
-    (s) => s.id === selectedSummaryId
+  // Fetch summaries from API
+  useEffect(() => {
+    const fetchSummaries = async () => {
+      if (!caseId) return;
+
+      setIsLoading(true);
+      try {
+        const session = await fetchAuthSession();
+        const token = session.tokens?.idToken?.toString();
+
+        if (!token) {
+          console.error("No auth token found");
+          setIsLoading(false);
+          return;
+        }
+
+        const response = await fetch(
+          `${
+            import.meta.env.VITE_API_ENDPOINT
+          }/student/get_summaries?case_id=${caseId}`,
+          {
+            method: "GET",
+            headers: {
+              Authorization: token,
+            },
+          }
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          if (Array.isArray(data)) {
+            setSummaries(data);
+            if (data.length > 0) {
+              setSelectedSummaryId(data[0].summary_id);
+            }
+          }
+        } else {
+          console.error("Failed to fetch summaries", response.statusText);
+        }
+      } catch (error) {
+        console.error("Error fetching summaries:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchSummaries();
+  }, [caseId]);
+
+  const selectedSummary = summaries.find(
+    (s) => s.summary_id === selectedSummaryId
   );
   const currentAnnotations = MOCK_ANNOTATIONS.filter(
-    (a) => a.summaryId === selectedSummaryId
+    (a) => a.summaryId === String(selectedSummaryId)
   );
 
   // Group summaries
-  const groupedSummaries = MOCK_SUMMARIES.reduce((acc, summary) => {
+  const groupedSummaries = summaries.reduce((acc, summary) => {
     const key = summary.scope;
     if (!acc[key]) acc[key] = [];
     acc[key].push(summary);
@@ -350,8 +337,27 @@ const CaseSummaries: React.FC = () => {
         {/* List Content */}
         {leftOpen && (
           <Box sx={{ flexGrow: 1, overflowY: "auto" }}>
+            {/* Loading State */}
+            {isLoading && (
+              <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
+                <CircularProgress size={24} sx={{ color: "var(--primary)" }} />
+              </Box>
+            )}
+
+            {/* Empty State */}
+            {!isLoading && summaries.length === 0 && (
+              <Box sx={{ p: 2, textAlign: "center" }}>
+                <Typography
+                  variant="body2"
+                  sx={{ color: "var(--text-secondary)" }}
+                >
+                  No summaries generated yet
+                </Typography>
+              </Box>
+            )}
+
             {/* Full Case Summaries */}
-            {groupedSummaries["full_case"] && (
+            {!isLoading && groupedSummaries["full_case"] && (
               <>
                 <ListItemButton
                   onClick={() => toggleCategory("full_case")}
@@ -391,13 +397,13 @@ const CaseSummaries: React.FC = () => {
                   <List component="div" disablePadding>
                     {groupedSummaries["full_case"].map((summary) => (
                       <ListItemButton
-                        key={summary.id}
-                        selected={selectedSummaryId === summary.id}
-                        onClick={() => setSelectedSummaryId(summary.id)}
+                        key={summary.summary_id}
+                        selected={selectedSummaryId === summary.summary_id}
+                        onClick={() => setSelectedSummaryId(summary.summary_id)}
                         sx={{
                           pl: 4,
                           borderLeft:
-                            selectedSummaryId === summary.id
+                            selectedSummaryId === summary.summary_id
                               ? "4px solid var(--primary)"
                               : "4px solid transparent",
                           "&.Mui-selected": {
@@ -413,14 +419,16 @@ const CaseSummaries: React.FC = () => {
                             <Typography
                               variant="body2"
                               fontWeight={
-                                selectedSummaryId === summary.id ? 600 : 400
+                                selectedSummaryId === summary.summary_id
+                                  ? 600
+                                  : 400
                               }
                               sx={{
                                 fontFamily: "Outfit",
                                 color: "var(--text)",
                               }}
                             >
-                              {formatDate(summary.date)}
+                              {formatDate(summary.time_created)}
                             </Typography>
                           }
                           secondary={
@@ -428,7 +436,7 @@ const CaseSummaries: React.FC = () => {
                               variant="caption"
                               sx={{ color: "var(--text-secondary)" }}
                             >
-                              {formatTime(summary.date)}
+                              {formatTime(summary.time_created)}
                             </Typography>
                           }
                         />
@@ -490,13 +498,13 @@ const CaseSummaries: React.FC = () => {
                   <List component="div" disablePadding>
                     {groupedSummaries["block"].map((summary) => (
                       <ListItemButton
-                        key={summary.id}
-                        selected={selectedSummaryId === summary.id}
-                        onClick={() => setSelectedSummaryId(summary.id)}
+                        key={summary.summary_id}
+                        selected={selectedSummaryId === summary.summary_id}
+                        onClick={() => setSelectedSummaryId(summary.summary_id)}
                         sx={{
                           pl: 4,
                           borderLeft:
-                            selectedSummaryId === summary.id
+                            selectedSummaryId === summary.summary_id
                               ? "4px solid var(--primary)"
                               : "4px solid transparent",
                           "&.Mui-selected": {
@@ -512,7 +520,9 @@ const CaseSummaries: React.FC = () => {
                             <Typography
                               variant="body2"
                               fontWeight={
-                                selectedSummaryId === summary.id ? 600 : 400
+                                selectedSummaryId === summary.summary_id
+                                  ? 600
+                                  : 400
                               }
                               sx={{
                                 fontFamily: "Outfit",
@@ -532,7 +542,7 @@ const CaseSummaries: React.FC = () => {
                               variant="caption"
                               sx={{ color: "var(--text-secondary)" }}
                             >
-                              {formatDate(summary.date)}
+                              {formatDate(summary.time_created)}
                             </Typography>
                           }
                         />
