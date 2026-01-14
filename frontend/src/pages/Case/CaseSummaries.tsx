@@ -590,6 +590,7 @@ const CaseSummaries: React.FC = () => {
                 sx={{
                   color: "var(--text)",
                   fontFamily: "Inter",
+                  textAlign: "left",
                   "& h1, & h2, & h3": {
                     fontFamily: "Outfit",
                     color: "var(--text)",
