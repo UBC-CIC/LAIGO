@@ -20,6 +20,7 @@ import rehypeSanitize from "rehype-sanitize";
 import KeyboardDoubleArrowLeftIcon from "@mui/icons-material/KeyboardDoubleArrowLeft";
 import KeyboardDoubleArrowRightIcon from "@mui/icons-material/KeyboardDoubleArrowRight";
 import DownloadIcon from "@mui/icons-material/Download";
+import DeleteIcon from "@mui/icons-material/Delete";
 import AddIcon from "@mui/icons-material/Add";
 import ExpandLess from "@mui/icons-material/ExpandLess";
 import ExpandMore from "@mui/icons-material/ExpandMore";
@@ -189,6 +190,45 @@ const CaseSummaries: React.FC = () => {
 
   const toggleCategory = (category: string) => {
     setOpenCategories((prev) => ({ ...prev, [category]: !prev[category] }));
+  };
+
+  const handleDeleteSummary = async (summaryId: number) => {
+    if (!caseId) return;
+
+    try {
+      const session = await fetchAuthSession();
+      const token = session.tokens?.idToken?.toString();
+
+      if (!token) {
+        console.error("No auth token found");
+        return;
+      }
+
+      const response = await fetch(
+        `${
+          import.meta.env.VITE_API_ENDPOINT
+        }/student/delete_summary?summary_id=${summaryId}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: token,
+          },
+        }
+      );
+
+      if (response.ok) {
+        // Remove the deleted summary from state
+        setSummaries((prev) => prev.filter((s) => s.summary_id !== summaryId));
+        // If the deleted summary was selected, clear selection
+        if (selectedSummaryId === summaryId) {
+          setSelectedSummaryId(null);
+        }
+      } else {
+        console.error("Failed to delete summary", response.statusText);
+      }
+    } catch (error) {
+      console.error("Error deleting summary:", error);
+    }
   };
 
   return (
@@ -450,6 +490,16 @@ const CaseSummaries: React.FC = () => {
                         >
                           <DownloadIcon fontSize="small" />
                         </IconButton>
+                        <IconButton
+                          size="small"
+                          sx={{ color: "var(--text-secondary)" }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteSummary(summary.summary_id);
+                          }}
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
                       </ListItemButton>
                     ))}
                   </List>
@@ -551,6 +601,16 @@ const CaseSummaries: React.FC = () => {
                           sx={{ color: "var(--text-secondary)" }}
                         >
                           <DownloadIcon fontSize="small" />
+                        </IconButton>
+                        <IconButton
+                          size="small"
+                          sx={{ color: "var(--text-secondary)" }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteSummary(summary.summary_id);
+                          }}
+                        >
+                          <DeleteIcon fontSize="small" />
                         </IconButton>
                       </ListItemButton>
                     ))}

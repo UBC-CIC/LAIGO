@@ -186,6 +186,35 @@ exports.handler = async (event) => {
         }
         break;
 
+      case "DELETE /student/delete_summary":
+        console.log(event);
+        if (
+          event.queryStringParameters != null &&
+          event.queryStringParameters.summary_id
+        ) {
+          const summaryId = event.queryStringParameters.summary_id;
+
+          try {
+            await sqlConnection`
+                    DELETE FROM "summaries"
+                    WHERE summary_id = ${summaryId};
+                `;
+
+            response.statusCode = 200;
+            response.body = JSON.stringify({
+              message: "Summary deleted successfully",
+            });
+          } catch (err) {
+            response.statusCode = 500;
+            console.error(err);
+            response.body = JSON.stringify({ error: "Internal server error" });
+          }
+        } else {
+          response.statusCode = 400;
+          response.body = JSON.stringify({ error: "summary_id is required" });
+        }
+        break;
+
       case "GET /student/message_limit":
         if (
           event.queryStringParameters &&
@@ -1278,35 +1307,6 @@ ORDER BY time_uploaded DESC;
         } else {
           response.statusCode = 400;
           response.body = JSON.stringify({ error: "case_id is required" });
-        }
-        break;
-
-      case "DELETE /student/delete_summary":
-        console.log(event);
-        if (
-          event.queryStringParameters != null &&
-          event.queryStringParameters.summary_id
-        ) {
-          const summaryId = event.queryStringParameters.summary_id;
-
-          try {
-            await sqlConnection`
-                    DELETE FROM "summaries"
-                    WHERE summary_id = ${summaryId};
-                `;
-
-            response.statusCode = 200;
-            response.body = JSON.stringify({
-              message: "Case deleted successfully",
-            });
-          } catch (err) {
-            response.statusCode = 500;
-            console.error(err);
-            response.body = JSON.stringify({ error: "Internal server error" });
-          }
-        } else {
-          response.statusCode = 400;
-          response.body = JSON.stringify({ error: "summary_id is required" });
         }
         break;
 
