@@ -92,7 +92,8 @@ def generate_lawyer_summary(
     llm: ChatBedrockConverse, 
     case_type: str = None, 
     case_description: str = None, 
-    jurisdiction: str = None
+    jurisdiction: str = None,
+    block_type: str = "intake"
 ) -> str:
     """
     Generate a concise, professional summary of the conversation for lawyers.
@@ -103,6 +104,7 @@ def generate_lawyer_summary(
         case_type (str, optional): Type of legal case.
         case_description (str, optional): Brief description of the case.
         jurisdiction (str, optional): Legal jurisdiction for the case.
+        block_type (str, optional): The type of block to summarize (e.g. intake, issues).
     
     Returns:
         str: Formatted lawyer-friendly summary.
@@ -112,35 +114,134 @@ def generate_lawyer_summary(
         f"{msg['timestamp']} - {msg['role'].upper()}: {msg['content']}"
         for msg in messages
     ])
-    
+
+    prompts = {
+        "intake": """
+            You are a professional legal summarization assistant.
+            Create a concise, objective summary of the Intake & Facts conversation.
+            
+            IMPORTANT: Summarize ONLY the information explicitly provided in the conversation. 
+            Do NOT create, hallucinate, or infer any new facts, events, or details not present in the chat history.
+            
+            Focus strictly on:
+            1. Key facts and chronological timeline of events discussed.
+            2. The parties involved and their relationships as mentioned.
+            3. The client's specific objectives and concerns stated.
+            4. Any critical missing information or gaps identified in the conversation.
+            5. Facts that are determined as weak or not supported by evidence.
+            6. Further evidence or facts that need to be established.
+            
+            Do NOT include legal arguments, research strategies, or broad policy discussions unless explicitly discussed.
+        """,
+        "issues": """
+            You are a professional legal summarization assistant.
+            Create a concise, objective summary of the Issue Identification conversation.
+            
+            IMPORTANT: Summarize ONLY the legal issues and topics explicitly discussed in the conversation.
+            Do NOT analyze the case yourself, suggest new issues, or apply legal theories that were not mentioned in the chat.
+            
+            Focus strictly on:
+            1. The primary legal questions or issues identified in the chat.
+            2. Potential causes of action or defenses discussed.
+            3. The relevant legal standards or tests mentioned.
+            4. Distinctions made between factual disputes and legal questions.
+            
+            Do NOT restate the timeline of facts in detail unless necessary to frame an issue.
+        """,
+        "research": """
+            You are a professional legal summarization assistant.
+            Create a concise, objective summary of the Research Strategy conversation.
+            
+            IMPORTANT: Summarize ONLY the research strategy and results discussed in the conversation.
+            Do NOT suggest new case law, statutes, or search terms that were not explicitly mentioned in the chat.
+            
+            Focus strictly on:
+            1. Key search terms, keywords, and legal concepts explored.
+            2. Relevant statutes, regulations, or case law identified (cite only examples from the chat).
+            3. Analogous cases or precedents discussed.
+            4. The jurisdiction-specific legal landscape discussed.
+            
+            Do NOT include detailed fact narratives or final arguments.
+        """,
+        "argument": """
+            You are a professional legal summarization assistant.
+            Create a concise, objective summary of the Argument Construction conversation.
+            
+            IMPORTANT: Summarize ONLY the arguments and analysis constructed in the conversation.
+            Do NOT improve the arguments, add new legal reasoning, or fill in logical gaps with your own analysis.
+            
+            Focus strictly on:
+            1. The application of law to the specific facts as discussed.
+            2. The main strengths of the client's position identified in the chat.
+            3. How specific evidence supports each element of the claim or defense as discussed.
+            4. The logical flow and structure of the proposed arguments.
+            
+            Do NOT focus on gathering new facts or initial issue spotting.
+        """,
+        "contrarian": """
+            You are a professional legal summarization assistant.
+            Create a concise, objective summary of the Contrarian Analysis conversation.
+            
+            IMPORTANT: Summarize ONLY the counter-arguments and weaknesses identified in the conversation.
+            Do NOT invent new weaknesses, potential defenses, or risks that were not discussed in the chat.
+            
+            Focus strictly on:
+            1. Potential weaknesses, vulnerabilities, or fatal flaws identified.
+            2. Likely counter-arguments or defenses from the opposing party discussed.
+            3. Critical gaps in evidence or legal support noted.
+            4. Strategies discussed for mitigating these risks.
+            
+            Focus on the "Devil's Advocate" perspective as it appeared in the conversation.
+        """,
+        "policy": """
+            You are a professional legal summarization assistant.
+            Create a concise, objective summary of the Policy Context conversation.
+            
+            IMPORTANT: Summarize ONLY the policy discussions present in the conversation.
+            Do NOT add external policy considerations, legislative history, or social contexts not mentioned in the chat.
+            
+            Focus strictly on:
+            1. Broader public policy implications discussed.
+            2. Legislative intent mentioned.
+            3. Social, economic, or ethical factors discussed.
+            4. Systemic issues or non-legal considerations relevant to the client as discussed.
+        """
+    }
+
+    # Fallback for unknown block types
+    default_prompt = """
+        You are a professional legal summarization assistant. 
+        Create a concise, objective 1-page summary of the conversation.
+        Focus on:
+        1. Legal Analysis
+        2. Key facts and timeline
+        3. Critical details and potential legal implications
+        4. Actionable items or recommendations
+    """
+
+    selected_prompt_instruction = prompts.get(block_type, default_prompt)
+
     # Create a prompt for summarization
     summary_prompt = ChatPromptTemplate.from_messages([
-        ("system", """
-        You are a professional legal summarization assistant. 
-        Create a concise, objective 1-page summary of the conversation focusing on:
-        1. Legal Analysis
-        2. Key facts and timeline of events
-        3. Parties involved
-        4. Critical details and potential legal implications
-        5. Essential Elements of Proving the Case and make references to the case
-        6. Relevant Legal Texts (give 3 - 4 example cases preferably more recent cases)
-        5. Any actionable items or recommendations
-        6. Future steps to consider for a lawayer and what other follow-up questions should be asked from the client
+        ("system", f"""
+        {{selected_prompt_instruction}}
+        
         Respond in a proper, readable, markdown format.
         Use a clear, professional tone. Organize the summary with clear headings.
-        Avoid personal opinions and stick to the observable facts.
+        Avoid personal opinions and stick to the observable facts from the conversation.
         
         Case Metadata:
-        - Case Type: {case_type}
-        - Case Description: {case_description}
-        - Jurisdiction: {jurisdiction}
+        - Case Type: {{case_type}}
+        - Case Description: {{case_description}}
+        - Jurisdiction: {{jurisdiction}}
         """),
-        ("human", "Here is the conversation to summarize:\n{conversation}")
+        ("human", "Here is the conversation to summarize:\n{{conversation}}")
     ])
     
     # Generate summary
     summary_chain = summary_prompt | llm
     summary = summary_chain.invoke({
+        "selected_prompt_instruction": selected_prompt_instruction,
         "conversation": conversation_text,
         "case_type": case_type or "Not Specified",
         "case_description": case_description or "No additional description provided",

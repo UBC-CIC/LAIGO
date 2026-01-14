@@ -294,6 +294,7 @@ def handler(event, context):
             case_type=case_type,
             case_description=case_description,
             jurisdiction=jurisdiction,
+            block_type=block_type
         )
     except Exception as e:
         logger.error(f"Error getting response: {e}")
