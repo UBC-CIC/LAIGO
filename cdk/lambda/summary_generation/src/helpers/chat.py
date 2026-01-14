@@ -126,7 +126,7 @@ def generate_lawyer_summary(
         6. Relevant Legal Texts (give 3 - 4 example cases preferably more recent cases)
         5. Any actionable items or recommendations
         6. Future steps to consider for a lawayer and what other follow-up questions should be asked from the client
-        Give it in a proper readable format.
+        Respond in a proper, readable, markdown format.
         Use a clear, professional tone. Organize the summary with clear headings.
         Avoid personal opinions and stick to the observable facts.
         
