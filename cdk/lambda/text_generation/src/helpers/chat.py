@@ -135,8 +135,7 @@ def get_response(
     # Create a system prompt for the question answering
     processed_system_prompt = (
         f"""
-        <|begin_of_text|>
-        <|start_header_id|>case<|end_header_id|>
+        Case Context:
         {system_prompt}
         Pay close attention to the latest system prompt I've given you, as it may have been updated since the last message, but don't entirely discard the previous system prompts unless they conflict. This is for your behaviour, you do not need to include it in the response.
 
@@ -146,10 +145,9 @@ def get_response(
         Case description: {case_description}
         Province (blank if not under provincial jurisdiction): {province}
         Statute (blank if not applicable): {statute}
-        <|eot_id|>
-        <|start_header_id|>documents<|end_header_id|>
+        
+        Relevant Documents:
         {{context}}
-        <|eot_id|>
         """
     )
     
@@ -301,9 +299,7 @@ def update_session_name(table_name: str, session_id: str, bedrock_llm_id: str) -
     student_message = human_messages[0].get('M', {}).get('data', {}).get('M', {}).get('content', {}).get('S', "")
     llm_message = ai_messages[0].get('M', {}).get('data', {}).get('M', {}).get('content', {}).get('S', "")
     
-    llm = BedrockLLM(
-                        model_id = bedrock_llm_id
-                    )
+    llm = get_bedrock_llm(bedrock_llm_id)
     
     title_system_prompt = """
         You are given the first message from an AI and the first message from a student in a conversation. 
@@ -312,18 +308,13 @@ def update_session_name(table_name: str, session_id: str, bedrock_llm_id: str) -
     """
     
     prompt = f"""
-        <|begin_of_text|>
-        <|start_header_id|>system<|end_header_id|>
-        {title_system_prompt}
-        <|eot_id|>
-        <|start_header_id|>AI Message<|end_header_id|>
-        {llm_message}
-        <|eot_id|>
-        <|start_header_id|>Student Message<|end_header_id|>
-        {student_message}
-        <|eot_id|>
-        <|start_header_id|>assistant<|end_header_id|>
+        System: {title_system_prompt}
+        
+        AI Message: {llm_message}
+        
+        Student Message: {student_message}
     """
     
-    session_name = llm.invoke(prompt)
+    response = llm.invoke(prompt)
+    session_name = response.content if hasattr(response, 'content') else str(response)
     return session_name
