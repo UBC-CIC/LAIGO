@@ -348,7 +348,6 @@ const CaseOverview: React.FC = () => {
           justifyContent: "center",
           alignItems: "center",
           height: "calc(100vh - 80px)",
-          backgroundColor: "var(--background)",
         }}
       >
         <CircularProgress sx={{ color: "var(--text-secondary)" }} />
@@ -363,7 +362,6 @@ const CaseOverview: React.FC = () => {
           flexGrow: 1,
           p: 4,
           mx: "auto",
-          backgroundColor: "var(--background)",
         }}
       >
         {!caseData ? (

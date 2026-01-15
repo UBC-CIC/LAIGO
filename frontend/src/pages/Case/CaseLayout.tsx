@@ -193,6 +193,7 @@ const CaseLayout: React.FC = () => {
           height: "calc(100vh - 80px)",
           overflowY: "auto",
           color: "var(--text)",
+          bgcolor: "var(--background)",
         }}
       >
         <Outlet
