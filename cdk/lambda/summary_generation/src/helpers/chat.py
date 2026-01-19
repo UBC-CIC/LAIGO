@@ -249,3 +249,71 @@ def generate_lawyer_summary(
     }).content
     
     return summary
+
+def generate_full_case_summary(
+    block_summaries: list,  # [{block_type, content, title}, ...]
+    llm: ChatBedrockConverse,
+    case_type: str = None,
+    case_description: str = None,
+    jurisdiction: str = None
+) -> str:
+    """
+    Synthesize multiple block summaries into a cohesive full-case summary.
+    
+    Args:
+        block_summaries (list): List of dictionaries containing block summaries.
+        llm (ChatBedrockConverse): Bedrock LLM instance.
+        case_type (str, optional): Type of legal case.
+        case_description (str, optional): Brief description of the case.
+        jurisdiction (str, optional): Legal jurisdiction.
+        
+    Returns:
+        str: Synthesized full-case summary.
+    """
+    # Format the input summaries for the prompt
+    summaries_text = "\\n\\n".join([
+        f"--- SECTION: {item['title']} ({item['block_type']}) ---\\n{item['content']}"
+        for item in block_summaries
+    ])
+
+    prompt_instruction = """
+        You are a professional legal document synthesizer.
+
+        You are provided with summaries from different stages of legal case analysis.
+        
+        Your task is to create a comprehensive, cohesive full-case summary that:
+        1. Preserves ALL key information from each section
+        2. Organizes information logically (Facts -> Issues -> Research -> Arguments -> Analysis -> Policy)
+        3. Creates smooth transitions between sections
+        4. Eliminates redundancy while maintaining completeness
+        5. Uses clear section headers
+        6. Maintains professional legal tone
+
+        Do NOT add new information or legal analysis not present in the source summaries.
+    """
+
+    summary_prompt = ChatPromptTemplate.from_messages([
+        ("system", f"""
+        {{instruction}}
+        
+        Respond in a proper, readable, markdown format.
+        
+        Case Metadata:
+        - Case Type: {{case_type}}
+        - Case Description: {{case_description}}
+        - Jurisdiction: {{jurisdiction}}
+        """),
+        ("human", "Here are the summaries from different stages of the case:\n{{summaries}}")
+    ])
+    
+    # Generate summary
+    summary_chain = summary_prompt | llm
+    summary = summary_chain.invoke({
+        "instruction": prompt_instruction,
+        "summaries": summaries_text,
+        "case_type": case_type or "Not Specified",
+        "case_description": case_description or "No additional description provided",
+        "jurisdiction": jurisdiction or "Not Specified"
+    }).content
+    
+    return summary

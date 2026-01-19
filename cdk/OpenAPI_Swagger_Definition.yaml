@@ -896,7 +896,19 @@ paths:
           required: false
           schema:
             type: string
-          description: The sub-route/block type (e.g., intake-facts, issue-identification)
+            enum:
+              - intake-facts
+              - issue-identification
+              - research-strategy
+              - argument-construction
+              - contrarian-analysis
+              - policy-context
+              - full-case
+          description: |
+            The block type to summarize. 
+            - Specific block types generate summaries from chat history
+            - 'full-case' stitches together existing block summaries
+            - Omit to default to 'full-case'
       responses:
         "200":
           description: Summary generated successfully

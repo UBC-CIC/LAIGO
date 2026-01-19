@@ -10,7 +10,7 @@ import boto3
 from botocore.exceptions import ClientError
 from langchain_aws import ChatBedrockConverse
 from langchain_core.prompts import ChatPromptTemplate
-from helpers.chat import get_bedrock_llm, generate_lawyer_summary, retrieve_dynamodb_history
+from helpers.chat import get_bedrock_llm, generate_lawyer_summary, retrieve_dynamodb_history, generate_full_case_summary
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -139,20 +139,91 @@ def get_case_details(case_id):
         connection.rollback()
         return None, None, None, None
 
-def update_summaries(case_id, summary, block_type):
+def get_unlocked_blocks(case_id):
     """
-    Adds a new summary for a given case and block.
-    Each case can have multiple summaries differentiated by block type and timestamps.
+    Retrieve list of unlocked blocks for a case.
+    """
+    connection = connect_to_db()
+    if connection is None:
+        return []
+
+    try:
+        cur = connection.cursor()
+        cur.execute("""
+            SELECT unlocked_blocks FROM cases WHERE case_id = %s;
+        """, (case_id,))
+        result = cur.fetchone()
+        cur.close()
+        
+        if result and result[0]:
+            return result[0]
+        return []
+    except Exception as e:
+        logger.error(f"Error fetching unlocked blocks: {e}")
+        if cur:
+            cur.close()
+        connection.rollback()
+        return []
+
+def get_latest_block_summaries(case_id, unlocked_blocks):
+    """
+    Retrieve the most recent summary for each unlocked block.
+    """
+    connection = connect_to_db()
+    if connection is None or not unlocked_blocks:
+        return []
+    
+    summaries = []
+    try:
+        cur = connection.cursor()
+        # Fetch latest summary for each block type in unlocked_blocks
+        # We process them one by one or via IN clause. 
+        # Using specific query to get latest per block type.
+        
+        query = """
+            SELECT DISTINCT ON (block_context) 
+                block_context, content, title
+            FROM summaries
+            WHERE case_id = %s 
+                AND scope = 'block'
+                AND block_context = ANY(%s)
+            ORDER BY block_context, time_created DESC;
+        """
+        
+        cur.execute(query, (case_id, unlocked_blocks))
+        rows = cur.fetchall()
+        cur.close()
+        
+        for row in rows:
+            summaries.append({
+                "block_type": row[0],
+                "content": row[1],
+                "title": row[2]
+            })
+            
+        return sorted(summaries, key=lambda x: unlocked_blocks.index(x['block_type']) if x['block_type'] in unlocked_blocks else 999)
+
+    except Exception as e:
+        logger.error(f"Error fetching block summaries: {e}")
+        if cur:
+            cur.close()
+        connection.rollback()
+        return []
+
+def update_summaries(case_id, summary, block_type, scope='block'):
+    """
+    Adds a new summary for a given case.
     
     Args:
         case_id (str): The ID of the case to update.
         summary (str): The new summary for the case.
-        block_type (str): The block type (intake, issues, research, etc.)
+        block_type (str): The block type (intake, issues, etc.). None if full-case.
+        scope (str): 'block' or 'full_case'
     
     Returns:
         bool: True if successful, False otherwise.
     """
-    logger.info(f"Adding new summary for case_id {case_id}, block_type {block_type}")
+    logger.info(f"Adding new summary for case_id {case_id}, scope {scope}, block {block_type}")
     connection = connect_to_db()
     if connection is None:
         logger.error("No database connection available.")
@@ -168,21 +239,26 @@ def update_summaries(case_id, summary, block_type):
         "policy": "Policy Context Summary"
     }
     
-    title = block_titles.get(block_type, "Block Summary")
+    if scope == 'full_case':
+        title = "Full Case Summary"
+        block_context = None
+    else:
+        title = block_titles.get(block_type, "Block Summary")
+        block_context = block_type
     
     try:
         cur = connection.cursor()
         logger.info("Connected to RDS instance!")
         
-        # Insert a new summary with block scope and context
+        # Insert a new summary
         cur.execute("""
             INSERT INTO summaries (case_id, content, scope, block_context, title, time_created)
-            VALUES (%s, %s, 'block', %s, %s, CURRENT_TIMESTAMP)
-        """, (case_id, summary, block_type, title))
+            VALUES (%s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+        """, (case_id, summary, scope, block_context, title))
             
         connection.commit()
         cur.close()
-        logger.info(f"Successfully added new summary for case_id {case_id}, block_type {block_type}")
+        logger.info(f"Successfully added new summary for case_id {case_id}")
         return True
 
     except Exception as e:
@@ -200,7 +276,7 @@ def handler(event, context):
     {
         "queryStringParameters": {
             "case_id": "unique_case_id",
-            "sub_route": "intake-facts" | "issue-identification" | etc.
+            "sub_route": "intake-facts" | "issue-identification" | "full-case" | etc.
         }
     }
     """
@@ -209,19 +285,7 @@ def handler(event, context):
 
     query_params = event.get("queryStringParameters", {})
     case_id = query_params.get("case_id", "")
-    sub_route = query_params.get("sub_route", "intake-facts")  # Default to intake-facts if missing
-
-    # Map sub_route to block_type enum (same mapping as text_generation)
-    subroute_map = {
-        "intake-facts": "intake",
-        "issue-identification": "issues",
-        "research-strategy": "research",
-        "argument-construction": "argument",
-        "contrarian-analysis": "contrarian",
-        "policy-context": "policy"
-    }
-    
-    block_type = subroute_map.get(sub_route, "intake")  # Default to intake if invalid sub_route
+    sub_route = query_params.get("sub_route", "intake-facts") 
 
     if not case_id:
         return {
@@ -234,7 +298,6 @@ def handler(event, context):
             },
             'body': json.dumps("Missing required parameters: case_id")
         }
-
 
     case_type, jurisdiction, case_description = get_case_details(case_id)
     if case_type is None or jurisdiction is None or case_description is None:
@@ -250,7 +313,6 @@ def handler(event, context):
             'body': json.dumps('Error fetching summary details')
         }
 
-    
     try:
         logger.info("Creating Bedrock LLM instance.")
         llm = get_bedrock_llm(BEDROCK_LLM_ID)
@@ -267,71 +329,176 @@ def handler(event, context):
             'body': json.dumps('Error getting LLM from Bedrock')
         }
 
-    # Construct unique session ID based on case and block type (same pattern as text_generation)
-    session_id = f"{case_id}-{block_type}"
-    
-    try:
-        logger.info(f"Retrieving dynamo history for session_id: {session_id}")
-        messages = retrieve_dynamodb_history(TABLE_NAME, session_id)
-        print("messages: ", messages)
-    except Exception as e:
-        logger.error(f"Error retrieving dynamo history: {e}")
+    # --- Full Case Summary Logic ---
+    if sub_route == "full-case":
+        logger.info(f"Generating full case summary for case_id: {case_id}")
+        
+        # 1. Get unlocked blocks
+        unlocked_blocks = get_unlocked_blocks(case_id)
+        if not unlocked_blocks:
+            return {
+                'statusCode': 400,
+                "headers": {
+                    "Content-Type": "application/json",
+                    "Access-Control-Allow-Headers": "*",
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Methods": "*",
+                },
+                'body': json.dumps("No blocks have been unlocked yet for this case.")
+            }
+        
+        logger.info(f"Unlocked blocks: {unlocked_blocks}")
+
+        # 2. Get latest summaries for unlocked blocks
+        block_summaries = get_latest_block_summaries(case_id, unlocked_blocks)
+        if not block_summaries:
+             return {
+                'statusCode': 400,
+                "headers": {
+                    "Content-Type": "application/json",
+                    "Access-Control-Allow-Headers": "*",
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Methods": "*",
+                },
+                'body': json.dumps("No block summaries found to synthesize. Please generate summaries for individual blocks first.")
+            }
+        
+        logger.info(f"Found {len(block_summaries)} block summaries to synthesize.")
+
+        # 3. Generate full case summary
+        try:
+            response = generate_full_case_summary(
+                block_summaries=block_summaries,
+                llm=llm,
+                case_type=case_type,
+                case_description=case_description,
+                jurisdiction=jurisdiction
+            )
+        except Exception as e:
+            logger.error(f"Error generating full case summary: {e}")
+            return {
+                'statusCode': 500,
+                "headers": {
+                    "Content-Type": "application/json",
+                    "Access-Control-Allow-Headers": "*",
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Methods": "*",
+                },
+                'body': json.dumps('Error generating full case summary')
+            }
+
+        # 4. Save summary
+        try:
+            update_summaries(case_id, response, None, scope='full_case')
+        except Exception as e:
+            logger.error(f"Error saving full case summary: {e}")
+             # We don't fail the request if save fails, just log it, but here we return error to be safe
+            return {
+                'statusCode': 500,
+                "headers": {
+                    "Content-Type": "application/json",
+                    "Access-Control-Allow-Headers": "*",
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Methods": "*",
+                },
+                'body': json.dumps('Error saving full case summary')
+            }
+            
         return {
-            'statusCode': 500,
+            "statusCode": 200,
             "headers": {
-                "Content-Type": "application/json",
-                "Access-Control-Allow-Headers": "*",
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "*",
-            },
-            'body': json.dumps('Error retrieving dynamo history')
+                    "Content-Type": "application/json",
+                    "Access-Control-Allow-Headers": "*",
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Methods": "*",
+                },
+            "body": json.dumps({
+                "llm_output": response
+            })
         }
-    try:
-        logger.info("Generating response from the LLM.")
-        response = generate_lawyer_summary(
-            messages=messages,
-            llm=llm,
-            case_type=case_type,
-            case_description=case_description,
-            jurisdiction=jurisdiction,
-            block_type=block_type
-        )
-    except Exception as e:
-        logger.error(f"Error getting response: {e}")
+
+    # --- Block Specific Summary Logic (Existing) ---
+    else:
+        # Map sub_route to block_type enum
+        subroute_map = {
+            "intake-facts": "intake",
+            "issue-identification": "issues",
+            "research-strategy": "research",
+            "argument-construction": "argument",
+            "contrarian-analysis": "contrarian",
+            "policy-context": "policy"
+        }
+        
+        block_type = subroute_map.get(sub_route, "intake")  # Default to intake
+        
+        # Construct unique session ID based on case and block type
+        session_id = f"{case_id}-{block_type}"
+        
+        try:
+            logger.info(f"Retrieving dynamo history for session_id: {session_id}")
+            messages = retrieve_dynamodb_history(TABLE_NAME, session_id)
+        except Exception as e:
+            logger.error(f"Error retrieving dynamo history: {e}")
+            return {
+                'statusCode': 500,
+                "headers": {
+                    "Content-Type": "application/json",
+                    "Access-Control-Allow-Headers": "*",
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Methods": "*",
+                },
+                'body': json.dumps('Error retrieving dynamo history')
+            }
+        
+        try:
+            logger.info("Generating response from the LLM.")
+            response = generate_lawyer_summary(
+                messages=messages,
+                llm=llm,
+                case_type=case_type,
+                case_description=case_description,
+                jurisdiction=jurisdiction,
+                block_type=block_type
+            )
+        except Exception as e:
+            logger.error(f"Error getting response: {e}")
+            return {
+                'statusCode': 500,
+                "headers": {
+                    "Content-Type": "application/json",
+                    "Access-Control-Allow-Headers": "*",
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Methods": "*",
+                },
+                'body': json.dumps('Error getting response')
+            }
+            
+        try:
+            logger.info(f"Updating case summary for block_type: {block_type}")
+            # Note: scope defaults to 'block'
+            update_summaries(case_id, response, block_type, scope='block')
+        except Exception as e:
+            logger.error(f"Error updating case summary: {e}")
+            return {
+                'statusCode': 500,
+                "headers": {
+                    "Content-Type": "application/json",
+                    "Access-Control-Allow-Headers": "*",
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Methods": "*",
+                },
+                'body': json.dumps('Error updating case summary')
+            }
+            
         return {
-            'statusCode': 500,
+            "statusCode": 200,
             "headers": {
-                "Content-Type": "application/json",
-                "Access-Control-Allow-Headers": "*",
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "*",
-            },
-            'body': json.dumps('Error getting response')
+                    "Content-Type": "application/json",
+                    "Access-Control-Allow-Headers": "*",
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Methods": "*",
+                },
+            "body": json.dumps({
+                "llm_output": response
+            })
         }
-    try:
-        logger.info(f"Updating case summary for block_type: {block_type}")
-        update_summaries(case_id, response, block_type)
-    except Exception as e:
-        logger.error(f"Error updating case summary: {e}")
-        return {
-            'statusCode': 500,
-            "headers": {
-                "Content-Type": "application/json",
-                "Access-Control-Allow-Headers": "*",
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "*",
-            },
-            'body': json.dumps('Error updating case summary')
-        }
-    return {
-        "statusCode": 200,
-        "headers": {
-                "Content-Type": "application/json",
-                "Access-Control-Allow-Headers": "*",
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "*",
-            },
-        "body": json.dumps({
-            "llm_output": response
-        })
-    }
