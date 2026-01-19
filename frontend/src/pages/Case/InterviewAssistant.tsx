@@ -443,23 +443,13 @@ const InterviewAssistant: React.FC = () => {
       {/* Unlock Notification Snackbar */}
       <Snackbar
         open={showSnackbar}
-        autoHideDuration={6000}
+        autoHideDuration={4000}
         onClose={() => setShowSnackbar(false)}
-        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
       >
         <Alert
           onClose={() => setShowSnackbar(false)}
           severity="success"
-          variant="filled"
-          sx={{
-            width: "100%",
-            bgcolor: "var(--green-text)", // Success green
-            color: "white",
-            "& .MuiAlert-icon": {
-              color: "white",
-            },
-            fontFamily: "Outfit",
-          }}
+          sx={{ width: "100%" }}
         >
           Success! You have unlocked the next block. Feel free to proceed or
           continue asking questions.
