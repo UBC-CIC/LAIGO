@@ -115,6 +115,7 @@ const CaseSummaries: React.FC = () => {
   const [selectedSummaryId, setSelectedSummaryId] = useState<number | null>(
     null
   );
+  const [isGenerating, setIsGenerating] = useState(false);
   const [leftOpen, setLeftOpen] = useState(true);
   const [rightOpen, setRightOpen] = useState(true);
   const [openCategories, setOpenCategories] = useState<{
@@ -125,53 +126,98 @@ const CaseSummaries: React.FC = () => {
   });
 
   // Fetch summaries from API
-  useEffect(() => {
-    const fetchSummaries = async () => {
-      if (!caseId) return;
+  const fetchSummaries = React.useCallback(async () => {
+    if (!caseId) return;
 
-      setIsLoading(true);
-      try {
-        const session = await fetchAuthSession();
-        const token = session.tokens?.idToken?.toString();
+    setIsLoading(true);
+    try {
+      const session = await fetchAuthSession();
+      const token = session.tokens?.idToken?.toString();
 
-        if (!token) {
-          console.error("No auth token found");
-          setIsLoading(false);
-          return;
-        }
-
-        const response = await fetch(
-          `${
-            import.meta.env.VITE_API_ENDPOINT
-          }/student/get_summaries?case_id=${caseId}`,
-          {
-            method: "GET",
-            headers: {
-              Authorization: token,
-            },
-          }
-        );
-
-        if (response.ok) {
-          const data = await response.json();
-          if (Array.isArray(data)) {
-            setSummaries(data);
-            if (data.length > 0) {
-              setSelectedSummaryId(data[0].summary_id);
-            }
-          }
-        } else {
-          console.error("Failed to fetch summaries", response.statusText);
-        }
-      } catch (error) {
-        console.error("Error fetching summaries:", error);
-      } finally {
+      if (!token) {
+        console.error("No auth token found");
         setIsLoading(false);
+        return;
       }
-    };
 
-    fetchSummaries();
+      const response = await fetch(
+        `${
+          import.meta.env.VITE_API_ENDPOINT
+        }/student/get_summaries?case_id=${caseId}`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: token,
+          },
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        if (Array.isArray(data)) {
+          setSummaries(data);
+        }
+      } else {
+        console.error("Failed to fetch summaries", response.statusText);
+      }
+    } catch (error) {
+      console.error("Error fetching summaries:", error);
+    } finally {
+      setIsLoading(false);
+    }
   }, [caseId]);
+
+  useEffect(() => {
+    fetchSummaries();
+  }, [fetchSummaries]);
+
+  // Auto-select first summary on initial load if nothing selected
+  useEffect(() => {
+    if (summaries.length > 0 && selectedSummaryId === null) {
+      setSelectedSummaryId(summaries[0].summary_id);
+    }
+  }, [summaries, selectedSummaryId]);
+
+  const handleGenerateSummary = async () => {
+    if (!caseId) return;
+
+    setIsGenerating(true);
+    try {
+      const session = await fetchAuthSession();
+      const token = session.tokens?.idToken?.toString();
+
+      if (!token) {
+        console.error("No auth token found");
+        return;
+      }
+
+      // Defaulting to full-case summary generation
+      const response = await fetch(
+        `${
+          import.meta.env.VITE_API_ENDPOINT
+        }/student/generate_summary?case_id=${caseId}&sub_route=full-case`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: token,
+          },
+        }
+      );
+
+      if (response.ok) {
+        // Refresh messages to show the new one
+        await fetchSummaries();
+      } else {
+        const errorData = await response.json();
+        console.error("Failed to generate summary", errorData);
+        // Could implement a snackbar here
+      }
+    } catch (error) {
+      console.error("Error generating summary:", error);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
   const selectedSummary = summaries.find(
     (s) => s.summary_id === selectedSummaryId
@@ -309,7 +355,7 @@ const CaseSummaries: React.FC = () => {
       {/* --- Left Sidebar (Summaries List) --- */}
       <Box
         sx={{
-          width: leftOpen ? 220 : 0,
+          width: leftOpen ? 240 : 0,
           transition: "width 0.3s ease",
           borderRight: leftOpen ? "1px solid var(--border)" : "none",
           backgroundColor: "var(--background2)",
@@ -354,11 +400,19 @@ const CaseSummaries: React.FC = () => {
 
         {/* Generate Button Area */}
         {leftOpen && (
-          <Box sx={{ p: 2 }}>
+          <Box sx={{ p: 1 }}>
             <Button
               variant="contained"
               fullWidth
-              startIcon={<AddIcon />}
+              startIcon={
+                isGenerating ? (
+                  <CircularProgress size={20} color="inherit" />
+                ) : (
+                  <AddIcon />
+                )
+              }
+              onClick={handleGenerateSummary}
+              disabled={isGenerating}
               sx={{
                 backgroundColor: "var(--primary)",
                 color: "white", // Fixed as primary usually needs white text
@@ -367,9 +421,13 @@ const CaseSummaries: React.FC = () => {
                 "&:hover": {
                   backgroundColor: "#42a5f5", // Slightly lighter/darker
                 },
+                "&.Mui-disabled": {
+                  backgroundColor: "var(--secondary)",
+                  color: "rgba(255, 255, 255, 0.7)",
+                },
               }}
             >
-              Generate
+              {isGenerating ? "Generating..." : "Generate Full Case Summary"}
             </Button>
           </Box>
         )}
