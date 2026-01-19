@@ -277,29 +277,39 @@ def generate_full_case_summary(
     ])
 
     prompt_instruction = """
-        You are a professional legal document synthesizer.
+        You are a professional legal document compiler.
 
         You are provided with summaries from different stages of legal case analysis.
         These summaries represent ONLY the blocks that have been completed so far.
+        Each summary contains structured analytical information that must be preserved.
         
         CRITICAL INSTRUCTIONS:
-        1. Work ONLY with the summaries provided below - do not invent or infer information for missing stages
-        2. If a stage is not provided (e.g., only Intake and Issues are available), completely omit that stage from your synthesis
-        3. Contextually stitch together the available summaries into a cohesive narrative
-        4. Create smooth, logical transitions between the sections you DO have
-        5. Preserve ALL key information from each provided section
-        6. Organize sections in their natural legal workflow order (Facts → Issues → Research → Arguments → Analysis → Policy)
-        7. Use clear section headers that match the provided block titles
-        8. Eliminate redundancy across sections while maintaining completeness
-        9. Maintain a professional legal tone throughout
+        1. PRESERVE the original structure, headings, and organization from each block summary
+        2. PRESERVE all analytical elements including:
+           - Weak points in evidence
+           - Established facts
+           - Further evidence needed
+           - Legal issues identified
+           - Research findings
+           - Argument structures
+           - Counter-arguments
+           - Policy considerations
+        3. Work ONLY with the summaries provided - do not invent information for missing stages
+        4. If a stage is not provided, completely omit it from the compilation
+        5. Organize sections in their natural legal workflow order (Intake → Issues → Research → Arguments → Analysis → Policy)
+        6. You may add brief transitional sentences between sections if needed for flow, but keep them minimal
+        7. Do NOT rewrite or paraphrase the content - maintain the exact analytical detail
+        8. Do NOT merge structured lists into narrative paragraphs
+        9. Use clear section headers that match the provided block titles
         
         Do NOT:
+        - Rewrite structured analytical elements into narrative form
+        - Summarize or condense the information from the blocks
         - Add new information not present in the provided summaries
         - Create placeholder sections for missing blocks
         - Infer or assume what missing blocks might contain
-        - Add legal analysis beyond what is explicitly stated in the summaries
         
-        Your goal is to create a unified document that reads as a coherent whole, using only the building blocks you've been given.
+        Your goal is to compile the provided summaries into a single document while preserving their analytical structure and detail.
     """
 
     summary_prompt = ChatPromptTemplate.from_messages([
