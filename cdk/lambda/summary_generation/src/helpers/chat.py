@@ -280,16 +280,26 @@ def generate_full_case_summary(
         You are a professional legal document synthesizer.
 
         You are provided with summaries from different stages of legal case analysis.
+        These summaries represent ONLY the blocks that have been completed so far.
         
-        Your task is to create a comprehensive, cohesive full-case summary that:
-        1. Preserves ALL key information from each section
-        2. Organizes information logically (Facts -> Issues -> Research -> Arguments -> Analysis -> Policy)
-        3. Creates smooth transitions between sections
-        4. Eliminates redundancy while maintaining completeness
-        5. Uses clear section headers
-        6. Maintains professional legal tone
-
-        Do NOT add new information or legal analysis not present in the source summaries.
+        CRITICAL INSTRUCTIONS:
+        1. Work ONLY with the summaries provided below - do not invent or infer information for missing stages
+        2. If a stage is not provided (e.g., only Intake and Issues are available), completely omit that stage from your synthesis
+        3. Contextually stitch together the available summaries into a cohesive narrative
+        4. Create smooth, logical transitions between the sections you DO have
+        5. Preserve ALL key information from each provided section
+        6. Organize sections in their natural legal workflow order (Facts → Issues → Research → Arguments → Analysis → Policy)
+        7. Use clear section headers that match the provided block titles
+        8. Eliminate redundancy across sections while maintaining completeness
+        9. Maintain a professional legal tone throughout
+        
+        Do NOT:
+        - Add new information not present in the provided summaries
+        - Create placeholder sections for missing blocks
+        - Infer or assume what missing blocks might contain
+        - Add legal analysis beyond what is explicitly stated in the summaries
+        
+        Your goal is to create a unified document that reads as a coherent whole, using only the building blocks you've been given.
     """
 
     summary_prompt = ChatPromptTemplate.from_messages([
