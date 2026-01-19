@@ -303,27 +303,21 @@ def generate_full_case_summary(
     """
 
     summary_prompt = ChatPromptTemplate.from_messages([
-        ("system", f"""
-        {{instruction}}
+        ("system", """
+        {instruction}
         
-        Respond in a proper, readable, markdown format.
-        
-        Case Metadata:
-        - Case Type: {{case_type}}
-        - Case Description: {{case_description}}
-        - Jurisdiction: {{jurisdiction}}
+        IMPORTANT: Respond with ONLY the synthesized summary content in markdown format.
+        Do not include any preamble, explanation, or meta-commentary.
+        Start directly with the summary content.
         """),
-        ("human", "Here are the summaries from different stages of the case:\n{{summaries}}")
+        ("human", "Here are the summaries from different stages of the case:\n{summaries}")
     ])
     
     # Generate summary
     summary_chain = summary_prompt | llm
     summary = summary_chain.invoke({
         "instruction": prompt_instruction,
-        "summaries": summaries_text,
-        "case_type": case_type or "Not Specified",
-        "case_description": case_description or "No additional description provided",
-        "jurisdiction": jurisdiction or "Not Specified"
+        "summaries": summaries_text
     }).content
     
     return summary
