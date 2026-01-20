@@ -1,11 +1,6 @@
-const {
-  SecretsManagerClient,
-  GetSecretValueCommand,
-} = require("@aws-sdk/client-secrets-manager");
-const jwt = require("jsonwebtoken");
+const { CognitoJwtVerifier } = require("aws-jwt-verify");
 
-const secretsManager = new SecretsManagerClient();
-let cachedSecret;
+let cognitoVerifier;
 
 exports.handler = async (event) => {
   const connectionId = event.requestContext?.connectionId;
@@ -23,18 +18,18 @@ exports.handler = async (event) => {
         stage,
         timestamp,
       });
-
       return { statusCode: 401, body: "Unauthorized" };
     }
 
-    if (!cachedSecret) {
-      const response = await secretsManager.send(
-        new GetSecretValueCommand({ SecretId: process.env.JWT_SECRET })
-      );
-      cachedSecret = JSON.parse(response.SecretString).jwtSecret;
+    if (!cognitoVerifier) {
+      cognitoVerifier = CognitoJwtVerifier.create({
+        userPoolId: process.env.COGNITO_USER_POOL_ID,
+        tokenUse: "id",
+        clientId: process.env.COGNITO_CLIENT_ID,
+      });
     }
 
-    const decoded = jwt.verify(token, cachedSecret);
+    const decoded = await cognitoVerifier.verify(token);
 
     console.log("WebSocket connection authorized", {
       connectionId,
@@ -43,8 +38,8 @@ exports.handler = async (event) => {
       timestamp,
       claims: {
         sub: decoded?.sub,
-        role: decoded?.role,
-        jti: decoded?.jti,
+        email: decoded?.email,
+        "cognito:username": decoded?.["cognito:username"],
       },
     });
 
@@ -57,34 +52,22 @@ exports.handler = async (event) => {
       timestamp,
       reason: error?.message,
     });
-
     return { statusCode: 401, body: "Unauthorized" };
   }
 };
 
 function extractToken(event) {
+  // Check Authorization header
   const headers = event.headers || {};
   const authHeader = headers.Authorization || headers.authorization;
-
   if (authHeader?.startsWith("Bearer ")) {
     return authHeader.slice("Bearer ".length).trim();
   }
 
+  // Check query string parameter
   const queryParams = event.queryStringParameters || {};
   if (queryParams.token) {
     return queryParams.token;
-  }
-
-  const requestBody = event.body;
-  if (requestBody) {
-    try {
-      const parsedBody = JSON.parse(requestBody);
-      if (parsedBody?.token) {
-        return parsedBody.token;
-      }
-    } catch (err) {
-      // Ignore JSON parse errors; body is optional for connect events
-    }
   }
 
   return undefined;

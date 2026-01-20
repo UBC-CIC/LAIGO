@@ -22,6 +22,8 @@ import * as ecr from "aws-cdk-lib/aws-ecr";
 import * as lambdaEventSources from "aws-cdk-lib/aws-lambda-event-sources";
 import * as bedrock from "aws-cdk-lib/aws-bedrock";
 import * as sqs from "aws-cdk-lib/aws-sqs";
+import * as apigwv2 from "aws-cdk-lib/aws-apigatewayv2";
+import { WebSocketLambdaIntegration } from "aws-cdk-lib/aws-apigatewayv2-integrations";
 
 // Stack properties for API Gateway configuration
 interface ApiGatewayStackProps extends cdk.StackProps {
@@ -51,12 +53,16 @@ export class ApiGatewayStack extends cdk.Stack {
   private eventApi: appsync.GraphqlApi;
   // Secrets Manager secret reference
   public readonly secret: secretsmanager.ISecret;
+  // WebSocket API for chat streaming
+  private wsApi!: apigwv2.WebSocketApi;
+  private wsStage!: apigwv2.WebSocketStage;
   // Getter methods for accessing stack resources
   public getEndpointUrl = () => this.api.url;
   public getUserPoolId = () => this.userPool.userPoolId;
   public getEventApiUrl = () => this.eventApi.graphqlUrl;
   public getUserPoolClientId = () => this.appClient.userPoolClientId;
   public getIdentityPoolId = () => this.identityPool.ref;
+  public getWebSocketUrl = () => this.wsStage.url;
   public addLayer = (name: string, layer: lambda.ILayerVersion) =>
     (this.layerList[name] = layer);
   public getLayers = () => this.layerList;
@@ -1558,6 +1564,121 @@ export class ApiGatewayStack extends cdk.Stack {
       new iam.PolicyStatement({
         actions: ["bedrock:InvokeModel"],
         resources: ["*"],
+      })
+    );
+
+    // ========================================
+    // WebSocket API for Chat Streaming
+    // ========================================
+
+    // Lambda for $connect route - validates Cognito JWT tokens
+    const wsConnectFunction = new lambda.Function(
+      this,
+      `${id}-WsConnectFunction`,
+      {
+        runtime: lambda.Runtime.NODEJS_22_X,
+        code: lambda.Code.fromAsset("lambda/websocket"),
+        handler: "connect.handler",
+        timeout: Duration.seconds(30),
+        memorySize: 256,
+        layers: [jwt],
+        functionName: `${id}-WsConnect`,
+        environment: {
+          COGNITO_USER_POOL_ID: this.userPool.userPoolId,
+          COGNITO_CLIENT_ID: this.appClient.userPoolClientId,
+        },
+      }
+    );
+
+    // Lambda for $disconnect route - cleanup/logging
+    const wsDisconnectFunction = new lambda.Function(
+      this,
+      `${id}-WsDisconnectFunction`,
+      {
+        runtime: lambda.Runtime.NODEJS_22_X,
+        code: lambda.Code.fromAsset("lambda/websocket"),
+        handler: "disconnect.handler",
+        timeout: Duration.seconds(10),
+        memorySize: 128,
+        functionName: `${id}-WsDisconnect`,
+      }
+    );
+
+    // Lambda for $default route - routes messages and invokes TextGen
+    const wsDefaultFunction = new lambda.Function(
+      this,
+      `${id}-WsDefaultFunction`,
+      {
+        runtime: lambda.Runtime.NODEJS_22_X,
+        code: lambda.Code.fromAsset("lambda/websocket"),
+        handler: "default.handler",
+        timeout: Duration.seconds(30),
+        memorySize: 256,
+        functionName: `${id}-WsDefault`,
+        environment: {
+          TEXT_GEN_FUNCTION_NAME: textGenLambdaDockerFunc.functionName,
+        },
+      }
+    );
+
+    // Grant default function permission to invoke TextGen Lambda
+    textGenLambdaDockerFunc.grantInvoke(wsDefaultFunction);
+
+    // Create WebSocket API
+    this.wsApi = new apigwv2.WebSocketApi(this, `${id}-ChatWebSocketApi`, {
+      apiName: `${id}-ChatWebSocket`,
+      connectRouteOptions: {
+        integration: new WebSocketLambdaIntegration(
+          "ConnectIntegration",
+          wsConnectFunction
+        ),
+      },
+      disconnectRouteOptions: {
+        integration: new WebSocketLambdaIntegration(
+          "DisconnectIntegration",
+          wsDisconnectFunction
+        ),
+      },
+      defaultRouteOptions: {
+        integration: new WebSocketLambdaIntegration(
+          "DefaultIntegration",
+          wsDefaultFunction
+        ),
+      },
+    });
+
+    // Create WebSocket Stage
+    this.wsStage = new apigwv2.WebSocketStage(this, `${id}-WsStage`, {
+      webSocketApi: this.wsApi,
+      stageName: "prod",
+      autoDeploy: true,
+    });
+
+    // Grant TextGen Lambda permission to post messages back to WebSocket connections
+    textGenLambdaDockerFunc.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["execute-api:ManageConnections"],
+        resources: [
+          `arn:aws:execute-api:${this.region}:${this.account}:${this.wsApi.apiId}/${this.wsStage.stageName}/POST/@connections/*`,
+        ],
+      })
+    );
+
+    // Add WebSocket endpoint to TextGen Lambda environment
+    textGenLambdaDockerFunc.addEnvironment(
+      "WEBSOCKET_API_ENDPOINT",
+      this.wsStage.url.replace("wss://", "https://")
+    );
+
+    // Grant default function permission to post back to connections (for pong)
+    wsDefaultFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["execute-api:ManageConnections"],
+        resources: [
+          `arn:aws:execute-api:${this.region}:${this.account}:${this.wsApi.apiId}/${this.wsStage.stageName}/POST/@connections/*`,
+        ],
       })
     );
   }

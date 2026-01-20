@@ -74,6 +74,7 @@ export class AmplifyStack extends cdk.Stack {
         VITE_API_ENDPOINT: apiStack.getEndpointUrl(),
         VITE_GRAPHQL_WS_URL: apiStack.getEventApiUrl(),
         VITE_IDENTITY_POOL_ID: apiStack.getIdentityPoolId(),
+        VITE_WEBSOCKET_URL: apiStack.getWebSocketUrl(),
       },
       buildSpec: BuildSpec.fromObjectToYaml(amplifyYaml),
     });
