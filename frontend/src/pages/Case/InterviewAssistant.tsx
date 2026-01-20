@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import {
   Box,
   Container,
@@ -14,10 +14,18 @@ import UserMessage from "../../components/Chat/UserMessage";
 import AiResponse from "../../components/Chat/AIResponse";
 import ChatBar from "../../components/Chat/ChatBar";
 import type { CaseOutletContext } from "./CaseLayout";
+import { useWebSocket } from "../../hooks/useWebSocket";
 
 interface Message {
   type: "human" | "ai";
   content: string;
+  isStreaming?: boolean;
+}
+
+interface WebSocketMessage {
+  type: "start" | "chunk" | "complete" | "error" | "pong";
+  content?: string;
+  metadata?: { llm_output?: string };
 }
 
 // Map sub_route to block_type for assessment
@@ -47,12 +55,14 @@ const InterviewAssistant: React.FC = () => {
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [messageCount, setMessageCount] = useState(0);
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
+  const [wsUrl, setWsUrl] = useState<string | null>(null);
 
   // Progress & Notification State
   const [progress, setProgress] = useState(0);
   const [showSnackbar, setShowSnackbar] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  const streamingIndexRef = useRef<number | null>(null);
 
   // Get current block type from section
   const currentBlock = section ? SUB_ROUTE_TO_BLOCK[section] : null;
@@ -71,6 +81,109 @@ const InterviewAssistant: React.FC = () => {
 
     return !allNextUnlocked;
   }, [currentBlock, unlockedBlocks]);
+
+  // Handle incoming WebSocket messages
+  const handleWebSocketMessage = useCallback(
+    (message: WebSocketMessage) => {
+      if (message.type === "start") {
+        // Add an empty AI message that will be filled with chunks
+        setMessages((prev) => {
+          const newMessages = [
+            ...prev,
+            { type: "ai" as const, content: "", isStreaming: true },
+          ];
+          streamingIndexRef.current = newMessages.length - 1;
+          return newMessages;
+        });
+      } else if (message.type === "chunk" && message.content) {
+        // Append chunk to the streaming message
+        setMessages((prev) => {
+          if (streamingIndexRef.current === null) return prev;
+          const updated = [...prev];
+          const idx = streamingIndexRef.current;
+          if (updated[idx]) {
+            updated[idx] = {
+              ...updated[idx],
+              content: updated[idx].content + message.content,
+            };
+          }
+          return updated;
+        });
+      } else if (message.type === "complete") {
+        // Mark streaming as complete
+        setMessages((prev) => {
+          if (streamingIndexRef.current === null) return prev;
+          const updated = [...prev];
+          const idx = streamingIndexRef.current;
+          if (updated[idx]) {
+            updated[idx] = { ...updated[idx], isStreaming: false };
+          }
+          return updated;
+        });
+        streamingIndexRef.current = null;
+        setIsLoading(false);
+
+        // Check if we should trigger assessment
+        if (currentBlock && PROGRESSION_MAP[currentBlock]) {
+          const nextStep = PROGRESSION_MAP[currentBlock];
+          const nextBlocks = Array.isArray(nextStep) ? nextStep : [nextStep];
+          const allNextUnlocked = nextBlocks.every((block) =>
+            unlockedBlocks.includes(block)
+          );
+          if (!allNextUnlocked) {
+            assessProgress();
+          }
+        }
+      } else if (message.type === "error") {
+        // Handle error
+        setMessages((prev) => {
+          if (streamingIndexRef.current !== null) {
+            const updated = [...prev];
+            const idx = streamingIndexRef.current;
+            if (updated[idx]) {
+              updated[idx] = {
+                ...updated[idx],
+                content: message.content || "An error occurred.",
+                isStreaming: false,
+              };
+            }
+            return updated;
+          }
+          return [
+            ...prev,
+            {
+              type: "ai" as const,
+              content: message.content || "An error occurred.",
+            },
+          ];
+        });
+        streamingIndexRef.current = null;
+        setIsLoading(false);
+      }
+    },
+    [currentBlock, unlockedBlocks]
+  );
+
+  // Initialize WebSocket connection
+  const { sendMessage, isConnected } = useWebSocket(wsUrl, {
+    onMessage: handleWebSocketMessage,
+  });
+
+  // Set up WebSocket URL when auth is available
+  useEffect(() => {
+    const setupWebSocket = async () => {
+      try {
+        const session = await fetchAuthSession();
+        const token = session.tokens?.idToken?.toString();
+        if (token && import.meta.env.VITE_WEBSOCKET_URL) {
+          setWsUrl(`${import.meta.env.VITE_WEBSOCKET_URL}?token=${token}`);
+        }
+      } catch (error) {
+        console.error("Error setting up WebSocket:", error);
+      }
+    };
+    setupWebSocket();
+  }, []);
 
   // Call assess_progress endpoint
   const assessProgress = async () => {
@@ -244,75 +357,93 @@ const InterviewAssistant: React.FC = () => {
     const newMessageCount = messageCount + 1;
     setMessageCount(newMessageCount);
 
-    try {
-      const session = await fetchAuthSession();
-      const token = session.tokens?.idToken?.toString();
-
-      if (!token) {
-        console.error("No auth token found");
-        return;
+    // Use WebSocket if connected, otherwise fall back to HTTP
+    if (isConnected) {
+      const sent = sendMessage({
+        action: "generate_text",
+        case_id: caseId,
+        sub_route: section,
+        message_content: message,
+      });
+      if (!sent) {
+        console.error("Failed to send WebSocket message");
+        setMessages((prev) => [
+          ...prev,
+          { type: "ai", content: "Failed to send message. Please try again." },
+        ]);
+        setIsLoading(false);
       }
+    } else {
+      // Fallback to HTTP (backward compatibility)
+      try {
+        const session = await fetchAuthSession();
+        const token = session.tokens?.idToken?.toString();
 
-      const response = await fetch(
-        `${
-          import.meta.env.VITE_API_ENDPOINT
-        }/student/text_generation?case_id=${caseId}&sub_route=${section}`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: token,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            message_content: message,
-          }),
+        if (!token) {
+          console.error("No auth token found");
+          return;
         }
-      );
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data.llm_output) {
-          setMessages((prev) => [
-            ...prev,
-            { type: "ai", content: data.llm_output },
-          ]);
+        const response = await fetch(
+          `${
+            import.meta.env.VITE_API_ENDPOINT
+          }/student/text_generation?case_id=${caseId}&sub_route=${section}`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: token,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              message_content: message,
+            }),
+          }
+        );
 
-          // Check if we should trigger assessment after AI responds
-          // Use the new count value for check
-          if (newMessageCount % 2 === 1) {
-            // Only check the other conditions now
-            if (currentBlock && PROGRESSION_MAP[currentBlock]) {
-              const nextStep = PROGRESSION_MAP[currentBlock];
-              const nextBlocks = Array.isArray(nextStep)
-                ? nextStep
-                : [nextStep];
-              const allNextUnlocked = nextBlocks.every((block) =>
-                unlockedBlocks.includes(block)
-              );
-              if (!allNextUnlocked) {
-                assessProgress();
+        if (response.ok) {
+          const data = await response.json();
+          if (data.llm_output) {
+            setMessages((prev) => [
+              ...prev,
+              { type: "ai", content: data.llm_output },
+            ]);
+
+            // Check if we should trigger assessment after AI responds
+            if (newMessageCount % 2 === 1) {
+              if (currentBlock && PROGRESSION_MAP[currentBlock]) {
+                const nextStep = PROGRESSION_MAP[currentBlock];
+                const nextBlocks = Array.isArray(nextStep)
+                  ? nextStep
+                  : [nextStep];
+                const allNextUnlocked = nextBlocks.every((block) =>
+                  unlockedBlocks.includes(block)
+                );
+                if (!allNextUnlocked) {
+                  assessProgress();
+                }
               }
             }
           }
+        } else {
+          console.error("API Error", response.statusText);
+          setMessages((prev) => [
+            ...prev,
+            {
+              type: "ai",
+              content:
+                "Sorry, I encountered an error connecting to the server.",
+            },
+          ]);
         }
-      } else {
-        console.error("API Error", response.statusText);
+      } catch (error) {
+        console.error("Network Error", error);
         setMessages((prev) => [
           ...prev,
-          {
-            type: "ai",
-            content: "Sorry, I encountered an error connecting to the server.",
-          },
+          { type: "ai", content: "Sorry, I encountered a network error." },
         ]);
+      } finally {
+        setIsLoading(false);
       }
-    } catch (error) {
-      console.error("Network Error", error);
-      setMessages((prev) => [
-        ...prev,
-        { type: "ai", content: "Sorry, I encountered a network error." },
-      ]);
-    } finally {
-      setIsLoading(false);
     }
   };
 

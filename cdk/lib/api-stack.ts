@@ -1013,7 +1013,7 @@ export class ApiGatewayStack extends cdk.Stack {
 
     const bedrockPolicyStatement = new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
-      actions: ["bedrock:InvokeModel"],
+      actions: ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"],
       resources: [
         `arn:aws:bedrock:${this.region}::foundation-model/meta.llama3-70b-instruct-v1`,
         `arn:aws:bedrock:${this.region}::foundation-model/meta.llama3-70b-instruct-v1:0`, // Explicitly add the versioned model
