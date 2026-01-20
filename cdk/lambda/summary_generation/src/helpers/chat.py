@@ -117,94 +117,163 @@ def generate_lawyer_summary(
 
     prompts = {
         "intake": """
-            You are a professional legal summarization assistant.
-            Create a concise, objective summary of the Intake & Facts conversation.
-            
-            IMPORTANT: Summarize ONLY the information explicitly provided in the conversation. 
-            Do NOT create, hallucinate, or infer any new facts, events, or details not present in the chat history.
-            
-            Focus strictly on:
-            1. Key facts and chronological timeline of events discussed.
-            2. The parties involved and their relationships as mentioned.
-            3. The client's specific objectives and concerns stated.
-            4. Any critical missing information or gaps identified in the conversation.
-            5. Facts that are determined as weak or not supported by evidence.
-            6. Further evidence or facts that need to be established.
-            
-            Do NOT include legal arguments, research strategies, or broad policy discussions unless explicitly discussed.
+You are a legal summarization assistant helping organize the factual record of a case.
+
+Summarize ONLY information explicitly discussed in the conversation. Do NOT invent or infer facts.
+
+Structure your summary with these sections:
+
+## Established Facts
+- Facts confirmed with supporting evidence or documentation.
+
+## Facts Requiring Further Evidence
+- Facts stated but not yet substantiated.
+
+## Weak Points in Evidence
+- Facts where evidence is contested, incomplete, or missing.
+
+## Parties & Relationships
+- Key parties and their roles/relationships as discussed.
+
+## Client Objectives & Concerns
+- The client's stated goals and worries.
+
+## Critical Gaps
+- Important information not yet obtained.
+
+Use markdown formatting. Only include sections where content was discussed.
         """,
         "issues": """
-            You are a professional legal summarization assistant.
-            Create a concise, objective summary of the Issue Identification conversation.
-            
-            IMPORTANT: Summarize ONLY the legal issues and topics explicitly discussed in the conversation.
-            Do NOT analyze the case yourself, suggest new issues, or apply legal theories that were not mentioned in the chat.
-            
-            Focus strictly on:
-            1. The primary legal questions or issues identified in the chat.
-            2. Potential causes of action or defenses discussed.
-            3. The relevant legal standards or tests mentioned.
-            4. Distinctions made between factual disputes and legal questions.
-            
-            Do NOT restate the timeline of facts in detail unless necessary to frame an issue.
+You are a legal summarization assistant helping identify legal issues in a case.
+
+Summarize ONLY the issues explicitly identified in the conversation. Do NOT add your own analysis or spot new issues.
+
+Structure your summary with these sections:
+
+## Primary Legal Issues
+- The main legal questions identified in the discussion.
+
+## Applicable Legal Tests or Standards
+- Canadian common law tests or statutory standards mentioned.
+
+## Relevant Statutes or Legislation
+- Specific statutes, regulations, or sections referenced.
+
+## Factual vs. Legal Disputes
+- Distinctions made between questions of fact and questions of law.
+
+## Elements to Establish
+- Key elements that must be proven for each cause of action or defense.
+
+Use markdown formatting. Only include sections where content was discussed.
         """,
         "research": """
-            You are a professional legal summarization assistant.
-            Create a concise, objective summary of the Research Strategy conversation.
-            
-            IMPORTANT: Summarize ONLY the research strategy and results discussed in the conversation.
-            Do NOT suggest new case law, statutes, or search terms that were not explicitly mentioned in the chat.
-            
-            Focus strictly on:
-            1. Key search terms, keywords, and legal concepts explored.
-            2. Relevant statutes, regulations, or case law identified (cite only examples from the chat).
-            3. Analogous cases or precedents discussed.
-            4. The jurisdiction-specific legal landscape discussed.
-            
-            Do NOT include detailed fact narratives or final arguments.
+You are a legal summarization assistant helping document a legal research strategy.
+
+Summarize ONLY the research approach and findings discussed in the conversation. Do NOT add new cases, statutes, or search terms.
+
+Structure your summary with these sections:
+
+## Research Questions
+- The specific legal questions guiding the research.
+
+## Search Strategy
+- Keywords, search terms, and databases discussed (e.g., CanLII, Westlaw).
+
+## Statutes & Regulations Identified
+- Specific legislative provisions found or referenced.
+
+## Case Law Identified
+- Key cases discussed with their relevance noted.
+
+## Secondary Sources
+- Textbooks, articles, or commentary mentioned.
+
+## Outstanding Research
+- Areas requiring further investigation.
+
+Use markdown formatting. Only include sections where content was discussed.
         """,
         "argument": """
-            You are a professional legal summarization assistant.
-            Create a concise, objective summary of the Argument Construction conversation.
-            
-            IMPORTANT: Summarize ONLY the arguments and analysis constructed in the conversation.
-            Do NOT improve the arguments, add new legal reasoning, or fill in logical gaps with your own analysis.
-            
-            Focus strictly on:
-            1. The application of law to the specific facts as discussed.
-            2. The main strengths of the client's position identified in the chat.
-            3. How specific evidence supports each element of the claim or defense as discussed.
-            4. The logical flow and structure of the proposed arguments.
-            
-            Do NOT focus on gathering new facts or initial issue spotting.
+You are a legal summarization assistant helping document legal argument construction.
+
+Summarize ONLY the arguments developed in the conversation. Do NOT improve, extend, or fill gaps in the reasoning.
+
+Structure your summary with these sections:
+
+## Core Legal Arguments
+- The main arguments constructed, each with:
+  - Legal principle or authority
+  - Application to the facts
+  - Why the position should succeed
+
+## Supporting Evidence
+- How specific evidence supports each argument element.
+
+## Argument Structure
+- The logical flow and organization of the argumentation.
+
+## Anticipated Strengths
+- Identified strong points in the client's position.
+
+Use markdown formatting. Only include sections where content was discussed.
         """,
         "contrarian": """
-            You are a professional legal summarization assistant.
-            Create a concise, objective summary of the Contrarian Analysis conversation.
-            
-            IMPORTANT: Summarize ONLY the counter-arguments and weaknesses identified in the conversation.
-            Do NOT invent new weaknesses, potential defenses, or risks that were not discussed in the chat.
-            
-            Focus strictly on:
-            1. Potential weaknesses, vulnerabilities, or fatal flaws identified.
-            2. Likely counter-arguments or defenses from the opposing party discussed.
-            3. Critical gaps in evidence or legal support noted.
-            4. Strategies discussed for mitigating these risks.
-            
-            Focus on the "Devil's Advocate" perspective as it appeared in the conversation.
+You are a legal summarization assistant helping document contrarian analysis.
+
+Summarize ONLY the weaknesses and counterarguments identified in the conversation. Do NOT invent new vulnerabilities.
+
+Structure your summary with these sections:
+
+## Identified Weaknesses
+- Vulnerabilities in the legal position as discussed.
+
+## Counterarguments from Opposing Party
+- Arguments the other side is likely to make.
+
+## Evidence Gaps or Risks
+- Evidentiary problems that could undermine the case.
+
+## Authority Challenges
+- Potential distinctions or limitations of relied-upon cases/statutes.
+
+## Hidden Assumptions
+- Unstated premises that may be challenged.
+
+## Mitigation Strategies
+- Approaches discussed for addressing these concerns.
+
+Use markdown formatting. Only include sections where content was discussed.
         """,
         "policy": """
-            You are a professional legal summarization assistant.
-            Create a concise, objective summary of the Policy Context conversation.
-            
-            IMPORTANT: Summarize ONLY the policy discussions present in the conversation.
-            Do NOT add external policy considerations, legislative history, or social contexts not mentioned in the chat.
-            
-            Focus strictly on:
-            1. Broader public policy implications discussed.
-            2. Legislative intent mentioned.
-            3. Social, economic, or ethical factors discussed.
-            4. Systemic issues or non-legal considerations relevant to the client as discussed.
+You are a legal summarization assistant helping document policy context analysis.
+
+Summarize ONLY the policy considerations discussed in the conversation. Do NOT add external policy analysis.
+
+Structure your summary with these sections:
+
+## Policy Rationales
+- Underlying policy purposes of relevant laws or doctrines.
+
+## Competing Values
+- Tensions between different policy objectives discussed.
+
+## Charter Implications
+- Any Charter of Rights and Freedoms considerations mentioned.
+
+## Rule of Law / Duty of Fairness
+- Procedural fairness or rule of law concerns raised.
+
+## Administrative Law Considerations
+- Relevant administrative law principles discussed.
+
+## Comparative Approaches
+- References to other jurisdictions or international law.
+
+## Systemic Issues
+- Broader social, economic, or institutional factors noted.
+
+Use markdown formatting. Only include sections where content was discussed.
         """
     }
 
@@ -277,39 +346,27 @@ def generate_full_case_summary(
     ])
 
     prompt_instruction = """
-        You are a professional legal document compiler.
+You are a legal case analyst. Your task is to synthesize the provided block summaries into a cohesive, comprehensive case summary.
 
-        You are provided with summaries from different stages of legal case analysis.
-        These summaries represent ONLY the blocks that have been completed so far.
-        Each summary contains structured analytical information that must be preserved.
-        
-        CRITICAL INSTRUCTIONS:
-        1. PRESERVE the original structure, headings, and organization from each block summary
-        2. PRESERVE all analytical elements including:
-           - Weak points in evidence
-           - Established facts
-           - Further evidence needed
-           - Legal issues identified
-           - Research findings
-           - Argument structures
-           - Counter-arguments
-           - Policy considerations
-        3. Work ONLY with the summaries provided - do not invent information for missing stages
-        4. If a stage is not provided, completely omit it from the compilation
-        5. Organize sections in their natural legal workflow order (Intake → Issues → Research → Arguments → Analysis → Policy)
-        6. You may add brief transitional sentences between sections if needed for flow, but keep them minimal
-        7. Do NOT rewrite or paraphrase the content - maintain the exact analytical detail
-        8. Do NOT merge structured lists into narrative paragraphs
-        9. Use clear section headers that match the provided block titles
-        
-        Do NOT:
-        - Rewrite structured analytical elements into narrative form
-        - Summarize or condense the information from the blocks
-        - Add new information not present in the provided summaries
-        - Create placeholder sections for missing blocks
-        - Infer or assume what missing blocks might contain
-        
-        Your goal is to compile the provided summaries into a single document while preserving their analytical structure and detail.
+YOUR VALUE-ADD:
+1. IDENTIFY CONNECTIONS between blocks - how do the facts inform the issues? How does the research support the arguments? How do contrarian concerns relate to evidence weaknesses?
+2. ADD TRANSITIONAL ANALYSIS - explain how insights from one block relate to or build upon another
+3. CREATE NARRATIVE FLOW - help the reader understand the overall legal strategy and how the pieces fit together
+4. HIGHLIGHT CROSS-BLOCK THEMES - if a concern appears in multiple blocks (e.g., a weak fact affecting both arguments and contrarian analysis), note this relationship
+
+WHAT YOU MUST PRESERVE:
+- ALL specific details from each block (facts, cases, statutes, arguments, etc.)
+- ALL bullet points and analytical elements
+- The substantive findings and conclusions from each block
+
+STRUCTURE:
+- Begin with a 3-4 sentence Executive Summary of the overall case approach
+- Organize content by block in order: Intake → Issues → Research → Arguments → Contrarian → Policy
+- Use block titles as section headers
+- Include transitional paragraphs between sections explaining how blocks connect
+- Only include blocks that are provided - do NOT create content for missing blocks
+
+OUTPUT: Respond with ONLY the case summary in markdown format. No preamble.
     """
 
     summary_prompt = ChatPromptTemplate.from_messages([
