@@ -218,6 +218,122 @@ def get_llm_output(response: str) -> dict:
         llm_output=response
     )
 
+def get_streaming_response(
+    query: str,
+    province: str,
+    statute: str,
+    llm: ChatBedrock,
+    history_aware_retriever,
+    table_name: str,
+    case_id: str,
+    system_prompt: str,
+    case_type: str,
+    jurisdiction: str,
+    case_description: str,
+    connection_id: str,
+    websocket_endpoint: str,
+) -> dict:
+    """
+    Generates a streaming response to a query and pushes chunks back to WebSocket client.
+
+    Args:
+    query (str): The student's query string.
+    connection_id (str): WebSocket connection ID for pushing messages.
+    websocket_endpoint (str): HTTPS endpoint for ApiGatewayManagementApi.
+    ... (other args same as get_response)
+
+    Returns:
+    dict: A dictionary containing the full response after streaming completes.
+    """
+    import boto3
+    import json
+
+    # Initialize ApiGatewayManagementApi client
+    apigw_client = boto3.client(
+        'apigatewaymanagementapi',
+        endpoint_url=websocket_endpoint
+    )
+
+    def send_to_websocket(message_type: str, content: str = None, metadata: dict = None):
+        """Helper to send messages to WebSocket connection."""
+        message = {"type": message_type}
+        if content is not None:
+            message["content"] = content
+        if metadata is not None:
+            message["metadata"] = metadata
+        try:
+            apigw_client.post_to_connection(
+                ConnectionId=connection_id,
+                Data=json.dumps(message).encode('utf-8')
+            )
+        except Exception as e:
+            print(f"Error sending to WebSocket: {e}")
+
+    # Create a system prompt for the question answering
+    processed_system_prompt = (
+        f"""
+        Case Context:
+        {system_prompt}
+        Pay close attention to the latest system prompt I've given you, as it may have been updated since the last message, but don't entirely discard the previous system prompts unless they conflict. This is for your behaviour, you do not need to include it in the response.
+
+        Additional case detials that are relevant:
+        Case type: {case_type}
+        Jurisdiction: {jurisdiction}
+        Case description: {case_description}
+        Province (blank if not under provincial jurisdiction): {province}
+        Statute (blank if not applicable): {statute}
+        
+        Relevant Documents:
+        {{context}}
+        """
+    )
+    
+    qa_prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", processed_system_prompt),
+            MessagesPlaceholder("chat_history"),
+            ("human", "{input}"),
+        ]
+    )
+    question_answer_chain = create_stuff_documents_chain(llm, qa_prompt)
+    rag_chain = create_retrieval_chain(history_aware_retriever, question_answer_chain)
+
+    conversational_rag_chain = RunnableWithMessageHistory(
+        rag_chain,
+        lambda _: DynamoDBChatMessageHistory(
+            table_name=table_name, 
+            session_id=case_id
+        ),
+        input_messages_key="input",
+        history_messages_key="chat_history",
+        output_messages_key="answer",
+    )
+    
+    # Send start message
+    send_to_websocket("start")
+    
+    full_response = ""
+    try:
+        # Stream the response
+        for chunk in conversational_rag_chain.stream(
+            {"input": query},
+            config={"configurable": {"session_id": case_id}}
+        ):
+            # Extract the answer portion from the chunk
+            if "answer" in chunk and chunk["answer"]:
+                chunk_content = chunk["answer"]
+                full_response += chunk_content
+                send_to_websocket("chunk", content=chunk_content)
+        
+        # Send complete message
+        send_to_websocket("complete", metadata={"llm_output": full_response})
+        
+    except Exception as e:
+        send_to_websocket("error", content=str(e))
+        raise
+    
+    return get_llm_output(full_response)
+
 def split_into_sentences(paragraph: str) -> list[str]:
     """
     Splits a given paragraph into individual sentences using a regular expression to detect sentence boundaries.

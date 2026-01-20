@@ -9,7 +9,7 @@ import uuid
 from langchain_aws import BedrockEmbeddings
 
 from helpers.vectorstore import get_vectorstore_retriever
-from helpers.chat import get_bedrock_llm, get_initial_student_query, create_dynamodb_history_table, get_response
+from helpers.chat import get_bedrock_llm, get_initial_student_query, create_dynamodb_history_table, get_response, get_streaming_response
 # # Set up basic logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger()
@@ -498,22 +498,71 @@ def handler(event, context):
     try:
         logger.info("Generating response from the LLM.")
         
-        response = get_response(
+        # Check if this is a WebSocket invocation
+        is_websocket = event.get("isWebSocket", False)
+        request_context = event.get("requestContext", {})
+        connection_id = request_context.get("connectionId")
+        domain_name = request_context.get("domainName")
+        stage = request_context.get("stage")
+        
+        if is_websocket and connection_id:
+            # WebSocket streaming mode
+            logger.info(f"WebSocket streaming mode - connectionId: {connection_id}")
+            websocket_endpoint = os.environ.get("WEBSOCKET_API_ENDPOINT")
+            if not websocket_endpoint:
+                websocket_endpoint = f"https://{domain_name}/{stage}"
+            
+            response = get_streaming_response(
                 query=student_query,
                 province=province,
                 statute=statute,
                 llm=llm,
                 history_aware_retriever=history_aware_retriever,
                 table_name=TABLE_NAME,
-                case_id=session_id, # Use session_id instead of case_id for chat history
+                case_id=session_id,
                 system_prompt=system_prompt,
                 case_type=case_type,
                 jurisdiction=jurisdiction,
-                case_description=case_description  ) 
-        print("response: ", response)
+                case_description=case_description,
+                connection_id=connection_id,
+                websocket_endpoint=websocket_endpoint,
+            )
+            # For WebSocket invocations, we don't return an HTTP response
+            # The streaming response is sent directly to the WebSocket connection
+            logger.info("Streaming response completed.")
+            return {"statusCode": 200}
+        else:
+            # Traditional HTTP mode
+            response = get_response(
+                query=student_query,
+                province=province,
+                statute=statute,
+                llm=llm,
+                history_aware_retriever=history_aware_retriever,
+                table_name=TABLE_NAME,
+                case_id=session_id,
+                system_prompt=system_prompt,
+                case_type=case_type,
+                jurisdiction=jurisdiction,
+                case_description=case_description,
+            )
+            print("response: ", response)
         
     except Exception as e:
         logger.error(f"Error getting response from AI: {e}")
+        # For WebSocket errors, try to send error message to client
+        if is_websocket and connection_id:
+            try:
+                import boto3
+                websocket_endpoint = os.environ.get("WEBSOCKET_API_ENDPOINT", f"https://{domain_name}/{stage}")
+                apigw_client = boto3.client('apigatewaymanagementapi', endpoint_url=websocket_endpoint)
+                apigw_client.post_to_connection(
+                    ConnectionId=connection_id,
+                    Data=json.dumps({"type": "error", "content": str(e)}).encode('utf-8')
+                )
+            except Exception as ws_error:
+                logger.error(f"Failed to send error to WebSocket: {ws_error}")
+            return {"statusCode": 500}
         return {
             'statusCode': 500,
             "headers": {
