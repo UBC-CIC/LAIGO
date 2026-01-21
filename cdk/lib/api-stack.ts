@@ -24,6 +24,7 @@ import * as bedrock from "aws-cdk-lib/aws-bedrock";
 import * as sqs from "aws-cdk-lib/aws-sqs";
 import * as apigwv2 from "aws-cdk-lib/aws-apigatewayv2";
 import { WebSocketLambdaIntegration } from "aws-cdk-lib/aws-apigatewayv2-integrations";
+import { WebSocketLambdaAuthorizer } from "aws-cdk-lib/aws-apigatewayv2-authorizers";
 
 // Stack properties for API Gateway configuration
 interface ApiGatewayStackProps extends cdk.StackProps {
@@ -1590,6 +1591,25 @@ export class ApiGatewayStack extends cdk.Stack {
       }
     );
 
+    // Lambda for WebSocket Authorizer (validates token & returns IAM Policy)
+    const wsAuthorizerFunction = new lambda.Function(
+      this,
+      `${id}-WsAuthorizerFunction`,
+      {
+        runtime: lambda.Runtime.NODEJS_22_X,
+        code: lambda.Code.fromAsset("lambda/websocket"),
+        handler: "authorizer.handler",
+        timeout: Duration.seconds(10),
+        memorySize: 256,
+        layers: [jwt],
+        functionName: `${id}-WsAuthorizer`,
+        environment: {
+          COGNITO_USER_POOL_ID: this.userPool.userPoolId,
+          COGNITO_CLIENT_ID: this.appClient.userPoolClientId,
+        },
+      }
+    );
+
     // Lambda for $disconnect route - cleanup/logging
     const wsDisconnectFunction = new lambda.Function(
       this,
@@ -1624,6 +1644,15 @@ export class ApiGatewayStack extends cdk.Stack {
     // Grant default function permission to invoke TextGen Lambda
     textGenLambdaDockerFunc.grantInvoke(wsDefaultFunction);
 
+    // Create Lambda Authorizer for WebSocket connections
+    const wsAuthorizer = new WebSocketLambdaAuthorizer(
+      `${id}-WsAuthorizer`,
+      wsAuthorizerFunction,
+      {
+        identitySource: ["route.request.querystring.token"],
+      }
+    );
+
     // Create WebSocket API
     this.wsApi = new apigwv2.WebSocketApi(this, `${id}-ChatWebSocketApi`, {
       apiName: `${id}-ChatWebSocket`,
@@ -1632,6 +1661,7 @@ export class ApiGatewayStack extends cdk.Stack {
           "ConnectIntegration",
           wsConnectFunction
         ),
+        authorizer: wsAuthorizer,
       },
       disconnectRouteOptions: {
         integration: new WebSocketLambdaIntegration(

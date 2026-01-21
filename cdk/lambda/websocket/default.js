@@ -11,11 +11,16 @@ exports.handler = async (event) => {
   const domainName = event.requestContext.domainName;
   const stage = event.requestContext.stage;
 
+  // Extract user identity from authorizer context
+  const cognitoId = event.requestContext.authorizer?.principalId;
+  const userEmail = event.requestContext.authorizer?.email;
+
   console.log("WebSocket message received:", {
     connectionId,
     routeKey: event.requestContext.routeKey,
-    body: event.body,
     timestamp: new Date().toISOString(),
+    cognitoId,
+    userEmail,
   });
 
   try {
@@ -40,8 +45,17 @@ exports.handler = async (event) => {
     if (action === "generate_text") {
       const { case_id, sub_route, message_content } = body;
 
+      // Log metadata only (scrub message_content to prevent PII leakage)
+      console.log("Invoking text generation:", {
+        case_id,
+        sub_route,
+        cognitoId,
+        messageLength: message_content?.length || 0,
+      });
+
       const textGenPayload = {
         isWebSocket: true,
+        cognitoId: cognitoId, // Pass authenticated user ID
         queryStringParameters: {
           case_id: case_id,
           sub_route: sub_route,
@@ -55,11 +69,6 @@ exports.handler = async (event) => {
           stage: stage,
         },
       };
-
-      console.log(
-        "Invoking text generation function with payload:",
-        textGenPayload
-      );
 
       await lambda.send(
         new InvokeCommand({

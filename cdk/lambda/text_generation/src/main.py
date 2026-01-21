@@ -6,6 +6,7 @@ import logging
 import psycopg
 import time
 import uuid
+import functools
 from langchain_aws import BedrockEmbeddings
 
 from helpers.vectorstore import get_vectorstore_retriever
@@ -103,6 +104,87 @@ def connect_to_db():
                 connection.close()
             raise
     return connection
+
+@functools.lru_cache(maxsize=128)
+def check_authorization(cognito_id, case_id):
+    """
+    Verify that the user (identified by cognito_id) owns the specified case.
+    Prevents IDOR attacks by checking case ownership.
+    
+    Args:
+        cognito_id: Cognito user ID from JWT token
+        case_id: Case ID from the request
+    
+    Returns:
+        bool: True if authorized, False otherwise
+    """
+    try:
+        conn = connect_to_db()
+        cursor = conn.cursor()
+        
+        # Look up user_id from cognito_id
+        cursor.execute(
+            'SELECT user_id FROM "users" WHERE cognito_id = %s',
+            (cognito_id,)
+        )
+        user_row = cursor.fetchone()
+        
+        if not user_row:
+            logger.warning(f"Authorization failed: User not found for cognito_id={cognito_id}")
+            cursor.close()
+            return False
+        
+        user_id = user_row[0]
+        
+        # Verify case ownership
+        cursor.execute(
+            'SELECT student_id FROM "cases" WHERE case_id = %s',
+            (case_id,)
+        )
+        case_row = cursor.fetchone()
+        
+        if not case_row:
+            logger.warning(f"Authorization failed: Case not found case_id={case_id}")
+            cursor.close()
+            return False
+        
+        case_owner_id = case_row[0]
+        
+        if str(user_id) == str(case_owner_id):
+            logger.info(f"Authorization successful: User {cognito_id} owns case {case_id}")
+            cursor.close()
+            return True
+
+        # Check if user is an instructor for this student
+        cursor = conn.cursor() # Re-open cursor if closed above or ensure valid state
+
+        # Check if the requesting user (user_id) is an instructor for the case owner (case_owner_id)
+        # We query the 'instructor_students' table
+        cursor.execute(
+            """
+            SELECT 1 
+            FROM instructor_students 
+            WHERE instructor_id = %s AND student_id = %s
+            """,
+            (user_id, case_owner_id)
+        )
+        is_instructor = cursor.fetchone()
+        cursor.close()
+
+        if is_instructor:
+            logger.info(f"Authorization successful: User {cognito_id} is instructor for case owner {case_owner_id}")
+            return True
+
+        logger.warning(
+            f"Authorization failed: User {cognito_id} (user_id={user_id}) "
+            f"attempted to access case {case_id} owned by {case_owner_id}"
+        )
+        return False
+        
+    except Exception as e:
+        logger.error(f"Authorization check failed with error: {e}")
+        return False
+
 
 def setup_guardrail(guardrail_name: str) -> tuple[str, str]:
     """
@@ -500,14 +582,25 @@ def handler(event, context):
         
         # Check if this is a WebSocket invocation
         is_websocket = event.get("isWebSocket", False)
+        cognito_id = event.get("cognitoId")  # Extract authenticated user ID
         request_context = event.get("requestContext", {})
         connection_id = request_context.get("connectionId")
         domain_name = request_context.get("domainName")
         stage = request_context.get("stage")
         
         if is_websocket and connection_id:
-            # WebSocket streaming mode
-            logger.info(f"WebSocket streaming mode - connectionId: {connection_id}")
+            # WebSocket streaming mode - perform authorization check
+            logger.info(f"WebSocket streaming mode - connectionId: {connection_id}, cognitoId: {cognito_id}")
+            
+            # IDOR Protection: Verify user owns the case
+            if not cognito_id:
+                logger.error("Authorization failed: Missing cognitoId in WebSocket request")
+                return {"statusCode": 401, "body": "Unauthorized"}
+            
+            if not check_authorization(cognito_id, case_id):
+                logger.error(f"Authorization failed: User {cognito_id} does not own case {case_id}")
+                return {"statusCode": 403, "body": "Forbidden"}
+            
             websocket_endpoint = os.environ.get("WEBSOCKET_API_ENDPOINT")
             if not websocket_endpoint:
                 websocket_endpoint = f"https://{domain_name}/{stage}"
@@ -533,6 +626,28 @@ def handler(event, context):
             return {"statusCode": 200}
         else:
             # Traditional HTTP mode
+            logger.info("HTTP mode processing request")
+            
+            # Extract cognitoId from Authorizer (passed by API Gateway)
+            cognito_id_http = request_context.get("authorizer", {}).get("principalId")
+            
+            if cognito_id_http:
+                logger.info(f"HTTP User Identity extracted: {cognito_id_http}")
+                if not check_authorization(cognito_id_http, case_id):
+                    logger.warning(f"Authorization failed for HTTP: User {cognito_id_http} does not own case {case_id}")
+                    return {
+                        'statusCode': 403,
+                        "headers": {
+                            "Content-Type": "application/json",
+                            "Access-Control-Allow-Headers": "*",
+                            "Access-Control-Allow-Origin": "*",
+                            "Access-Control-Allow-Methods": "*",
+                        },
+                        "body": json.dumps({"error": "Forbidden: You do not have access to this case."})
+                    }
+            else:
+                logger.warning("No Identity found in HTTP request context - proceeding (assuming Auth disabled or testing)")
+
             response = get_response(
                 query=student_query,
                 province=province,
