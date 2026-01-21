@@ -186,12 +186,9 @@ const InterviewAssistant: React.FC = () => {
   );
 
   // Initialize WebSocket connection
-  const { sendMessage, sendStreamingRequest, isConnected } = useWebSocket(
-    wsUrl,
-    {
-      onMessage: handleWebSocketMessage,
-    }
-  );
+  const { sendStreamingRequest, isConnected } = useWebSocket(wsUrl, {
+    onMessage: handleWebSocketMessage,
+  });
 
   // Set up WebSocket URL when auth is available
   useEffect(() => {
