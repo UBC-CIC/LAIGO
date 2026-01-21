@@ -402,13 +402,101 @@ const InterviewAssistant: React.FC = () => {
 
     // Use WebSocket if connected, otherwise fall back to HTTP
     if (isConnected) {
-      const sent = sendMessage({
-        action: "generate_text",
-        case_id: caseId,
-        sub_route: section,
-        message_content: message,
-      });
-      if (!sent) {
+      const requestId = sendStreamingRequest(
+        "generate_text",
+        {
+          case_id: caseId,
+          sub_route: section,
+          message_content: message,
+        },
+        {
+          onStart: () => {
+            // Add an empty AI message that will be filled with chunks
+            setMessages((prev) => {
+              const newMessages = [
+                ...prev,
+                { type: "ai" as const, content: "", isStreaming: true },
+              ];
+              streamingIndexRef.current = newMessages.length - 1;
+              return newMessages;
+            });
+          },
+          onChunk: (content) => {
+            // Append chunk to the streaming message
+            setMessages((prev) => {
+              if (streamingIndexRef.current === null) return prev;
+              const updated = [...prev];
+              const idx = streamingIndexRef.current;
+              if (updated[idx]) {
+                updated[idx] = {
+                  ...updated[idx],
+                  content: updated[idx].content + content,
+                };
+              }
+              return updated;
+            });
+          },
+          onComplete: () => {
+            // Mark streaming as complete
+            const completedIndex = streamingIndexRef.current;
+            setMessages((prev) => {
+              if (completedIndex === null) return prev;
+              const updated = [...prev];
+              if (updated[completedIndex]) {
+                updated[completedIndex] = {
+                  type: updated[completedIndex].type,
+                  content: updated[completedIndex].content,
+                  isStreaming: false,
+                };
+              }
+              return updated;
+            });
+            streamingIndexRef.current = null;
+            setIsLoading(false);
+
+            // Check if we should trigger assessment
+            if (currentBlock && PROGRESSION_MAP[currentBlock]) {
+              const nextStep = PROGRESSION_MAP[currentBlock];
+              const nextBlocks = Array.isArray(nextStep)
+                ? nextStep
+                : [nextStep];
+              const allNextUnlocked = nextBlocks.every((block) =>
+                unlockedBlocks.includes(block)
+              );
+              if (!allNextUnlocked) {
+                assessProgress();
+              }
+            }
+          },
+          onError: (errorMsg) => {
+            setMessages((prev) => {
+              if (streamingIndexRef.current !== null) {
+                const updated = [...prev];
+                const idx = streamingIndexRef.current;
+                if (updated[idx]) {
+                  updated[idx] = {
+                    ...updated[idx],
+                    content: errorMsg || "An error occurred.",
+                    isStreaming: false,
+                  };
+                }
+                return updated;
+              }
+              return [
+                ...prev,
+                {
+                  type: "ai" as const,
+                  content: errorMsg || "An error occurred.",
+                },
+              ];
+            });
+            streamingIndexRef.current = null;
+            setIsLoading(false);
+          },
+        }
+      );
+
+      if (!requestId) {
         console.error("Failed to send WebSocket message");
         setMessages((prev) => [
           ...prev,
