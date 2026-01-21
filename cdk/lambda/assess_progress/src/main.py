@@ -7,8 +7,15 @@ import time
 from langchain_aws import BedrockLLM
 from langchain_community.chat_message_histories import DynamoDBChatMessageHistory
 
-logging.basicConfig(level=logging.INFO)
+# Set up logging - Force level to INFO to ensure CloudWatch capture
 logger = logging.getLogger()
+if len(logger.handlers) > 0:
+    # The Lambda environment pre-configures a handler logging to stderr. 
+    # If a handler is already set, basicConfig won't do anything.
+    # We set the level directly on the root logger.
+    logger.setLevel(logging.INFO)
+else:
+    logging.basicConfig(level=logging.INFO)
 
 # Environment variables
 DB_SECRET_NAME = os.environ["SM_DB_CREDENTIALS"]
