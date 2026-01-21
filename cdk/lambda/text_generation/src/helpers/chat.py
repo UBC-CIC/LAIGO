@@ -232,6 +232,7 @@ def get_streaming_response(
     case_description: str,
     connection_id: str,
     websocket_endpoint: str,
+    request_id: str = None,
 ) -> dict:
     """
     Generates a streaming response to a query and pushes chunks back to WebSocket client.
@@ -254,13 +255,17 @@ def get_streaming_response(
         endpoint_url=websocket_endpoint
     )
 
-    def send_to_websocket(message_type: str, content: str = None, metadata: dict = None):
-        """Helper to send messages to WebSocket connection."""
-        message = {"type": message_type}
+    def send_to_websocket(message_type: str, content: str = None, data: dict = None):
+        """Helper to send messages to WebSocket connection with request correlation."""
+        message = {
+            "requestId": request_id,
+            "action": "generate_text",
+            "type": message_type,
+        }
         if content is not None:
             message["content"] = content
-        if metadata is not None:
-            message["metadata"] = metadata
+        if data is not None:
+            message["data"] = data
         try:
             apigw_client.post_to_connection(
                 ConnectionId=connection_id,
@@ -326,7 +331,7 @@ def get_streaming_response(
                 send_to_websocket("chunk", content=chunk_content)
         
         # Send complete message
-        send_to_websocket("complete", metadata={"llm_output": full_response})
+        send_to_websocket("complete", data={"llm_output": full_response})
         
     except Exception as e:
         send_to_websocket("error", content=str(e))

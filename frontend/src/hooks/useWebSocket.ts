@@ -2,9 +2,20 @@ import { useEffect, useRef, useCallback, useState } from "react";
 
 interface WebSocketMessage {
   type: "start" | "chunk" | "complete" | "error" | "pong";
+  requestId?: string;
+  action?: string;
   content?: string;
+  data?: Record<string, unknown>;
   message?: string;
   sources?: string[];
+}
+
+interface PendingRequest {
+  action: string;
+  onStart?: () => void;
+  onChunk?: (content: string) => void;
+  onComplete?: (data: Record<string, unknown>) => void;
+  onError?: (message: string) => void;
 }
 
 interface UseWebSocketOptions {
@@ -23,9 +34,14 @@ export const useWebSocket = (
   const heartbeatIntervalRef = useRef<number | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const isManualDisconnectRef = useRef(false);
+  const pendingRequestsRef = useRef<Map<string, PendingRequest>>(new Map());
   const [connectionState, setConnectionState] = useState<
     "connecting" | "connected" | "disconnected" | "error"
   >("disconnected");
+
+  // Generate unique request ID
+  const generateRequestId = () =>
+    `req_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
   // Store callbacks in refs to avoid dependency issues
   const callbacksRef = useRef(options);
@@ -117,13 +133,43 @@ export const useWebSocket = (
       wsRef.current.onmessage = (event) => {
         try {
           const message: WebSocketMessage = JSON.parse(event.data);
-          console.log("[WebSocket] Received message");
+          console.log(
+            "[WebSocket] Received message:",
+            message.type,
+            message.requestId
+          );
 
           if (message.type === "pong") {
             console.log("[WebSocket] Received pong");
             return;
           }
 
+          // Route by requestId if present
+          const { requestId, type, content, data } = message;
+          if (requestId) {
+            const pending = pendingRequestsRef.current.get(requestId);
+            if (pending) {
+              switch (type) {
+                case "start":
+                  pending.onStart?.();
+                  break;
+                case "chunk":
+                  pending.onChunk?.(content || "");
+                  break;
+                case "complete":
+                  pending.onComplete?.(data || {});
+                  pendingRequestsRef.current.delete(requestId);
+                  break;
+                case "error":
+                  pending.onError?.(content || "Unknown error");
+                  pendingRequestsRef.current.delete(requestId);
+                  break;
+              }
+              return;
+            }
+          }
+
+          // Fallback to legacy callback for messages without requestId
           callbacksRef.current.onMessage?.(message);
         } catch (error) {
           console.error("[WebSocket] Error parsing message:", error);
@@ -232,10 +278,30 @@ export const useWebSocket = (
     };
   }, [url]); // Only URL dependency!
 
+  const sendStreamingRequest = useCallback(
+    (
+      action: string,
+      payload: Record<string, unknown>,
+      callbacks: Omit<PendingRequest, "action">
+    ): string | null => {
+      const requestId = generateRequestId();
+      pendingRequestsRef.current.set(requestId, { action, ...callbacks });
+
+      const success = sendMessage({ action, requestId, ...payload });
+      if (!success) {
+        pendingRequestsRef.current.delete(requestId);
+        return null;
+      }
+      return requestId;
+    },
+    [sendMessage]
+  );
+
   const isConnected = wsRef.current?.readyState === WebSocket.OPEN;
 
   return {
     sendMessage,
+    sendStreamingRequest,
     connect,
     disconnect,
     forceReconnect,

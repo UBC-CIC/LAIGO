@@ -583,6 +583,7 @@ def handler(event, context):
         # Check if this is a WebSocket invocation
         is_websocket = event.get("isWebSocket", False)
         cognito_id = event.get("cognitoId")  # Extract authenticated user ID
+        request_id = event.get("requestId")  # Extract request ID for response correlation
         request_context = event.get("requestContext", {})
         connection_id = request_context.get("connectionId")
         domain_name = request_context.get("domainName")
@@ -619,6 +620,7 @@ def handler(event, context):
                 case_description=case_description,
                 connection_id=connection_id,
                 websocket_endpoint=websocket_endpoint,
+                request_id=request_id,
             )
             # For WebSocket invocations, we don't return an HTTP response
             # The streaming response is sent directly to the WebSocket connection

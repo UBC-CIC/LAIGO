@@ -25,7 +25,7 @@ exports.handler = async (event) => {
 
   try {
     const body = JSON.parse(event.body);
-    const { action } = body;
+    const { action, requestId } = body;
 
     // Handle ping/pong for connection heartbeat
     if (action === "ping") {
@@ -50,12 +50,14 @@ exports.handler = async (event) => {
         case_id,
         sub_route,
         cognitoId,
+        requestId,
         messageLength: message_content?.length || 0,
       });
 
       const textGenPayload = {
         isWebSocket: true,
-        cognitoId: cognitoId, // Pass authenticated user ID
+        cognitoId: cognitoId,
+        requestId: requestId, // Pass request ID for response correlation
         queryStringParameters: {
           case_id: case_id,
           sub_route: sub_route,
@@ -73,12 +75,47 @@ exports.handler = async (event) => {
       await lambda.send(
         new InvokeCommand({
           FunctionName: process.env.TEXT_GEN_FUNCTION_NAME,
-          InvocationType: "Event", // Asynchronous invocation
+          InvocationType: "Event",
           Payload: JSON.stringify(textGenPayload),
         })
       );
 
       console.log("Text generation function invoked successfully");
+      return { statusCode: 200 };
+    }
+
+    // Handle assess progress requests
+    if (action === "assess_progress") {
+      const { case_id, block_type } = body;
+
+      console.log("Invoking assess_progress:", {
+        case_id,
+        block_type,
+        cognitoId,
+        requestId,
+      });
+
+      const assessPayload = {
+        isWebSocket: true,
+        cognitoId: cognitoId,
+        requestId: requestId,
+        body: JSON.stringify({ case_id, block_type }),
+        requestContext: {
+          connectionId: connectionId,
+          domainName: domainName,
+          stage: stage,
+        },
+      };
+
+      await lambda.send(
+        new InvokeCommand({
+          FunctionName: process.env.ASSESS_PROGRESS_FUNCTION_NAME,
+          InvocationType: "Event",
+          Payload: JSON.stringify(assessPayload),
+        })
+      );
+
+      console.log("Assess progress function invoked successfully");
       return { statusCode: 200 };
     }
 

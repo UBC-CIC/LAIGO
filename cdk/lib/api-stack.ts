@@ -1637,12 +1637,14 @@ export class ApiGatewayStack extends cdk.Stack {
         functionName: `${id}-WsDefault`,
         environment: {
           TEXT_GEN_FUNCTION_NAME: textGenLambdaDockerFunc.functionName,
+          ASSESS_PROGRESS_FUNCTION_NAME: assessProgressFunction.functionName,
         },
       }
     );
 
-    // Grant default function permission to invoke TextGen Lambda
+    // Grant default function permission to invoke TextGen and AssessProgress Lambdas
     textGenLambdaDockerFunc.grantInvoke(wsDefaultFunction);
+    assessProgressFunction.grantInvoke(wsDefaultFunction);
 
     // Create Lambda Authorizer for WebSocket connections
     const wsAuthorizer = new WebSocketLambdaAuthorizer(
@@ -1710,6 +1712,23 @@ export class ApiGatewayStack extends cdk.Stack {
           `arn:aws:execute-api:${this.region}:${this.account}:${this.wsApi.apiId}/${this.wsStage.stageName}/POST/@connections/*`,
         ],
       })
+    );
+
+    // Grant AssessProgress Lambda permission to post messages back to WebSocket connections
+    assessProgressFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["execute-api:ManageConnections"],
+        resources: [
+          `arn:aws:execute-api:${this.region}:${this.account}:${this.wsApi.apiId}/${this.wsStage.stageName}/POST/@connections/*`,
+        ],
+      })
+    );
+
+    // Add WebSocket endpoint to AssessProgress Lambda environment
+    assessProgressFunction.addEnvironment(
+      "WEBSOCKET_API_ENDPOINT",
+      this.wsStage.url.replace("wss://", "https://")
     );
   }
 }

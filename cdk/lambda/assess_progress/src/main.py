@@ -197,12 +197,52 @@ def _response(status_code, body):
         'body': json.dumps(body)
     }
 
+def send_to_websocket(connection_id, endpoint, request_id, msg_type, content=None, data=None):
+    """Send a message to a WebSocket connection with request correlation."""
+    client = boto3.client('apigatewaymanagementapi', endpoint_url=endpoint)
+    message = {
+        "requestId": request_id,
+        "action": "assess_progress",
+        "type": msg_type,
+    }
+    if content is not None:
+        message["content"] = content
+    if data is not None:
+        message["data"] = data
+    try:
+        client.post_to_connection(
+            ConnectionId=connection_id,
+            Data=json.dumps(message).encode('utf-8')
+        )
+    except Exception as e:
+        logger.error(f"Error sending to WebSocket: {e}")
+
 def handler(event, context):
     logger.info("Assess Progress Lambda function started")
+    
+    # Check if this is a WebSocket invocation
+    is_websocket = event.get("isWebSocket", False)
+    request_id = event.get("requestId")
+    request_context = event.get("requestContext", {})
+    connection_id = request_context.get("connectionId")
+    domain_name = request_context.get("domainName")
+    stage = request_context.get("stage")
+    
+    # Determine WebSocket endpoint
+    ws_endpoint = None
+    if is_websocket and connection_id:
+        ws_endpoint = os.environ.get("WEBSOCKET_API_ENDPOINT")
+        if not ws_endpoint:
+            ws_endpoint = f"https://{domain_name}/{stage}"
+        logger.info(f"WebSocket mode - connectionId: {connection_id}, requestId: {request_id}")
+        send_to_websocket(connection_id, ws_endpoint, request_id, "start")
     
     try:
         initialize_constants()
     except Exception:
+        if is_websocket and connection_id:
+            send_to_websocket(connection_id, ws_endpoint, request_id, "error", content="Internal server error during initialization")
+            return {"statusCode": 500}
         return _response(500, 'Internal server error during initialization')
     
     # Parse body
@@ -291,7 +331,11 @@ def handler(event, context):
             result = json.loads(json_str)
         except Exception as e:
             logger.error(f"Failed to parse LLM response as JSON: {response_text}. Error: {e}")
-            return _response(200, {'unlocked': False, 'progress': 0, 'reasoning': 'Error parsing assessment result.'})
+            error_data = {'unlocked': False, 'progress': 0, 'reasoning': 'Error parsing assessment result.'}
+            if is_websocket and connection_id:
+                send_to_websocket(connection_id, ws_endpoint, request_id, "complete", data=error_data)
+                return {"statusCode": 200}
+            return _response(200, error_data)
             
         progress = int(result.get("progress", 0))
         reasoning = result.get("reasoning", "No reasoning provided.")
@@ -313,8 +357,14 @@ def handler(event, context):
             
             response_data["unlocked"] = unlocked_any
             
+        if is_websocket and connection_id:
+            send_to_websocket(connection_id, ws_endpoint, request_id, "complete", data=response_data)
+            return {"statusCode": 200}
         return _response(200, response_data)
         
     except Exception as e:
         logger.exception(f"Unexpected error during assessment execution: {e}")
+        if is_websocket and connection_id:
+            send_to_websocket(connection_id, ws_endpoint, request_id, "error", content=str(e))
+            return {"statusCode": 500}
         return _response(500, f"Internal server error: {str(e)}")

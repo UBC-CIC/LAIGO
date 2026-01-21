@@ -186,9 +186,12 @@ const InterviewAssistant: React.FC = () => {
   );
 
   // Initialize WebSocket connection
-  const { sendMessage, isConnected } = useWebSocket(wsUrl, {
-    onMessage: handleWebSocketMessage,
-  });
+  const { sendMessage, sendStreamingRequest, isConnected } = useWebSocket(
+    wsUrl,
+    {
+      onMessage: handleWebSocketMessage,
+    }
+  );
 
   // Set up WebSocket URL when auth is available
   useEffect(() => {
@@ -210,6 +213,29 @@ const InterviewAssistant: React.FC = () => {
   const assessProgress = async () => {
     if (!caseId || !currentBlock) return;
 
+    // Try WebSocket first if connected
+    if (isConnected) {
+      sendStreamingRequest(
+        "assess_progress",
+        { case_id: caseId, block_type: currentBlock },
+        {
+          onComplete: async (data) => {
+            const progress =
+              typeof data.progress === "number" ? data.progress : 0;
+            setProgress((progress / 5) * 100);
+
+            if (data.unlocked) {
+              setShowSnackbar(true);
+              await refreshUnlockedBlocks();
+            }
+          },
+          onError: (msg) => console.error("assess_progress error:", msg),
+        }
+      );
+      return;
+    }
+
+    // Fallback to HTTP
     try {
       const session = await fetchAuthSession();
       const token = session.tokens?.idToken?.toString();
@@ -233,16 +259,12 @@ const InterviewAssistant: React.FC = () => {
 
       if (response.ok) {
         const data = await response.json();
-        // data.progress is 0-5. Convert to percentage.
-        // If undefined, default to 0.
         const currentScore =
           typeof data.progress === "number" ? data.progress : 0;
         setProgress((currentScore / 5) * 100);
 
         if (data.unlocked) {
-          // Show snackbar notifying user
           setShowSnackbar(true);
-          // Refresh unlocked blocks from server
           await refreshUnlockedBlocks();
         }
       }
