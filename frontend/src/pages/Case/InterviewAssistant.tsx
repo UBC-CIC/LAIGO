@@ -86,6 +86,7 @@ const InterviewAssistant: React.FC = () => {
   // Handle incoming WebSocket messages
   const handleWebSocketMessage = useCallback(
     (message: WebSocketMessage) => {
+      console.log("WebSocket message received:", message.type, message);
       if (message.type === "start") {
         // Add an empty AI message that will be filled with chunks
         setMessages((prev) => {
@@ -112,12 +113,31 @@ const InterviewAssistant: React.FC = () => {
         });
       } else if (message.type === "complete") {
         // Mark streaming as complete
+        console.log(
+          "WebSocket COMPLETE message received, streamingIndexRef:",
+          streamingIndexRef.current
+        );
+
+        // Capture the index before the setState to avoid closure issues
+        const completedIndex = streamingIndexRef.current;
+
         setMessages((prev) => {
-          if (streamingIndexRef.current === null) return prev;
+          if (completedIndex === null) {
+            console.log("completedIndex is null, returning prev");
+            return prev;
+          }
           const updated = [...prev];
-          const idx = streamingIndexRef.current;
-          if (updated[idx]) {
-            updated[idx] = { ...updated[idx], isStreaming: false };
+          console.log(
+            "Setting isStreaming to false for message at index:",
+            completedIndex
+          );
+          if (updated[completedIndex]) {
+            updated[completedIndex] = {
+              type: updated[completedIndex].type,
+              content: updated[completedIndex].content,
+              isStreaming: false,
+            };
+            console.log("Updated message:", updated[completedIndex]);
           }
           return updated;
         });
@@ -536,10 +556,13 @@ const InterviewAssistant: React.FC = () => {
               <UserMessage key={index} message={msg.content} />
             ) : (
               <AiResponse
-                key={index}
+                key={`ai-${index}-${
+                  msg.isStreaming ? "streaming" : "complete"
+                }`}
                 message={msg.content}
                 onGenerateSummary={handleGenerateSummary}
                 isGeneratingSummary={isGeneratingSummary}
+                isStreaming={msg.isStreaming === true}
               />
             )
           )

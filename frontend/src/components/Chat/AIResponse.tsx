@@ -19,12 +19,14 @@ interface AiResponseProps {
   message: string;
   onGenerateSummary?: () => void;
   isGeneratingSummary?: boolean;
+  isStreaming?: boolean;
 }
 
 const AiResponse: React.FC<AiResponseProps> = ({
   message,
   onGenerateSummary,
   isGeneratingSummary = false,
+  isStreaming = false,
 }) => {
   const [copied, setCopied] = useState(false);
 
@@ -44,6 +46,16 @@ const AiResponse: React.FC<AiResponseProps> = ({
       setTimeout(() => setCopied(false), 2000);
     }
   };
+
+  // Debug: Log when isStreaming changes
+  React.useEffect(() => {
+    console.log(
+      "AIResponse isStreaming:",
+      isStreaming,
+      "message length:",
+      message.length
+    );
+  }, [isStreaming, message]);
 
   return (
     <Box
@@ -161,79 +173,81 @@ const AiResponse: React.FC<AiResponseProps> = ({
         </ReactMarkdown>
       </Typography>
 
-      <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 1 }}>
-        <IconButton
-          size="small"
-          disableRipple
-          sx={{
-            color: "var(--text-secondary)",
-            "&.Mui-focusVisible, &:focus, &:focus-visible": {
-              outline: "none !important",
-              boxShadow: "none !important",
-              border: "none !important",
-            },
-          }}
-          onClick={copyToClipboard}
-          aria-label={copied ? "Copied" : "Copy AI response"}
-        >
-          {copied ? (
-            <CheckIcon
-              fontSize="small"
-              sx={{ color: "var(--text-secondary)" }}
-            />
-          ) : (
-            <ContentCopyIcon fontSize="small" />
-          )}
-        </IconButton>
-        <IconButton
-          size="small"
-          disableRipple
-          sx={{
-            color: "var(--text-secondary)",
-            "&.Mui-focusVisible, &:focus, &:focus-visible": {
-              outline: "none !important",
-              boxShadow: "none !important",
-              border: "none !important",
-            },
-          }}
-        >
-          <VolumeUpIcon fontSize="small" />
-        </IconButton>
-        {onGenerateSummary && (
-          <Button
-            variant="outlined"
+      {!isStreaming && (
+        <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 1 }}>
+          <IconButton
             size="small"
             disableRipple
-            disabled={isGeneratingSummary}
-            onClick={onGenerateSummary}
             sx={{
               color: "var(--text-secondary)",
-              borderColor: "var(--border)",
-              textTransform: "none",
-              fontSize: "0.7rem",
-              borderRadius: 1,
-              px: 1.5,
-              py: 0.5,
-              "&:hover": {
-                borderColor: "var(--text-secondary)",
-                backgroundColor: "rgba(255,255,255,0.05)",
-              },
               "&.Mui-focusVisible, &:focus, &:focus-visible": {
                 outline: "none !important",
                 boxShadow: "none !important",
                 border: "none !important",
               },
-              "&.Mui-disabled": {
-                color: "var(--text-secondary)",
-                borderColor: "var(--border)",
-                opacity: 0.6,
+            }}
+            onClick={copyToClipboard}
+            aria-label={copied ? "Copied" : "Copy AI response"}
+          >
+            {copied ? (
+              <CheckIcon
+                fontSize="small"
+                sx={{ color: "var(--text-secondary)" }}
+              />
+            ) : (
+              <ContentCopyIcon fontSize="small" />
+            )}
+          </IconButton>
+          <IconButton
+            size="small"
+            disableRipple
+            sx={{
+              color: "var(--text-secondary)",
+              "&.Mui-focusVisible, &:focus, &:focus-visible": {
+                outline: "none !important",
+                boxShadow: "none !important",
+                border: "none !important",
               },
             }}
           >
-            GENERATE SUMMARY
-          </Button>
-        )}
-      </Stack>
+            <VolumeUpIcon fontSize="small" />
+          </IconButton>
+          {onGenerateSummary && (
+            <Button
+              variant="outlined"
+              size="small"
+              disableRipple
+              disabled={isGeneratingSummary}
+              onClick={onGenerateSummary}
+              sx={{
+                color: "var(--text-secondary)",
+                borderColor: "var(--border)",
+                textTransform: "none",
+                fontSize: "0.7rem",
+                borderRadius: 1,
+                px: 1.5,
+                py: 0.5,
+                "&:hover": {
+                  borderColor: "var(--text-secondary)",
+                  backgroundColor: "rgba(255,255,255,0.05)",
+                },
+                "&.Mui-focusVisible, &:focus, &:focus-visible": {
+                  outline: "none !important",
+                  boxShadow: "none !important",
+                  border: "none !important",
+                },
+                "&.Mui-disabled": {
+                  color: "var(--text-secondary)",
+                  borderColor: "var(--border)",
+                  opacity: 0.6,
+                },
+              }}
+            >
+              GENERATE SUMMARY
+            </Button>
+          )}
+        </Stack>
+      )}
     </Box>
   );
 };
