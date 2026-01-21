@@ -15,6 +15,7 @@ import AiResponse from "../../components/Chat/AIResponse";
 import ChatBar from "../../components/Chat/ChatBar";
 import type { CaseOutletContext } from "./CaseLayout";
 import { useWebSocket } from "../../hooks/useWebSocket";
+import ThinkingIndicator from "../../components/Chat/ThinkingIndicator";
 
 interface Message {
   type: "human" | "ai";
@@ -544,12 +545,9 @@ const InterviewAssistant: React.FC = () => {
           )
         )}
 
-        {isLoading && (
+        {isLoading && !messages.some((m) => m.isStreaming) && (
           <Box sx={{ display: "flex", justifyContent: "flex-start", pl: 2 }}>
-            <CircularProgress
-              size={24}
-              sx={{ color: "var(--text-secondary)" }}
-            />
+            <ThinkingIndicator />
           </Box>
         )}
 
