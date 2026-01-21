@@ -34,10 +34,12 @@ export const useWebSocket = (
   const heartbeatIntervalRef = useRef<number | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const isManualDisconnectRef = useRef(false);
-  const pendingRequestsRef = useRef<Map<string, PendingRequest>>(new Map());
   const [connectionState, setConnectionState] = useState<
     "connecting" | "connected" | "disconnected" | "error"
   >("disconnected");
+
+  // Request tracking for streaming responses - must be after useState to maintain hook order
+  const pendingRequestsRef = useRef<Map<string, PendingRequest>>(new Map());
 
   // Generate unique request ID
   const generateRequestId = () =>
