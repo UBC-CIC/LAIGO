@@ -1259,12 +1259,7 @@ export class ApiGatewayStack extends cdk.Stack {
 
     // Grant permissions to assessProgressFunction
     db.secretPathUser.grantRead(assessProgressFunction);
-    assessProgressFunction.addToRolePolicy(
-      new iam.PolicyStatement({
-        actions: ["bedrock:InvokeModel"],
-        resources: ["*"],
-      }),
-    );
+    assessProgressFunction.addToRolePolicy(bedrockPolicyStatement);
 
     assessProgressFunction.addToRolePolicy(
       new iam.PolicyStatement({
@@ -1560,13 +1555,8 @@ export class ApiGatewayStack extends cdk.Stack {
     // Attach shared DynamoDB policy to summary generation lambda
     summaryGenerationFunction.addToRolePolicy(dynamoDBPolicyStatement);
 
-    // Grant access to Bedrock
-    summaryGenerationFunction.addToRolePolicy(
-      new iam.PolicyStatement({
-        actions: ["bedrock:InvokeModel"],
-        resources: ["*"],
-      }),
-    );
+    // Grant access to Bedrock (using shared policy with specific model ARNs)
+    summaryGenerationFunction.addToRolePolicy(bedrockPolicyStatement);
 
     // ========================================
     // WebSocket API for Chat Streaming
