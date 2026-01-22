@@ -77,7 +77,7 @@ const InterviewAssistant: React.FC = () => {
 
     const nextBlocks = Array.isArray(nextStep) ? nextStep : [nextStep];
     const allNextUnlocked = nextBlocks.every((block) =>
-      unlockedBlocks.includes(block)
+      unlockedBlocks.includes(block),
     );
 
     return !allNextUnlocked;
@@ -115,7 +115,7 @@ const InterviewAssistant: React.FC = () => {
         // Mark streaming as complete
         console.log(
           "WebSocket COMPLETE message received, streamingIndexRef:",
-          streamingIndexRef.current
+          streamingIndexRef.current,
         );
 
         // Capture the index before the setState to avoid closure issues
@@ -129,7 +129,7 @@ const InterviewAssistant: React.FC = () => {
           const updated = [...prev];
           console.log(
             "Setting isStreaming to false for message at index:",
-            completedIndex
+            completedIndex,
           );
           if (updated[completedIndex]) {
             updated[completedIndex] = {
@@ -149,7 +149,7 @@ const InterviewAssistant: React.FC = () => {
           const nextStep = PROGRESSION_MAP[currentBlock];
           const nextBlocks = Array.isArray(nextStep) ? nextStep : [nextStep];
           const allNextUnlocked = nextBlocks.every((block) =>
-            unlockedBlocks.includes(block)
+            unlockedBlocks.includes(block),
           );
           if (!allNextUnlocked) {
             assessProgress();
@@ -182,7 +182,7 @@ const InterviewAssistant: React.FC = () => {
         setIsLoading(false);
       }
     },
-    [currentBlock, unlockedBlocks]
+    [currentBlock, unlockedBlocks],
   );
 
   // Initialize WebSocket connection
@@ -227,7 +227,7 @@ const InterviewAssistant: React.FC = () => {
             }
           },
           onError: (msg) => console.error("assess_progress error:", msg),
-        }
+        },
       );
       return;
     }
@@ -251,7 +251,7 @@ const InterviewAssistant: React.FC = () => {
             case_id: caseId,
             block_type: currentBlock,
           }),
-        }
+        },
       );
 
       if (response.ok) {
@@ -293,7 +293,7 @@ const InterviewAssistant: React.FC = () => {
           headers: {
             Authorization: token,
           },
-        }
+        },
       );
 
       if (response.ok) {
@@ -349,7 +349,7 @@ const InterviewAssistant: React.FC = () => {
             headers: {
               Authorization: token,
             },
-          }
+          },
         );
 
         if (response.ok) {
@@ -357,11 +357,11 @@ const InterviewAssistant: React.FC = () => {
           setMessages(
             Array.isArray(history) && history.length > 0
               ? history
-              : [DEFAULT_GREETING]
+              : [DEFAULT_GREETING],
           );
           // Set message count based on existing human messages
           const humanMsgCount = history.filter(
-            (m: Message) => m.type === "human"
+            (m: Message) => m.type === "human",
           ).length;
           setMessageCount(humanMsgCount);
 
@@ -452,13 +452,17 @@ const InterviewAssistant: React.FC = () => {
             setIsLoading(false);
 
             // Check if we should trigger assessment
-            if (currentBlock && PROGRESSION_MAP[currentBlock]) {
+            if (
+              newMessageCount % 2 === 1 &&
+              currentBlock &&
+              PROGRESSION_MAP[currentBlock]
+            ) {
               const nextStep = PROGRESSION_MAP[currentBlock];
               const nextBlocks = Array.isArray(nextStep)
                 ? nextStep
                 : [nextStep];
               const allNextUnlocked = nextBlocks.every((block) =>
-                unlockedBlocks.includes(block)
+                unlockedBlocks.includes(block),
               );
               if (!allNextUnlocked) {
                 assessProgress();
@@ -490,7 +494,7 @@ const InterviewAssistant: React.FC = () => {
             streamingIndexRef.current = null;
             setIsLoading(false);
           },
-        }
+        },
       );
 
       if (!requestId) {
@@ -525,7 +529,7 @@ const InterviewAssistant: React.FC = () => {
             body: JSON.stringify({
               message_content: message,
             }),
-          }
+          },
         );
 
         if (response.ok) {
@@ -544,7 +548,7 @@ const InterviewAssistant: React.FC = () => {
                   ? nextStep
                   : [nextStep];
                 const allNextUnlocked = nextBlocks.every((block) =>
-                  unlockedBlocks.includes(block)
+                  unlockedBlocks.includes(block),
                 );
                 if (!allNextUnlocked) {
                   assessProgress();
@@ -671,7 +675,7 @@ const InterviewAssistant: React.FC = () => {
                 isGeneratingSummary={isGeneratingSummary}
                 isStreaming={msg.isStreaming === true}
               />
-            )
+            ),
           )
         )}
 

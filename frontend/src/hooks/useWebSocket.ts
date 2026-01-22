@@ -27,7 +27,7 @@ interface UseWebSocketOptions {
 
 export const useWebSocket = (
   url: string | null,
-  options: UseWebSocketOptions = {}
+  options: UseWebSocketOptions = {},
 ) => {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<number | null>(null);
@@ -91,12 +91,12 @@ export const useWebSocket = (
 
     const delay = Math.min(
       1000 * Math.pow(2, reconnectAttemptsRef.current),
-      30000
+      30000,
     );
     console.log(
       `[WebSocket] Scheduling reconnect attempt ${
         reconnectAttemptsRef.current + 1
-      }/10 in ${delay}ms`
+      }/10 in ${delay}ms`,
     );
 
     reconnectTimeoutRef.current = window.setTimeout(() => {
@@ -117,7 +117,7 @@ export const useWebSocket = (
     console.log(
       `[WebSocket] Connecting to: ${url} (attempt ${
         reconnectAttemptsRef.current + 1
-      })`
+      })`,
     );
     setConnectionState("connecting");
 
@@ -135,11 +135,15 @@ export const useWebSocket = (
       wsRef.current.onmessage = (event) => {
         try {
           const message: WebSocketMessage = JSON.parse(event.data);
-          console.log(
-            "[WebSocket] Received message:",
-            message.type,
-            message.requestId
-          );
+          console.log("[WebSocket] Received message:", {
+            type: message.type,
+            requestId: message.requestId,
+            action: message.action,
+            content: message.content
+              ? `${message.content.substring(0, 100)}...`
+              : null,
+            data: message.data,
+          });
 
           if (message.type === "pong") {
             console.log("[WebSocket] Received pong");
@@ -180,7 +184,7 @@ export const useWebSocket = (
 
       wsRef.current.onclose = (event) => {
         console.log(
-          `[WebSocket] Disconnected - Code: ${event.code}, Reason: ${event.reason}`
+          `[WebSocket] Disconnected - Code: ${event.code}, Reason: ${event.reason}`,
         );
 
         wsRef.current = null;
@@ -191,7 +195,7 @@ export const useWebSocket = (
         if (!isManualDisconnectRef.current) {
           if (event.code !== 1000 && event.code !== 1001) {
             console.log(
-              "[WebSocket] Abnormal closure, attempting to reconnect..."
+              "[WebSocket] Abnormal closure, attempting to reconnect...",
             );
             scheduleReconnect();
           } else {
@@ -237,7 +241,7 @@ export const useWebSocket = (
       if (wsRef.current?.readyState === WebSocket.OPEN) {
         try {
           const messageStr = JSON.stringify(message);
-          console.log("[WebSocket] Sending message");
+          console.log("[WebSocket] Sending message:", message);
           wsRef.current.send(messageStr);
           return true;
         } catch (error) {
@@ -247,11 +251,11 @@ export const useWebSocket = (
       }
 
       console.warn(
-        `[WebSocket] Cannot send message - Connection state: ${connectionState}`
+        `[WebSocket] Cannot send message - Connection state: ${connectionState}`,
       );
       return false;
     },
-    [connectionState]
+    [connectionState],
   );
 
   const forceReconnect = useCallback(() => {
@@ -284,7 +288,7 @@ export const useWebSocket = (
     (
       action: string,
       payload: Record<string, unknown>,
-      callbacks: Omit<PendingRequest, "action">
+      callbacks: Omit<PendingRequest, "action">,
     ): string | null => {
       const requestId = generateRequestId();
       pendingRequestsRef.current.set(requestId, { action, ...callbacks });
@@ -296,7 +300,7 @@ export const useWebSocket = (
       }
       return requestId;
     },
-    [sendMessage]
+    [sendMessage],
   );
 
   const isConnected = wsRef.current?.readyState === WebSocket.OPEN;
