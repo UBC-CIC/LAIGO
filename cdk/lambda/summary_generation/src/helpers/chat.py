@@ -554,7 +554,17 @@ Use markdown formatting. Only include sections where content was discussed.
             "jurisdiction": jurisdiction or "Not Specified"
         }):
             # Extract content from the chunk
-            chunk_content = chunk.content if hasattr(chunk, 'content') else str(chunk)
+            # chunk.content may be a string or a list of content blocks
+            raw_content = chunk.content if hasattr(chunk, 'content') else chunk
+            if isinstance(raw_content, list):
+                # Extract text from content blocks
+                chunk_content = ''.join(
+                    item.get('text', '') if isinstance(item, dict) else str(item)
+                    for item in raw_content
+                )
+            else:
+                chunk_content = str(raw_content) if raw_content else ''
+            
             if chunk_content:
                 full_response += chunk_content
                 if send_chunk_callback:
@@ -708,7 +718,17 @@ OUTPUT: Respond with ONLY the case summary in markdown format. No preamble.
             "summaries": summaries_text
         }):
             # Extract content from the chunk
-            chunk_content = chunk.content if hasattr(chunk, 'content') else str(chunk)
+            # chunk.content may be a string or a list of content blocks
+            raw_content = chunk.content if hasattr(chunk, 'content') else chunk
+            if isinstance(raw_content, list):
+                # Extract text from content blocks
+                chunk_content = ''.join(
+                    item.get('text', '') if isinstance(item, dict) else str(item)
+                    for item in raw_content
+                )
+            else:
+                chunk_content = str(raw_content) if raw_content else ''
+            
             if chunk_content:
                 full_response += chunk_content
                 if send_chunk_callback:
