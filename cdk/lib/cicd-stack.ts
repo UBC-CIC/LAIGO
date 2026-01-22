@@ -47,8 +47,8 @@ export class CICDStack extends cdk.Stack {
     // Grant ECR permissions for pushing/pulling Docker images
     codeBuildRole.addManagedPolicy(
       iam.ManagedPolicy.fromAwsManagedPolicyName(
-        "AmazonEC2ContainerRegistryPowerUser"
-      )
+        "AmazonEC2ContainerRegistryPowerUser",
+      ),
     );
 
     // Grant Lambda permissions for updating function code and configuration
@@ -66,8 +66,9 @@ export class CICDStack extends cdk.Stack {
           `arn:aws:lambda:${this.region}:${this.account}:function:*-DataIngestionLambdaDockerFunc`,
           `arn:aws:lambda:${this.region}:${this.account}:function:*-CaseLambdaDockerFunction`,
           `arn:aws:lambda:${this.region}:${this.account}:function:*-SummaryGenerationFunction`,
+          `arn:aws:lambda:${this.region}:${this.account}:function:*-AssessProgressFunction`,
         ],
-      })
+      }),
     );
 
     // Create pipeline artifact to pass source code between stages
@@ -81,7 +82,7 @@ export class CICDStack extends cdk.Stack {
     // Retrieve GitHub username from SSM Parameter Store
     const username = cdk.aws_ssm.StringParameter.valueForStringParameter(
       this,
-      "laigo-owner-name"
+      "laigo-owner-name",
     );
 
     // Add source stage to pull code from GitHub repository
@@ -97,7 +98,7 @@ export class CICDStack extends cdk.Stack {
             "github-personal-access-token", // GitHub token stored in Secrets Manager
             {
               jsonField: "my-github-token",
-            }
+            },
           ),
           output: sourceOutput, // Output artifact for next stage
           trigger: codepipeline_actions.GitHubTrigger.WEBHOOK, // Trigger on push events
@@ -148,7 +149,7 @@ export class CICDStack extends cdk.Stack {
               "aws:SourceAccount": this.account, // Restrict to same AWS account
             },
           },
-        })
+        }),
       );
 
       // Store repository reference and add tags for organization
@@ -274,7 +275,7 @@ export class CICDStack extends cdk.Stack {
               },
             },
           }),
-        }
+        },
       );
 
       // Grant permissions to push to ECR
@@ -286,7 +287,7 @@ export class CICDStack extends cdk.Stack {
           actionName: `Build_${lambda.name}`,
           project: buildProject,
           input: sourceOutput,
-        })
+        }),
       );
     });
 
