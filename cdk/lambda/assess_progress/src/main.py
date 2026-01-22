@@ -4,6 +4,7 @@ import boto3
 import logging
 import psycopg
 import time
+import functools
 from langchain_aws import BedrockLLM
 from langchain_community.chat_message_histories import DynamoDBChatMessageHistory
 
@@ -158,6 +159,82 @@ def fetch_chat_history(session_id):
         logger.exception(f"Error fetching chat history from DynamoDB for session '{session_id}': {e}")
         return ""
 
+@functools.lru_cache(maxsize=128)
+def check_authorization(cognito_id, case_id):
+    """
+    Verify that the user (identified by cognito_id) owns the specified case.
+    Prevents IDOR attacks by checking case ownership.
+    
+    Args:
+        cognito_id: Cognito user ID from JWT token
+        case_id: Case ID from the request
+    
+    Returns:
+        bool: True if authorized, False otherwise
+    """
+    try:
+        conn = connect_to_db()
+        cursor = conn.cursor()
+        
+        # Look up user_id from cognito_id
+        cursor.execute(
+            'SELECT user_id FROM "users" WHERE cognito_id = %s',
+            (cognito_id,)
+        )
+        user_row = cursor.fetchone()
+        
+        if not user_row:
+            logger.warning(f"Authorization failed: User not found for cognito_id={cognito_id}")
+            cursor.close()
+            return False
+        
+        user_id = user_row[0]
+        
+        # Verify case ownership
+        cursor.execute(
+            'SELECT student_id FROM "cases" WHERE case_id = %s',
+            (case_id,)
+        )
+        case_row = cursor.fetchone()
+        
+        if not case_row:
+            logger.warning(f"Authorization failed: Case not found case_id={case_id}")
+            cursor.close()
+            return False
+        
+        case_owner_id = case_row[0]
+        
+        if str(user_id) == str(case_owner_id):
+            logger.info(f"Authorization successful: User {cognito_id} owns case {case_id}")
+            cursor.close()
+            return True
+
+        # Check if user is an instructor for this student
+        cursor.execute(
+            """
+            SELECT 1 
+            FROM instructor_students 
+            WHERE instructor_id = %s AND student_id = %s
+            """,
+            (user_id, case_owner_id)
+        )
+        is_instructor = cursor.fetchone()
+        cursor.close()
+
+        if is_instructor:
+            logger.info(f"Authorization successful: User {cognito_id} is instructor for case owner {case_owner_id}")
+            return True
+
+        logger.warning(
+            f"Authorization failed: User {cognito_id} (user_id={user_id}) "
+            f"attempted to access case {case_id} owned by {case_owner_id}"
+        )
+        return False
+        
+    except Exception as e:
+        logger.error(f"Authorization check failed with error: {e}")
+        return False
+
 def unlock_next_block(case_id, next_block):
     connection = connect_to_db()
     if connection is None:
@@ -267,7 +344,34 @@ def handler(event, context):
     
     if not case_id or not block_type:
         logger.warning("Missing required parameters: case_id or block_type")
-        return _response(400, 'Missing required parameters: case_id, block_type')
+        error_msg = 'Missing required parameters: case_id, block_type'
+        if is_websocket and connection_id:
+            send_to_websocket(connection_id, ws_endpoint, request_id, "error", content=error_msg)
+            return {"statusCode": 400}
+        return _response(400, error_msg)
+    
+    # Extract cognito_id for authorization
+    cognito_id = event.get("cognitoId")
+    if not cognito_id:
+        # Try to get from request context (HTTP fallback)
+        cognito_id = request_context.get("authorizer", {}).get("principalId")
+    
+    if not cognito_id:
+        logger.error("Authorization failed: Missing cognitoId")
+        error_msg = "Unauthorized: Missing user identity"
+        if is_websocket and connection_id:
+            send_to_websocket(connection_id, ws_endpoint, request_id, "error", content=error_msg)
+            return {"statusCode": 401}
+        return _response(401, error_msg)
+    
+    # IDOR Protection: Verify user owns the case
+    if not check_authorization(cognito_id, case_id):
+        logger.error(f"Authorization failed: User {cognito_id} does not own case {case_id}")
+        error_msg = "Forbidden: You do not have access to this case"
+        if is_websocket and connection_id:
+            send_to_websocket(connection_id, ws_endpoint, request_id, "error", content=error_msg)
+            return {"statusCode": 403}
+        return _response(403, error_msg)
 
     # Determine progression map
     # Intake -> Issues -> Research -> (Argument, Contrarian, Policy)
