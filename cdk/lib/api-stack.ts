@@ -73,7 +73,7 @@ export class ApiGatewayStack extends cdk.Stack {
     id: string,
     db: DatabaseStack,
     vpcStack: VpcStack,
-    props: ApiGatewayStackProps
+    props: ApiGatewayStackProps,
   ) {
     super(scope, id, props);
 
@@ -105,7 +105,7 @@ export class ApiGatewayStack extends cdk.Stack {
     const powertoolsLayer = lambda.LayerVersion.fromLayerVersionArn(
       this,
       `${id}-PowertoolsLayer`,
-      `arn:aws:lambda:${this.region}:017000801446:layer:AWSLambdaPowertoolsPythonV2:78`
+      `arn:aws:lambda:${this.region}:017000801446:layer:AWSLambdaPowertoolsPythonV2:78`,
     );
 
     // Register all layers for use by Lambda functions
@@ -240,7 +240,7 @@ export class ApiGatewayStack extends cdk.Stack {
             providerName: this.userPool.userPoolProviderName,
           },
         ],
-      }
+      },
     );
 
     // Store Cognito configuration in Secrets Manager for frontend application
@@ -250,14 +250,14 @@ export class ApiGatewayStack extends cdk.Stack {
       description: "Cognito Secrets for authentication",
       secretObjectValue: {
         VITE_COGNITO_USER_POOL_ID: cdk.SecretValue.unsafePlainText(
-          this.userPool.userPoolId
+          this.userPool.userPoolId,
         ),
         VITE_COGNITO_USER_POOL_CLIENT_ID: cdk.SecretValue.unsafePlainText(
-          this.appClient.userPoolClientId
+          this.appClient.userPoolClientId,
         ),
         VITE_AWS_REGION: cdk.SecretValue.unsafePlainText(this.region),
         VITE_IDENTITY_POOL_ID: cdk.SecretValue.unsafePlainText(
-          this.identityPool.ref
+          this.identityPool.ref,
         ),
       },
       removalPolicy: cdk.RemovalPolicy.DESTROY,
@@ -299,7 +299,7 @@ export class ApiGatewayStack extends cdk.Stack {
         dataTraceEnabled: true, // Enable request/response logging
         metricsEnabled: true, // Enable CloudWatch metrics
         accessLogDestination: new apigateway.LogGroupLogDestination(
-          accessLogGroup
+          accessLogGroup,
         ),
         accessLogFormat: apigateway.AccessLogFormat.jsonWithStandardFields({
           caller: true,
@@ -381,7 +381,7 @@ export class ApiGatewayStack extends cdk.Stack {
       {
         resourceArn: `arn:aws:apigateway:${this.region}::/restapis/${this.api.restApiId}/stages/${this.api.deploymentStage.stageName}`,
         webAclArn: waf.attrArn,
-      }
+      },
     );
 
     // Ensure API stage is created before WAF association
@@ -399,7 +399,7 @@ export class ApiGatewayStack extends cdk.Stack {
             "cognito-identity.amazonaws.com:amr": "authenticated", // Only authenticated users
           },
         },
-        "sts:AssumeRoleWithWebIdentity"
+        "sts:AssumeRoleWithWebIdentity",
       ),
     });
 
@@ -414,7 +414,7 @@ export class ApiGatewayStack extends cdk.Stack {
             "cognito-identity.amazonaws.com:amr": "authenticated", // Only authenticated users
           },
         },
-        "sts:AssumeRoleWithWebIdentity"
+        "sts:AssumeRoleWithWebIdentity",
       ),
     });
 
@@ -429,7 +429,7 @@ export class ApiGatewayStack extends cdk.Stack {
             "cognito-identity.amazonaws.com:amr": "authenticated", // Only authenticated users
           },
         },
-        "sts:AssumeRoleWithWebIdentity"
+        "sts:AssumeRoleWithWebIdentity",
       ),
     });
 
@@ -443,10 +443,10 @@ export class ApiGatewayStack extends cdk.Stack {
               `arn:aws:execute-api:${this.region}:${this.account}:${this.api.restApiId}/*/*/admin/*`,
               `arn:aws:execute-api:${this.region}:${this.account}:${this.api.restApiId}/*/*/instructor/*`,
               `arn:aws:execute-api:${this.region}:${this.account}:${this.api.restApiId}/*/*/student/*`,
-            ]
+            ],
           ),
         ],
-      })
+      }),
     );
 
     // Grant instructor role permissions to invoke API Gateway endpoints
@@ -457,10 +457,10 @@ export class ApiGatewayStack extends cdk.Stack {
             ["execute-api:Invoke"],
             [
               `arn:aws:execute-api:${this.region}:${this.account}:${this.api.restApiId}/*/*/instructor/*`,
-            ]
+            ],
           ),
         ],
-      })
+      }),
     );
 
     // Grant student role permissions to invoke API Gateway endpoints
@@ -471,10 +471,10 @@ export class ApiGatewayStack extends cdk.Stack {
             ["execute-api:Invoke"],
             [
               `arn:aws:execute-api:${this.region}:${this.account}:${this.api.restApiId}/*/*/student/*`,
-            ]
+            ],
           ),
         ],
-      })
+      }),
     );
 
     // Create IAM role for unauthenticated users
@@ -492,9 +492,9 @@ export class ApiGatewayStack extends cdk.Stack {
               "cognito-identity.amazonaws.com:amr": "unauthenticated", // Unauthenticated access
             },
           },
-          "sts:AssumeRoleWithWebIdentity"
+          "sts:AssumeRoleWithWebIdentity",
         ),
-      }
+      },
     );
 
     // Create admin user group in Cognito
@@ -512,7 +512,7 @@ export class ApiGatewayStack extends cdk.Stack {
         groupName: "instructor",
         userPoolId: this.userPool.userPoolId,
         roleArn: instructorRole.roleArn,
-      }
+      },
     );
 
     // Create student user group in Cognito
@@ -523,7 +523,7 @@ export class ApiGatewayStack extends cdk.Stack {
         groupName: "student",
         userPoolId: this.userPool.userPoolId,
         roleArn: studentRole.roleArn,
-      }
+      },
     );
 
     // Create IAM role for Lambda functions that access PostgreSQL
@@ -542,7 +542,7 @@ export class ApiGatewayStack extends cdk.Stack {
         resources: [
           `arn:aws:secretsmanager:${this.region}:${this.account}:secret:*`,
         ],
-      })
+      }),
     );
 
     // Grant Lambda VPC networking permissions
@@ -557,7 +557,7 @@ export class ApiGatewayStack extends cdk.Stack {
           "ec2:UnassignPrivateIpAddresses", // Release private IPs
         ],
         resources: ["*"], // EC2 network actions require wildcard
-      })
+      }),
     );
 
     // Grant Lambda CloudWatch logging permissions
@@ -570,7 +570,7 @@ export class ApiGatewayStack extends cdk.Stack {
           "logs:PutLogEvents", // Write log events
         ],
         resources: ["arn:aws:logs:*:*:*"],
-      })
+      }),
     );
 
     // Grant Lambda permissions to manage Cognito user groups
@@ -592,7 +592,7 @@ export class ApiGatewayStack extends cdk.Stack {
             ],
           }),
         ],
-      }
+      },
     );
     lambdaRole.attachInlinePolicy(adminAddUserToGroupPolicyLambda);
 
@@ -623,12 +623,12 @@ export class ApiGatewayStack extends cdk.Stack {
         memorySize: 512,
         layers: [jwt], // JWT verification library
         role: lambdaRole,
-      }
+      },
     );
 
     // Grant API Gateway permission to invoke the admin authorizer
     adminAuthorizationFunction.grantInvoke(
-      new iam.ServicePrincipal("apigateway.amazonaws.com")
+      new iam.ServicePrincipal("apigateway.amazonaws.com"),
     );
 
     // Override logical ID to match OpenAPI specification reference
@@ -654,19 +654,19 @@ export class ApiGatewayStack extends cdk.Stack {
           SM_COGNITO_CREDENTIALS: this.secret.secretName, // Cognito config from Secrets Manager
         },
         functionName: `${id}-studentLambdaAuthorizer`,
-      }
+      },
     );
 
     // Grant API Gateway permission to invoke the student authorizer
     studentAuthFunction.grantInvoke(
-      new iam.ServicePrincipal("apigateway.amazonaws.com")
+      new iam.ServicePrincipal("apigateway.amazonaws.com"),
     );
 
     // Override logical ID to match OpenAPI specification reference
     const apiGW_studentauthorizationFunction = studentAuthFunction.node
       .defaultChild as lambda.CfnFunction;
     apiGW_studentauthorizationFunction.overrideLogicalId(
-      "studentLambdaAuthorizer"
+      "studentLambdaAuthorizer",
     );
 
     // Create Lambda authorizer function for instructor endpoints
@@ -687,19 +687,19 @@ export class ApiGatewayStack extends cdk.Stack {
           SM_COGNITO_CREDENTIALS: this.secret.secretName, // Cognito config from Secrets Manager
         },
         functionName: `${id}-instructorLambdaAuthorizer`,
-      }
+      },
     );
 
     // Grant API Gateway permission to invoke the instructor authorizer
     instructorAuthFunction.grantInvoke(
-      new iam.ServicePrincipal("apigateway.amazonaws.com")
+      new iam.ServicePrincipal("apigateway.amazonaws.com"),
     );
 
     // Override logical ID to match OpenAPI specification reference
     const apiGW_instructorAuthorizationFunction = instructorAuthFunction.node
       .defaultChild as lambda.CfnFunction;
     apiGW_instructorAuthorizationFunction.overrideLogicalId(
-      "instructorLambdaAuthorizer"
+      "instructorLambdaAuthorizer",
     );
 
     // create new cognito lambda role for cognito triggers
@@ -720,7 +720,7 @@ export class ApiGatewayStack extends cdk.Stack {
         resources: [
           `arn:aws:secretsmanager:${this.region}:${this.account}:secret:*`,
         ],
-      })
+      }),
     );
 
     // Grant permission to add users to an IAM group
@@ -732,7 +732,7 @@ export class ApiGatewayStack extends cdk.Stack {
           `arn:aws:iam::${this.account}:user/*`,
           `arn:aws:iam::${this.account}:group/*`,
         ],
-      })
+      }),
     );
 
     // Grant access to EC2
@@ -747,7 +747,7 @@ export class ApiGatewayStack extends cdk.Stack {
           "ec2:UnassignPrivateIpAddresses",
         ],
         resources: ["*"], // must be *
-      })
+      }),
     );
 
     // Grant access to log
@@ -761,7 +761,7 @@ export class ApiGatewayStack extends cdk.Stack {
           "logs:PutLogEvents",
         ],
         resources: ["arn:aws:logs:*:*:*"],
-      })
+      }),
     );
 
     // Policy to allow Cognito admin actions for user group management
@@ -783,7 +783,7 @@ export class ApiGatewayStack extends cdk.Stack {
             ],
           }),
         ],
-      }
+      },
     );
     // Attach the inline policy to the role
     cognitoRole.attachInlinePolicy(adminAddUserToGroupPolicy);
@@ -793,7 +793,7 @@ export class ApiGatewayStack extends cdk.Stack {
       new iam.PolicyStatement({
         actions: ["ssm:GetParameter"],
         resources: [`arn:aws:ssm:${this.region}:${this.account}:parameter/*`],
-      })
+      }),
     );
 
     // Cognito Pre-Signup Lambda Trigger
@@ -833,7 +833,7 @@ export class ApiGatewayStack extends cdk.Stack {
         memorySize: 128,
         layers: [postgres],
         role: cognitoRole,
-      }
+      },
     );
 
     // Cognito Pre-Token Generation Lambda Trigger
@@ -855,21 +855,21 @@ export class ApiGatewayStack extends cdk.Stack {
         memorySize: 512,
         layers: [postgres],
         role: cognitoRole,
-      }
+      },
     );
 
     // Attach Lambda triggers to Cognito User Pool lifecycle events
     this.userPool.addTrigger(
       cognito.UserPoolOperation.PRE_SIGN_UP, // Triggered before user registration
-      preSignupLambda
+      preSignupLambda,
     );
     this.userPool.addTrigger(
       cognito.UserPoolOperation.POST_CONFIRMATION, // Triggered after email verification
-      postConfirmationLambda
+      postConfirmationLambda,
     );
     this.userPool.addTrigger(
       cognito.UserPoolOperation.PRE_TOKEN_GENERATION, // Triggered before JWT token creation
-      preTokenGenerationLambda
+      preTokenGenerationLambda,
     );
     // Create parameters for Bedrock LLM ID, Embedding Model ID, and Table Name in Parameter Store
     const bedrockLLMParameter = new ssm.StringParameter(
@@ -879,7 +879,7 @@ export class ApiGatewayStack extends cdk.Stack {
         parameterName: `/${id}/LAIGO/BedrockLLMId`,
         description: "Parameter containing the Bedrock LLM ID",
         stringValue: "meta.llama3-70b-instruct-v1:0",
-      }
+      },
     );
 
     const embeddingModelParameter = new ssm.StringParameter(
@@ -889,7 +889,7 @@ export class ApiGatewayStack extends cdk.Stack {
         parameterName: `/${id}/LAIGO/EmbeddingModelId`,
         description: "Parameter containing the Embedding Model ID",
         stringValue: "amazon.titan-embed-text-v2:0",
-      }
+      },
     );
 
     const tableNameParameter = new ssm.StringParameter(
@@ -899,7 +899,7 @@ export class ApiGatewayStack extends cdk.Stack {
         parameterName: `/${id}/LAIGO/TableName`,
         description: "Parameter containing the DynamoDB table name",
         stringValue: "DynamoDB-Conversation-Table",
-      }
+      },
     );
 
     const messageLimitParameter = new ssm.StringParameter(
@@ -910,7 +910,7 @@ export class ApiGatewayStack extends cdk.Stack {
         description:
           "Parameter containing the Message Limit for the AI assistant (per day)",
         stringValue: "Infinity",
-      }
+      },
     );
 
     // Create SSM parameter for file size limit
@@ -922,7 +922,7 @@ export class ApiGatewayStack extends cdk.Stack {
         description:
           "Parameter containing the file size limit for audio uploads (in MB)",
         stringValue: "500",
-      }
+      },
     );
 
     // --- Student Cases Lambda (GET /student/cases) ---
@@ -946,7 +946,7 @@ export class ApiGatewayStack extends cdk.Stack {
         memorySize: 512,
         layers: [postgres],
         role: lambdaRole,
-      }
+      },
     );
 
     // Allow access to DynamoDB Table for reading chat history
@@ -957,12 +957,12 @@ export class ApiGatewayStack extends cdk.Stack {
           `arn:aws:dynamodb:${this.region}:${this.account}:table/DynamoDB-Conversation-Table`,
         ],
         effect: iam.Effect.ALLOW,
-      })
+      }),
     );
 
     // Allow API Gateway to invoke the student cases lambda
     lambdaStudentFunction.grantInvoke(
-      new iam.ServicePrincipal("apigateway.amazonaws.com")
+      new iam.ServicePrincipal("apigateway.amazonaws.com"),
     );
     messageLimitParameter.grantRead(lambdaStudentFunction);
     fileSizeLimitParameter.grantRead(lambdaStudentFunction);
@@ -991,7 +991,7 @@ export class ApiGatewayStack extends cdk.Stack {
         memorySize: 512,
         layers: [postgres],
         role: lambdaRole,
-      }
+      },
     );
 
     // Add the permission to the Lambda function's policy to allow API Gateway access
@@ -1042,7 +1042,7 @@ export class ApiGatewayStack extends cdk.Stack {
           props.ecrRepositories["caseGeneration"],
           {
             tagOrDigest: "latest", // or whatever tag you're using
-          }
+          },
         ),
         memorySize: 512,
         timeout: cdk.Duration.seconds(300),
@@ -1057,7 +1057,7 @@ export class ApiGatewayStack extends cdk.Stack {
           TABLE_NAME_PARAM: tableNameParameter.parameterName,
           TABLE_NAME: "DynamoDB-Conversation-Table",
         },
-      }
+      },
     );
 
     // Override the Logical ID of the Lambda Function to get ARN in OpenAPI
@@ -1087,7 +1087,7 @@ export class ApiGatewayStack extends cdk.Stack {
           "bedrock:ApplyGuardrail",
         ],
         resources: ["*"],
-      })
+      }),
     );
 
     // Grant access to Secret Manager
@@ -1101,7 +1101,7 @@ export class ApiGatewayStack extends cdk.Stack {
         resources: [
           `arn:aws:secretsmanager:${this.region}:${this.account}:secret:*`,
         ],
-      })
+      }),
     );
 
     // Grant access to SSM Parameter Store for specific parameters
@@ -1114,7 +1114,7 @@ export class ApiGatewayStack extends cdk.Stack {
           embeddingModelParameter.parameterArn,
           tableNameParameter.parameterArn,
         ],
-      })
+      }),
     );
 
     const textGenLambdaDockerFunc = new lambda.DockerImageFunction(
@@ -1125,7 +1125,7 @@ export class ApiGatewayStack extends cdk.Stack {
           props.ecrRepositories["textGeneration"],
           {
             tagOrDigest: "latest", // or whatever tag you're using
-          }
+          },
         ),
         memorySize: 512,
         timeout: cdk.Duration.seconds(300),
@@ -1140,7 +1140,7 @@ export class ApiGatewayStack extends cdk.Stack {
           TABLE_NAME_PARAM: tableNameParameter.parameterName,
           TABLE_NAME: "DynamoDB-Conversation-Table",
         },
-      }
+      },
     );
 
     // Override the Logical ID of the Lambda Function to get ARN in OpenAPI
@@ -1167,7 +1167,7 @@ export class ApiGatewayStack extends cdk.Stack {
           "bedrock:ApplyGuardrail",
         ],
         resources: ["*"],
-      })
+      }),
     );
 
     // Attach the corrected Bedrock policy to Lambda
@@ -1187,7 +1187,7 @@ export class ApiGatewayStack extends cdk.Stack {
         resources: [
           `arn:aws:secretsmanager:${this.region}:${this.account}:secret:*`,
         ],
-      })
+      }),
     );
 
     // Grant access to DynamoDB actions
@@ -1203,7 +1203,7 @@ export class ApiGatewayStack extends cdk.Stack {
           "dynamodb:UpdateItem",
         ],
         resources: [`arn:aws:dynamodb:${this.region}:${this.account}:table/*`],
-      })
+      }),
     );
 
     // Grant access to SSM Parameter Store for specific parameters
@@ -1216,7 +1216,7 @@ export class ApiGatewayStack extends cdk.Stack {
           embeddingModelParameter.parameterArn,
           tableNameParameter.parameterArn,
         ],
-      })
+      }),
     );
     // Create Lambda function for assessing user progress
     const assessProgressFunction = new lambda.DockerImageFunction(
@@ -1227,7 +1227,7 @@ export class ApiGatewayStack extends cdk.Stack {
           props.ecrRepositories["assessProgress"],
           {
             tagOrDigest: "latest", // or whatever tag you're using
-          }
+          },
         ),
         functionName: `${id}-AssessProgressFunction`,
         timeout: Duration.seconds(300),
@@ -1242,7 +1242,7 @@ export class ApiGatewayStack extends cdk.Stack {
           TABLE_NAME_PARAM: tableNameParameter.parameterName,
           TABLE_NAME: "DynamoDB-Conversation-Table",
         },
-      }
+      },
     );
 
     // Override Logical ID for OpenAPI reference
@@ -1263,7 +1263,7 @@ export class ApiGatewayStack extends cdk.Stack {
       new iam.PolicyStatement({
         actions: ["bedrock:InvokeModel"],
         resources: ["*"],
-      })
+      }),
     );
 
     assessProgressFunction.addToRolePolicy(
@@ -1274,7 +1274,7 @@ export class ApiGatewayStack extends cdk.Stack {
           embeddingModelParameter.parameterArn,
           tableNameParameter.parameterArn,
         ],
-      })
+      }),
     );
 
     // Attach shared DynamoDB policy to assess progress lambda
@@ -1302,7 +1302,7 @@ export class ApiGatewayStack extends cdk.Stack {
         removalPolicy: cdk.RemovalPolicy.DESTROY,
         autoDeleteObjects: true,
         enforceSSL: true,
-      }
+      },
     );
 
     const generatePreSignedURL = new lambda.Function(
@@ -1320,7 +1320,7 @@ export class ApiGatewayStack extends cdk.Stack {
         },
         functionName: `${id}-GeneratePreSignedURLFunction`,
         layers: [powertoolsLayer],
-      }
+      },
     );
 
     // Override the Logical ID of the Lambda Function to get ARN in OpenAPI
@@ -1337,7 +1337,7 @@ export class ApiGatewayStack extends cdk.Stack {
           audioStorageBucket.bucketArn,
           `${audioStorageBucket.bucketArn}/*`,
         ],
-      })
+      }),
     );
 
     // Add the permission to the Lambda function's policy to allow API Gateway access
@@ -1380,7 +1380,7 @@ export class ApiGatewayStack extends cdk.Stack {
         memorySize: 128,
         vpc: vpcStack.vpc,
         role: lambdaRole,
-      }
+      },
     );
 
     notificationFunction.addToRolePolicy(
@@ -1390,7 +1390,7 @@ export class ApiGatewayStack extends cdk.Stack {
         resources: [
           `arn:aws:appsync:${this.region}:${this.account}:apis/${this.eventApi.apiId}/*`,
         ],
-      })
+      }),
     );
 
     notificationFunction.addPermission("AppSyncInvokePermission", {
@@ -1401,7 +1401,7 @@ export class ApiGatewayStack extends cdk.Stack {
 
     const notificationLambdaDataSource = this.eventApi.addLambdaDataSource(
       "NotificationLambdaDataSource",
-      notificationFunction
+      notificationFunction,
     );
 
     notificationLambdaDataSource.createResolver("ResolverEventApi", {
@@ -1419,7 +1419,7 @@ export class ApiGatewayStack extends cdk.Stack {
           props.ecrRepositories["audioToText"],
           {
             tagOrDigest: "latest", // or whatever tag you're using
-          }
+          },
         ),
         memorySize: 512,
         timeout: cdk.Duration.seconds(300),
@@ -1432,7 +1432,7 @@ export class ApiGatewayStack extends cdk.Stack {
           APPSYNC_API_URL: this.eventApi.graphqlUrl,
           REGION: this.region,
         },
-      }
+      },
     );
 
     const cfnAudioToTextFunction = audioToTextFunction.node
@@ -1445,7 +1445,7 @@ export class ApiGatewayStack extends cdk.Stack {
         effect: iam.Effect.ALLOW,
         actions: ["s3:ListBucket"],
         resources: [audioStorageBucket.bucketArn],
-      })
+      }),
     );
 
     audioToTextFunction.addToRolePolicy(
@@ -1458,7 +1458,7 @@ export class ApiGatewayStack extends cdk.Stack {
           "s3:HeadObject",
         ],
         resources: [`arn:aws:s3:::${audioStorageBucket.bucketName}/*`],
-      })
+      }),
     );
 
     // Grant access to Secret Manager
@@ -1472,7 +1472,7 @@ export class ApiGatewayStack extends cdk.Stack {
         resources: [
           `arn:aws:secretsmanager:${this.region}:${this.account}:secret:*`,
         ],
-      })
+      }),
     );
 
     audioToTextFunction.addPermission("AllowApiGatewayInvoke", {
@@ -1492,7 +1492,7 @@ export class ApiGatewayStack extends cdk.Stack {
         resources: [
           `arn:aws:transcribe:${this.region}:${this.account}:transcription-job/*`,
         ], // You can restrict this to specific resources if needed
-      })
+      }),
     );
 
     // Create Lambda function for generating case summaries
@@ -1504,7 +1504,7 @@ export class ApiGatewayStack extends cdk.Stack {
           props.ecrRepositories["summaryGeneration"],
           {
             tagOrDigest: "latest",
-          }
+          },
         ),
         functionName: `${id}-SummaryGenerationFunction`,
         timeout: Duration.seconds(300),
@@ -1518,7 +1518,7 @@ export class ApiGatewayStack extends cdk.Stack {
           TABLE_NAME_PARAM: tableNameParameter.parameterName,
           TABLE_NAME: "DynamoDB-Conversation-Table",
         },
-      }
+      },
     );
 
     // Override Logical ID for OpenAPI reference
@@ -1544,7 +1544,7 @@ export class ApiGatewayStack extends cdk.Stack {
         resources: [
           `arn:aws:secretsmanager:${this.region}:${this.account}:secret:*`,
         ],
-      })
+      }),
     );
 
     summaryGenerationFunction.addToRolePolicy(
@@ -1554,7 +1554,7 @@ export class ApiGatewayStack extends cdk.Stack {
           bedrockLLMParameter.parameterArn,
           tableNameParameter.parameterArn,
         ],
-      })
+      }),
     );
 
     // Attach shared DynamoDB policy to summary generation lambda
@@ -1565,7 +1565,7 @@ export class ApiGatewayStack extends cdk.Stack {
       new iam.PolicyStatement({
         actions: ["bedrock:InvokeModel"],
         resources: ["*"],
-      })
+      }),
     );
 
     // ========================================
@@ -1588,7 +1588,7 @@ export class ApiGatewayStack extends cdk.Stack {
           COGNITO_USER_POOL_ID: this.userPool.userPoolId,
           COGNITO_CLIENT_ID: this.appClient.userPoolClientId,
         },
-      }
+      },
     );
 
     // Lambda for WebSocket Authorizer (validates token & returns IAM Policy)
@@ -1607,7 +1607,7 @@ export class ApiGatewayStack extends cdk.Stack {
           COGNITO_USER_POOL_ID: this.userPool.userPoolId,
           COGNITO_CLIENT_ID: this.appClient.userPoolClientId,
         },
-      }
+      },
     );
 
     // Lambda for $disconnect route - cleanup/logging
@@ -1621,7 +1621,7 @@ export class ApiGatewayStack extends cdk.Stack {
         timeout: Duration.seconds(10),
         memorySize: 128,
         functionName: `${id}-WsDisconnect`,
-      }
+      },
     );
 
     // Lambda for $default route - routes messages and invokes TextGen
@@ -1638,13 +1638,15 @@ export class ApiGatewayStack extends cdk.Stack {
         environment: {
           TEXT_GEN_FUNCTION_NAME: textGenLambdaDockerFunc.functionName,
           ASSESS_PROGRESS_FUNCTION_NAME: assessProgressFunction.functionName,
+          SUMMARY_GEN_FUNCTION_NAME: summaryGenerationFunction.functionName,
         },
-      }
+      },
     );
 
-    // Grant default function permission to invoke TextGen and AssessProgress Lambdas
+    // Grant default function permission to invoke TextGen, AssessProgress, and SummaryGeneration Lambdas
     textGenLambdaDockerFunc.grantInvoke(wsDefaultFunction);
     assessProgressFunction.grantInvoke(wsDefaultFunction);
+    summaryGenerationFunction.grantInvoke(wsDefaultFunction);
 
     // Create Lambda Authorizer for WebSocket connections
     const wsAuthorizer = new WebSocketLambdaAuthorizer(
@@ -1652,7 +1654,7 @@ export class ApiGatewayStack extends cdk.Stack {
       wsAuthorizerFunction,
       {
         identitySource: ["route.request.querystring.token"],
-      }
+      },
     );
 
     // Create WebSocket API
@@ -1661,20 +1663,20 @@ export class ApiGatewayStack extends cdk.Stack {
       connectRouteOptions: {
         integration: new WebSocketLambdaIntegration(
           "ConnectIntegration",
-          wsConnectFunction
+          wsConnectFunction,
         ),
         authorizer: wsAuthorizer,
       },
       disconnectRouteOptions: {
         integration: new WebSocketLambdaIntegration(
           "DisconnectIntegration",
-          wsDisconnectFunction
+          wsDisconnectFunction,
         ),
       },
       defaultRouteOptions: {
         integration: new WebSocketLambdaIntegration(
           "DefaultIntegration",
-          wsDefaultFunction
+          wsDefaultFunction,
         ),
       },
     });
@@ -1694,13 +1696,13 @@ export class ApiGatewayStack extends cdk.Stack {
         resources: [
           `arn:aws:execute-api:${this.region}:${this.account}:${this.wsApi.apiId}/${this.wsStage.stageName}/POST/@connections/*`,
         ],
-      })
+      }),
     );
 
     // Add WebSocket endpoint to TextGen Lambda environment
     textGenLambdaDockerFunc.addEnvironment(
       "WEBSOCKET_API_ENDPOINT",
-      this.wsStage.url.replace("wss://", "https://")
+      this.wsStage.url.replace("wss://", "https://"),
     );
 
     // Grant default function permission to post back to connections (for pong)
@@ -1711,7 +1713,7 @@ export class ApiGatewayStack extends cdk.Stack {
         resources: [
           `arn:aws:execute-api:${this.region}:${this.account}:${this.wsApi.apiId}/${this.wsStage.stageName}/POST/@connections/*`,
         ],
-      })
+      }),
     );
 
     // Grant AssessProgress Lambda permission to post messages back to WebSocket connections
@@ -1722,13 +1724,30 @@ export class ApiGatewayStack extends cdk.Stack {
         resources: [
           `arn:aws:execute-api:${this.region}:${this.account}:${this.wsApi.apiId}/${this.wsStage.stageName}/POST/@connections/*`,
         ],
-      })
+      }),
     );
 
     // Add WebSocket endpoint to AssessProgress Lambda environment
     assessProgressFunction.addEnvironment(
       "WEBSOCKET_API_ENDPOINT",
-      this.wsStage.url.replace("wss://", "https://")
+      this.wsStage.url.replace("wss://", "https://"),
+    );
+
+    // Grant SummaryGeneration Lambda permission to post messages back to WebSocket connections
+    summaryGenerationFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["execute-api:ManageConnections"],
+        resources: [
+          `arn:aws:execute-api:${this.region}:${this.account}:${this.wsApi.apiId}/${this.wsStage.stageName}/POST/@connections/*`,
+        ],
+      }),
+    );
+
+    // Add WebSocket endpoint to SummaryGeneration Lambda environment
+    summaryGenerationFunction.addEnvironment(
+      "WEBSOCKET_API_ENDPOINT",
+      this.wsStage.url.replace("wss://", "https://"),
     );
   }
 }

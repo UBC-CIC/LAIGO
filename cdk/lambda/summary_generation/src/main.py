@@ -4,13 +4,21 @@ import boto3
 import logging
 import hashlib
 import uuid
+import functools
 from datetime import datetime
 import psycopg
 import boto3
 from botocore.exceptions import ClientError
 from langchain_aws import ChatBedrockConverse
 from langchain_core.prompts import ChatPromptTemplate
-from helpers.chat import get_bedrock_llm, generate_lawyer_summary, retrieve_dynamodb_history, generate_full_case_summary
+from helpers.chat import (
+    get_bedrock_llm, 
+    generate_lawyer_summary, 
+    generate_lawyer_summary_streaming,
+    retrieve_dynamodb_history, 
+    generate_full_case_summary,
+    generate_full_case_summary_streaming
+)
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -93,6 +101,121 @@ def connect_to_db():
                 connection.close()
             raise
     return connection
+
+
+@functools.lru_cache(maxsize=128)
+def check_authorization(cognito_id, case_id):
+    """
+    Verify that the user (identified by cognito_id) owns the specified case.
+    Prevents IDOR attacks by checking case ownership.
+    
+    Args:
+        cognito_id: Cognito user ID from JWT token
+        case_id: Case ID from the request
+    
+    Returns:
+        bool: True if authorized, False otherwise
+    """
+    try:
+        conn = connect_to_db()
+        cursor = conn.cursor()
+        
+        # Look up user_id from cognito_id
+        cursor.execute(
+            'SELECT user_id FROM "users" WHERE cognito_id = %s',
+            (cognito_id,)
+        )
+        user_row = cursor.fetchone()
+        
+        if not user_row:
+            logger.warning(f"Authorization failed: User not found for cognito_id={cognito_id}")
+            cursor.close()
+            return False
+        
+        user_id = user_row[0]
+        
+        # Verify case ownership
+        cursor.execute(
+            'SELECT student_id FROM "cases" WHERE case_id = %s',
+            (case_id,)
+        )
+        case_row = cursor.fetchone()
+        
+        if not case_row:
+            logger.warning(f"Authorization failed: Case not found case_id={case_id}")
+            cursor.close()
+            return False
+        
+        case_owner_id = case_row[0]
+        
+        if str(user_id) == str(case_owner_id):
+            logger.info(f"Authorization successful: User {cognito_id} owns case {case_id}")
+            cursor.close()
+            return True
+
+        # Check if user is an instructor for this student
+        cursor.execute(
+            """
+            SELECT 1 
+            FROM instructor_students 
+            WHERE instructor_id = %s AND student_id = %s
+            """,
+            (user_id, case_owner_id)
+        )
+        is_instructor = cursor.fetchone()
+        cursor.close()
+
+        if is_instructor:
+            logger.info(f"Authorization successful: User {cognito_id} is instructor for case owner {case_owner_id}")
+            return True
+
+        logger.warning(
+            f"Authorization failed: User {cognito_id} (user_id={user_id}) "
+            f"attempted to access case {case_id} owned by {case_owner_id}"
+        )
+        return False
+        
+    except Exception as e:
+        logger.error(f"Authorization check failed with error: {e}")
+        return False
+
+
+def send_to_websocket(connection_id, endpoint, request_id, msg_type, content=None, data=None):
+    """Send a message to a WebSocket connection with request correlation."""
+    client = boto3.client('apigatewaymanagementapi', endpoint_url=endpoint)
+    message = {
+        "requestId": request_id,
+        "action": "generate_summary",
+        "type": msg_type,
+    }
+    if content is not None:
+        message["content"] = content
+    if data is not None:
+        message["data"] = data
+    try:
+        client.post_to_connection(
+            ConnectionId=connection_id,
+            Data=json.dumps(message).encode('utf-8')
+        )
+    except Exception as e:
+        logger.error(f"Error sending to WebSocket: {e}")
+
+
+def _error_response(status_code, message, is_websocket=False, connection_id=None, ws_endpoint=None, request_id=None):
+    """Helper for generating error responses for both HTTP and WebSocket modes."""
+    if is_websocket and connection_id:
+        send_to_websocket(connection_id, ws_endpoint, request_id, "error", content=message)
+        return {"statusCode": status_code}
+    return {
+        'statusCode': status_code,
+        "headers": {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "*",
+        },
+        'body': json.dumps(message)
+    }
 
 
 def get_case_details(case_id):
@@ -272,62 +395,76 @@ def handler(event, context):
     """
     Lambda function handler for generating conversation summaries.
     
-    Expected event structure:
+    Expected event structure (HTTP):
     {
         "queryStringParameters": {
             "case_id": "unique_case_id",
             "sub_route": "intake-facts" | "issue-identification" | "full-case" | etc.
         }
     }
+    
+    Expected event structure (WebSocket):
+    {
+        "isWebSocket": true,
+        "cognitoId": "user-cognito-id",
+        "requestId": "unique-request-id",
+        "queryStringParameters": { "case_id": "...", "sub_route": "..." },
+        "requestContext": { "connectionId": "...", "domainName": "...", "stage": "..." }
+    }
     """
     logger.info("Summary Generation Lambda function is called!")
     initialize_constants()
+
+    # Check if this is a WebSocket invocation
+    is_websocket = event.get("isWebSocket", False)
+    request_id = event.get("requestId")
+    request_context = event.get("requestContext", {})
+    connection_id = request_context.get("connectionId")
+    domain_name = request_context.get("domainName")
+    stage = request_context.get("stage")
+    
+    # Determine WebSocket endpoint
+    ws_endpoint = None
+    if is_websocket and connection_id:
+        ws_endpoint = os.environ.get("WEBSOCKET_API_ENDPOINT")
+        if not ws_endpoint:
+            ws_endpoint = f"https://{domain_name}/{stage}"
+        logger.info(f"WebSocket mode - connectionId: {connection_id}, requestId: {request_id}")
+        send_to_websocket(connection_id, ws_endpoint, request_id, "start")
 
     query_params = event.get("queryStringParameters", {})
     case_id = query_params.get("case_id", "")
     sub_route = query_params.get("sub_route", "intake-facts") 
 
     if not case_id:
-        return {
-            'statusCode': 400,
-            "headers": {
-                "Content-Type": "application/json",
-                "Access-Control-Allow-Headers": "*",
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "*",
-            },
-            'body': json.dumps("Missing required parameters: case_id")
-        }
+        return _error_response(400, "Missing required parameters: case_id", is_websocket, connection_id, ws_endpoint, request_id)
+
+    # Authorization check
+    cognito_id = event.get("cognitoId")
+    if not cognito_id:
+        # Try to get from request context (HTTP fallback)
+        cognito_id = request_context.get("authorizer", {}).get("principalId")
+    
+    if is_websocket:
+        if not cognito_id:
+            logger.error("Authorization failed: Missing cognitoId")
+            return _error_response(401, "Unauthorized: Missing user identity", is_websocket, connection_id, ws_endpoint, request_id)
+        
+        if not check_authorization(cognito_id, case_id):
+            logger.error(f"Authorization failed: User {cognito_id} does not own case {case_id}")
+            return _error_response(403, "Forbidden: You do not have access to this case", is_websocket, connection_id, ws_endpoint, request_id)
 
     case_type, jurisdiction, case_description = get_case_details(case_id)
     if case_type is None or jurisdiction is None or case_description is None:
         logger.error(f"Error fetching case details for case_id: {case_id}")
-        return {
-            'statusCode': 400,
-            "headers": {
-                "Content-Type": "application/json",
-                "Access-Control-Allow-Headers": "*",
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "*",
-            },
-            'body': json.dumps('Error fetching summary details')
-        }
+        return _error_response(400, 'Error fetching summary details', is_websocket, connection_id, ws_endpoint, request_id)
 
     try:
         logger.info("Creating Bedrock LLM instance.")
         llm = get_bedrock_llm(BEDROCK_LLM_ID)
     except Exception as e:
         logger.error(f"Error getting LLM from Bedrock: {e}")
-        return {
-            'statusCode': 500,
-            "headers": {
-                "Content-Type": "application/json",
-                "Access-Control-Allow-Headers": "*",
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "*",
-            },
-            'body': json.dumps('Error getting LLM from Bedrock')
-        }
+        return _error_response(500, 'Error getting LLM from Bedrock', is_websocket, connection_id, ws_endpoint, request_id)
 
     # --- Full Case Summary Logic ---
     if sub_route == "full-case":
@@ -336,88 +473,71 @@ def handler(event, context):
         # 1. Get unlocked blocks
         unlocked_blocks = get_unlocked_blocks(case_id)
         if not unlocked_blocks:
-            return {
-                'statusCode': 400,
-                "headers": {
-                    "Content-Type": "application/json",
-                    "Access-Control-Allow-Headers": "*",
-                    "Access-Control-Allow-Origin": "*",
-                    "Access-Control-Allow-Methods": "*",
-                },
-                'body': json.dumps("No blocks have been unlocked yet for this case.")
-            }
+            return _error_response(400, "No blocks have been unlocked yet for this case.", is_websocket, connection_id, ws_endpoint, request_id)
         
         logger.info(f"Unlocked blocks: {unlocked_blocks}")
 
         # 2. Get latest summaries for unlocked blocks
         block_summaries = get_latest_block_summaries(case_id, unlocked_blocks)
         if not block_summaries:
-             return {
-                'statusCode': 400,
-                "headers": {
-                    "Content-Type": "application/json",
-                    "Access-Control-Allow-Headers": "*",
-                    "Access-Control-Allow-Origin": "*",
-                    "Access-Control-Allow-Methods": "*",
-                },
-                'body': json.dumps("No block summaries found to synthesize. Please generate summaries for individual blocks first.")
-            }
+            return _error_response(400, "No block summaries found to synthesize. Please generate summaries for individual blocks first.", is_websocket, connection_id, ws_endpoint, request_id)
         
         logger.info(f"Found {len(block_summaries)} block summaries to synthesize.")
 
         # 3. Generate full case summary
         try:
-            response = generate_full_case_summary(
-                block_summaries=block_summaries,
-                llm=llm,
-                case_type=case_type,
-                case_description=case_description,
-                jurisdiction=jurisdiction
-            )
+            if is_websocket and connection_id:
+                # Streaming mode
+                def send_chunk(chunk_content):
+                    send_to_websocket(connection_id, ws_endpoint, request_id, "chunk", content=chunk_content)
+                
+                response = generate_full_case_summary_streaming(
+                    block_summaries=block_summaries,
+                    llm=llm,
+                    case_type=case_type,
+                    case_description=case_description,
+                    jurisdiction=jurisdiction,
+                    send_chunk_callback=send_chunk
+                )
+            else:
+                # Non-streaming mode (HTTP)
+                response = generate_full_case_summary(
+                    block_summaries=block_summaries,
+                    llm=llm,
+                    case_type=case_type,
+                    case_description=case_description,
+                    jurisdiction=jurisdiction
+                )
         except Exception as e:
             logger.error(f"Error generating full case summary: {e}")
-            return {
-                'statusCode': 500,
-                "headers": {
-                    "Content-Type": "application/json",
-                    "Access-Control-Allow-Headers": "*",
-                    "Access-Control-Allow-Origin": "*",
-                    "Access-Control-Allow-Methods": "*",
-                },
-                'body': json.dumps('Error generating full case summary')
-            }
+            return _error_response(500, 'Error generating full case summary', is_websocket, connection_id, ws_endpoint, request_id)
 
         # 4. Save summary
         try:
             update_summaries(case_id, response, None, scope='full_case')
         except Exception as e:
             logger.error(f"Error saving full case summary: {e}")
-             # We don't fail the request if save fails, just log it, but here we return error to be safe
-            return {
-                'statusCode': 500,
-                "headers": {
-                    "Content-Type": "application/json",
-                    "Access-Control-Allow-Headers": "*",
-                    "Access-Control-Allow-Origin": "*",
-                    "Access-Control-Allow-Methods": "*",
-                },
-                'body': json.dumps('Error saving full case summary')
-            }
-            
+            return _error_response(500, 'Error saving full case summary', is_websocket, connection_id, ws_endpoint, request_id)
+        
+        # Return response
+        if is_websocket and connection_id:
+            send_to_websocket(connection_id, ws_endpoint, request_id, "complete", data={"llm_output": response})
+            return {"statusCode": 200}
+        
         return {
             "statusCode": 200,
             "headers": {
-                    "Content-Type": "application/json",
-                    "Access-Control-Allow-Headers": "*",
-                    "Access-Control-Allow-Origin": "*",
-                    "Access-Control-Allow-Methods": "*",
-                },
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Headers": "*",
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "*",
+            },
             "body": json.dumps({
                 "llm_output": response
             })
         }
 
-    # --- Block Specific Summary Logic (Existing) ---
+    # --- Block Specific Summary Logic ---
     else:
         # Map sub_route to block_type enum
         subroute_map = {
@@ -439,39 +559,37 @@ def handler(event, context):
             messages = retrieve_dynamodb_history(TABLE_NAME, session_id)
         except Exception as e:
             logger.error(f"Error retrieving dynamo history: {e}")
-            return {
-                'statusCode': 500,
-                "headers": {
-                    "Content-Type": "application/json",
-                    "Access-Control-Allow-Headers": "*",
-                    "Access-Control-Allow-Origin": "*",
-                    "Access-Control-Allow-Methods": "*",
-                },
-                'body': json.dumps('Error retrieving dynamo history')
-            }
+            return _error_response(500, 'Error retrieving dynamo history', is_websocket, connection_id, ws_endpoint, request_id)
         
         try:
             logger.info("Generating response from the LLM.")
-            response = generate_lawyer_summary(
-                messages=messages,
-                llm=llm,
-                case_type=case_type,
-                case_description=case_description,
-                jurisdiction=jurisdiction,
-                block_type=block_type
-            )
+            if is_websocket and connection_id:
+                # Streaming mode
+                def send_chunk(chunk_content):
+                    send_to_websocket(connection_id, ws_endpoint, request_id, "chunk", content=chunk_content)
+                
+                response = generate_lawyer_summary_streaming(
+                    messages=messages,
+                    llm=llm,
+                    case_type=case_type,
+                    case_description=case_description,
+                    jurisdiction=jurisdiction,
+                    block_type=block_type,
+                    send_chunk_callback=send_chunk
+                )
+            else:
+                # Non-streaming mode (HTTP)
+                response = generate_lawyer_summary(
+                    messages=messages,
+                    llm=llm,
+                    case_type=case_type,
+                    case_description=case_description,
+                    jurisdiction=jurisdiction,
+                    block_type=block_type
+                )
         except Exception as e:
             logger.error(f"Error getting response: {e}")
-            return {
-                'statusCode': 500,
-                "headers": {
-                    "Content-Type": "application/json",
-                    "Access-Control-Allow-Headers": "*",
-                    "Access-Control-Allow-Origin": "*",
-                    "Access-Control-Allow-Methods": "*",
-                },
-                'body': json.dumps('Error getting response')
-            }
+            return _error_response(500, 'Error getting response', is_websocket, connection_id, ws_endpoint, request_id)
             
         try:
             logger.info(f"Updating case summary for block_type: {block_type}")
@@ -479,25 +597,21 @@ def handler(event, context):
             update_summaries(case_id, response, block_type, scope='block')
         except Exception as e:
             logger.error(f"Error updating case summary: {e}")
-            return {
-                'statusCode': 500,
-                "headers": {
-                    "Content-Type": "application/json",
-                    "Access-Control-Allow-Headers": "*",
-                    "Access-Control-Allow-Origin": "*",
-                    "Access-Control-Allow-Methods": "*",
-                },
-                'body': json.dumps('Error updating case summary')
-            }
+            return _error_response(500, 'Error updating case summary', is_websocket, connection_id, ws_endpoint, request_id)
+        
+        # Return response
+        if is_websocket and connection_id:
+            send_to_websocket(connection_id, ws_endpoint, request_id, "complete", data={"llm_output": response})
+            return {"statusCode": 200}
             
         return {
             "statusCode": 200,
             "headers": {
-                    "Content-Type": "application/json",
-                    "Access-Control-Allow-Headers": "*",
-                    "Access-Control-Allow-Origin": "*",
-                    "Access-Control-Allow-Methods": "*",
-                },
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Headers": "*",
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "*",
+            },
             "body": json.dumps({
                 "llm_output": response
             })

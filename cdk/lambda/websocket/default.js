@@ -36,7 +36,7 @@ exports.handler = async (event) => {
         new PostToConnectionCommand({
           ConnectionId: connectionId,
           Data: JSON.stringify({ type: "pong" }),
-        })
+        }),
       );
       return { statusCode: 200 };
     }
@@ -77,7 +77,7 @@ exports.handler = async (event) => {
           FunctionName: process.env.TEXT_GEN_FUNCTION_NAME,
           InvocationType: "Event",
           Payload: JSON.stringify(textGenPayload),
-        })
+        }),
       );
 
       console.log("Text generation function invoked successfully");
@@ -112,10 +112,48 @@ exports.handler = async (event) => {
           FunctionName: process.env.ASSESS_PROGRESS_FUNCTION_NAME,
           InvocationType: "Event",
           Payload: JSON.stringify(assessPayload),
-        })
+        }),
       );
 
       console.log("Assess progress function invoked successfully");
+      return { statusCode: 200 };
+    }
+
+    // Handle summary generation requests
+    if (action === "generate_summary") {
+      const { case_id, sub_route } = body;
+
+      console.log("Invoking generate_summary:", {
+        case_id,
+        sub_route,
+        cognitoId,
+        requestId,
+      });
+
+      const summaryPayload = {
+        isWebSocket: true,
+        cognitoId: cognitoId,
+        requestId: requestId,
+        queryStringParameters: {
+          case_id: case_id,
+          sub_route: sub_route,
+        },
+        requestContext: {
+          connectionId: connectionId,
+          domainName: domainName,
+          stage: stage,
+        },
+      };
+
+      await lambda.send(
+        new InvokeCommand({
+          FunctionName: process.env.SUMMARY_GEN_FUNCTION_NAME,
+          InvocationType: "Event",
+          Payload: JSON.stringify(summaryPayload),
+        }),
+      );
+
+      console.log("Summary generation function invoked successfully");
       return { statusCode: 200 };
     }
 
