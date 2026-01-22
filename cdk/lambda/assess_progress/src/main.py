@@ -16,7 +16,7 @@ if len(logger.handlers) > 0:
     # We set the level directly on the root logger.
     logger.setLevel(logging.INFO)
 else:
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.INFO) 
 
 # Environment variables
 DB_SECRET_NAME = os.environ["SM_DB_CREDENTIALS"]
