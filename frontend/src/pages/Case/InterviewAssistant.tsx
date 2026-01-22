@@ -275,12 +275,41 @@ const InterviewAssistant: React.FC = () => {
     if (!caseId || !section) return;
 
     setIsGeneratingSummary(true);
+
+    // Try WebSocket first if connected
+    if (isConnected) {
+      sendStreamingRequest(
+        "generate_summary",
+        { case_id: caseId, sub_route: section },
+        {
+          onStart: () => {
+            console.log("Summary generation started (streaming)");
+          },
+          onChunk: (content) => {
+            // Summary is being streamed - could display progress if desired
+            console.log("Summary chunk received:", content.substring(0, 50));
+          },
+          onComplete: (data) => {
+            console.log("Summary generated successfully via WebSocket", data);
+            setIsGeneratingSummary(false);
+          },
+          onError: (msg) => {
+            console.error("Summary generation error:", msg);
+            setIsGeneratingSummary(false);
+          },
+        },
+      );
+      return;
+    }
+
+    // Fallback to HTTP
     try {
       const session = await fetchAuthSession();
       const token = session.tokens?.idToken?.toString();
 
       if (!token) {
         console.error("No auth token found");
+        setIsGeneratingSummary(false);
         return;
       }
 

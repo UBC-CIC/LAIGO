@@ -28,6 +28,7 @@ import ArticleIcon from "@mui/icons-material/Article";
 import AssignmentIcon from "@mui/icons-material/Assignment";
 import { useParams } from "react-router-dom";
 import { fetchAuthSession } from "aws-amplify/auth";
+import { useWebSocket } from "../../hooks/useWebSocket";
 
 // --- Types ---
 
@@ -113,7 +114,7 @@ const CaseSummaries: React.FC = () => {
   const [summaries, setSummaries] = useState<Summary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedSummaryId, setSelectedSummaryId] = useState<number | null>(
-    null
+    null,
   );
   const [isGenerating, setIsGenerating] = useState(false);
   const [leftOpen, setLeftOpen] = useState(true);
@@ -124,6 +125,26 @@ const CaseSummaries: React.FC = () => {
     full_case: true,
     block: true,
   });
+  const [wsUrl, setWsUrl] = useState<string | null>(null);
+
+  // Set up WebSocket connection
+  const { sendStreamingRequest, isConnected } = useWebSocket(wsUrl);
+
+  // Initialize WebSocket URL when auth is available
+  useEffect(() => {
+    const setupWebSocket = async () => {
+      try {
+        const session = await fetchAuthSession();
+        const token = session.tokens?.idToken?.toString();
+        if (token && import.meta.env.VITE_WEBSOCKET_URL) {
+          setWsUrl(`${import.meta.env.VITE_WEBSOCKET_URL}?token=${token}`);
+        }
+      } catch (error) {
+        console.error("Error setting up WebSocket:", error);
+      }
+    };
+    setupWebSocket();
+  }, []);
 
   // Fetch summaries from API
   const fetchSummaries = React.useCallback(async () => {
@@ -149,7 +170,7 @@ const CaseSummaries: React.FC = () => {
           headers: {
             Authorization: token,
           },
-        }
+        },
       );
 
       if (response.ok) {
@@ -182,12 +203,45 @@ const CaseSummaries: React.FC = () => {
     if (!caseId) return;
 
     setIsGenerating(true);
+
+    // Try WebSocket first if connected
+    if (isConnected) {
+      sendStreamingRequest(
+        "generate_summary",
+        { case_id: caseId, sub_route: "full-case" },
+        {
+          onStart: () => {
+            console.log("Full case summary generation started (streaming)");
+          },
+          onChunk: (content) => {
+            // Summary is being streamed - could display progress if desired
+            console.log("Summary chunk received:", content.substring(0, 50));
+          },
+          onComplete: async () => {
+            console.log(
+              "Full case summary generated successfully via WebSocket",
+            );
+            // Refresh summaries to show the new one
+            await fetchSummaries();
+            setIsGenerating(false);
+          },
+          onError: (msg) => {
+            console.error("Summary generation error:", msg);
+            setIsGenerating(false);
+          },
+        },
+      );
+      return;
+    }
+
+    // Fallback to HTTP
     try {
       const session = await fetchAuthSession();
       const token = session.tokens?.idToken?.toString();
 
       if (!token) {
         console.error("No auth token found");
+        setIsGenerating(false);
         return;
       }
 
@@ -201,7 +255,7 @@ const CaseSummaries: React.FC = () => {
           headers: {
             Authorization: token,
           },
-        }
+        },
       );
 
       if (response.ok) {
@@ -220,19 +274,22 @@ const CaseSummaries: React.FC = () => {
   };
 
   const selectedSummary = summaries.find(
-    (s) => s.summary_id === selectedSummaryId
+    (s) => s.summary_id === selectedSummaryId,
   );
   const currentAnnotations = MOCK_ANNOTATIONS.filter(
-    (a) => a.summaryId === String(selectedSummaryId)
+    (a) => a.summaryId === String(selectedSummaryId),
   );
 
   // Group summaries
-  const groupedSummaries = summaries.reduce((acc, summary) => {
-    const key = summary.scope;
-    if (!acc[key]) acc[key] = [];
-    acc[key].push(summary);
-    return acc;
-  }, {} as Record<string, Summary[]>);
+  const groupedSummaries = summaries.reduce(
+    (acc, summary) => {
+      const key = summary.scope;
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(summary);
+      return acc;
+    },
+    {} as Record<string, Summary[]>,
+  );
 
   const toggleCategory = (category: string) => {
     setOpenCategories((prev) => ({ ...prev, [category]: !prev[category] }));
@@ -259,7 +316,7 @@ const CaseSummaries: React.FC = () => {
           headers: {
             Authorization: token,
           },
-        }
+        },
       );
 
       if (response.ok) {
