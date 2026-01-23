@@ -36,7 +36,7 @@ exports.handler = async (event) => {
     });
     const userGroupsResponse = await client.send(userGroupsCommand);
     const cognitoRoles = userGroupsResponse.Groups.map(
-      (group) => group.GroupName
+      (group) => group.GroupName,
     );
 
     // Get user attributes to extract email address
@@ -48,7 +48,7 @@ exports.handler = async (event) => {
 
     // Extract email from user attributes
     const emailAttr = userAttributesResponse.UserAttributes.find(
-      (attr) => attr.Name === "email"
+      (attr) => attr.Name === "email",
     );
     const email = emailAttr ? emailAttr.Value : null;
 
@@ -61,50 +61,39 @@ exports.handler = async (event) => {
     // Extract roles array or default to empty array
     const dbRoles = dbUser[0]?.roles || [];
 
-    // Synchronize roles between Cognito groups and database
-    // Priority: Admin roles take precedence, then sync non-admin roles
+    // COGNITO IS THE SOURCE OF TRUTH FOR ALL ROLES
+    // Determine the primary role from Cognito (priority: admin > instructor > student)
+    let cognitoPrimaryRole = null;
     if (cognitoRoles.includes("admin")) {
-      // Case 1: User has admin role in Cognito - ensure database also has admin
-      if (!dbRoles.includes("admin")) {
+      cognitoPrimaryRole = "admin";
+    } else if (cognitoRoles.includes("instructor")) {
+      cognitoPrimaryRole = "instructor";
+    } else if (cognitoRoles.includes("student")) {
+      cognitoPrimaryRole = "student";
+    }
+
+    // If user has a Cognito role, sync it to the database
+    if (cognitoPrimaryRole) {
+      const dbPrimaryRole = dbRoles.length > 0 ? dbRoles[0] : null;
+
+      // Only update database if roles don't match
+      if (dbPrimaryRole !== cognitoPrimaryRole) {
         await sqlConnection`
           UPDATE "users"
-          SET roles = array_append(roles, 'admin')
+          SET roles = ARRAY[${cognitoPrimaryRole}]::user_role[]
           WHERE user_email = ${email};
         `;
-        console.log("DB roles updated to include admin");
+        console.log(
+          `Database role updated from '${dbPrimaryRole}' to '${cognitoPrimaryRole}' to match Cognito`,
+        );
+      } else {
+        console.log(`Roles already in sync: ${cognitoPrimaryRole}`);
       }
-    } else if (
-      cognitoRoles.some((role) => ["instructor", "student"].includes(role))
-    ) {
-      // Case 2: User has non-admin role in Cognito
-      const cognitoNonAdminRole = cognitoRoles.find((role) =>
-        ["instructor", "student"].includes(role)
+    } else {
+      // User has no recognized Cognito role - log warning but don't fail
+      console.warn(
+        `User ${email} has no recognized Cognito role (admin/instructor/student)`,
       );
-
-      if (dbRoles.includes("admin")) {
-        // If database has admin but Cognito doesn't, demote database role to match Cognito
-        await sqlConnection`
-          UPDATE "users"
-          SET roles = ARRAY[${cognitoNonAdminRole}]::user_role[]
-          WHERE user_email = ${email};
-        `;
-      } else if (dbRoles.length && dbRoles[0] !== cognitoNonAdminRole) {
-        // If roles don't match and neither is admin, update Cognito to match database
-        const removeFromGroupCommand = new AdminRemoveUserFromGroupCommand({
-          UserPoolId: userPoolId,
-          Username: userName,
-          GroupName: cognitoNonAdminRole,
-        });
-        const addToGroupCommand = new AdminAddUserToGroupCommand({
-          UserPoolId: userPoolId,
-          Username: userName,
-          GroupName: dbRoles[0],
-        });
-
-        // Remove user from current group and add to correct group
-        await client.send(removeFromGroupCommand);
-        await client.send(addToGroupCommand);
-      }
     }
 
     // Return event to continue the flow
