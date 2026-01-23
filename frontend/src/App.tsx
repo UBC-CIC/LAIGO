@@ -109,7 +109,19 @@ function App() {
           </Routes>
         );
       case "instructor":
-        return <InstructorDashboard userInfo={userInfo} />;
+        return (
+          <Routes>
+            <Route
+              path="/"
+              element={<InstructorDashboard userInfo={userInfo} />}
+            />
+            <Route path="/create-case" element={<CreateCase />} />
+            <Route
+              path="*"
+              element={<InstructorDashboard userInfo={userInfo} />}
+            />
+          </Routes>
+        );
       case "student":
       default:
         return (
