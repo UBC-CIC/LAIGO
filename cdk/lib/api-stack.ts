@@ -1012,6 +1012,48 @@ export class ApiGatewayStack extends cdk.Stack {
       .defaultChild as lambda.CfnFunction;
     cfnLambda_Admin.overrideLogicalId("adminFunction");
 
+    // --- Instructor Lambda Function ---
+    const lambdaInstructorFunction = new lambda.Function(
+      this,
+      `${id}-instructorFunction`,
+      {
+        runtime: lambda.Runtime.NODEJS_22_X,
+        code: lambda.Code.fromAsset("lambda/handlers"),
+        handler: "instructorFunction.handler",
+        timeout: Duration.seconds(300),
+        vpc: vpcStack.vpc,
+        environment: {
+          SM_DB_CREDENTIALS: db.secretPathAdminName,
+          RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint,
+          USER_POOL: this.userPool.userPoolId,
+          MESSAGE_LIMIT: messageLimitParameter.parameterName,
+          FILE_SIZE_LIMIT: fileSizeLimitParameter.parameterName,
+        },
+        functionName: `${id}-instructorFunction`,
+        memorySize: 512,
+        layers: [postgres],
+        role: lambdaRole,
+      },
+    );
+
+    // Add the permission to the Lambda function's policy to allow API Gateway access
+    lambdaInstructorFunction.addPermission("AllowApiGatewayInvoke", {
+      principal: new iam.ServicePrincipal("apigateway.amazonaws.com"),
+      action: "lambda:InvokeFunction",
+      sourceArn: `arn:aws:execute-api:${this.region}:${this.account}:${this.api.restApiId}/*/*/instructor*`,
+    });
+
+    // Allow access for lambda to read message limit parameter
+    messageLimitParameter.grantRead(lambdaInstructorFunction);
+
+    // Allow access for lambda to read file size limit parameter
+    fileSizeLimitParameter.grantRead(lambdaInstructorFunction);
+
+    // Override logical ID to reference from OpenAPI document
+    const cfnLambda_Instructor = lambdaInstructorFunction.node
+      .defaultChild as lambda.CfnFunction;
+    cfnLambda_Instructor.overrideLogicalId("instructorFunction");
+
     const bedrockPolicyStatement = new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
       actions: ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"],
