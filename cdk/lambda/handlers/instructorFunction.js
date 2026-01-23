@@ -211,7 +211,7 @@ exports.handler = async (event) => {
             UPDATE "cases"
             SET 
               sent_to_review = false,
-              status = 'Review Feedback'
+              status = 'reviewed'
             WHERE case_id = ${case_id};
           `;
 

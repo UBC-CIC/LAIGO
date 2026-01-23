@@ -35,7 +35,7 @@ exports.handler = async (event) => {
   const userAttributesResponse = await client.send(userAttributesCommand);
 
   const emailAttr = userAttributesResponse.UserAttributes.find(
-    (attr) => attr.Name === "email"
+    (attr) => attr.Name === "email",
   );
   const userEmailAttribute = emailAttr ? emailAttr.Value : null;
   // Check for query string parameters
@@ -222,21 +222,20 @@ exports.handler = async (event) => {
         ) {
           try {
             console.log("Message limit name: ", MESSAGE_LIMIT);
-            const { SSMClient, GetParameterCommand } = await import(
-              "@aws-sdk/client-ssm"
-            );
+            const { SSMClient, GetParameterCommand } =
+              await import("@aws-sdk/client-ssm");
 
             const ssm = new SSMClient();
 
             console.log("Fetching message limit from SSM parameter store...");
 
             const result = await ssm.send(
-              new GetParameterCommand({ Name: MESSAGE_LIMIT })
+              new GetParameterCommand({ Name: MESSAGE_LIMIT }),
             );
 
             console.log(
               "Message limit fetched successfully:",
-              result.Parameter.Value
+              result.Parameter.Value,
             );
 
             response.statusCode = 200;
@@ -254,13 +253,12 @@ exports.handler = async (event) => {
 
       case "GET /student/file_size_limit":
         try {
-          const { SSMClient, GetParameterCommand } = await import(
-            "@aws-sdk/client-ssm"
-          );
+          const { SSMClient, GetParameterCommand } =
+            await import("@aws-sdk/client-ssm");
           const ssm = new SSMClient();
 
           const result = await ssm.send(
-            new GetParameterCommand({ Name: FILE_SIZE_LIMIT })
+            new GetParameterCommand({ Name: FILE_SIZE_LIMIT }),
           );
 
           response.statusCode = 200;
@@ -798,6 +796,87 @@ ORDER BY time_uploaded DESC;
         }
         break;
 
+      case "GET /student/feedback":
+        if (
+          event.queryStringParameters &&
+          event.queryStringParameters.case_id &&
+          event.queryStringParameters.cognito_id
+        ) {
+          const caseId = event.queryStringParameters.case_id;
+          const cognitoId = event.queryStringParameters.cognito_id;
+
+          try {
+            // Step 1: Get user ID
+            const userResult = await sqlConnection`
+              SELECT user_id FROM "users" WHERE cognito_id = ${cognitoId};
+            `;
+            if (userResult.length === 0) {
+              response.statusCode = 403;
+              response.body = JSON.stringify({ error: "User not found" });
+              break;
+            }
+            const requestingUserId = userResult[0].user_id;
+
+            // Step 2: Get case owner
+            const caseResult = await sqlConnection`
+              SELECT * FROM "cases" WHERE case_id = ${caseId};
+            `;
+            if (caseResult.length === 0) {
+              response.statusCode = 404;
+              response.body = JSON.stringify({ error: "Case not found" });
+              break;
+            }
+            const caseOwnerId = caseResult[0].student_id;
+
+            // Step 3: Check access (Owner or Assigned Instructor)
+            let hasAccess = false;
+            if (requestingUserId === caseOwnerId) {
+              hasAccess = true;
+            } else {
+              const instructorCheck = await sqlConnection`
+                SELECT 1 FROM "instructor_students"
+                WHERE instructor_id = ${requestingUserId} AND student_id = ${caseOwnerId};
+              `;
+              if (instructorCheck.length > 0) {
+                hasAccess = true;
+              }
+            }
+
+            if (!hasAccess) {
+              response.statusCode = 403;
+              response.body = JSON.stringify({ error: "Access denied" });
+              break;
+            }
+
+            // Step 4: Fetch messages
+            const messages = await sqlConnection`
+              SELECT 
+                m.message_id,
+                m.message_content,
+                m.time_sent,
+                u.first_name,
+                u.last_name
+              FROM "messages" m
+              LEFT JOIN "users" u ON m.instructor_id = u.user_id
+              WHERE m.case_id = ${caseId}
+              ORDER BY m.time_sent DESC;
+            `;
+
+            response.statusCode = 200;
+            response.body = JSON.stringify(messages);
+          } catch (err) {
+            console.error(err);
+            response.statusCode = 500;
+            response.body = JSON.stringify({ error: "Internal server error" });
+          }
+        } else {
+          response.statusCode = 400;
+          response.body = JSON.stringify({
+            error: "Missing case_id or cognito_id",
+          });
+        }
+        break;
+
       case "GET /student/disclaimer":
         if (
           event.queryStringParameters &&
@@ -880,7 +959,7 @@ ORDER BY time_uploaded DESC;
             if (activityData.length > 0) {
               let activity_counter = parseInt(
                 activityData[0].activity_counter,
-                10
+                10,
               );
               const last_activity = activityData[0].last_activity;
               if (activity_counter > 0) {
@@ -888,7 +967,7 @@ ORDER BY time_uploaded DESC;
                 const lastActivityTime = new Date(last_activity);
                 const timeDifference = Math.abs(currentTime - lastActivityTime);
                 const hoursDifference = Math.floor(
-                  timeDifference / (1000 * 60 * 60)
+                  timeDifference / (1000 * 60 * 60),
                 );
 
                 // Check if 24 hours have passed since the last activity
@@ -930,7 +1009,7 @@ ORDER BY time_uploaded DESC;
             if (activityData.length > 0) {
               let activity_counter = parseInt(
                 activityData[0].activity_counter,
-                10
+                10,
               );
               const last_activity = new Date(activityData[0].last_activity);
               const now = new Date();
@@ -1117,7 +1196,7 @@ ORDER BY time_uploaded DESC;
               " and sub_route: ",
               sub_route,
               " -> session_id: ",
-              session_id
+              session_id,
             );
 
             // Initialize the DynamoDB client

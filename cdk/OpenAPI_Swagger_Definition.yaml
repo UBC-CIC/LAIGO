@@ -1480,6 +1480,82 @@ paths:
         httpMethod: "POST"
         type: "aws_proxy"
 
+  /student/feedback:
+    options:
+      summary: CORS support
+      description: |
+        Enable CORS by returning correct headers
+      responses:
+        200:
+          $ref: "#/components/responses/Success"
+      x-amazon-apigateway-integration:
+        type: mock
+        requestTemplates:
+          application/json: |
+            {
+              "statusCode" : 200
+            }
+        responses:
+          default:
+            statusCode: "200"
+            responseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            responseTemplates:
+              application/json: |
+                {}
+    get:
+      tags:
+        - Student
+      summary: Get feedback messages for a case
+      operationId: get_feedback_GET
+      parameters:
+        - in: query
+          name: case_id
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: cognito_id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Feedback retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    message_id:
+                      type: string
+                    message_content:
+                      type: string
+                    time_sent:
+                      type: string
+                    first_name:
+                      type: string
+                    last_name:
+                      type: string
+        "400":
+          description: Bad Request
+        "403":
+          description: Access Denied
+        "500":
+          description: Internal Server Error
+      security:
+        - studentAuthorizer: []
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${studentFunction.Arn}/invocations"
+        passthroughBehavior: "when_no_match"
+        httpMethod: "POST"
+        type: "aws_proxy"
+
   /student/delete_summary:
     options:
       summary: CORS support
