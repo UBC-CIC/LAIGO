@@ -16,49 +16,30 @@ import SearchIcon from "@mui/icons-material/Search";
 import StudentHeader from "../../components/StudentHeader";
 import CaseCard from "../../components/CaseCard";
 
-// Mock data replicating the screenshot
-const mockCases = [
-  {
-    id: "89H%2Lx",
-    title: "Federal Civil Law: Tenancy Dispute Leads to Assault",
-    status: "In Progress",
-    jurisdiction: "Federal",
-    dateAdded: "November 19th, 2025",
-  },
-  {
-    id: "89H%2Lx",
-    title: "Federal Civil Law: Tenancy Dispute Leads to Assault",
-    status: "In Progress",
-    jurisdiction: "Federal",
-    dateAdded: "November 19th, 2025",
-  },
-  {
-    id: "89H%2Lx",
-    title: "Federal Civil Law: Tenancy Dispute Leads to Assault",
-    status: "In Progress",
-    jurisdiction: "Federal",
-    dateAdded: "November 19th, 2025",
-  },
-  {
-    id: "89H%2Lx",
-    title: "Federal Civil Law: Tenancy Dispute Leads to Assault",
-    status: "In Progress",
-    jurisdiction: "Federal",
-    dateAdded: "November 19th, 2025",
-  },
-  {
-    id: "89H%2Lx",
-    title: "Federal Civil Law: Tenancy Dispute Leads to Assault",
-    status: "In Progress",
-    jurisdiction: "Federal",
-    dateAdded: "November 19th, 2025",
-  },
-];
+// Define types
+interface Case {
+  id: string;
+  hash: string;
+  title: string;
+  status: string;
+  jurisdiction: string;
+  dateAdded: string;
+}
 
-const RealStudentHome: React.FC = () => {
+interface RawCase {
+  case_id: string;
+  case_hash: string;
+  case_title?: string;
+  status: string;
+  jurisdiction: string[] | string;
+  last_updated?: string;
+  [key: string]: unknown;
+}
+
+const StudentDashboard: React.FC = () => {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
-  const [cases, setCases] = useState<any[] | null>(null);
+  const [cases, setCases] = useState<Case[] | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
   // Snackbar for in-app notifications
@@ -70,7 +51,7 @@ const RealStudentHome: React.FC = () => {
 
   const showSnackbar = (
     message: string,
-    severity: "success" | "error" | "info" | "warning" = "info"
+    severity: "success" | "error" | "info" | "warning" = "info",
   ) => {
     setSnackbarMessage(message);
     setSnackbarSeverity(severity);
@@ -122,13 +103,13 @@ const RealStudentHome: React.FC = () => {
         const data = await resp.json();
 
         // Normalize API response to an array of cases
-        let casesArray: any[] = [];
+        let casesArray: RawCase[] = [];
         if (Array.isArray(data)) {
           casesArray = data;
         } else if (data && Array.isArray(data.cases)) {
           casesArray = data.cases;
         } else if (data && typeof data === "object") {
-          casesArray = data.cases || [];
+          casesArray = (data.cases as RawCase[]) || [];
         }
 
         // Map backend case objects to UI shape expected by CaseCard (use canonical schema fields)
@@ -139,14 +120,14 @@ const RealStudentHome: React.FC = () => {
           archived: "Archived",
         };
 
-        const normalized = casesArray.map((c) => {
+        const normalized: Case[] = casesArray.map((c) => {
           const id = c.case_id;
           const hash = c.case_hash;
           const title = c.case_title || "Untitled Case";
           const status = STATUS_DISPLAY_MAP[c.status] ?? c.status ?? "";
           const jurisdiction = Array.isArray(c.jurisdiction)
             ? c.jurisdiction.join(", ")
-            : "";
+            : (c.jurisdiction as string) || "";
           const dateAdded = c.last_updated
             ? new Date(c.last_updated).toLocaleDateString(undefined, {
                 month: "long",
@@ -158,7 +139,7 @@ const RealStudentHome: React.FC = () => {
           return { id, hash, title, status, jurisdiction, dateAdded };
         });
 
-        setCases(normalized as any[]);
+        setCases(normalized);
       } catch (error) {
         console.error("Error fetching cases:", error);
       } finally {
@@ -184,7 +165,7 @@ const RealStudentHome: React.FC = () => {
         {
           method: "DELETE",
           headers: { Authorization: token },
-        }
+        },
       );
 
       if (!resp.ok) {
@@ -220,7 +201,7 @@ const RealStudentHome: React.FC = () => {
         {
           method: "PUT",
           headers: { Authorization: token, "Content-Type": "application/json" },
-        }
+        },
       );
 
       if (!resp.ok) {
@@ -232,9 +213,9 @@ const RealStudentHome: React.FC = () => {
       setCases((prev) =>
         prev
           ? prev.map((c) =>
-              c.id === caseId ? { ...c, status: "archived" } : c
+              c.id === caseId ? { ...c, status: "archived" } : c,
             )
-          : prev
+          : prev,
       );
       showSnackbar("Case archived", "success");
     } catch (err) {
@@ -249,7 +230,7 @@ const RealStudentHome: React.FC = () => {
   // Using fetched data (or empty list) for search/filtering
   const filteredCases = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const source = cases !== null ? cases : mockCases; // if cases === null we're still using mock data as a pre-fetch placeholder
+    const source = cases || [];
     if (!q) return source;
     return source.filter((c) => {
       return (
@@ -378,4 +359,4 @@ const RealStudentHome: React.FC = () => {
   );
 };
 
-export default RealStudentHome;
+export default StudentDashboard;
