@@ -134,9 +134,17 @@ exports.handler = async (event) => {
             break;
           }
 
-          // Query to get all cases sent for review
+          const instructorUserId = userIdResult[0].user_id;
+
+          // Query to get cases explicitly assigned to this instructor for review
           const data = await sqlConnection`
-            SELECT * FROM cases WHERE sent_to_review = true;
+            SELECT c.*, u.first_name, u.last_name 
+            FROM cases c
+            JOIN case_reviewers cr ON c.case_id = cr.case_id
+            JOIN users u ON c.student_id = u.user_id
+            WHERE cr.reviewer_id = ${instructorUserId}
+            AND c.status = 'submitted'
+            AND c.sent_to_review = true;
           `;
 
           response = buildResponse(200, data);

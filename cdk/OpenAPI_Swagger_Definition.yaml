@@ -1959,6 +1959,17 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reviewer_ids:
+                  type: array
+                  items:
+                    type: string
       responses:
         "200":
           description: Case sent for review

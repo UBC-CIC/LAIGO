@@ -1427,17 +1427,45 @@ ORDER BY time_uploaded DESC;
           event.queryStringParameters.cognito_id
         ) {
           const { case_id, cognito_id } = event.queryStringParameters;
+
+          let reviewer_ids = [];
           try {
-            await sqlConnection`
-                    UPDATE "cases"
-                    SET 
-                        sent_to_review = true,
-                        status = 'submitted'
-                    WHERE case_id = ${case_id}; 
-                `;
+            if (event.body) {
+              const parsedBody = JSON.parse(event.body);
+              if (Array.isArray(parsedBody.reviewer_ids)) {
+                reviewer_ids = parsedBody.reviewer_ids;
+              }
+            }
+          } catch (e) {
+            console.warn("Failed to parse body for reviewer_ids", e);
+          }
+
+          try {
+            await sqlConnection.begin(async (sql) => {
+              // 1. Update case status
+              await sql`
+                UPDATE "cases"
+                SET 
+                    sent_to_review = true,
+                    status = 'submitted'
+                WHERE case_id = ${case_id}; 
+              `;
+
+              // 2. Insert reviewers if provided
+              if (reviewer_ids.length > 0) {
+                for (const reviewerId of reviewer_ids) {
+                  await sql`
+                    INSERT INTO "case_reviewers" (case_id, reviewer_id)
+                    VALUES (${case_id}, ${reviewerId})
+                    ON CONFLICT (case_id, reviewer_id) DO NOTHING;
+                  `;
+                }
+              }
+            });
+
             response.statusCode = 200;
             response.body = JSON.stringify({
-              message: "Case Updated Successfully",
+              message: "Case Updated and Reviewers Assigned Successfully",
             });
           } catch (err) {
             response.statusCode = 500;

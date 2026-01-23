@@ -88,7 +88,7 @@ const CaseOverview: React.FC = () => {
 
   const toggleInstructor = (id: string) => {
     setSelectedInstructors((prev) =>
-      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
     );
   };
 
@@ -109,7 +109,8 @@ const CaseOverview: React.FC = () => {
             Authorization: token,
             "Content-Type": "application/json",
           },
-        }
+          body: JSON.stringify({ reviewer_ids: selectedInstructors }),
+        },
       );
 
       if (!response.ok) throw new Error("Failed to send for review");
@@ -146,13 +147,13 @@ const CaseOverview: React.FC = () => {
             Authorization: token,
             "Content-Type": "application/json",
           },
-        }
+        },
       );
 
       if (!response.ok) throw new Error("Failed to archive case");
 
       setCaseData((prev: CaseData | null) =>
-        prev ? { ...prev, status: "archived" } : prev
+        prev ? { ...prev, status: "archived" } : prev,
       );
       setSnackbar({
         open: true,
@@ -185,13 +186,13 @@ const CaseOverview: React.FC = () => {
             Authorization: token,
             "Content-Type": "application/json",
           },
-        }
+        },
       );
 
       if (!response.ok) throw new Error("Failed to unarchive case");
 
       setCaseData((prev: CaseData | null) =>
-        prev ? { ...prev, status: "In Progress" } : prev
+        prev ? { ...prev, status: "In Progress" } : prev,
       );
       setSnackbar({
         open: true,
@@ -247,7 +248,7 @@ const CaseOverview: React.FC = () => {
               Authorization: token,
               "Content-Type": "application/json",
             },
-          }
+          },
         );
 
         if (!response.ok) throw new Error("Case not found");
@@ -281,7 +282,7 @@ const CaseOverview: React.FC = () => {
         }/student/instructors?user_id=${cognitoId}`,
         {
           headers: { Authorization: token, "Content-Type": "application/json" },
-        }
+        },
       );
       if (!res.ok) {
         console.error("Failed to fetch instructors:", res.statusText);
@@ -315,7 +316,7 @@ const CaseOverview: React.FC = () => {
             "Content-Type": "application/json",
           },
           body: JSON.stringify(editedCase),
-        }
+        },
       );
 
       if (!response.ok) throw new Error("Failed to update case");
@@ -326,7 +327,7 @@ const CaseOverview: React.FC = () => {
         severity: "success",
       });
       setCaseData((prev: CaseData | null) =>
-        prev ? { ...prev, ...editedCase } : prev
+        prev ? { ...prev, ...editedCase } : prev,
       );
       setEditMode(false);
     } catch (error) {
@@ -655,7 +656,7 @@ const CaseOverview: React.FC = () => {
                   <Grid container>
                     {instructors.map((instructor, index) => {
                       const isSelected = selectedInstructors.includes(
-                        instructor.instructor_id
+                        instructor.instructor_id,
                       );
                       return (
                         <Grid
@@ -790,12 +791,12 @@ const CaseOverview: React.FC = () => {
                               .map((j) =>
                                 j === "Provincial"
                                   ? `Provincial (${caseData.province})`
-                                  : j
+                                  : j,
                               )
                               .join(", ")
                           : caseData[key] === "Provincial"
-                          ? `Provincial (${caseData.province})`
-                          : caseData[key]
+                            ? `Provincial (${caseData.province})`
+                            : caseData[key]
                         : caseData[key] || "N/A"}
                     </Typography>
                   </Grid>
@@ -823,7 +824,7 @@ const CaseOverview: React.FC = () => {
                             hour: "numeric",
                             minute: "numeric",
                             hour12: true,
-                          }
+                          },
                         )
                       : "N/A"}
                   </Typography>
