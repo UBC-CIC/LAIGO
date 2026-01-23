@@ -28,64 +28,26 @@ interface InstructorDashboardProps {
   userInfo: UserInfo;
 }
 
+import { fetchAuthSession } from "aws-amplify/auth";
+
 // Define Case interface
 interface Case {
-  id: string;
+  case_id: string;
   case_hash?: string;
-  title: string;
+  case_title: string;
   status: string;
-  jurisdiction: string;
-  dateAdded: string;
+  jurisdiction: string[];
+  last_updated: string;
+  first_name?: string;
+  last_name?: string;
 }
 
-// Mock Stats Data
+// Mock Stats Data (still mock for now as backend endpoint isn't ready for stats)
 const mockStats = {
   associatesAssigned: 4,
   pendingReviews: 3,
   completedReviews: 12,
 };
-
-// Mock Cases replicating the screenshot/requirements
-const mockPendingCases: Case[] = [
-  {
-    id: "89H%2Lx",
-    title: "Federal Civil Law: Tenancy Dispute Leads to Assault",
-    status: "In Progress",
-    jurisdiction: "Federal",
-    dateAdded: "November 19th, 2025",
-  },
-  {
-    id: "89H%2Lx2",
-    title: "Federal Civil Law: Tenancy Dispute Leads to Assault",
-    status: "In Progress",
-    jurisdiction: "Federal",
-    dateAdded: "November 19th, 2025",
-  },
-  {
-    id: "89H%2Lx3",
-    title: "Federal Civil Law: Tenancy Dispute Leads to Assault",
-    status: "In Progress",
-    jurisdiction: "Federal",
-    dateAdded: "November 19th, 2025",
-  },
-  {
-    id: "89H%2Lx4",
-    title: "Federal Civil Law: Tenancy Dispute Leads to Assault",
-    status: "In Progress",
-    jurisdiction: "Federal",
-    dateAdded: "November 19th, 2025",
-  },
-  {
-    id: "89H%2Lx5",
-    title: "Federal Civil Law: Tenancy Dispute Leads to Assault",
-    status: "In Progress",
-    jurisdiction: "Federal",
-    dateAdded: "November 19th, 2025",
-  },
-];
-
-// Reusing same mock data structure for completed reviews for now, usually would be different status
-const mockCompletedReviews: Case[] = [];
 
 const StatCard = ({ title, value }: { title: string; value: number }) => (
   <Paper
@@ -110,10 +72,11 @@ const StatCard = ({ title, value }: { title: string; value: number }) => (
 const InstructorDashboard = ({ userInfo }: InstructorDashboardProps) => {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
-  const [pendingCases, setPendingCases] = useState<Case[]>(mockPendingCases);
-  const [completedCases, setCompletedCases] =
-    useState<Case[]>(mockCompletedReviews);
-  const [loading, setLoading] = useState<boolean>(true); // Simulate loading
+  // pendingCases = cases returned from /instructor/cases_to_review
+  const [pendingCases, setPendingCases] = useState<Case[]>([]);
+  // allStudentCases = cases returned from /instructor/view_students
+  const [allStudentCases, setAllStudentCases] = useState<Case[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
 
   // Snackbar
   const [snackbarOpen, setSnackbarOpen] = useState<boolean>(false);
@@ -131,17 +94,55 @@ const InstructorDashboard = ({ userInfo }: InstructorDashboardProps) => {
     setSnackbarOpen(true);
   };
 
-  // Simulate fetch (mock for now)
+  // Fetch data
   useEffect(() => {
     const fetchInstructorData = async () => {
       setLoading(true);
-      // Simulate delay
-      await new Promise((r) => setTimeout(r, 800));
+      try {
+        const session = await fetchAuthSession();
+        const token = session.tokens?.idToken?.toString();
 
-      // Use mock data
-      setPendingCases(mockPendingCases);
-      setCompletedCases(mockCompletedReviews);
-      setLoading(false);
+        if (!token) throw new Error("No auth token");
+
+        const headers = {
+          Authorization: token,
+          "Content-Type": "application/json",
+        };
+
+        // 1. Fetch cases pending review
+        const pendingResp = await fetch(
+          `${import.meta.env.VITE_API_ENDPOINT}/instructor/cases_to_review?cognito_id=${userInfo.userId}`,
+          { headers },
+        );
+
+        if (pendingResp.ok) {
+          const pendingData = await pendingResp.json();
+          setPendingCases(Array.isArray(pendingData) ? pendingData : []);
+        } else {
+          console.error("Failed to fetch pending cases");
+          setPendingCases([]);
+        }
+
+        // 2. Fetch all student cases (view_students)
+        const allCasesResp = await fetch(
+          `${import.meta.env.VITE_API_ENDPOINT}/instructor/view_students?cognito_id=${userInfo.userId}`,
+          { headers },
+        );
+
+        if (allCasesResp.ok) {
+          const allCasesData = await allCasesResp.json();
+          setAllStudentCases(Array.isArray(allCasesData) ? allCasesData : []);
+        } else {
+          // 404 might mean no students assigned
+          console.error("Failed to fetch student cases (or none assigned)");
+          setAllStudentCases([]);
+        }
+      } catch (err) {
+        console.error("Error fetching dashboard data", err);
+        showSnackbar("Failed to load dashboard data", "error");
+      } finally {
+        setLoading(false);
+      }
     };
 
     fetchInstructorData();
@@ -172,11 +173,17 @@ const InstructorDashboard = ({ userInfo }: InstructorDashboardProps) => {
       const q = query.trim().toLowerCase();
       if (!q) return cases;
       return cases.filter((c) => {
+        const jurisdiction = Array.isArray(c.jurisdiction)
+          ? c.jurisdiction.join(", ")
+          : "";
+
         return (
-          (c.title || "").toLowerCase().includes(q) ||
-          (c.jurisdiction || "").toLowerCase().includes(q) ||
+          (c.case_title || "").toLowerCase().includes(q) ||
+          jurisdiction.toLowerCase().includes(q) ||
           (c.status || "").toLowerCase().includes(q) ||
-          (c.id || "").toLowerCase().includes(q)
+          (c.case_id || "").toLowerCase().includes(q) ||
+          (c.first_name || "").toLowerCase().includes(q) ||
+          (c.last_name || "").toLowerCase().includes(q)
         );
       });
     };
@@ -186,9 +193,11 @@ const InstructorDashboard = ({ userInfo }: InstructorDashboardProps) => {
     () => filterCases(pendingCases),
     [filterCases, pendingCases],
   );
-  const visibleCompleted = useMemo(
-    () => filterCases(completedCases),
-    [filterCases, completedCases],
+
+  // Reuse the 'completed' section to show ALL student cases for now, as requested ("view cases returned from this endpoint")
+  const visibleAllStudentCases = useMemo(
+    () => filterCases(allStudentCases),
+    [filterCases, allStudentCases],
   );
 
   return (
@@ -288,12 +297,14 @@ const InstructorDashboard = ({ userInfo }: InstructorDashboardProps) => {
                       key={`pending-${index}`}
                     >
                       <CaseCard
-                        caseId={caseItem.id}
-                        caseHash={caseItem.case_hash} // mock might not have this, be careful
-                        title={caseItem.title}
+                        caseId={caseItem.case_id}
+                        caseHash={caseItem.case_hash}
+                        title={caseItem.case_title}
                         status={caseItem.status}
-                        jurisdiction={caseItem.jurisdiction}
-                        dateAdded={caseItem.dateAdded}
+                        jurisdiction={caseItem.jurisdiction?.join(", ")}
+                        // Add student name to date or as subtitle if supported, for now appending to date area or title
+                        // Actually, CaseCard prop structure is fixed. Let's pass student name in title or Date for visibility
+                        dateAdded={`Student: ${caseItem.first_name || ""} ${caseItem.last_name || ""} • ${new Date(caseItem.last_updated).toLocaleDateString()}`}
                         onDelete={handleDeleteCase}
                         onArchive={handleArchiveCase}
                         onClick={(id) => navigate(`/case/${id}/overview`)}
@@ -304,8 +315,7 @@ const InstructorDashboard = ({ userInfo }: InstructorDashboardProps) => {
               </Grid>
             </Box>
 
-            {/* Completed Reviews (Header only if we want to show it even when empty, or hide? 
-                    The screenshot shows 'Completed Reviews' header. I'll show it.) */}
+            {/* All Student Cases */}
             <Box sx={{ mb: 4 }}>
               <Typography
                 variant="h5"
@@ -313,31 +323,28 @@ const InstructorDashboard = ({ userInfo }: InstructorDashboardProps) => {
                 gutterBottom
                 sx={{ mb: 3 }}
               >
-                Completed Reviews
+                All Student Cases
               </Typography>
               <Grid container spacing={3}>
-                {visibleCompleted.length === 0 ? (
-                  // Placeholder text if empty, or just empty?
-                  // The screenshot shows the header but no cards visible below it (cut off?).
-                  // I'll show a message.
+                {visibleAllStudentCases.length === 0 ? (
                   <Grid size={{ xs: 12 }}>
                     <Typography sx={{ color: "var(--text-secondary)" }}>
-                      No completed reviews found.
+                      No student cases found.
                     </Typography>
                   </Grid>
                 ) : (
-                  visibleCompleted.map((caseItem, index) => (
+                  visibleAllStudentCases.map((caseItem, index) => (
                     <Grid
                       size={{ xs: 12, sm: 6, md: 4 }}
-                      key={`completed-${index}`}
+                      key={`student-case-${index}`}
                     >
                       <CaseCard
-                        caseId={caseItem.id}
+                        caseId={caseItem.case_id}
                         caseHash={caseItem.case_hash}
-                        title={caseItem.title}
+                        title={caseItem.case_title}
                         status={caseItem.status}
-                        jurisdiction={caseItem.jurisdiction}
-                        dateAdded={caseItem.dateAdded}
+                        jurisdiction={caseItem.jurisdiction?.join(", ")}
+                        dateAdded={`Student: ${caseItem.first_name || ""} ${caseItem.last_name || ""} • ${new Date(caseItem.last_updated).toLocaleDateString()}`}
                         onDelete={handleDeleteCase}
                         onArchive={handleArchiveCase}
                         onClick={(id) => navigate(`/case/${id}/overview`)}

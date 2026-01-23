@@ -1,4 +1,4 @@
-const { initializeConnection } = require("./lib.js");
+const { initializeConnection } = require("./initializeConnection.js");
 let { SM_DB_CREDENTIALS, RDS_PROXY_ENDPOINT, USER_POOL } = process.env;
 const {
   CognitoIdentityProviderClient,
@@ -296,8 +296,8 @@ exports.handler = async (event) => {
   u.first_name, 
   u.last_name 
 FROM "cases" c
-JOIN "users" u ON c.user_id = u.user_id
-WHERE c.user_id = ANY(${studentIds});
+JOIN "users" u ON c.student_id = u.user_id
+WHERE c.student_id = ANY(${studentIds});
 
       `;
 
