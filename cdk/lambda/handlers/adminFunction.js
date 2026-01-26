@@ -144,22 +144,74 @@ exports.handler = async (event) => {
           });
         }
         break;
+      case "PUT /admin/prompt":
+        try {
+          console.log("Prompt version update initiated");
+
+          if (!event.body) throw new Error("Request body is missing");
+
+          const { prompt_version_id, prompt_text, version_name } = JSON.parse(
+            event.body,
+          );
+
+          if (!prompt_version_id)
+            throw new Error("Missing required field: prompt_version_id");
+
+          if (!prompt_text && !version_name)
+            throw new Error(
+              "At least one field to update is required: prompt_text or version_name",
+            );
+
+          // Check if prompt exists
+          const existingPrompt = await sqlConnectionTableCreator`
+            SELECT prompt_version_id FROM "prompt_versions"
+            WHERE prompt_version_id = ${prompt_version_id};
+          `;
+
+          if (existingPrompt.length === 0) {
+            response.statusCode = 404;
+            throw new Error("Prompt version not found");
+          }
+
+          // Update the prompt
+          const updateResult = await sqlConnectionTableCreator`
+            UPDATE "prompt_versions"
+            SET 
+              prompt_text = COALESCE(${prompt_text || null}, prompt_text),
+              version_name = COALESCE(${version_name || null}, version_name)
+            WHERE prompt_version_id = ${prompt_version_id}
+            RETURNING *;
+          `;
+
+          response.body = JSON.stringify(updateResult[0]);
+        } catch (err) {
+          if (response.statusCode === 200) {
+            response.statusCode = 500;
+          }
+          console.error("Error updating prompt version:", err);
+          response.body = JSON.stringify({
+            error: err.message || "Internal server error",
+          });
+        }
+        break;
       case "GET /admin/prompt":
         try {
           // Fetch ALL prompt versions, ordered by category, block_type, and version
           const prompts = await sqlConnectionTableCreator`
             SELECT 
-              prompt_version_id,
-              category,
-              block_type,
-              version_number,
-              version_name,
-              prompt_text,
-              author_id,
-              time_created,
-              is_active
-            FROM "prompt_versions"
-            ORDER BY category, block_type, version_number DESC;
+              pv.prompt_version_id,
+              pv.category,
+              pv.block_type,
+              pv.version_number,
+              pv.version_name,
+              pv.prompt_text,
+              pv.author_id,
+              pv.time_created,
+              pv.is_active,
+              CONCAT(u.first_name, ' ', u.last_name) AS author_name
+            FROM "prompt_versions" pv
+            LEFT JOIN "users" u ON pv.author_id = u.user_id
+            ORDER BY pv.category, pv.block_type, pv.version_number DESC;
           `;
 
           response.body = JSON.stringify(prompts);

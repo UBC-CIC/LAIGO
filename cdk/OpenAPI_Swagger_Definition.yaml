@@ -296,7 +296,7 @@ paths:
             statusCode: "200"
             responseParameters:
               method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key'"
-              method.response.header.Access-Control-Allow-Methods: "'GET,POST,DELETE,OPTIONS'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
               method.response.header.Access-Control-Allow-Origin: "'*'"
             responseTemplates:
               application/json: |
@@ -400,6 +400,49 @@ paths:
                       type: string
                     is_active:
                       type: boolean
+        "500":
+          description: Internal Server Error
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${adminFunction.Arn}/invocations"
+        passthroughBehavior: "when_no_match"
+        httpMethod: "POST"
+        type: "aws_proxy"
+
+    put:
+      tags:
+        - Admin
+      summary: Update a prompt version
+      operationId: admin_update_prompt_PUT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - prompt_version_id
+              properties:
+                prompt_version_id:
+                  type: string
+                  description: The ID of the prompt version to update
+                prompt_text:
+                  type: string
+                  description: Updated prompt content
+                version_name:
+                  type: string
+                  description: Updated version name
+      responses:
+        "200":
+          description: Prompt version updated
+          content:
+            application/json:
+              schema:
+                type: object
+        "400":
+          description: Invalid request
+        "404":
+          description: Prompt version not found
         "500":
           description: Internal Server Error
       x-amazon-apigateway-integration:

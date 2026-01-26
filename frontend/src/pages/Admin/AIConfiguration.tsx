@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Box,
   Typography,
@@ -18,6 +18,9 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  CircularProgress,
+  Snackbar,
+  Alert,
 } from "@mui/material";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import SaveIcon from "@mui/icons-material/Save";
@@ -26,7 +29,7 @@ import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import InputIcon from "@mui/icons-material/Input";
 import AdminHeader from "../../components/AdminHeader";
-import { v4 as uuidv4 } from "uuid";
+import { fetchAuthSession } from "aws-amplify/auth";
 
 // --- Types based on DB Schema & Requirements ---
 
@@ -41,14 +44,15 @@ type BlockType =
   | "policy";
 
 interface PromptVersion {
-  prompt_version_id: string; // db: uuid
+  prompt_version_id: string;
   category: PromptCategory;
   block_type: BlockType;
   version_number: number;
   version_name: string;
   prompt_text: string;
-  author_id: string; // db: uuid (will just show UUID for now, or mock name if verified)
-  time_created: string; // ISO string
+  author_id: string;
+  author_name?: string; // From JOIN with users table
+  time_created: string;
   is_active: boolean;
 }
 
@@ -165,49 +169,134 @@ const SECTIONS: SidebarSection[] = [
   },
 ];
 
-const INITIAL_PROMPTS: PromptVersion[] = [
-  {
-    prompt_version_id: "1",
-    category: "reasoning",
-    block_type: "intake",
-    version_number: 1,
-    version_name: "System Default",
-    prompt_text: "Original system prompt for Intake & Facts...",
-    is_active: false,
-    time_created: new Date(Date.now() - 86400000 * 10).toISOString(),
-    author_id: "system-uuid",
-  },
-  {
-    prompt_version_id: "2",
-    category: "reasoning",
-    block_type: "intake",
-    version_number: 2,
-    version_name: "Strict Timeline Focus",
-    prompt_text:
-      "You are an expert legal assistant. Guide the junior associate to establish the client's eligibility and gather the factual foundation. Focus on dates, witnesses, and specific events. Do not move forward until the timeline is clear.",
-    is_active: true,
-    time_created: new Date(Date.now() - 86400000 * 2).toISOString(),
-    author_id: "admin-uuid",
-  },
-  {
-    prompt_version_id: "3",
-    category: "reasoning",
-    block_type: "intake",
-    version_number: 3,
-    version_name: "Draft - Emphasize Witnesses",
-    prompt_text:
-      "You are an expert legal assistant. Priority is on gathering witness statements...",
-    is_active: false,
-    time_created: new Date().toISOString(),
-    author_id: "admin-uuid",
-  },
-];
-
 const AIConfiguration = () => {
   const [selectedBlockId, setSelectedBlockId] =
     useState<string>("intake-facts");
-  const [allPrompts, setAllPrompts] =
-    useState<PromptVersion[]>(INITIAL_PROMPTS);
+  const [allPrompts, setAllPrompts] = useState<PromptVersion[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [snackbar, setSnackbar] = useState<{
+    open: boolean;
+    message: string;
+    severity: "success" | "error";
+  }>({ open: false, message: "", severity: "success" });
+
+  // API Functions
+  const fetchPrompts = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const session = await fetchAuthSession();
+      const token = session.tokens?.idToken?.toString();
+      if (!token) throw new Error("No auth token");
+
+      const response = await fetch(
+        `${import.meta.env.VITE_API_ENDPOINT}/admin/prompt`,
+        { headers: { Authorization: token } },
+      );
+      if (!response.ok) throw new Error("Failed to fetch prompts");
+      const data = await response.json();
+      setAllPrompts(data);
+    } catch (err) {
+      console.error("Error fetching prompts:", err);
+      setError(err instanceof Error ? err.message : "Failed to load prompts");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const createPromptVersion = async (promptData: {
+    category: string;
+    block_type: string;
+    prompt_text: string;
+    version_name?: string;
+  }) => {
+    const session = await fetchAuthSession();
+    const token = session.tokens?.idToken?.toString();
+    if (!token) throw new Error("No auth token");
+
+    const response = await fetch(
+      `${import.meta.env.VITE_API_ENDPOINT}/admin/prompt`,
+      {
+        method: "POST",
+        headers: { Authorization: token, "Content-Type": "application/json" },
+        body: JSON.stringify(promptData),
+      },
+    );
+    if (!response.ok) {
+      const errData = await response.json();
+      throw new Error(errData.error || "Failed to create prompt");
+    }
+    return response.json();
+  };
+
+  const activatePrompt = async (prompt_version_id: string) => {
+    const session = await fetchAuthSession();
+    const token = session.tokens?.idToken?.toString();
+    if (!token) throw new Error("No auth token");
+
+    const response = await fetch(
+      `${import.meta.env.VITE_API_ENDPOINT}/admin/prompt/activate`,
+      {
+        method: "POST",
+        headers: { Authorization: token, "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt_version_id }),
+      },
+    );
+    if (!response.ok) {
+      const errData = await response.json();
+      throw new Error(errData.error || "Failed to activate prompt");
+    }
+    return response.json();
+  };
+
+  const deletePromptVersion = async (prompt_version_id: string) => {
+    const session = await fetchAuthSession();
+    const token = session.tokens?.idToken?.toString();
+    if (!token) throw new Error("No auth token");
+
+    const response = await fetch(
+      `${import.meta.env.VITE_API_ENDPOINT}/admin/prompt?prompt_version_id=${prompt_version_id}`,
+      {
+        method: "DELETE",
+        headers: { Authorization: token },
+      },
+    );
+    if (!response.ok) {
+      const errData = await response.json();
+      throw new Error(errData.error || "Failed to delete prompt");
+    }
+    return response.json();
+  };
+
+  const updatePromptVersion = async (updateData: {
+    prompt_version_id: string;
+    prompt_text?: string;
+    version_name?: string;
+  }) => {
+    const session = await fetchAuthSession();
+    const token = session.tokens?.idToken?.toString();
+    if (!token) throw new Error("No auth token");
+
+    const response = await fetch(
+      `${import.meta.env.VITE_API_ENDPOINT}/admin/prompt`,
+      {
+        method: "PUT",
+        headers: { Authorization: token, "Content-Type": "application/json" },
+        body: JSON.stringify(updateData),
+      },
+    );
+    if (!response.ok) {
+      const errData = await response.json();
+      throw new Error(errData.error || "Failed to update prompt");
+    }
+    return response.json();
+  };
+
+  // Fetch prompts on mount
+  useEffect(() => {
+    fetchPrompts();
+  }, [fetchPrompts]);
 
   // Filter based on mapping
   const currentTarget = SIDEBAR_TO_BACKEND[selectedBlockId];
@@ -283,20 +372,8 @@ const AIConfiguration = () => {
         newActive?.prompt_version_id || newBlockPrompts[0].prompt_version_id,
       );
     } else {
-      // Handle case where no prompts exist for a block (create default?)
-      const defaultPrompt: PromptVersion = {
-        prompt_version_id: uuidv4(),
-        category: target.category,
-        block_type: target.block_type!,
-        version_number: 1,
-        version_name: "Initial Draft",
-        prompt_text: "Start writing your prompt here...",
-        is_active: true,
-        time_created: new Date().toISOString(),
-        author_id: "system-uuid",
-      };
-      setAllPrompts((prev) => [...prev, defaultPrompt]);
-      setSelectedVersionId(defaultPrompt.prompt_version_id);
+      // No prompts exist for this block - reset selection
+      setSelectedVersionId("");
     }
   };
 
@@ -304,69 +381,91 @@ const AIConfiguration = () => {
     setSelectedVersionId(DRAFT_ID);
   };
 
-  const handleCreateNewVersion = () => {
+  const handleCreateNewVersion = async () => {
     const target = SIDEBAR_TO_BACKEND[selectedBlockId];
     if (!target || !target.block_type) return;
 
-    const currentMaxVersion =
-      blockPrompts.length > 0
-        ? Math.max(...blockPrompts.map((p) => p.version_number))
-        : 0;
-    const newVersion: PromptVersion = {
-      prompt_version_id: uuidv4(),
-      category: target.category,
-      block_type: target.block_type!,
-      version_number: currentMaxVersion + 1,
-      version_name: versionName || `Version ${currentMaxVersion + 1}`, // User provided or auto-generated
-      prompt_text: editorContent,
-      is_active: false,
-      time_created: new Date().toISOString(),
-      author_id: "admin-uuid",
-    };
-    setAllPrompts((prev) => [...prev, newVersion]);
-    setSelectedVersionId(newVersion.prompt_version_id);
-    alert("New version created!");
+    try {
+      const newPrompt = await createPromptVersion({
+        category: target.category,
+        block_type: target.block_type,
+        prompt_text: editorContent,
+        version_name: versionName || undefined,
+      });
+      setSnackbar({
+        open: true,
+        message: "New version created!",
+        severity: "success",
+      });
+      await fetchPrompts();
+      setSelectedVersionId(newPrompt.prompt_version_id);
+    } catch (err) {
+      setSnackbar({
+        open: true,
+        message: err instanceof Error ? err.message : "Failed to create",
+        severity: "error",
+      });
+    }
   };
 
-  const handleSaveCurrent = () => {
-    setAllPrompts((prev) =>
-      prev.map((p) =>
-        p.prompt_version_id === selectedVersionId
-          ? { ...p, prompt_text: editorContent, version_name: versionName }
-          : p,
-      ),
-    );
-    alert("Version saved.");
+  const handleSaveCurrent = async () => {
+    if (!selectedVersionId || selectedVersionId === DRAFT_ID) {
+      setSnackbar({
+        open: true,
+        message: "No version selected to save",
+        severity: "error",
+      });
+      return;
+    }
+    try {
+      await updatePromptVersion({
+        prompt_version_id: selectedVersionId,
+        prompt_text: editorContent,
+        version_name: versionName,
+      });
+      setSnackbar({
+        open: true,
+        message: "Version saved!",
+        severity: "success",
+      });
+      await fetchPrompts();
+    } catch (err) {
+      setSnackbar({
+        open: true,
+        message: err instanceof Error ? err.message : "Failed to save",
+        severity: "error",
+      });
+    }
   };
 
-  const handleSetActive = (targetId: string = selectedVersionId) => {
-    const target = SIDEBAR_TO_BACKEND[selectedBlockId];
-    if (!target) return;
-
-    setAllPrompts((prev) =>
-      prev.map((p) => {
-        // Only affect items in the current block
-        if (
-          p.category !== target.category ||
-          p.block_type !== target.block_type
-        )
-          return p;
-        return {
-          ...p,
-          is_active: p.prompt_version_id === targetId,
-        };
-      }),
-    );
+  const handleSetActive = async (targetId: string = selectedVersionId) => {
+    try {
+      await activatePrompt(targetId);
+      setSnackbar({
+        open: true,
+        message: "Prompt activated!",
+        severity: "success",
+      });
+      await fetchPrompts();
+    } catch (err) {
+      setSnackbar({
+        open: true,
+        message: err instanceof Error ? err.message : "Failed to activate",
+        severity: "error",
+      });
+    }
   };
 
-  const handleDelete = (targetId: string = selectedVersionId) => {
+  const handleDelete = async (targetId: string = selectedVersionId) => {
     const promptToDelete = allPrompts.find(
       (p) => p.prompt_version_id === targetId,
     );
     if (promptToDelete?.is_active) {
-      alert(
-        "Cannot delete the active version. Please set another version as active first.",
-      );
+      setSnackbar({
+        open: true,
+        message: "Cannot delete an active prompt. Activate another first.",
+        severity: "error",
+      });
       return;
     }
     if (
@@ -374,21 +473,25 @@ const AIConfiguration = () => {
         `Are you sure you want to delete "${promptToDelete?.version_name}"?`,
       )
     ) {
-      const remaining = blockPrompts.filter(
-        (p) => p.prompt_version_id !== targetId,
-      );
-      setAllPrompts((prev) =>
-        prev.filter((p) => p.prompt_version_id !== targetId),
-      );
-
-      // If we deleted the currently selected version, switch to another
-      if (selectedVersionId === targetId && remaining.length > 0) {
-        setSelectedVersionId(remaining[0].prompt_version_id);
+      try {
+        await deletePromptVersion(targetId);
+        setSnackbar({
+          open: true,
+          message: "Prompt deleted.",
+          severity: "success",
+        });
+        await fetchPrompts();
+      } catch (err) {
+        setSnackbar({
+          open: true,
+          message: err instanceof Error ? err.message : "Failed to delete",
+          severity: "error",
+        });
       }
     }
   };
-
   const handleNameChange = (id: string, newName: string) => {
+    // This is just local state update for inline editing - no API call
     setAllPrompts((prev) =>
       prev.map((p) =>
         p.prompt_version_id === id ? { ...p, version_name: newName } : p,
@@ -871,7 +974,30 @@ const AIConfiguration = () => {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {blockPrompts.length === 0 ? (
+                    {isLoading ? (
+                      <TableRow>
+                        <TableCell
+                          colSpan={6}
+                          align="center"
+                          sx={{ color: "var(--text-secondary)", py: 4 }}
+                        >
+                          <CircularProgress
+                            size={24}
+                            sx={{ color: "var(--primary)" }}
+                          />
+                        </TableCell>
+                      </TableRow>
+                    ) : error ? (
+                      <TableRow>
+                        <TableCell
+                          colSpan={6}
+                          align="center"
+                          sx={{ color: "#ef5350", py: 4 }}
+                        >
+                          {error}
+                        </TableCell>
+                      </TableRow>
+                    ) : blockPrompts.length === 0 ? (
                       <TableRow>
                         <TableCell
                           colSpan={6}
@@ -934,7 +1060,9 @@ const AIConfiguration = () => {
                             ).toLocaleDateString()}
                           </TableCell>
                           <TableCell sx={{ color: "var(--text-secondary)" }}>
-                            {version.author_id}
+                            {version.author_name ||
+                              version.author_id ||
+                              "Unknown"}
                           </TableCell>
                           <TableCell>
                             {version.is_active ? (
@@ -1024,6 +1152,22 @@ const AIConfiguration = () => {
           </Box>
         </Box>
       </Box>
+
+      {/* Snackbar for feedback */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={4000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+      >
+        <Alert
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
+          severity={snackbar.severity}
+          sx={{ width: "100%" }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };
