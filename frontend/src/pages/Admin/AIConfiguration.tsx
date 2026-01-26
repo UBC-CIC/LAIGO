@@ -30,21 +30,49 @@ import { v4 as uuidv4 } from "uuid";
 
 // --- Types based on DB Schema & Requirements ---
 
-type PromptCategory =
-  | "General Settings"
-  | "Reasoning Blocks"
-  | "Assessment Prompts";
+type PromptCategory = "General Settings" | "reasoning" | "assessment";
+
+type BlockType =
+  | "intake"
+  | "issues"
+  | "research"
+  | "argument"
+  | "contrarian"
+  | "policy";
 
 interface PromptVersion {
-  id: string;
-  blockId: string; // correlates to the sidebar ID
-  versionNumber: number;
-  versionName: string;
-  content: string;
-  isActive: boolean;
-  createdAt: string;
-  author: string;
+  prompt_version_id: string; // db: uuid
+  category: PromptCategory;
+  block_type: BlockType;
+  version_number: number;
+  version_name: string;
+  prompt_text: string;
+  author_id: string; // db: uuid (will just show UUID for now, or mock name if verified)
+  time_created: string; // ISO string
+  is_active: boolean;
 }
+
+// Mapping from Sidebar ID to Backend Enums
+const SIDEBAR_TO_BACKEND: Record<
+  string,
+  { category: PromptCategory; block_type: BlockType | null }
+> = {
+  // General
+  "model-configs": { category: "General Settings", block_type: null },
+
+  // Reasoning
+  "intake-facts": { category: "reasoning", block_type: "intake" },
+  "issue-identification": { category: "reasoning", block_type: "issues" },
+  "research-strategy": { category: "reasoning", block_type: "research" },
+  "argument-construction": { category: "reasoning", block_type: "argument" },
+  "contrarian-analysis": { category: "reasoning", block_type: "contrarian" },
+  "policy-context": { category: "reasoning", block_type: "policy" },
+
+  // Assessment
+  "intake-assessment": { category: "assessment", block_type: "intake" },
+  "issues-assessment": { category: "assessment", block_type: "issues" },
+  "research-assessment": { category: "assessment", block_type: "research" },
+};
 
 interface SidebarItem {
   id: string;
@@ -72,7 +100,7 @@ const SECTIONS: SidebarSection[] = [
     ],
   },
   {
-    category: "Reasoning Blocks",
+    category: "reasoning",
     items: [
       {
         id: "intake-facts",
@@ -113,7 +141,7 @@ const SECTIONS: SidebarSection[] = [
     ],
   },
   {
-    category: "Assessment Prompts",
+    category: "assessment",
     items: [
       {
         id: "intake-assessment",
@@ -139,36 +167,39 @@ const SECTIONS: SidebarSection[] = [
 
 const INITIAL_PROMPTS: PromptVersion[] = [
   {
-    id: "1",
-    blockId: "intake-facts",
-    versionNumber: 1,
-    versionName: "System Default",
-    content: "Original system prompt for Intake & Facts...",
-    isActive: false,
-    createdAt: new Date(Date.now() - 86400000 * 10).toISOString(),
-    author: "System",
+    prompt_version_id: "1",
+    category: "reasoning",
+    block_type: "intake",
+    version_number: 1,
+    version_name: "System Default",
+    prompt_text: "Original system prompt for Intake & Facts...",
+    is_active: false,
+    time_created: new Date(Date.now() - 86400000 * 10).toISOString(),
+    author_id: "system-uuid",
   },
   {
-    id: "2",
-    blockId: "intake-facts",
-    versionNumber: 2,
-    versionName: "Strict Timeline Focus",
-    content:
+    prompt_version_id: "2",
+    category: "reasoning",
+    block_type: "intake",
+    version_number: 2,
+    version_name: "Strict Timeline Focus",
+    prompt_text:
       "You are an expert legal assistant. Guide the junior associate to establish the client's eligibility and gather the factual foundation. Focus on dates, witnesses, and specific events. Do not move forward until the timeline is clear.",
-    isActive: true,
-    createdAt: new Date(Date.now() - 86400000 * 2).toISOString(),
-    author: "Admin User",
+    is_active: true,
+    time_created: new Date(Date.now() - 86400000 * 2).toISOString(),
+    author_id: "admin-uuid",
   },
   {
-    id: "3",
-    blockId: "intake-facts",
-    versionNumber: 3,
-    versionName: "Draft - Emphasize Witnesses",
-    content:
+    prompt_version_id: "3",
+    category: "reasoning",
+    block_type: "intake",
+    version_number: 3,
+    version_name: "Draft - Emphasize Witnesses",
+    prompt_text:
       "You are an expert legal assistant. Priority is on gathering witness statements...",
-    isActive: false,
-    createdAt: new Date().toISOString(),
-    author: "Admin User",
+    is_active: false,
+    time_created: new Date().toISOString(),
+    author_id: "admin-uuid",
   },
 ];
 
@@ -177,13 +208,22 @@ const AIConfiguration = () => {
     useState<string>("intake-facts");
   const [allPrompts, setAllPrompts] =
     useState<PromptVersion[]>(INITIAL_PROMPTS);
+
+  // Filter based on mapping
+  const currentTarget = SIDEBAR_TO_BACKEND[selectedBlockId];
   const blockPrompts = allPrompts
-    .filter((p) => p.blockId === selectedBlockId)
-    .sort((a, b) => b.versionNumber - a.versionNumber);
-  const activeVersion = blockPrompts.find((p) => p.isActive);
+    .filter(
+      (p) =>
+        currentTarget &&
+        p.category === currentTarget.category &&
+        p.block_type === currentTarget.block_type,
+    )
+    .sort((a, b) => b.version_number - a.version_number);
+
+  const activeVersion = blockPrompts.find((p) => p.is_active);
   const latestVersion = blockPrompts[0];
   const [selectedVersionId, setSelectedVersionId] = useState<string>(
-    activeVersion?.id || latestVersion?.id || ""
+    activeVersion?.prompt_version_id || latestVersion?.prompt_version_id || "",
   );
 
   const [editorContent, setEditorContent] = useState<string>("");
@@ -193,17 +233,20 @@ const AIConfiguration = () => {
 
   // Update editor content when version changes
   useEffect(() => {
-    const version = allPrompts.find((p) => p.id === selectedVersionId);
+    const version = allPrompts.find(
+      (p) => p.prompt_version_id === selectedVersionId,
+    );
     if (version) {
-      if (editorContent !== version.content) {
-        setEditorContent(version.content);
+      if (editorContent !== version.prompt_text) {
+        setEditorContent(version.prompt_text);
       }
-      if (versionName !== version.versionName) {
-        setVersionName(version.versionName);
+      if (versionName !== version.version_name) {
+        setVersionName(version.version_name);
       }
     } else if (blockPrompts.length > 0 && selectedVersionId !== DRAFT_ID) {
       // Fallback if selection is invalid
-      const fallback = activeVersion?.id || blockPrompts[0].id;
+      const fallback =
+        activeVersion?.prompt_version_id || blockPrompts[0].prompt_version_id;
       if (selectedVersionId !== fallback) {
         setSelectedVersionId(fallback);
       }
@@ -220,27 +263,40 @@ const AIConfiguration = () => {
 
   const handleBlockChange = (blockId: string) => {
     setSelectedBlockId(blockId);
+    const target = SIDEBAR_TO_BACKEND[blockId];
+    if (!target || !target.block_type) {
+      // Handle general settings or invalid blocks
+      setSelectedVersionId("");
+      return;
+    }
+
     const newBlockPrompts = allPrompts
-      .filter((p) => p.blockId === blockId)
-      .sort((a, b) => b.versionNumber - a.versionNumber);
+      .filter(
+        (p) =>
+          p.category === target.category && p.block_type === target.block_type,
+      )
+      .sort((a, b) => b.version_number - a.version_number);
 
     if (newBlockPrompts.length > 0) {
-      const newActive = newBlockPrompts.find((p) => p.isActive);
-      setSelectedVersionId(newActive?.id || newBlockPrompts[0].id);
+      const newActive = newBlockPrompts.find((p) => p.is_active);
+      setSelectedVersionId(
+        newActive?.prompt_version_id || newBlockPrompts[0].prompt_version_id,
+      );
     } else {
       // Handle case where no prompts exist for a block (create default?)
       const defaultPrompt: PromptVersion = {
-        id: uuidv4(),
-        blockId,
-        versionNumber: 1,
-        versionName: "Initial Draft",
-        content: "Start writing your prompt here...",
-        isActive: true,
-        createdAt: new Date().toISOString(),
-        author: "System",
+        prompt_version_id: uuidv4(),
+        category: target.category,
+        block_type: target.block_type!,
+        version_number: 1,
+        version_name: "Initial Draft",
+        prompt_text: "Start writing your prompt here...",
+        is_active: true,
+        time_created: new Date().toISOString(),
+        author_id: "system-uuid",
       };
       setAllPrompts((prev) => [...prev, defaultPrompt]);
-      setSelectedVersionId(defaultPrompt.id);
+      setSelectedVersionId(defaultPrompt.prompt_version_id);
     }
   };
 
@@ -249,82 +305,104 @@ const AIConfiguration = () => {
   };
 
   const handleCreateNewVersion = () => {
+    const target = SIDEBAR_TO_BACKEND[selectedBlockId];
+    if (!target || !target.block_type) return;
+
     const currentMaxVersion =
       blockPrompts.length > 0
-        ? Math.max(...blockPrompts.map((p) => p.versionNumber))
+        ? Math.max(...blockPrompts.map((p) => p.version_number))
         : 0;
     const newVersion: PromptVersion = {
-      id: uuidv4(),
-      blockId: selectedBlockId,
-      versionNumber: currentMaxVersion + 1,
-      versionName: versionName || `Version ${currentMaxVersion + 1}`, // User provided or auto-generated
-      content: editorContent,
-      isActive: false,
-      createdAt: new Date().toISOString(),
-      author: "Admin User",
+      prompt_version_id: uuidv4(),
+      category: target.category,
+      block_type: target.block_type!,
+      version_number: currentMaxVersion + 1,
+      version_name: versionName || `Version ${currentMaxVersion + 1}`, // User provided or auto-generated
+      prompt_text: editorContent,
+      is_active: false,
+      time_created: new Date().toISOString(),
+      author_id: "admin-uuid",
     };
     setAllPrompts((prev) => [...prev, newVersion]);
-    setSelectedVersionId(newVersion.id);
+    setSelectedVersionId(newVersion.prompt_version_id);
     alert("New version created!");
   };
 
   const handleSaveCurrent = () => {
     setAllPrompts((prev) =>
       prev.map((p) =>
-        p.id === selectedVersionId
-          ? { ...p, content: editorContent, versionName: versionName }
-          : p
-      )
+        p.prompt_version_id === selectedVersionId
+          ? { ...p, prompt_text: editorContent, version_name: versionName }
+          : p,
+      ),
     );
     alert("Version saved.");
   };
 
   const handleSetActive = (targetId: string = selectedVersionId) => {
+    const target = SIDEBAR_TO_BACKEND[selectedBlockId];
+    if (!target) return;
+
     setAllPrompts((prev) =>
       prev.map((p) => {
-        if (p.blockId !== selectedBlockId) return p;
+        // Only affect items in the current block
+        if (
+          p.category !== target.category ||
+          p.block_type !== target.block_type
+        )
+          return p;
         return {
           ...p,
-          isActive: p.id === targetId,
+          is_active: p.prompt_version_id === targetId,
         };
-      })
+      }),
     );
   };
 
   const handleDelete = (targetId: string = selectedVersionId) => {
-    const promptToDelete = allPrompts.find((p) => p.id === targetId);
-    if (promptToDelete?.isActive) {
+    const promptToDelete = allPrompts.find(
+      (p) => p.prompt_version_id === targetId,
+    );
+    if (promptToDelete?.is_active) {
       alert(
-        "Cannot delete the active version. Please set another version as active first."
+        "Cannot delete the active version. Please set another version as active first.",
       );
       return;
     }
     if (
       confirm(
-        `Are you sure you want to delete "${promptToDelete?.versionName}"?`
+        `Are you sure you want to delete "${promptToDelete?.version_name}"?`,
       )
     ) {
-      const remaining = blockPrompts.filter((p) => p.id !== targetId);
-      setAllPrompts((prev) => prev.filter((p) => p.id !== targetId));
+      const remaining = blockPrompts.filter(
+        (p) => p.prompt_version_id !== targetId,
+      );
+      setAllPrompts((prev) =>
+        prev.filter((p) => p.prompt_version_id !== targetId),
+      );
 
       // If we deleted the currently selected version, switch to another
       if (selectedVersionId === targetId && remaining.length > 0) {
-        setSelectedVersionId(remaining[0].id);
+        setSelectedVersionId(remaining[0].prompt_version_id);
       }
     }
   };
 
   const handleNameChange = (id: string, newName: string) => {
     setAllPrompts((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, versionName: newName } : p))
+      prev.map((p) =>
+        p.prompt_version_id === id ? { ...p, version_name: newName } : p,
+      ),
     );
   };
 
   const activeItem = SECTIONS.flatMap((s) => s.items).find(
-    (i) => i.id === selectedBlockId
+    (i) => i.id === selectedBlockId,
   );
 
-  const currentVersion = allPrompts.find((p) => p.id === selectedVersionId);
+  const currentVersion = allPrompts.find(
+    (p) => p.prompt_version_id === selectedVersionId,
+  );
 
   return (
     <Box
@@ -380,7 +458,11 @@ const AIConfiguration = () => {
                     textTransform: "uppercase",
                   }}
                 >
-                  {section.category}
+                  {section.category === "reasoning"
+                    ? "Reasoning Blocks"
+                    : section.category === "assessment"
+                      ? "Assessment Prompts"
+                      : section.category}
                 </Typography>
                 <Box
                   sx={{
@@ -512,7 +594,7 @@ const AIConfiguration = () => {
                     <>
                       {currentVersion && (
                         <Chip
-                          label={`Editing: ${currentVersion.versionName}`}
+                          label={`Editing: ${currentVersion.version_name}`}
                           color="primary"
                           variant="outlined"
                           size="small"
@@ -648,7 +730,7 @@ const AIConfiguration = () => {
                       variant="text"
                       startIcon={<RefreshIcon />}
                       onClick={() =>
-                        setEditorContent(currentVersion?.content || "")
+                        setEditorContent(currentVersion?.prompt_text || "")
                       }
                       sx={{
                         color: "var(--text-secondary)",
@@ -802,7 +884,7 @@ const AIConfiguration = () => {
                     ) : (
                       blockPrompts.map((version) => (
                         <TableRow
-                          key={version.id}
+                          key={version.prompt_version_id}
                           hover
                           sx={{
                             "&:last-child td, &:last-child th": { border: 0 },
@@ -811,13 +893,16 @@ const AIConfiguration = () => {
                           <TableCell
                             sx={{ color: "var(--text)", fontWeight: "bold" }}
                           >
-                            v{version.versionNumber}
+                            v{version.version_number}
                           </TableCell>
                           <TableCell sx={{ color: "var(--text)" }}>
                             <TextField
-                              value={version.versionName}
+                              value={version.version_name}
                               onChange={(e) =>
-                                handleNameChange(version.id, e.target.value)
+                                handleNameChange(
+                                  version.prompt_version_id,
+                                  e.target.value,
+                                )
                               }
                               variant="standard"
                               fullWidth
@@ -844,13 +929,15 @@ const AIConfiguration = () => {
                             />
                           </TableCell>
                           <TableCell sx={{ color: "var(--text-secondary)" }}>
-                            {new Date(version.createdAt).toLocaleDateString()}
+                            {new Date(
+                              version.time_created,
+                            ).toLocaleDateString()}
                           </TableCell>
                           <TableCell sx={{ color: "var(--text-secondary)" }}>
-                            {version.author}
+                            {version.author_id}
                           </TableCell>
                           <TableCell>
-                            {version.isActive ? (
+                            {version.is_active ? (
                               <Chip
                                 icon={
                                   <CheckCircleIcon
@@ -872,7 +959,9 @@ const AIConfiguration = () => {
                                 size="small"
                                 color="inherit"
                                 startIcon={<CheckCircleIcon />}
-                                onClick={() => handleSetActive(version.id)}
+                                onClick={() =>
+                                  handleSetActive(version.prompt_version_id)
+                                }
                                 sx={{
                                   textTransform: "none",
                                   color: "var(--text-secondary)",
@@ -900,7 +989,9 @@ const AIConfiguration = () => {
                                 <IconButton
                                   size="small"
                                   onClick={() =>
-                                    setSelectedVersionId(version.id)
+                                    setSelectedVersionId(
+                                      version.prompt_version_id,
+                                    )
                                   }
                                   sx={{ color: "#42a5f5" }}
                                 >
@@ -910,7 +1001,9 @@ const AIConfiguration = () => {
                               <Tooltip title="Delete">
                                 <IconButton
                                   size="small"
-                                  onClick={() => handleDelete(version.id)}
+                                  onClick={() =>
+                                    handleDelete(version.prompt_version_id)
+                                  }
                                   sx={{
                                     color: "var(--text-secondary)",
                                     "&:hover": { color: "#ef5350" },
