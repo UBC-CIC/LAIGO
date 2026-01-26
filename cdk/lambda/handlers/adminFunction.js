@@ -114,7 +114,7 @@ exports.handler = async (event) => {
 
           if (!category || !block_type || !prompt_text)
             throw new Error(
-              "Missing required fields: category, block_type, and prompt_text are required"
+              "Missing required fields: category, block_type, and prompt_text are required",
             );
 
           // Get the next version number for this category/block_type combination
@@ -130,8 +130,8 @@ exports.handler = async (event) => {
           const insertPrompt = await sqlConnectionTableCreator`
             INSERT INTO "prompt_versions" (category, block_type, version_number, version_name, prompt_text, author_id, is_active)
             VALUES (${category}, ${block_type}, ${nextVersion}, ${
-            version_name || null
-          }, ${prompt_text}, ${author_id || null}, false)
+              version_name || null
+            }, ${prompt_text}, ${author_id || null}, false)
             RETURNING *;
           `;
 
@@ -251,49 +251,7 @@ exports.handler = async (event) => {
           });
         }
         break;
-      case "POST /admin/prompt/deactivate":
-        try {
-          if (!event.body) throw new Error("Request body is missing");
 
-          const { prompt_version_id } = JSON.parse(event.body);
-
-          if (!prompt_version_id)
-            throw new Error("Missing required field: prompt_version_id");
-
-          // Get the prompt to verify it exists
-          const promptToDeactivate = await sqlConnectionTableCreator`
-            SELECT category, block_type, is_active
-            FROM "prompt_versions"
-            WHERE prompt_version_id = ${prompt_version_id};
-          `;
-
-          if (promptToDeactivate.length === 0) {
-            throw new Error("Prompt version not found");
-          }
-
-          const { category, block_type, is_active } = promptToDeactivate[0];
-
-          // Deactivate the prompt
-          await sqlConnectionTableCreator`
-            UPDATE "prompt_versions"
-            SET is_active = false
-            WHERE prompt_version_id = ${prompt_version_id};
-          `;
-
-          response.body = JSON.stringify({
-            message: "Prompt deactivated successfully",
-            category,
-            block_type,
-            was_active: is_active,
-          });
-        } catch (err) {
-          response.statusCode = 500;
-          console.error("Error deactivating prompt:", err);
-          response.body = JSON.stringify({
-            error: err.message || "Internal server error",
-          });
-        }
-        break;
       case "DELETE /admin/prompt":
         try {
           if (
@@ -301,7 +259,7 @@ exports.handler = async (event) => {
             !event.queryStringParameters.prompt_version_id
           ) {
             throw new Error(
-              "Missing required query parameter: prompt_version_id"
+              "Missing required query parameter: prompt_version_id",
             );
           }
 
@@ -326,7 +284,7 @@ exports.handler = async (event) => {
           if (is_active) {
             response.statusCode = 400;
             throw new Error(
-              "Cannot delete an active prompt. Please deactivate it first."
+              "Cannot delete an active prompt. Please deactivate it first.",
             );
           }
 
@@ -355,20 +313,19 @@ exports.handler = async (event) => {
       case "GET /admin/message_limit":
         try {
           console.log("Message limit name:", process.env.MESSAGE_LIMIT);
-          const { SSMClient, GetParameterCommand } = await import(
-            "@aws-sdk/client-ssm"
-          );
+          const { SSMClient, GetParameterCommand } =
+            await import("@aws-sdk/client-ssm");
 
           const ssm = new SSMClient();
 
           console.log("Fetching admin message limit from SSM...");
           const result = await ssm.send(
-            new GetParameterCommand({ Name: process.env.MESSAGE_LIMIT })
+            new GetParameterCommand({ Name: process.env.MESSAGE_LIMIT }),
           );
 
           console.log(
             "✅ Admin message limit fetched:",
-            result.Parameter.Value
+            result.Parameter.Value,
           );
 
           response.statusCode = 200;
@@ -382,9 +339,8 @@ exports.handler = async (event) => {
 
       case "POST /admin/message_limit":
         try {
-          const { SSMClient, PutParameterCommand } = await import(
-            "@aws-sdk/client-ssm"
-          );
+          const { SSMClient, PutParameterCommand } =
+            await import("@aws-sdk/client-ssm");
           const ssm = new SSMClient();
 
           const body = JSON.parse(event.body);
@@ -404,7 +360,7 @@ exports.handler = async (event) => {
               Value: String(newValue),
               Overwrite: true,
               Type: "String",
-            })
+            }),
           );
 
           console.log("✅ Message limit updated successfully.");
@@ -419,13 +375,12 @@ exports.handler = async (event) => {
         break;
       case "GET /admin/file_size_limit":
         try {
-          const { SSMClient, GetParameterCommand } = await import(
-            "@aws-sdk/client-ssm"
-          );
+          const { SSMClient, GetParameterCommand } =
+            await import("@aws-sdk/client-ssm");
           const ssm = new SSMClient();
 
           const result = await ssm.send(
-            new GetParameterCommand({ Name: process.env.FILE_SIZE_LIMIT })
+            new GetParameterCommand({ Name: process.env.FILE_SIZE_LIMIT }),
           );
 
           response.statusCode = 200;
@@ -439,9 +394,8 @@ exports.handler = async (event) => {
 
       case "POST /admin/file_size_limit":
         try {
-          const { SSMClient, PutParameterCommand } = await import(
-            "@aws-sdk/client-ssm"
-          );
+          const { SSMClient, PutParameterCommand } =
+            await import("@aws-sdk/client-ssm");
           const ssm = new SSMClient();
 
           const body = JSON.parse(event.body);
@@ -461,7 +415,7 @@ exports.handler = async (event) => {
               Value: String(newValue),
               Overwrite: true,
               Type: "String",
-            })
+            }),
           );
 
           response.statusCode = 200;
@@ -474,13 +428,12 @@ exports.handler = async (event) => {
         break;
       case "GET /student/file_size_limit":
         try {
-          const { SSMClient, GetParameterCommand } = await import(
-            "@aws-sdk/client-ssm"
-          );
+          const { SSMClient, GetParameterCommand } =
+            await import("@aws-sdk/client-ssm");
           const ssm = new SSMClient();
 
           const result = await ssm.send(
-            new GetParameterCommand({ Name: process.env.FILE_SIZE_LIMIT })
+            new GetParameterCommand({ Name: process.env.FILE_SIZE_LIMIT }),
           );
 
           response.statusCode = 200;
@@ -592,7 +545,7 @@ exports.handler = async (event) => {
               // If the role is 'student', elevate to 'instructor'
               if (userRoles.includes("student")) {
                 const newRoles = userRoles.map((role) =>
-                  role === "student" ? "instructor" : role
+                  role === "student" ? "instructor" : role,
                 );
 
                 await sqlConnectionTableCreator`
