@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Box, Typography, Stack, Menu, MenuItem } from "@mui/material";
-import FolderOpenOutlinedIcon from "@mui/icons-material/FolderOpenOutlined";
+import PeopleAltOutlinedIcon from "@mui/icons-material/PeopleAltOutlined";
 import NotificationsNoneOutlinedIcon from "@mui/icons-material/NotificationsNoneOutlined";
 import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
 import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
@@ -84,8 +84,8 @@ const AdminHeader: React.FC = () => {
     >
       <Box sx={{ display: "flex" }}>
         <HeaderItem
-          icon={<FolderOpenOutlinedIcon sx={iconStyle} />}
-          label="All Cases"
+          icon={<PeopleAltOutlinedIcon sx={iconStyle} />}
+          label="Instructors"
           onClick={() => navigate("/")}
         />
         <HeaderItem
