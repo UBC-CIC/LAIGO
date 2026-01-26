@@ -8,7 +8,7 @@ import AdminDashboard from "./pages/Admin/AdminDashboard";
 import AIConfiguration from "./pages/Admin/AIConfiguration";
 import { CircularProgress, Box } from "@mui/material";
 import "./App.css";
-import RealStudentHome from "./pages/Student/StudentDashboard";
+import StudentDashboard from "./pages/Student/StudentDashboard";
 import CreateCase from "./pages/Student/CreateCase";
 import CaseLayout from "./pages/Case/CaseLayout";
 import CaseOverview from "./pages/Case/CaseOverview";
@@ -126,9 +126,9 @@ function App() {
       default:
         return (
           <Routes>
-            <Route path="/" element={<RealStudentHome />} />
+            <Route path="/" element={<StudentDashboard />} />
             <Route path="/create-case" element={<CreateCase />} />
-            <Route path="*" element={<RealStudentHome />} />
+            <Route path="*" element={<StudentDashboard />} />
           </Routes>
         );
     }
