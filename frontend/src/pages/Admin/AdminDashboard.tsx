@@ -18,6 +18,7 @@ import {
 } from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
 import AdminHeader from "../../components/AdminHeader";
+import AddInstructorDialog from "../../components/AddInstructorDialog";
 import { fetchAuthSession } from "aws-amplify/auth";
 
 interface UserInfo {
@@ -45,6 +46,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
 
   useEffect(() => {
     fetchInstructors();
@@ -125,7 +127,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = () => {
           <Typography variant="h5">Manage Instructors</Typography>
           <Button
             variant="contained"
-            disabled
+            onClick={() => setAddDialogOpen(true)}
             sx={{
               backgroundColor: "#90caf9",
               color: "#000",
@@ -274,6 +276,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = () => {
           </Paper>
         )}
       </Container>
+
+      <AddInstructorDialog
+        open={addDialogOpen}
+        onClose={() => setAddDialogOpen(false)}
+        onSuccess={() => {
+          fetchInstructors();
+        }}
+      />
     </Box>
   );
 };

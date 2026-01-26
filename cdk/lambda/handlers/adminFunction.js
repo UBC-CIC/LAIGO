@@ -1,7 +1,17 @@
 const { initializeConnection } = require("./initializeConnection.js");
+const {
+  CognitoIdentityProviderClient,
+  AdminAddUserToGroupCommand,
+  AdminGetUserCommand,
+} = require("@aws-sdk/client-cognito-identity-provider");
 
-let { SM_DB_CREDENTIALS, RDS_PROXY_ENDPOINT, MESSAGE_LIMIT, FILE_SIZE_LIMIT } =
-  process.env;
+let {
+  SM_DB_CREDENTIALS,
+  RDS_PROXY_ENDPOINT,
+  MESSAGE_LIMIT,
+  FILE_SIZE_LIMIT,
+  USER_POOL_ID,
+} = process.env;
 
 // SQL conneciton from global variable at initializeConnection.js
 let sqlConnectionTableCreator = global.sqlConnection;
@@ -572,58 +582,86 @@ exports.handler = async (event) => {
           const instructorEmail = event.queryStringParameters.email;
 
           try {
-            // Check if the user exists
+            // Check if the user exists in database
             const existingUser = await sqlConnectionTableCreator`
-                          SELECT * FROM "users"
-                          WHERE user_email = ${instructorEmail};
-                      `;
+              SELECT * FROM "users"
+              WHERE user_email = ${instructorEmail};
+            `;
 
-            if (existingUser.length > 0) {
-              const userRoles = existingUser[0].roles;
-
-              // Check if the role is already 'instructor' or 'admin'
-              if (
-                userRoles.includes("instructor") ||
-                userRoles.includes("admin")
-              ) {
-                response.statusCode = 200;
-                response.body = JSON.stringify({
-                  message:
-                    "No changes made. User is already an instructor or admin.",
-                });
-                break;
-              }
-
-              // If the role is 'student', elevate to 'instructor'
-              if (userRoles.includes("student")) {
-                const newRoles = userRoles.map((role) =>
-                  role === "student" ? "instructor" : role,
-                );
-
-                await sqlConnectionTableCreator`
-                                UPDATE "users"
-                                SET roles = ${newRoles}
-                                WHERE user_email = ${instructorEmail};
-                            `;
-
-                response.statusCode = 200;
-                response.body = JSON.stringify({
-                  message: "User role updated to instructor.",
-                });
-                break;
-              }
-            } else {
-              // Create a new user with the role 'instructor'
-              await sqlConnectionTableCreator`
-                              INSERT INTO "users" (user_email, roles)
-                              VALUES (${instructorEmail}, ARRAY['instructor']);
-                          `;
-
-              response.statusCode = 201;
+            if (existingUser.length === 0) {
+              // User does not exist in database - return error
+              response.statusCode = 404;
               response.body = JSON.stringify({
-                message: "New user created and elevated to instructor.",
+                error:
+                  "User not found. Only existing users can be elevated to instructor.",
               });
+              break;
             }
+
+            const userRoles = existingUser[0].roles;
+            const userId = existingUser[0].user_id;
+
+            // Check if the user is already an instructor or admin
+            if (
+              userRoles.includes("instructor") ||
+              userRoles.includes("admin")
+            ) {
+              response.statusCode = 200;
+              response.body = JSON.stringify({
+                message: "This user already has instructor permissions.",
+                alreadyInstructor: true,
+              });
+              break;
+            }
+
+            // User is a student - elevate to instructor
+            // First, add to Cognito instructor group
+            const cognitoClient = new CognitoIdentityProviderClient();
+
+            try {
+              let username = existingUser[0].cognito_id;
+
+              if (!username) {
+                throw new Error(
+                  "User cognito_id is missing in the database. Cannot elevate user.",
+                );
+              }
+
+              await cognitoClient.send(
+                new AdminAddUserToGroupCommand({
+                  UserPoolId: USER_POOL_ID,
+                  Username: username,
+                  GroupName: "instructor",
+                }),
+              );
+            } catch (cognitoErr) {
+              console.error(
+                "Failed to add user to Cognito instructor group:",
+                cognitoErr,
+              );
+              response.statusCode = 500;
+              response.body = JSON.stringify({
+                error: "Failed to update user permissions in Cognito.",
+              });
+              break;
+            }
+
+            // Update database roles
+            const newRoles = userRoles.map((role) =>
+              role === "student" ? "instructor" : role,
+            );
+
+            await sqlConnectionTableCreator`
+              UPDATE "users"
+              SET roles = ${newRoles}
+              WHERE user_email = ${instructorEmail};
+            `;
+
+            response.statusCode = 200;
+            response.body = JSON.stringify({
+              message: "User successfully elevated to instructor.",
+              success: true,
+            });
           } catch (err) {
             response.statusCode = 500;
             console.error(err);

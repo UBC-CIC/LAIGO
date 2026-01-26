@@ -986,6 +986,7 @@ export class ApiGatewayStack extends cdk.Stack {
           RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint,
           MESSAGE_LIMIT: messageLimitParameter.parameterName,
           FILE_SIZE_LIMIT: fileSizeLimitParameter.parameterName,
+          USER_POOL_ID: this.userPool.userPoolId,
         },
         functionName: `${id}-adminFunction`,
         memorySize: 512,
