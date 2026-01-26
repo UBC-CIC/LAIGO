@@ -112,19 +112,11 @@ const StudentDashboard: React.FC = () => {
           casesArray = (data.cases as RawCase[]) || [];
         }
 
-        // Map backend case objects to UI shape expected by CaseCard (use canonical schema fields)
-        const STATUS_DISPLAY_MAP: Record<string, string> = {
-          in_progress: "In Progress",
-          submitted: "Submitted",
-          reviewed: "Reviewed",
-          archived: "Archived",
-        };
-
         const normalized: Case[] = casesArray.map((c) => {
           const id = c.case_id;
           const hash = c.case_hash;
           const title = c.case_title || "Untitled Case";
-          const status = STATUS_DISPLAY_MAP[c.status] ?? c.status ?? "";
+          const status = c.status ?? "";
           const jurisdiction = Array.isArray(c.jurisdiction)
             ? c.jurisdiction.join(", ")
             : (c.jurisdiction as string) || "";

@@ -4,8 +4,8 @@
 @import "tailwindcss";
 
 :root {
-  --font-family: "Outfit", Inter, system-ui, Avenir, Helvetica, Arial,
-    sans-serif;
+  --font-family:
+    "Outfit", Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
   --text: #050315;
   --text-secondary: #6e6e6e;
   --text-button: #f0f0f0;
@@ -23,6 +23,8 @@
   --input: #c4c4c4;
   --placeholder-text: #696873;
   --green-text: #2e9832;
+  --orange-text: #ef6c00;
+  --purple-text: #7b1fa2;
   --border: #cccccc;
   --feedback: #3b58ff;
   --feedback-bg: rgba(59, 88, 255, 0.08);
@@ -47,6 +49,8 @@
     --text: #ffffff;
     --text-secondary: #aaaaaa;
     --green-text: #65ff6a;
+    --orange-text: #ffb74d;
+    --purple-text: #ce93d8;
     --text-button: #0e0e0e;
     --background: #2c2c2c;
     --background-translucent: hwb(from var(--background) h w b / 0.8);

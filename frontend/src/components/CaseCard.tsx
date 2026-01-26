@@ -106,12 +106,19 @@ const CaseCard: React.FC<CaseCardProps> = ({
         <Typography
           variant="body2"
           sx={{
-            color: status === "In Progress" ? "var(--green-text)" : "#ffa726",
+            color:
+              status.toLowerCase() === "reviewed"
+                ? "var(--orange-text)"
+                : status.toLowerCase() === "submitted"
+                  ? "var(--purple-text)"
+                  : "var(--green-text)",
             fontWeight: "bold",
             mb: 2,
           }}
         >
-          {status}
+          {status === "in_progress"
+            ? "In Progress"
+            : status.charAt(0).toUpperCase() + status.slice(1)}
         </Typography>
 
         <Box sx={{ mt: "auto" }}>

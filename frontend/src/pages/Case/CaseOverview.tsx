@@ -805,8 +805,24 @@ const CaseOverview: React.FC = () => {
                   <Typography variant="h6" fontWeight={500}>
                     Status
                   </Typography>
-                  <Typography variant="body2">
-                    {caseData.status || "N/A"}
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color:
+                        caseData.status === "reviewed" ||
+                        caseData.status === "Reviewed"
+                          ? "var(--orange-text)"
+                          : caseData.status === "submitted" ||
+                              caseData.status === "Submitted"
+                            ? "var(--purple-text)"
+                            : "var(--green-text)",
+                      fontWeight: "bold",
+                    }}
+                  >
+                    {caseData.status === "in_progress"
+                      ? "In Progress"
+                      : (caseData.status || "N/A").charAt(0).toUpperCase() +
+                        (caseData.status || "N/A").slice(1)}
                   </Typography>
                 </Grid>
                 <Grid size={{ xs: 12, md: 6 }}>
