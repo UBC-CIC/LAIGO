@@ -22,6 +22,7 @@ import {
   Snackbar,
   Alert,
 } from "@mui/material";
+import DeleteConfirmationDialog from "../../components/DeleteConfirmationDialog";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import SaveIcon from "@mui/icons-material/Save";
 import AddIcon from "@mui/icons-material/Add";
@@ -180,6 +181,9 @@ const AIConfiguration = () => {
     message: string;
     severity: "success" | "error";
   }>({ open: false, message: "", severity: "success" });
+
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<PromptVersion | null>(null);
 
   // API Functions
   const fetchPrompts = useCallback(async () => {
@@ -456,7 +460,7 @@ const AIConfiguration = () => {
     }
   };
 
-  const handleDelete = async (targetId: string = selectedVersionId) => {
+  const handleDelete = (targetId: string = selectedVersionId) => {
     const promptToDelete = allPrompts.find(
       (p) => p.prompt_version_id === targetId,
     );
@@ -468,26 +472,34 @@ const AIConfiguration = () => {
       });
       return;
     }
-    if (
-      confirm(
-        `Are you sure you want to delete "${promptToDelete?.version_name}"?`,
-      )
-    ) {
-      try {
-        await deletePromptVersion(targetId);
-        setSnackbar({
-          open: true,
-          message: "Prompt deleted.",
-          severity: "success",
-        });
-        await fetchPrompts();
-      } catch (err) {
-        setSnackbar({
-          open: true,
-          message: err instanceof Error ? err.message : "Failed to delete",
-          severity: "error",
-        });
-      }
+    if (promptToDelete) {
+      setItemToDelete(promptToDelete);
+      setDeleteConfirmOpen(true);
+    }
+  };
+
+  const handleCloseDeleteDialog = () => {
+    setDeleteConfirmOpen(false);
+    setItemToDelete(null);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!itemToDelete) return;
+    try {
+      await deletePromptVersion(itemToDelete.prompt_version_id);
+      setSnackbar({
+        open: true,
+        message: "Prompt deleted.",
+        severity: "success",
+      });
+      await fetchPrompts();
+      handleCloseDeleteDialog();
+    } catch (err) {
+      setSnackbar({
+        open: true,
+        message: err instanceof Error ? err.message : "Failed to delete",
+        severity: "error",
+      });
     }
   };
   const handleNameChange = (id: string, newName: string) => {
@@ -1158,7 +1170,7 @@ const AIConfiguration = () => {
         open={snackbar.open}
         autoHideDuration={4000}
         onClose={() => setSnackbar({ ...snackbar, open: false })}
-        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
       >
         <Alert
           onClose={() => setSnackbar({ ...snackbar, open: false })}
@@ -1168,6 +1180,15 @@ const AIConfiguration = () => {
           {snackbar.message}
         </Alert>
       </Snackbar>
+
+      <DeleteConfirmationDialog
+        open={deleteConfirmOpen}
+        onClose={handleCloseDeleteDialog}
+        onConfirm={handleConfirmDelete}
+        itemName={itemToDelete?.version_name || ""}
+        title="Delete Prompt Version"
+        description="Are you sure you want to delete this prompt version? This action cannot be undone."
+      />
     </Box>
   );
 };
