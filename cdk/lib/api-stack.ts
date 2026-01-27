@@ -925,6 +925,36 @@ export class ApiGatewayStack extends cdk.Stack {
       },
     );
 
+    const bedrockTemperatureParameter = new ssm.StringParameter(
+      this,
+      "BedrockTemperatureParameter",
+      {
+        parameterName: `/${id}/LAIGO/BedrockTemperature`,
+        description: "Parameter containing the Bedrock Temperature",
+        stringValue: "0.5",
+      },
+    );
+
+    const bedrockTopPParameter = new ssm.StringParameter(
+      this,
+      "BedrockTopPParameter",
+      {
+        parameterName: `/${id}/LAIGO/BedrockTopP`,
+        description: "Parameter containing the Bedrock Top P",
+        stringValue: "0.9",
+      },
+    );
+
+    const bedrockMaxTokensParameter = new ssm.StringParameter(
+      this,
+      "BedrockMaxTokensParameter",
+      {
+        parameterName: `/${id}/LAIGO/BedrockMaxTokens`,
+        description: "Parameter containing the Bedrock Max Tokens",
+        stringValue: "2048",
+      },
+    );
+
     // --- Student Cases Lambda (GET /student/cases) ---
     const lambdaStudentFunction = new lambda.Function(
       this,
@@ -987,6 +1017,10 @@ export class ApiGatewayStack extends cdk.Stack {
           MESSAGE_LIMIT: messageLimitParameter.parameterName,
           FILE_SIZE_LIMIT: fileSizeLimitParameter.parameterName,
           USER_POOL_ID: this.userPool.userPoolId,
+          BEDROCK_TEMP_PARAM: bedrockTemperatureParameter.parameterName,
+          BEDROCK_TOP_P_PARAM: bedrockTopPParameter.parameterName,
+          BEDROCK_MAX_TOKENS_PARAM: bedrockMaxTokensParameter.parameterName,
+          BEDROCK_LLM_PARAM: bedrockLLMParameter.parameterName,
         },
         functionName: `${id}-adminFunction`,
         memorySize: 512,
@@ -1008,6 +1042,16 @@ export class ApiGatewayStack extends cdk.Stack {
     // Allow access for lambda to read and write to file size limit parameter
     fileSizeLimitParameter.grantWrite(lambdaAdminFunction);
     fileSizeLimitParameter.grantRead(lambdaAdminFunction);
+
+    // Allow access for lambda to read and write to bedrock parameters
+    bedrockTemperatureParameter.grantRead(lambdaAdminFunction);
+    bedrockTemperatureParameter.grantWrite(lambdaAdminFunction);
+    bedrockTopPParameter.grantRead(lambdaAdminFunction);
+    bedrockTopPParameter.grantWrite(lambdaAdminFunction);
+    bedrockMaxTokensParameter.grantRead(lambdaAdminFunction);
+    bedrockMaxTokensParameter.grantWrite(lambdaAdminFunction);
+    bedrockLLMParameter.grantRead(lambdaAdminFunction);
+    bedrockLLMParameter.grantWrite(lambdaAdminFunction);
 
     const cfnLambda_Admin = lambdaAdminFunction.node
       .defaultChild as lambda.CfnFunction;
@@ -1098,6 +1142,9 @@ export class ApiGatewayStack extends cdk.Stack {
           BEDROCK_LLM_PARAM: bedrockLLMParameter.parameterName,
           EMBEDDING_MODEL_PARAM: embeddingModelParameter.parameterName,
           TABLE_NAME_PARAM: tableNameParameter.parameterName,
+          BEDROCK_TEMP_PARAM: bedrockTemperatureParameter.parameterName,
+          BEDROCK_TOP_P_PARAM: bedrockTopPParameter.parameterName,
+          BEDROCK_MAX_TOKENS_PARAM: bedrockMaxTokensParameter.parameterName,
           TABLE_NAME: "DynamoDB-Conversation-Table",
         },
       },
@@ -1156,6 +1203,9 @@ export class ApiGatewayStack extends cdk.Stack {
           bedrockLLMParameter.parameterArn,
           embeddingModelParameter.parameterArn,
           tableNameParameter.parameterArn,
+          bedrockTemperatureParameter.parameterArn,
+          bedrockTopPParameter.parameterArn,
+          bedrockMaxTokensParameter.parameterArn,
         ],
       }),
     );
@@ -1181,6 +1231,9 @@ export class ApiGatewayStack extends cdk.Stack {
           BEDROCK_LLM_PARAM: bedrockLLMParameter.parameterName,
           EMBEDDING_MODEL_PARAM: embeddingModelParameter.parameterName,
           TABLE_NAME_PARAM: tableNameParameter.parameterName,
+          BEDROCK_TEMP_PARAM: bedrockTemperatureParameter.parameterName,
+          BEDROCK_TOP_P_PARAM: bedrockTopPParameter.parameterName,
+          BEDROCK_MAX_TOKENS_PARAM: bedrockMaxTokensParameter.parameterName,
           TABLE_NAME: "DynamoDB-Conversation-Table",
         },
       },
@@ -1258,6 +1311,9 @@ export class ApiGatewayStack extends cdk.Stack {
           bedrockLLMParameter.parameterArn,
           embeddingModelParameter.parameterArn,
           tableNameParameter.parameterArn,
+          bedrockTemperatureParameter.parameterArn,
+          bedrockTopPParameter.parameterArn,
+          bedrockMaxTokensParameter.parameterArn,
         ],
       }),
     );
@@ -1283,6 +1339,9 @@ export class ApiGatewayStack extends cdk.Stack {
           BEDROCK_LLM_PARAM: bedrockLLMParameter.parameterName,
           EMBEDDING_MODEL_PARAM: embeddingModelParameter.parameterName,
           TABLE_NAME_PARAM: tableNameParameter.parameterName,
+          BEDROCK_TEMP_PARAM: bedrockTemperatureParameter.parameterName,
+          BEDROCK_TOP_P_PARAM: bedrockTopPParameter.parameterName,
+          BEDROCK_MAX_TOKENS_PARAM: bedrockMaxTokensParameter.parameterName,
           TABLE_NAME: "DynamoDB-Conversation-Table",
         },
       },
@@ -1311,6 +1370,9 @@ export class ApiGatewayStack extends cdk.Stack {
           bedrockLLMParameter.parameterArn,
           embeddingModelParameter.parameterArn,
           tableNameParameter.parameterArn,
+          bedrockTemperatureParameter.parameterArn,
+          bedrockTopPParameter.parameterArn,
+          bedrockMaxTokensParameter.parameterArn,
         ],
       }),
     );
@@ -1554,6 +1616,9 @@ export class ApiGatewayStack extends cdk.Stack {
           RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint,
           BEDROCK_LLM_PARAM: bedrockLLMParameter.parameterName,
           TABLE_NAME_PARAM: tableNameParameter.parameterName,
+          BEDROCK_TEMP_PARAM: bedrockTemperatureParameter.parameterName,
+          BEDROCK_TOP_P_PARAM: bedrockTopPParameter.parameterName,
+          BEDROCK_MAX_TOKENS_PARAM: bedrockMaxTokensParameter.parameterName,
           TABLE_NAME: "DynamoDB-Conversation-Table",
         },
       },
@@ -1591,6 +1656,9 @@ export class ApiGatewayStack extends cdk.Stack {
         resources: [
           bedrockLLMParameter.parameterArn,
           tableNameParameter.parameterArn,
+          bedrockTemperatureParameter.parameterArn,
+          bedrockTopPParameter.parameterArn,
+          bedrockMaxTokensParameter.parameterArn,
         ],
       }),
     );

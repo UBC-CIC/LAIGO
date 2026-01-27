@@ -29,6 +29,9 @@ RDS_PROXY_ENDPOINT = os.environ["RDS_PROXY_ENDPOINT"]
 BEDROCK_LLM_PARAM = os.environ["BEDROCK_LLM_PARAM"]
 EMBEDDING_MODEL_PARAM = os.environ["EMBEDDING_MODEL_PARAM"]
 TABLE_NAME_PARAM = os.environ["TABLE_NAME_PARAM"]
+BEDROCK_TEMP_PARAM = os.environ.get("BEDROCK_TEMP_PARAM")
+BEDROCK_TOP_P_PARAM = os.environ.get("BEDROCK_TOP_P_PARAM")
+BEDROCK_MAX_TOKENS_PARAM = os.environ.get("BEDROCK_MAX_TOKENS_PARAM")
 # AWS Clients
 secrets_manager_client = boto3.client("secretsmanager")
 ssm_client = boto3.client("ssm", region_name=REGION)
@@ -40,6 +43,9 @@ db_secret = None
 BEDROCK_LLM_ID = None
 EMBEDDING_MODEL_ID = None
 TABLE_NAME = None
+BEDROCK_TEMP = 0.5
+BEDROCK_TOP_P = 0.9
+BEDROCK_MAX_TOKENS = 2048
 
 # Cached embeddings instance
 embeddings = None
@@ -75,10 +81,25 @@ def get_parameter(param_name, cached_var):
     return cached_var
 
 def initialize_constants():
-    global BEDROCK_LLM_ID, EMBEDDING_MODEL_ID, TABLE_NAME, embeddings
+    global BEDROCK_LLM_ID, EMBEDDING_MODEL_ID, TABLE_NAME, embeddings, BEDROCK_TEMP, BEDROCK_TOP_P, BEDROCK_MAX_TOKENS
     BEDROCK_LLM_ID = get_parameter(BEDROCK_LLM_PARAM, BEDROCK_LLM_ID)
     EMBEDDING_MODEL_ID = get_parameter(EMBEDDING_MODEL_PARAM, EMBEDDING_MODEL_ID)
     TABLE_NAME = get_parameter(TABLE_NAME_PARAM, TABLE_NAME)
+    
+    if BEDROCK_TEMP_PARAM:
+        temp_val = get_parameter(BEDROCK_TEMP_PARAM, None)
+        if temp_val:
+            BEDROCK_TEMP = float(temp_val)
+            
+    if BEDROCK_TOP_P_PARAM:
+        top_p_val = get_parameter(BEDROCK_TOP_P_PARAM, None)
+        if top_p_val:
+            BEDROCK_TOP_P = float(top_p_val)
+            
+    if BEDROCK_MAX_TOKENS_PARAM:
+        max_tokens_val = get_parameter(BEDROCK_MAX_TOKENS_PARAM, None)
+        if max_tokens_val:
+            BEDROCK_MAX_TOKENS = int(max_tokens_val)
 
     if embeddings is None:
         embeddings = BedrockEmbeddings(
@@ -524,8 +545,13 @@ def handler(event, context):
                 "body": json.dumps({"error": error_message})
             }
     try:
-        logger.info("Creating Bedrock LLM instance.")
-        llm = get_bedrock_llm(BEDROCK_LLM_ID)
+        logger.info(f"Creating Bedrock LLM instance with ID: {BEDROCK_LLM_ID}, Temp: {BEDROCK_TEMP}, TopP: {BEDROCK_TOP_P}, MaxTokens: {BEDROCK_MAX_TOKENS}")
+        llm = get_bedrock_llm(
+            bedrock_llm_id=BEDROCK_LLM_ID,
+            temperature=BEDROCK_TEMP,
+            top_p=BEDROCK_TOP_P,
+            max_tokens=BEDROCK_MAX_TOKENS
+        )
     except Exception as e:
         logger.error(f"Error getting LLM from Bedrock: {e}")
         return {

@@ -11,6 +11,10 @@ let {
   MESSAGE_LIMIT,
   FILE_SIZE_LIMIT,
   USER_POOL_ID,
+  BEDROCK_LLM_PARAM,
+  BEDROCK_TEMP_PARAM,
+  BEDROCK_TOP_P_PARAM,
+  BEDROCK_MAX_TOKENS_PARAM,
 } = process.env;
 
 // SQL conneciton from global variable at initializeConnection.js
@@ -425,6 +429,103 @@ exports.handler = async (event) => {
           response.body = JSON.stringify({
             error: err.message || "Internal server error",
           });
+        }
+        break;
+
+      case "GET /admin/ai_config":
+        try {
+          const { SSMClient, GetParameterCommand } =
+            await import("@aws-sdk/client-ssm");
+          const ssm = new SSMClient();
+
+          const [llmRes, tempRes, topPRes, maxTokensRes] = await Promise.all([
+            ssm.send(new GetParameterCommand({ Name: BEDROCK_LLM_PARAM })),
+            ssm.send(new GetParameterCommand({ Name: BEDROCK_TEMP_PARAM })),
+            ssm.send(new GetParameterCommand({ Name: BEDROCK_TOP_P_PARAM })),
+            ssm.send(
+              new GetParameterCommand({ Name: BEDROCK_MAX_TOKENS_PARAM }),
+            ),
+          ]);
+
+          response.statusCode = 200;
+          response.body = JSON.stringify({
+            bedrock_llm_id: llmRes.Parameter.Value,
+            temperature: tempRes.Parameter.Value,
+            top_p: topPRes.Parameter.Value,
+            max_tokens: maxTokensRes.Parameter.Value,
+          });
+        } catch (err) {
+          console.error("Failed to fetch AI config:", err);
+          response.statusCode = 500;
+          response.body = JSON.stringify({ error: "Internal server error" });
+        }
+        break;
+
+      case "POST /admin/ai_config":
+        try {
+          const { SSMClient, PutParameterCommand } =
+            await import("@aws-sdk/client-ssm");
+          const ssm = new SSMClient();
+          const body = JSON.parse(event.body);
+
+          const promises = [];
+          if (body.bedrock_llm_id) {
+            promises.push(
+              ssm.send(
+                new PutParameterCommand({
+                  Name: BEDROCK_LLM_PARAM,
+                  Value: String(body.bedrock_llm_id),
+                  Overwrite: true,
+                  Type: "String",
+                }),
+              ),
+            );
+          }
+          if (body.temperature) {
+            promises.push(
+              ssm.send(
+                new PutParameterCommand({
+                  Name: BEDROCK_TEMP_PARAM,
+                  Value: String(body.temperature),
+                  Overwrite: true,
+                  Type: "String",
+                }),
+              ),
+            );
+          }
+          if (body.top_p) {
+            promises.push(
+              ssm.send(
+                new PutParameterCommand({
+                  Name: BEDROCK_TOP_P_PARAM,
+                  Value: String(body.top_p),
+                  Overwrite: true,
+                  Type: "String",
+                }),
+              ),
+            );
+          }
+          if (body.max_tokens) {
+            promises.push(
+              ssm.send(
+                new PutParameterCommand({
+                  Name: BEDROCK_MAX_TOKENS_PARAM,
+                  Value: String(body.max_tokens),
+                  Overwrite: true,
+                  Type: "String",
+                }),
+              ),
+            );
+          }
+
+          await Promise.all(promises);
+
+          response.statusCode = 200;
+          response.body = JSON.stringify({ success: true });
+        } catch (err) {
+          console.error("Failed to update AI config:", err);
+          response.statusCode = 500;
+          response.body = JSON.stringify({ error: "Internal server error" });
         }
         break;
 

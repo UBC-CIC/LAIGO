@@ -24,6 +24,9 @@ REGION = os.environ["REGION"]
 RDS_PROXY_ENDPOINT = os.environ["RDS_PROXY_ENDPOINT"]
 BEDROCK_LLM_PARAM = os.environ["BEDROCK_LLM_PARAM"]
 TABLE_NAME_PARAM = os.environ["TABLE_NAME_PARAM"]
+BEDROCK_TEMP_PARAM = os.environ.get("BEDROCK_TEMP_PARAM")
+BEDROCK_TOP_P_PARAM = os.environ.get("BEDROCK_TOP_P_PARAM")
+BEDROCK_MAX_TOKENS_PARAM = os.environ.get("BEDROCK_MAX_TOKENS_PARAM")
 
 # AWS Clients
 secrets_manager_client = boto3.client("secretsmanager")
@@ -35,6 +38,9 @@ connection = None
 db_secret = None
 BEDROCK_LLM_ID = None
 TABLE_NAME = None
+BEDROCK_TEMP = 0.0
+BEDROCK_TOP_P = 0.9
+BEDROCK_MAX_TOKENS = 512
 
 def get_secret(secret_name, expect_json=True):
     global db_secret
@@ -60,10 +66,25 @@ def get_parameter(param_name, cached_var):
     return cached_var
 
 def initialize_constants():
-    global BEDROCK_LLM_ID, TABLE_NAME
+    global BEDROCK_LLM_ID, TABLE_NAME, BEDROCK_TEMP, BEDROCK_TOP_P, BEDROCK_MAX_TOKENS
     try:
         BEDROCK_LLM_ID = get_parameter(BEDROCK_LLM_PARAM, BEDROCK_LLM_ID)
         TABLE_NAME = get_parameter(TABLE_NAME_PARAM, TABLE_NAME)
+
+        if BEDROCK_TEMP_PARAM:
+            temp_val = get_parameter(BEDROCK_TEMP_PARAM, None)
+            if temp_val:
+                BEDROCK_TEMP = float(temp_val)
+                
+        if BEDROCK_TOP_P_PARAM:
+            top_p_val = get_parameter(BEDROCK_TOP_P_PARAM, None)
+            if top_p_val:
+                BEDROCK_TOP_P = float(top_p_val)
+                
+        if BEDROCK_MAX_TOKENS_PARAM:
+            max_tokens_val = get_parameter(BEDROCK_MAX_TOKENS_PARAM, None)
+            if max_tokens_val:
+                BEDROCK_MAX_TOKENS = int(max_tokens_val)
     except Exception as e:
         logger.exception("Failed to initialize constants")
         raise
@@ -423,7 +444,11 @@ def handler(event, context):
         # Invoke Bedrock
         llm = BedrockLLM(
             model_id=BEDROCK_LLM_ID,
-            model_kwargs={"temperature": 0.0, "max_tokens": 512}
+            model_kwargs={
+                "temperature": BEDROCK_TEMP, 
+                "max_tokens": BEDROCK_MAX_TOKENS,
+                "top_p": BEDROCK_TOP_P
+            }
         )
         
         response_text = llm.invoke(system_instruction)
