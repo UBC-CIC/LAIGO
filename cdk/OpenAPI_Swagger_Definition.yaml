@@ -152,6 +152,8 @@ paths:
         - Admin
       summary: List all instructors
       operationId: admin_list_instructors_GET
+      security:
+        - adminAuthorizer: []
       responses:
         "200":
           description: List of instructors
@@ -200,6 +202,8 @@ paths:
         - Admin
       summary: List all students
       operationId: admin_list_students_GET
+      security:
+        - adminAuthorizer: []
       responses:
         "200":
           description: List of students
@@ -307,6 +311,8 @@ paths:
         - Admin
       summary: Assign an instructor to a student
       operationId: admin_assign_instructor_POST
+      security:
+        - adminAuthorizer: []
       requestBody:
         required: true
         content:
@@ -462,6 +468,8 @@ paths:
         - Admin
       summary: Create a prompt version
       operationId: admin_create_prompt_POST
+      security:
+        - adminAuthorizer: []
       requestBody:
         required: true
         content:
@@ -528,6 +536,8 @@ paths:
         - Admin
       summary: List all prompt versions
       operationId: admin_list_prompts_GET
+      security:
+        - adminAuthorizer: []
       responses:
         "200":
           description: List of prompt versions
@@ -570,6 +580,8 @@ paths:
         - Admin
       summary: Update a prompt version
       operationId: admin_update_prompt_PUT
+      security:
+        - adminAuthorizer: []
       requestBody:
         required: true
         content:
@@ -613,6 +625,8 @@ paths:
         - Admin
       summary: Delete a prompt version
       operationId: admin_delete_prompt_DELETE
+      security:
+        - adminAuthorizer: []
       parameters:
         - in: query
           name: prompt_version_id
@@ -677,6 +691,8 @@ paths:
         - Admin
       summary: Get only active prompts
       operationId: admin_active_prompts_GET
+      security:
+        - adminAuthorizer: []
       responses:
         "200":
           description: List of active prompts
@@ -740,6 +756,8 @@ paths:
         - Admin
       summary: Activate a prompt version
       operationId: admin_activate_prompt_POST
+      security:
+        - adminAuthorizer: []
       requestBody:
         required: true
         content:
