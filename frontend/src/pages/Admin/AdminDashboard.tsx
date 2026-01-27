@@ -18,8 +18,8 @@ import {
 } from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
 import AdminHeader from "../../components/AdminHeader";
-import AddInstructorDialog from "../../components/AddInstructorDialog";
-import InstructorDetailsDialog from "../../components/InstructorDetailsDialog";
+import AddInstructorDialog from "../../components/Admin/AddInstructorDialog";
+import InstructorDetailsDialog from "../../components/Admin/InstructorDetailsDialog";
 import { fetchAuthSession } from "aws-amplify/auth";
 
 interface UserInfo {
