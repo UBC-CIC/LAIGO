@@ -19,6 +19,7 @@ import {
 import SearchIcon from "@mui/icons-material/Search";
 import AdminHeader from "../../components/AdminHeader";
 import AddInstructorDialog from "../../components/AddInstructorDialog";
+import InstructorDetailsDialog from "../../components/InstructorDetailsDialog";
 import { fetchAuthSession } from "aws-amplify/auth";
 
 interface UserInfo {
@@ -47,6 +48,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = () => {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
+  const [selectedInstructor, setSelectedInstructor] =
+    useState<Instructor | null>(null);
 
   useEffect(() => {
     fetchInstructors();
@@ -209,7 +213,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                   {filteredInstructors
                     .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
                     .map((instructor) => (
-                      <TableRow key={instructor.user_id}>
+                      <TableRow
+                        key={instructor.user_id}
+                        hover
+                        onClick={() => {
+                          setSelectedInstructor(instructor);
+                          setDetailsDialogOpen(true);
+                        }}
+                        sx={{ cursor: "pointer" }}
+                      >
                         <TableCell
                           sx={{
                             color: "var(--text)",
@@ -283,6 +295,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = () => {
         onSuccess={() => {
           fetchInstructors();
         }}
+      />
+
+      <InstructorDetailsDialog
+        open={detailsDialogOpen}
+        onClose={() => setDetailsDialogOpen(false)}
+        instructor={selectedInstructor}
       />
     </Box>
   );

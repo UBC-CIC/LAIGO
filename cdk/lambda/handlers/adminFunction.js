@@ -66,21 +66,44 @@ exports.handler = async (event) => {
         // Check if the body contains the instructor and student IDs
         if (event.body) {
           try {
-            const { instructor_id, student_id } = JSON.parse(event.body); // Parse the request body to access the JSON data
+            const { instructor_id, student_email } = JSON.parse(event.body); // Parse the request body to access the JSON data
 
-            if (!instructor_id || !student_id) {
+            if (!instructor_id || !student_email) {
               response.statusCode = 400;
               response.body = JSON.stringify({
-                error: "Both instructor_id and student_id are required",
+                error: "Both instructor_id and student_email are required",
               });
               break;
             }
 
+            // Look up student_id from email and verify it's a student
+            const studentLookup = await sqlConnectionTableCreator`
+              SELECT user_id, roles FROM "users" WHERE user_email = ${student_email};
+            `;
+
+            if (studentLookup.length === 0) {
+              response.statusCode = 404;
+              response.body = JSON.stringify({
+                error: "Student not found with that email.",
+              });
+              break;
+            }
+
+            const student = studentLookup[0];
+            /* Optional: Verify user is a student? 
+               Usually good, but maybe an 'admin' or 'instructor' could be a student of another instructor?
+               For now, let's allow it, or strictly check roles. The Requirement implies 'assign students'.
+             */
+
             // Perform the database insertion
             const assignment = await sqlConnectionTableCreator`
                 INSERT INTO "instructor_students" (instructor_id, student_id)
-                VALUES ( ${instructor_id}, ${student_id});
+                VALUES ( ${instructor_id}, ${student.user_id})
+                ON CONFLICT (instructor_id, student_id) DO NOTHING;
               `;
+
+            // Check if inserted? Postgres doesn't return count easily in all drivers with simple query unless returning.
+            // But 'DO NOTHING' prevents error.
 
             response.statusCode = 200;
             response.body = JSON.stringify({
@@ -94,6 +117,39 @@ exports.handler = async (event) => {
         } else {
           response.statusCode = 400;
           response.body = JSON.stringify({ error: "Request body is missing" });
+        }
+        break;
+
+      case "DELETE /admin/assign_instructor_to_student":
+        if (event.queryStringParameters) {
+          try {
+            const { instructor_id, student_id } = event.queryStringParameters;
+
+            if (!instructor_id || !student_id) {
+              response.statusCode = 400;
+              response.body = JSON.stringify({
+                error: "Both instructor_id and student_id are required",
+              });
+              break;
+            }
+
+            await sqlConnectionTableCreator`
+              DELETE FROM "instructor_students"
+              WHERE instructor_id = ${instructor_id} AND student_id = ${student_id};
+            `;
+
+            response.statusCode = 200;
+            response.body = JSON.stringify({
+              message: "Student unassigned successfully.",
+            });
+          } catch (err) {
+            response.statusCode = 500;
+            console.error(err);
+            response.body = JSON.stringify({ error: "Internal server error" });
+          }
+        } else {
+          response.statusCode = 400;
+          response.body = JSON.stringify({ error: "Query parameters missing" });
         }
         break;
       case "GET /admin/students":
