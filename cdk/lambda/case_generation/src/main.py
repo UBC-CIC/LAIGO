@@ -21,6 +21,9 @@ REGION = os.environ["REGION"]
 RDS_PROXY_ENDPOINT = os.environ["RDS_PROXY_ENDPOINT"]
 BEDROCK_LLM_PARAM = os.environ["BEDROCK_LLM_PARAM"]
 TABLE_NAME_PARAM = os.environ["TABLE_NAME_PARAM"]
+BEDROCK_TEMP_PARAM = os.environ.get("BEDROCK_TEMP_PARAM")
+BEDROCK_TOP_P_PARAM = os.environ.get("BEDROCK_TOP_P_PARAM")
+BEDROCK_MAX_TOKENS_PARAM = os.environ.get("BEDROCK_MAX_TOKENS_PARAM")
 
 # AWS clients
 secrets_manager_client = boto3.client("secretsmanager")
@@ -32,6 +35,9 @@ connection = None
 db_secret = None
 BEDROCK_LLM_ID = None
 TABLE_NAME = None
+BEDROCK_TEMP = 0.7
+BEDROCK_TOP_P = 0.9
+BEDROCK_MAX_TOKENS = 150
 
 class CustomJSONEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -64,9 +70,24 @@ def get_parameter(param_name, cached_var):
 
 
 def initialize_constants():
-    global BEDROCK_LLM_ID, TABLE_NAME
+    global BEDROCK_LLM_ID, TABLE_NAME, BEDROCK_TEMP, BEDROCK_TOP_P, BEDROCK_MAX_TOKENS
     BEDROCK_LLM_ID = get_parameter(BEDROCK_LLM_PARAM, BEDROCK_LLM_ID)
     TABLE_NAME = get_parameter(TABLE_NAME_PARAM, TABLE_NAME)
+
+    if BEDROCK_TEMP_PARAM:
+        temp_val = get_parameter(BEDROCK_TEMP_PARAM, None)
+        if temp_val:
+            BEDROCK_TEMP = float(temp_val)
+            
+    if BEDROCK_TOP_P_PARAM:
+        top_p_val = get_parameter(BEDROCK_TOP_P_PARAM, None)
+        if top_p_val:
+            BEDROCK_TOP_P = float(top_p_val)
+            
+    if BEDROCK_MAX_TOKENS_PARAM:
+        max_tokens_val = get_parameter(BEDROCK_MAX_TOKENS_PARAM, None)
+        if max_tokens_val:
+            BEDROCK_MAX_TOKENS = int(max_tokens_val)
 
 
 def connect_to_db():
@@ -270,7 +291,13 @@ def handle_generate_title(case_id: str, case_type: str, jurisdiction: str, case_
     initialize_constants()
 
     try:
-        llm = get_bedrock_llm(BEDROCK_LLM_ID)
+        logger.info(f"Creating Bedrock LLM with ID: {BEDROCK_LLM_ID}, Temp: {BEDROCK_TEMP}, TopP: {BEDROCK_TOP_P}, MaxTokens: {BEDROCK_MAX_TOKENS}")
+        llm = get_bedrock_llm(
+            bedrock_llm_id=BEDROCK_LLM_ID,
+            temperature=BEDROCK_TEMP,
+            top_p=BEDROCK_TOP_P,
+            max_tokens=BEDROCK_MAX_TOKENS
+        )
         response = get_response(
             case_type=case_type,
             jurisdiction=jurisdiction,

@@ -21,6 +21,10 @@ import {
   CircularProgress,
   Snackbar,
   Alert,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
 } from "@mui/material";
 import DeleteConfirmationDialog from "../../components/Admin/DeleteConfirmationDialog";
 import RefreshIcon from "@mui/icons-material/Refresh";
@@ -170,6 +174,14 @@ const SECTIONS: SidebarSection[] = [
   },
 ];
 
+const MODEL_OPTIONS = [
+  {
+    label: "Claude 3 Sonnet",
+    value: "anthropic.claude-3-sonnet-20240229-v1:0",
+  },
+  { label: "Llama 3 70b Instruct", value: "meta.llama3-70b-instruct-v1:0" },
+];
+
 const AIConfiguration = () => {
   const [selectedBlockId, setSelectedBlockId] =
     useState<string>("intake-facts");
@@ -184,6 +196,14 @@ const AIConfiguration = () => {
 
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<PromptVersion | null>(null);
+
+  // AI Config State
+  const [bedrockLlmId, setBedrockLlmId] = useState("");
+  const [temperature, setTemperature] = useState(0.5);
+  const [topP, setTopP] = useState(0.9);
+  const [maxTokens, setMaxTokens] = useState(2048);
+  const [isAiConfigLoading, setIsAiConfigLoading] = useState(false);
+  const [isSavingConfig, setIsSavingConfig] = useState(false);
 
   // API Functions
   const fetchPrompts = useCallback(async () => {
@@ -297,10 +317,85 @@ const AIConfiguration = () => {
     return response.json();
   };
 
+  const fetchAiConfig = useCallback(async () => {
+    setIsAiConfigLoading(true);
+    try {
+      const session = await fetchAuthSession();
+      const token = session.tokens?.idToken?.toString();
+      if (!token) throw new Error("No auth token");
+
+      const response = await fetch(
+        `${import.meta.env.VITE_API_ENDPOINT}/admin/ai_config`,
+        { headers: { Authorization: token } },
+      );
+      if (!response.ok) throw new Error("Failed to fetch AI config");
+      const data = await response.json();
+      setBedrockLlmId(data.bedrock_llm_id || "");
+      setTemperature(parseFloat(data.temperature) || 0.5);
+      setTopP(parseFloat(data.top_p) || 0.9);
+      setMaxTokens(parseInt(data.max_tokens) || 2048);
+    } catch (err) {
+      console.error("Error fetching AI config:", err);
+      // setError("Failed to load AI config"); // Optional: distinct error state for config
+      setSnackbar({
+        open: true,
+        message: "Failed to load AI config",
+        severity: "error",
+      });
+    } finally {
+      setIsAiConfigLoading(false);
+    }
+  }, []);
+
+  const saveAiConfig = async () => {
+    setIsSavingConfig(true);
+    try {
+      const session = await fetchAuthSession();
+      const token = session.tokens?.idToken?.toString();
+      if (!token) throw new Error("No auth token");
+
+      const response = await fetch(
+        `${import.meta.env.VITE_API_ENDPOINT}/admin/ai_config`,
+        {
+          method: "POST",
+          headers: { Authorization: token, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            bedrock_llm_id: bedrockLlmId,
+            temperature: temperature,
+            top_p: topP,
+            max_tokens: maxTokens,
+          }),
+        },
+      );
+      if (!response.ok) throw new Error("Failed to save AI config");
+
+      setSnackbar({
+        open: true,
+        message: "AI Configuration saved!",
+        severity: "success",
+      });
+    } catch (err) {
+      console.error("Error saving AI config:", err);
+      setSnackbar({
+        open: true,
+        message: "Failed to save AI config",
+        severity: "error",
+      });
+    } finally {
+      setIsSavingConfig(false);
+    }
+  };
+
   // Fetch prompts on mount
   useEffect(() => {
     fetchPrompts();
   }, [fetchPrompts]);
+
+  useEffect(() => {
+    if (selectedBlockId === "model-configs") {
+      fetchAiConfig();
+    }
+  }, [selectedBlockId, fetchAiConfig]);
 
   // Filter based on mapping
   const currentTarget = SIDEBAR_TO_BACKEND[selectedBlockId];
@@ -634,250 +729,154 @@ const AIConfiguration = () => {
               display: "flex",
               flexDirection: "column",
               gap: 3,
-              minWidth: 0, // Prevent flex item from overflowing
+              minWidth: 0,
             }}
           >
-            {/* Workspace Panel */}
-            <Paper
-              elevation={0}
-              sx={{
-                width: "100%",
-                backgroundColor: "var(--paper)",
-                border: "1px solid var(--border)",
-                borderRadius: 2,
-                display: "flex",
-                flexDirection: "column",
-                minHeight: "400px",
-                overflow: "hidden",
-              }}
-            >
-              {/* Workspace Header */}
-              <Box
+            {selectedBlockId === "model-configs" ? (
+              <Paper
+                elevation={0}
                 sx={{
-                  p: 2,
-                  borderBottom: "1px solid var(--border)",
-                  backgroundColor: "var(--header)",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                }}
-              >
-                <Box>
-                  <Typography
-                    variant="h6"
-                    sx={{
-                      fontWeight: "bold",
-                      color: "var(--text)",
-                      textAlign: "left",
-                    }}
-                  >
-                    {activeItem?.label} - Workspace
-                  </Typography>
-                  <Typography
-                    variant="caption"
-                    sx={{
-                      color: "var(--text-secondary)",
-                      textAlign: "left",
-                      display: "block",
-                    }}
-                  >
-                    {activeItem?.description || "Select a block to configure."}
-                  </Typography>
-                </Box>
-
-                <Box
-                  sx={{
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    gap: 0.5,
-                  }}
-                >
-                  {selectedVersionId === DRAFT_ID ? (
-                    <Chip
-                      label="New Draft"
-                      color="default"
-                      variant="outlined"
-                      size="small"
-                      sx={{
-                        borderColor: "var(--border)",
-                        fontStyle: "italic",
-                        color: "var(--text-secondary)",
-                      }}
-                    />
-                  ) : (
-                    <>
-                      {currentVersion && (
-                        <Chip
-                          label={`Editing: ${currentVersion.version_name}`}
-                          color="primary"
-                          variant="outlined"
-                          size="small"
-                          sx={{ borderColor: "var(--border)" }}
-                        />
-                      )}
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        startIcon={<AddIcon />}
-                        onClick={handleStartDraft}
-                        sx={{
-                          color: "var(--text)",
-                          borderColor: "var(--border)",
-                          textTransform: "none",
-                          "&:hover": {
-                            borderColor: "var(--text)",
-                            backgroundColor: "var(--secondary)",
-                          },
-                        }}
-                      >
-                        Start New Draft
-                      </Button>
-                    </>
-                  )}
-                </Box>
-              </Box>
-
-              {/* Editor */}
-              <Box
-                sx={{
-                  flex: 1,
-                  p: 3,
+                  width: "100%",
+                  backgroundColor: "var(--paper)",
+                  border: "1px solid var(--border)",
+                  borderRadius: 2,
+                  p: 4,
                   display: "flex",
                   flexDirection: "column",
-                  gap: 2,
+                  gap: 3,
                 }}
               >
-                <TextField
-                  label="Version Name"
-                  fullWidth
-                  variant="outlined"
-                  value={versionName}
-                  onChange={(e) => setVersionName(e.target.value)}
-                  sx={{
-                    "& .MuiOutlinedInput-root": {
-                      color: "var(--text)",
-                      backgroundColor: "var(--background)",
-                      "& fieldset": { borderColor: "var(--border)" },
-                      "&:hover fieldset": {
-                        borderColor: "var(--border)",
-                      },
-                      "&.Mui-focused fieldset": {
-                        borderColor: "var(--primary)",
-                      },
-                    },
-                    "& .MuiInputLabel-root": {
-                      color: "var(--text-secondary)",
-                      "&.Mui-focused": {
-                        color: "var(--primary)",
-                      },
-                    },
-                  }}
-                />
-                <TextField
-                  label="Prompt Content"
-                  multiline
-                  fullWidth
-                  minRows={10}
-                  maxRows={25}
-                  value={editorContent}
-                  onChange={(e) => setEditorContent(e.target.value)}
-                  placeholder="Enter prompt content here..."
-                  variant="outlined"
-                  sx={{
-                    flex: 1,
-                    "& .MuiOutlinedInput-root": {
-                      height: "100%",
-                      alignItems: "flex-start",
-                      color: "var(--text)",
-                      backgroundColor: "var(--background)",
-                      fontFamily: "monospace",
-                      fontSize: "0.95rem",
-                      "& fieldset": { borderColor: "var(--border)" },
-                      "&:hover fieldset": {
-                        borderColor: "var(--border)",
-                      },
-                      "&.Mui-focused fieldset": {
-                        borderColor: "var(--primary)",
-                      },
-                    },
-                    "& .MuiInputLabel-root": {
-                      color: "var(--text-secondary)",
-                      "&.Mui-focused": {
-                        color: "var(--primary)",
-                      },
-                    },
-                  }}
-                />
-              </Box>
+                <Typography
+                  variant="h6"
+                  sx={{ color: "var(--text)", fontWeight: "bold" }}
+                >
+                  AI Model Configuration
+                </Typography>
 
-              {/* Footer Actions */}
-              <Box
-                sx={{
-                  p: 2,
-                  borderTop: "1px solid var(--border)",
-                  display: "flex",
-                  justifyContent: "flex-end",
-                  gap: 2,
-                }}
-              >
-                {selectedVersionId === DRAFT_ID ? (
-                  <Button
-                    variant="contained"
-                    startIcon={<AddIcon />}
-                    onClick={handleCreateNewVersion}
-                    sx={{
-                      backgroundColor: "var(--primary)",
-                      color: "var(--text)",
-                      textTransform: "none",
-                      fontWeight: "bold",
-                      "&:hover": {
-                        backgroundColor: "var(--primary)",
-                        opacity: 0.9,
-                      },
-                    }}
-                  >
-                    Create New Version
-                  </Button>
+                {isAiConfigLoading ? (
+                  <Box sx={{ display: "flex", justifyContent: "center", p: 4 }}>
+                    <CircularProgress />
+                  </Box>
                 ) : (
-                  <>
-                    <Button
-                      variant="text"
-                      startIcon={<RefreshIcon />}
-                      onClick={() =>
-                        setEditorContent(currentVersion?.prompt_text || "")
-                      }
-                      sx={{
-                        color: "var(--text-secondary)",
-                        textTransform: "none",
-                      }}
-                    >
-                      Revert Changes
-                    </Button>
-                    <Button
-                      variant="outlined"
-                      startIcon={<SaveIcon />}
-                      onClick={handleSaveCurrent}
-                      sx={{
-                        color: "var(--text)",
-                        borderColor: "var(--border)",
-                        textTransform: "none",
-                        "&:hover": {
-                          borderColor: "var(--text)",
-                          backgroundColor: "var(--secondary)",
-                        },
-                      }}
-                    >
-                      Save
-                    </Button>
+                  <Box
+                    sx={{ display: "flex", flexDirection: "column", gap: 3 }}
+                  >
+                    <FormControl fullWidth>
+                      <InputLabel
+                        id="model-select-label"
+                        sx={{ color: "var(--text-secondary)" }}
+                      >
+                        Bedrock Model
+                      </InputLabel>
+                      <Select
+                        labelId="model-select-label"
+                        value={
+                          MODEL_OPTIONS.some((o) => o.value === bedrockLlmId)
+                            ? bedrockLlmId
+                            : ""
+                        }
+                        label="Bedrock Model"
+                        onChange={(e) => setBedrockLlmId(e.target.value)}
+                        sx={{
+                          color: "var(--text)",
+                          backgroundColor: "var(--background)",
+                          textAlign: "left",
+                          "& .MuiOutlinedInput-notchedOutline": {
+                            borderColor: "var(--border)",
+                          },
+                          "&:hover .MuiOutlinedInput-notchedOutline": {
+                            borderColor: "var(--border)",
+                          },
+                          "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
+                            borderColor: "var(--primary)",
+                          },
+                          "& .MuiSvgIcon-root": { color: "var(--text)" },
+                        }}
+                      >
+                        {MODEL_OPTIONS.map((option) => (
+                          <MenuItem key={option.value} value={option.value}>
+                            {option.label}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+
+                    <Box sx={{ display: "flex", gap: 2 }}>
+                      <TextField
+                        label="Temperature"
+                        type="number"
+                        inputProps={{ step: 0.1, min: 0, max: 1 }}
+                        value={temperature}
+                        onChange={(e) =>
+                          setTemperature(parseFloat(e.target.value))
+                        }
+                        fullWidth
+                        variant="outlined"
+                        sx={{
+                          "& .MuiOutlinedInput-root": {
+                            color: "var(--text)",
+                            backgroundColor: "var(--background)",
+                            "& fieldset": { borderColor: "var(--border)" },
+                          },
+                          "& .MuiInputLabel-root": {
+                            color: "var(--text-secondary)",
+                          },
+                        }}
+                      />
+                      <TextField
+                        label="Top P"
+                        type="number"
+                        inputProps={{ step: 0.1, min: 0, max: 1 }}
+                        value={topP}
+                        onChange={(e) => setTopP(parseFloat(e.target.value))}
+                        fullWidth
+                        variant="outlined"
+                        sx={{
+                          "& .MuiOutlinedInput-root": {
+                            color: "var(--text)",
+                            backgroundColor: "var(--background)",
+                            "& fieldset": { borderColor: "var(--border)" },
+                          },
+                          "& .MuiInputLabel-root": {
+                            color: "var(--text-secondary)",
+                          },
+                        }}
+                      />
+                      <TextField
+                        label="Max Tokens"
+                        type="number"
+                        value={maxTokens}
+                        onChange={(e) => setMaxTokens(parseInt(e.target.value))}
+                        fullWidth
+                        variant="outlined"
+                        sx={{
+                          "& .MuiOutlinedInput-root": {
+                            color: "var(--text)",
+                            backgroundColor: "var(--background)",
+                            "& fieldset": { borderColor: "var(--border)" },
+                          },
+                          "& .MuiInputLabel-root": {
+                            color: "var(--text-secondary)",
+                          },
+                        }}
+                      />
+                    </Box>
+
                     <Button
                       variant="contained"
-                      startIcon={<AddIcon />}
-                      onClick={handleCreateNewVersion}
+                      startIcon={
+                        isSavingConfig ? (
+                          <CircularProgress size={20} color="inherit" />
+                        ) : (
+                          <SaveIcon />
+                        )
+                      }
+                      onClick={saveAiConfig}
+                      disabled={isSavingConfig}
                       sx={{
+                        alignSelf: "flex-end",
                         backgroundColor: "var(--primary)",
                         color: "var(--text)",
-                        textTransform: "none",
                         fontWeight: "bold",
                         "&:hover": {
                           backgroundColor: "var(--primary)",
@@ -885,282 +884,553 @@ const AIConfiguration = () => {
                         },
                       }}
                     >
-                      Save as New Version
+                      {isSavingConfig ? "Saving..." : "Save Configuration"}
                     </Button>
-                  </>
+                  </Box>
                 )}
-              </Box>
-            </Paper>
-
-            {/* Version History Panel */}
-            <Paper
-              elevation={0}
-              sx={{
-                width: "100%",
-                backgroundColor: "var(--paper)",
-                border: "1px solid var(--border)",
-                borderRadius: 2,
-                display: "flex",
-                flexDirection: "column",
-                overflow: "hidden",
-                minHeight: "300px",
-              }}
-            >
-              <Box
-                sx={{
-                  p: 2,
-                  backgroundColor: "var(--header)",
-                  borderBottom: "1px solid var(--border)",
-                  display: "flex",
-                  alignItems: "center",
-                }}
-              >
-                <Typography
-                  variant="h6"
-                  fontWeight="bold"
-                  sx={{ color: "var(--text)" }}
+              </Paper>
+            ) : (
+              <>
+                {/* Workspace Panel */}
+                <Paper
+                  elevation={0}
+                  sx={{
+                    width: "100%",
+                    backgroundColor: "var(--paper)",
+                    border: "1px solid var(--border)",
+                    borderRadius: 2,
+                    display: "flex",
+                    flexDirection: "column",
+                    minHeight: "400px",
+                    overflow: "hidden",
+                  }}
                 >
-                  Version History
-                </Typography>
-              </Box>
+                  {/* Workspace Header */}
+                  <Box
+                    sx={{
+                      p: 2,
+                      borderBottom: "1px solid var(--border)",
+                      backgroundColor: "var(--header)",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                    }}
+                  >
+                    <Box>
+                      <Typography
+                        variant="h6"
+                        sx={{
+                          fontWeight: "bold",
+                          color: "var(--text)",
+                          textAlign: "left",
+                        }}
+                      >
+                        {activeItem?.label} - Workspace
+                      </Typography>
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          color: "var(--text-secondary)",
+                          textAlign: "left",
+                          display: "block",
+                        }}
+                      >
+                        {activeItem?.description ||
+                          "Select a block to configure."}
+                      </Typography>
+                    </Box>
 
-              <TableContainer sx={{ flex: 1, overflow: "auto" }}>
-                <Table stickyHeader sx={{ minWidth: 650 }}>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell
-                        sx={{
-                          backgroundColor: "var(--header)",
-                          color: "var(--text-secondary)",
-                          borderBottom: "1px solid var(--border)",
-                        }}
-                      >
-                        Version
-                      </TableCell>
-                      <TableCell
-                        sx={{
-                          backgroundColor: "var(--header)",
-                          color: "var(--text-secondary)",
-                          borderBottom: "1px solid var(--border)",
-                        }}
-                      >
-                        Name
-                      </TableCell>
-                      <TableCell
-                        sx={{
-                          backgroundColor: "var(--header)",
-                          color: "var(--text-secondary)",
-                          borderBottom: "1px solid var(--border)",
-                        }}
-                      >
-                        Created At
-                      </TableCell>
-                      <TableCell
-                        sx={{
-                          backgroundColor: "var(--header)",
-                          color: "var(--text-secondary)",
-                          borderBottom: "1px solid var(--border)",
-                        }}
-                      >
-                        Author
-                      </TableCell>
-                      <TableCell
-                        sx={{
-                          backgroundColor: "var(--header)",
-                          color: "var(--text-secondary)",
-                          borderBottom: "1px solid var(--border)",
-                        }}
-                      >
-                        Status
-                      </TableCell>
-                      <TableCell
-                        align="right"
-                        sx={{
-                          backgroundColor: "var(--header)",
-                          color: "var(--text-secondary)",
-                          borderBottom: "1px solid var(--border)",
-                        }}
-                      >
-                        Actions
-                      </TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {isLoading ? (
-                      <TableRow>
-                        <TableCell
-                          colSpan={6}
-                          align="center"
-                          sx={{ color: "var(--text-secondary)", py: 4 }}
-                        >
-                          <CircularProgress
-                            size={24}
-                            sx={{ color: "var(--primary)" }}
-                          />
-                        </TableCell>
-                      </TableRow>
-                    ) : error ? (
-                      <TableRow>
-                        <TableCell
-                          colSpan={6}
-                          align="center"
-                          sx={{ color: "#ef5350", py: 4 }}
-                        >
-                          {error}
-                        </TableCell>
-                      </TableRow>
-                    ) : blockPrompts.length === 0 ? (
-                      <TableRow>
-                        <TableCell
-                          colSpan={6}
-                          align="center"
-                          sx={{ color: "var(--text-secondary)", py: 4 }}
-                        >
-                          No versions found for this block.
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      blockPrompts.map((version) => (
-                        <TableRow
-                          key={version.prompt_version_id}
-                          hover
+                    <Box
+                      sx={{
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        gap: 0.5,
+                      }}
+                    >
+                      {selectedVersionId === DRAFT_ID ? (
+                        <Chip
+                          label="New Draft"
+                          color="default"
+                          variant="outlined"
+                          size="small"
                           sx={{
-                            "&:last-child td, &:last-child th": { border: 0 },
+                            borderColor: "var(--border)",
+                            fontStyle: "italic",
+                            color: "var(--text-secondary)",
+                          }}
+                        />
+                      ) : (
+                        <>
+                          {currentVersion && (
+                            <Chip
+                              label={`Editing: ${currentVersion.version_name}`}
+                              color="primary"
+                              variant="outlined"
+                              size="small"
+                              sx={{ borderColor: "var(--border)" }}
+                            />
+                          )}
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            startIcon={<AddIcon />}
+                            onClick={handleStartDraft}
+                            sx={{
+                              color: "var(--text)",
+                              borderColor: "var(--border)",
+                              textTransform: "none",
+                              "&:hover": {
+                                borderColor: "var(--text)",
+                                backgroundColor: "var(--secondary)",
+                              },
+                            }}
+                          >
+                            Start New Draft
+                          </Button>
+                        </>
+                      )}
+                    </Box>
+                  </Box>
+
+                  {/* Editor */}
+                  <Box
+                    sx={{
+                      flex: 1,
+                      p: 3,
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 2,
+                    }}
+                  >
+                    <TextField
+                      label="Version Name"
+                      fullWidth
+                      variant="outlined"
+                      value={versionName}
+                      onChange={(e) => setVersionName(e.target.value)}
+                      sx={{
+                        "& .MuiOutlinedInput-root": {
+                          color: "var(--text)",
+                          backgroundColor: "var(--background)",
+                          "& fieldset": { borderColor: "var(--border)" },
+                          "&:hover fieldset": {
+                            borderColor: "var(--border)",
+                          },
+                          "&.Mui-focused fieldset": {
+                            borderColor: "var(--primary)",
+                          },
+                        },
+                        "& .MuiInputLabel-root": {
+                          color: "var(--text-secondary)",
+                          "&.Mui-focused": {
+                            color: "var(--primary)",
+                          },
+                        },
+                      }}
+                    />
+                    <TextField
+                      label="Prompt Content"
+                      multiline
+                      fullWidth
+                      minRows={10}
+                      maxRows={25}
+                      value={editorContent}
+                      onChange={(e) => setEditorContent(e.target.value)}
+                      placeholder="Enter prompt content here..."
+                      variant="outlined"
+                      sx={{
+                        flex: 1,
+                        "& .MuiOutlinedInput-root": {
+                          height: "100%",
+                          alignItems: "flex-start",
+                          color: "var(--text)",
+                          backgroundColor: "var(--background)",
+                          fontFamily: "monospace",
+                          fontSize: "0.95rem",
+                          "& fieldset": { borderColor: "var(--border)" },
+                          "&:hover fieldset": {
+                            borderColor: "var(--border)",
+                          },
+                          "&.Mui-focused fieldset": {
+                            borderColor: "var(--primary)",
+                          },
+                        },
+                        "& .MuiInputLabel-root": {
+                          color: "var(--text-secondary)",
+                          "&.Mui-focused": {
+                            color: "var(--primary)",
+                          },
+                        },
+                      }}
+                    />
+                  </Box>
+
+                  {/* Footer Actions */}
+                  <Box
+                    sx={{
+                      p: 2,
+                      borderTop: "1px solid var(--border)",
+                      display: "flex",
+                      justifyContent: "flex-end",
+                      gap: 2,
+                    }}
+                  >
+                    {selectedVersionId === DRAFT_ID ? (
+                      <Button
+                        variant="contained"
+                        startIcon={<AddIcon />}
+                        onClick={handleCreateNewVersion}
+                        sx={{
+                          backgroundColor: "var(--primary)",
+                          color: "var(--text)",
+                          textTransform: "none",
+                          fontWeight: "bold",
+                          "&:hover": {
+                            backgroundColor: "var(--primary)",
+                            opacity: 0.9,
+                          },
+                        }}
+                      >
+                        Create New Version
+                      </Button>
+                    ) : (
+                      <>
+                        <Button
+                          variant="text"
+                          startIcon={<RefreshIcon />}
+                          onClick={() =>
+                            setEditorContent(currentVersion?.prompt_text || "")
+                          }
+                          sx={{
+                            color: "var(--text-secondary)",
+                            textTransform: "none",
                           }}
                         >
+                          Revert Changes
+                        </Button>
+                        <Button
+                          variant="outlined"
+                          startIcon={<SaveIcon />}
+                          onClick={handleSaveCurrent}
+                          sx={{
+                            color: "var(--text)",
+                            borderColor: "var(--border)",
+                            textTransform: "none",
+                            "&:hover": {
+                              borderColor: "var(--text)",
+                              backgroundColor: "var(--secondary)",
+                            },
+                          }}
+                        >
+                          Save
+                        </Button>
+                        <Button
+                          variant="contained"
+                          startIcon={<AddIcon />}
+                          onClick={handleCreateNewVersion}
+                          sx={{
+                            backgroundColor: "var(--primary)",
+                            color: "var(--text)",
+                            textTransform: "none",
+                            fontWeight: "bold",
+                            "&:hover": {
+                              backgroundColor: "var(--primary)",
+                              opacity: 0.9,
+                            },
+                          }}
+                        >
+                          Save as New Version
+                        </Button>
+                      </>
+                    )}
+                  </Box>
+                </Paper>
+
+                {/* Version History Panel */}
+                <Paper
+                  elevation={0}
+                  sx={{
+                    width: "100%",
+                    backgroundColor: "var(--paper)",
+                    border: "1px solid var(--border)",
+                    borderRadius: 2,
+                    display: "flex",
+                    flexDirection: "column",
+                    overflow: "hidden",
+                    minHeight: "300px",
+                  }}
+                >
+                  <Box
+                    sx={{
+                      p: 2,
+                      backgroundColor: "var(--header)",
+                      borderBottom: "1px solid var(--border)",
+                      display: "flex",
+                      alignItems: "center",
+                    }}
+                  >
+                    <Typography
+                      variant="h6"
+                      fontWeight="bold"
+                      sx={{ color: "var(--text)" }}
+                    >
+                      Version History
+                    </Typography>
+                  </Box>
+
+                  <TableContainer sx={{ flex: 1, overflow: "auto" }}>
+                    <Table stickyHeader sx={{ minWidth: 650 }}>
+                      <TableHead>
+                        <TableRow>
                           <TableCell
-                            sx={{ color: "var(--text)", fontWeight: "bold" }}
+                            sx={{
+                              backgroundColor: "var(--header)",
+                              color: "var(--text-secondary)",
+                              borderBottom: "1px solid var(--border)",
+                            }}
                           >
-                            v{version.version_number}
+                            Version
                           </TableCell>
-                          <TableCell sx={{ color: "var(--text)" }}>
-                            <TextField
-                              value={version.version_name}
-                              onChange={(e) =>
-                                handleNameChange(
-                                  version.prompt_version_id,
-                                  e.target.value,
-                                )
-                              }
-                              variant="standard"
-                              fullWidth
-                              InputProps={{
-                                disableUnderline: true,
-                                sx: {
-                                  fontSize: "0.875rem",
-                                  color: "var(--text)",
-                                  fontWeight: 500,
-                                  backgroundColor: "rgba(255,255,255,0.05)",
-                                  px: 1,
-                                  py: 0.5,
-                                  borderRadius: 1,
-                                  transition: "background-color 0.2s",
-                                  "&:hover": {
-                                    backgroundColor: "rgba(255,255,255,0.1)",
-                                  },
-                                  "&.Mui-focused": {
-                                    backgroundColor: "rgba(255,255,255,0.15)",
-                                    boxShadow: "0 0 0 1px #64B5F6",
-                                  },
-                                },
-                              }}
-                            />
+                          <TableCell
+                            sx={{
+                              backgroundColor: "var(--header)",
+                              color: "var(--text-secondary)",
+                              borderBottom: "1px solid var(--border)",
+                            }}
+                          >
+                            Name
                           </TableCell>
-                          <TableCell sx={{ color: "var(--text-secondary)" }}>
-                            {new Date(
-                              version.time_created,
-                            ).toLocaleDateString()}
+                          <TableCell
+                            sx={{
+                              backgroundColor: "var(--header)",
+                              color: "var(--text-secondary)",
+                              borderBottom: "1px solid var(--border)",
+                            }}
+                          >
+                            Created At
                           </TableCell>
-                          <TableCell sx={{ color: "var(--text-secondary)" }}>
-                            {version.author_name ||
-                              version.author_id ||
-                              "Unknown"}
+                          <TableCell
+                            sx={{
+                              backgroundColor: "var(--header)",
+                              color: "var(--text-secondary)",
+                              borderBottom: "1px solid var(--border)",
+                            }}
+                          >
+                            Author
                           </TableCell>
-                          <TableCell>
-                            {version.is_active ? (
-                              <Chip
-                                icon={
-                                  <CheckCircleIcon
-                                    style={{ color: "inherit" }}
-                                  />
-                                }
-                                label="Active"
-                                size="small"
-                                sx={{
-                                  backgroundColor: "rgba(76, 175, 80, 0.1)",
-                                  color: "#66bb6a",
-                                  fontWeight: "bold",
-                                  border: "1px solid rgba(76, 175, 80, 0.2)",
-                                }}
-                              />
-                            ) : (
-                              <Button
-                                variant="outlined"
-                                size="small"
-                                color="inherit"
-                                startIcon={<CheckCircleIcon />}
-                                onClick={() =>
-                                  handleSetActive(version.prompt_version_id)
-                                }
-                                sx={{
-                                  textTransform: "none",
-                                  color: "var(--text-secondary)",
-                                  borderColor: "rgba(255,255,255,0.2)",
-                                  fontSize: "0.8rem",
-                                  "&:hover": {
-                                    borderColor: "var(--text)",
-                                    backgroundColor: "rgba(255,255,255,0.05)",
-                                  },
-                                }}
-                              >
-                                Set active
-                              </Button>
-                            )}
+                          <TableCell
+                            sx={{
+                              backgroundColor: "var(--header)",
+                              color: "var(--text-secondary)",
+                              borderBottom: "1px solid var(--border)",
+                            }}
+                          >
+                            Status
                           </TableCell>
-                          <TableCell align="right">
-                            <Box
-                              sx={{
-                                display: "flex",
-                                justifyContent: "flex-end",
-                                gap: 1,
-                              }}
-                            >
-                              <Tooltip title="Load to Workspace">
-                                <IconButton
-                                  size="small"
-                                  onClick={() =>
-                                    setSelectedVersionId(
-                                      version.prompt_version_id,
-                                    )
-                                  }
-                                  sx={{ color: "#42a5f5" }}
-                                >
-                                  <InputIcon fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
-                              <Tooltip title="Delete">
-                                <IconButton
-                                  size="small"
-                                  onClick={() =>
-                                    handleDelete(version.prompt_version_id)
-                                  }
-                                  sx={{
-                                    color: "var(--text-secondary)",
-                                    "&:hover": { color: "#ef5350" },
-                                  }}
-                                >
-                                  <DeleteOutlineIcon fontSize="small" />
-                                </IconButton>
-                              </Tooltip>
-                            </Box>
+                          <TableCell
+                            align="right"
+                            sx={{
+                              backgroundColor: "var(--header)",
+                              color: "var(--text-secondary)",
+                              borderBottom: "1px solid var(--border)",
+                            }}
+                          >
+                            Actions
                           </TableCell>
                         </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </Paper>
+                      </TableHead>
+                      <TableBody>
+                        {isLoading ? (
+                          <TableRow>
+                            <TableCell
+                              colSpan={6}
+                              align="center"
+                              sx={{ color: "var(--text-secondary)", py: 4 }}
+                            >
+                              <CircularProgress
+                                size={24}
+                                sx={{ color: "var(--primary)" }}
+                              />
+                            </TableCell>
+                          </TableRow>
+                        ) : error ? (
+                          <TableRow>
+                            <TableCell
+                              colSpan={6}
+                              align="center"
+                              sx={{ color: "#ef5350", py: 4 }}
+                            >
+                              {error}
+                            </TableCell>
+                          </TableRow>
+                        ) : blockPrompts.length === 0 ? (
+                          <TableRow>
+                            <TableCell
+                              colSpan={6}
+                              align="center"
+                              sx={{ color: "var(--text-secondary)", py: 4 }}
+                            >
+                              No versions found for this block.
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          blockPrompts.map((version) => (
+                            <TableRow
+                              key={version.prompt_version_id}
+                              hover
+                              sx={{
+                                "&:last-child td, &:last-child th": {
+                                  border: 0,
+                                },
+                              }}
+                            >
+                              <TableCell
+                                sx={{
+                                  color: "var(--text)",
+                                  fontWeight: "bold",
+                                }}
+                              >
+                                v{version.version_number}
+                              </TableCell>
+                              <TableCell sx={{ color: "var(--text)" }}>
+                                <TextField
+                                  value={version.version_name}
+                                  onChange={(e) =>
+                                    handleNameChange(
+                                      version.prompt_version_id,
+                                      e.target.value,
+                                    )
+                                  }
+                                  variant="standard"
+                                  fullWidth
+                                  InputProps={{
+                                    disableUnderline: true,
+                                    sx: {
+                                      fontSize: "0.875rem",
+                                      color: "var(--text)",
+                                      fontWeight: 500,
+                                      backgroundColor: "rgba(255,255,255,0.05)",
+                                      px: 1,
+                                      py: 0.5,
+                                      borderRadius: 1,
+                                      transition: "background-color 0.2s",
+                                      "&:hover": {
+                                        backgroundColor:
+                                          "rgba(255,255,255,0.1)",
+                                      },
+                                      "&.Mui-focused": {
+                                        backgroundColor:
+                                          "rgba(255,255,255,0.15)",
+                                        boxShadow: "0 0 0 1px #64B5F6",
+                                      },
+                                    },
+                                  }}
+                                />
+                              </TableCell>
+                              <TableCell
+                                sx={{ color: "var(--text-secondary)" }}
+                              >
+                                {new Date(
+                                  version.time_created,
+                                ).toLocaleDateString()}
+                              </TableCell>
+                              <TableCell
+                                sx={{ color: "var(--text-secondary)" }}
+                              >
+                                {version.author_name ||
+                                  version.author_id ||
+                                  "Unknown"}
+                              </TableCell>
+                              <TableCell>
+                                {version.is_active ? (
+                                  <Chip
+                                    icon={
+                                      <CheckCircleIcon
+                                        style={{ color: "inherit" }}
+                                      />
+                                    }
+                                    label="Active"
+                                    size="small"
+                                    sx={{
+                                      backgroundColor: "rgba(76, 175, 80, 0.1)",
+                                      color: "#66bb6a",
+                                      fontWeight: "bold",
+                                      border:
+                                        "1px solid rgba(76, 175, 80, 0.2)",
+                                    }}
+                                  />
+                                ) : (
+                                  <Button
+                                    variant="outlined"
+                                    size="small"
+                                    color="inherit"
+                                    startIcon={<CheckCircleIcon />}
+                                    onClick={() =>
+                                      handleSetActive(version.prompt_version_id)
+                                    }
+                                    sx={{
+                                      textTransform: "none",
+                                      color: "var(--text-secondary)",
+                                      borderColor: "rgba(255,255,255,0.2)",
+                                      fontSize: "0.8rem",
+                                      "&:hover": {
+                                        borderColor: "var(--text)",
+                                        backgroundColor:
+                                          "rgba(255,255,255,0.05)",
+                                      },
+                                    }}
+                                  >
+                                    Set active
+                                  </Button>
+                                )}
+                              </TableCell>
+                              <TableCell align="right">
+                                <Box
+                                  sx={{
+                                    display: "flex",
+                                    justifyContent: "flex-end",
+                                    gap: 1,
+                                  }}
+                                >
+                                  <Tooltip title="Load to Workspace">
+                                    <IconButton
+                                      size="small"
+                                      onClick={() =>
+                                        setSelectedVersionId(
+                                          version.prompt_version_id,
+                                        )
+                                      }
+                                      sx={{ color: "#42a5f5" }}
+                                    >
+                                      <InputIcon fontSize="small" />
+                                    </IconButton>
+                                  </Tooltip>
+                                  <Tooltip title="Delete">
+                                    <IconButton
+                                      size="small"
+                                      onClick={() =>
+                                        handleDelete(version.prompt_version_id)
+                                      }
+                                      sx={{
+                                        color: "var(--text-secondary)",
+                                        "&:hover": { color: "#ef5350" },
+                                      }}
+                                    >
+                                      <DeleteOutlineIcon fontSize="small" />
+                                    </IconButton>
+                                  </Tooltip>
+                                </Box>
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        )}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </Paper>
+              </>
+            )}
           </Box>
         </Box>
       </Box>

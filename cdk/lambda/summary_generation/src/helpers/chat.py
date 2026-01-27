@@ -20,8 +20,10 @@ dynamodb = boto3.client('dynamodb')
 bedrock_runtime = boto3.client('bedrock-runtime')
 
 def get_bedrock_llm(
-    bedrock_llm_id: str , 
-    temperature: float = 0.3
+    bedrock_llm_id: str,
+    temperature: float = 0.3,
+    max_tokens: int = 2048,
+    top_p: float = 0.9,
 ) -> ChatBedrockConverse:
     """
     Initialize a Bedrock LLM with specified parameters.
@@ -29,6 +31,8 @@ def get_bedrock_llm(
     Args:
         bedrock_llm_id (str): The model ID for the Bedrock LLM.
         temperature (float): Controls the randomness of the output.
+        max_tokens (int, optional): The maximum number of tokens to generate. Defaults to 2048.
+        top_p (float, optional): The top_p parameter for the LLM. Defaults to 0.9.
     
     Returns:
         ChatBedrockConverse: Configured Bedrock LLM instance.
@@ -36,7 +40,8 @@ def get_bedrock_llm(
     return ChatBedrockConverse(
         model=bedrock_llm_id,
         temperature=temperature,
-        max_tokens=2048
+        max_tokens=max_tokens,
+        top_p=top_p
     )
 
 def retrieve_dynamodb_history(table_name: str, session_id: str) -> list:

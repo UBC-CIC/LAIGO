@@ -777,6 +777,96 @@ paths:
         httpMethod: "POST"
         type: "aws_proxy"
 
+  /admin/ai_config:
+    options:
+      summary: CORS support
+      description: |
+        Enable CORS by returning correct headers
+      responses:
+        200:
+          $ref: "#/components/responses/Success"
+      x-amazon-apigateway-integration:
+        type: mock
+        requestTemplates:
+          application/json: |
+            {
+              "statusCode" : 200
+            }
+        responses:
+          default:
+            statusCode: "200"
+            responseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            responseTemplates:
+              application/json: |
+                {}
+    get:
+      tags:
+        - Admin
+      summary: Get AI Configuration
+      operationId: admin_ai_config_GET
+      security:
+        - adminAuthorizer: []
+      responses:
+        "200":
+          description: AI Configuration
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  bedrock_llm_id:
+                    type: string
+                  temperature:
+                    type: string
+                  top_p:
+                    type: string
+                  max_tokens:
+                    type: string
+        "500":
+          description: Internal Server Error
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${adminFunction.Arn}/invocations"
+        passthroughBehavior: "when_no_match"
+        httpMethod: "POST"
+        type: "aws_proxy"
+    post:
+      tags:
+        - Admin
+      summary: Update AI Configuration
+      operationId: admin_ai_config_POST
+      security:
+        - adminAuthorizer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                bedrock_llm_id:
+                  type: string
+                temperature:
+                  type: number
+                top_p:
+                  type: number
+                max_tokens:
+                  type: integer
+      responses:
+        "200":
+          description: Configuration updated successfully
+        "500":
+          description: Internal Server Error
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${adminFunction.Arn}/invocations"
+        passthroughBehavior: "when_no_match"
+        httpMethod: "POST"
+        type: "aws_proxy"
+
   /instructor/health:
     get:
       summary: Instructor health check

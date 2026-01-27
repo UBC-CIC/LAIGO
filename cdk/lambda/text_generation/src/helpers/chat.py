@@ -61,21 +61,23 @@ def get_bedrock_llm(
     bedrock_llm_id: str,
     temperature: float = 0,
     max_tokens: int = 4096,
+    top_p: float = 0.9,
 ) -> ChatBedrock:
     """
     Retrieve a Bedrock LLM instance based on the provided model ID.
 
     Args:
     bedrock_llm_id (str): The unique identifier for the Bedrock LLM model.
-    temperature (float, optional): The temperature parameter for the LLM, controlling 
-    the randomness of the generated responses. Defaults to 0.
+    temperature (float, optional): The temperature parameter for the LLM. Defaults to 0.
+    max_tokens (int, optional): The maximum number of tokens to generate. Defaults to 4096.
+    top_p (float, optional): The top_p parameter for the LLM. Defaults to 0.9.
 
     Returns:
     ChatBedrock: An instance of the Bedrock LLM corresponding to the provided model ID.
     """
     return ChatBedrock(
         model_id=bedrock_llm_id,
-        model_kwargs=dict(temperature=temperature, max_tokens=max_tokens),
+        model_kwargs=dict(temperature=temperature, max_tokens=max_tokens, top_p=top_p),
     )
 
 
