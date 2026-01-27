@@ -133,9 +133,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = () => {
             variant="contained"
             onClick={() => setAddDialogOpen(true)}
             sx={{
-              backgroundColor: "#90caf9",
-              color: "#000",
-              "&:hover": { backgroundColor: "#42a5f5" },
+              backgroundColor: "var(--primary)",
+              color: "var(--text)",
+              "&:hover": { backgroundColor: "var(--primary)", opacity: 0.9 },
             }}
           >
             ADD INSTRUCTOR
