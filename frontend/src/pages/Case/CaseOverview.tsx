@@ -96,13 +96,12 @@ const CaseOverview: React.FC = () => {
     try {
       const session = await fetchAuthSession();
       const token = session.tokens?.idToken?.toString() ?? null;
-      const cognito_id = session.tokens?.idToken?.payload?.sub ?? null;
-      if (!token || !cognito_id) throw new Error("Authentication required");
+      if (!token) throw new Error("Authentication required");
 
       const response = await fetch(
         `${
           import.meta.env.VITE_API_ENDPOINT
-        }/student/review_case?case_id=${caseId}&cognito_id=${cognito_id}`,
+        }/student/review_case?case_id=${caseId}`,
         {
           method: "PUT",
           headers: {
@@ -134,13 +133,12 @@ const CaseOverview: React.FC = () => {
     try {
       const session = await fetchAuthSession();
       const token = session.tokens?.idToken?.toString() ?? null;
-      const cognito_id = session.tokens?.idToken?.payload?.sub ?? null;
-      if (!token || !cognito_id) throw new Error("Authentication required");
+      if (!token) throw new Error("Authentication required");
 
       const response = await fetch(
         `${
           import.meta.env.VITE_API_ENDPOINT
-        }/student/archive_case?case_id=${caseId}&cognito_id=${cognito_id}`,
+        }/student/archive_case?case_id=${caseId}`,
         {
           method: "PUT",
           headers: {
@@ -173,13 +171,12 @@ const CaseOverview: React.FC = () => {
     try {
       const session = await fetchAuthSession();
       const token = session.tokens?.idToken?.toString() ?? null;
-      const cognito_id = session.tokens?.idToken?.payload?.sub ?? null;
-      if (!token || !cognito_id) throw new Error("Authentication required");
+      if (!token) throw new Error("Authentication required");
 
       const response = await fetch(
         `${
           import.meta.env.VITE_API_ENDPOINT
-        }/student/unarchive_case?case_id=${caseId}&cognito_id=${cognito_id}`,
+        }/student/unarchive_case?case_id=${caseId}`,
         {
           method: "PUT",
           headers: {
@@ -234,14 +231,13 @@ const CaseOverview: React.FC = () => {
         throw new Error("Authentication required");
       }
       const token = session.tokens?.idToken?.toString() ?? null;
-      const cognito_id = session.tokens?.idToken?.payload?.sub ?? null;
-      if (!token || !cognito_id) throw new Error("Authentication required");
+      if (!token) throw new Error("Authentication required");
 
       try {
         const response = await fetch(
           `${
             import.meta.env.VITE_API_ENDPOINT
-          }/student/case_page?case_id=${caseId}&cognito_id=${cognito_id}`,
+          }/student/case_page?case_id=${caseId}`,
           {
             method: "GET",
             headers: {

@@ -181,13 +181,12 @@ const StudentDashboard: React.FC = () => {
       setLoading(true);
       const session = await fetchAuthSession();
       const token = session.tokens?.idToken?.toString();
-      const cognito_id = session.tokens?.idToken?.payload?.sub;
-      if (!token || !cognito_id) throw new Error("No auth token");
+      if (!token) throw new Error("No auth token");
 
       const resp = await fetch(
         `${
           import.meta.env.VITE_API_ENDPOINT
-        }/student/archive_case?case_id=${caseId}&cognito_id=${cognito_id}`,
+        }/student/archive_case?case_id=${caseId}`,
         {
           method: "PUT",
           headers: { Authorization: token, "Content-Type": "application/json" },

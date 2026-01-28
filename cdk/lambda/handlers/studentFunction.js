@@ -576,16 +576,15 @@ ORDER BY time_uploaded DESC;
         break;
 
       case "GET /student/case_page":
+        // SECURITY: Use trusted cognito_id from authorizer for ownership check
         if (
           event.queryStringParameters &&
-          event.queryStringParameters.case_id &&
-          event.queryStringParameters.cognito_id
+          event.queryStringParameters.case_id
         ) {
           const case_id = event.queryStringParameters.case_id;
-          const cognito_id = event.queryStringParameters.cognito_id;
 
           try {
-            // Step 1: Get user's UUID from their cognito stuff
+            // Step 1: Get user's UUID using trusted cognito_id
             const userResult = await sqlConnection`
               SELECT user_id FROM "users" WHERE cognito_id = ${cognito_id};
             `;
@@ -656,7 +655,7 @@ ORDER BY time_uploaded DESC;
         } else {
           response.statusCode = 400;
           response.body = JSON.stringify({
-            error: "Case ID and Cognito ID are required",
+            error: "Case ID is required",
           });
         }
         break;
@@ -750,18 +749,17 @@ ORDER BY time_uploaded DESC;
         break;
 
       case "GET /student/feedback":
+        // SECURITY: Use trusted cognito_id from authorizer for ownership check
         if (
           event.queryStringParameters &&
-          event.queryStringParameters.case_id &&
-          event.queryStringParameters.cognito_id
+          event.queryStringParameters.case_id
         ) {
           const caseId = event.queryStringParameters.case_id;
-          const cognitoId = event.queryStringParameters.cognito_id;
 
           try {
-            // Step 1: Get user ID
+            // Step 1: Get user ID using trusted cognito_id
             const userResult = await sqlConnection`
-              SELECT user_id FROM "users" WHERE cognito_id = ${cognitoId};
+              SELECT user_id FROM "users" WHERE cognito_id = ${cognito_id};
             `;
             if (userResult.length === 0) {
               response.statusCode = 403;
@@ -825,7 +823,7 @@ ORDER BY time_uploaded DESC;
         } else {
           response.statusCode = 400;
           response.body = JSON.stringify({
-            error: "Missing case_id or cognito_id",
+            error: "Missing case_id",
           });
         }
         break;
@@ -1125,22 +1123,59 @@ ORDER BY time_uploaded DESC;
         break;
 
       case "GET /student/notes":
+        // SECURITY: Use trusted cognito_id from authorizer for ownership check
         if (
           event.queryStringParameters &&
           event.queryStringParameters.case_id
         ) {
           const case_id = event.queryStringParameters.case_id;
           try {
-            const caseData = await sqlConnection`
-                SELECT student_notes FROM "cases" WHERE case_id = ${case_id};
-              `;
+            // Step 1: Get user ID using trusted cognito_id
+            const userResult = await sqlConnection`
+              SELECT user_id FROM "users" WHERE cognito_id = ${cognito_id};
+            `;
+            if (userResult.length === 0) {
+              response.statusCode = 403;
+              response.body = JSON.stringify({ error: "User not found" });
+              break;
+            }
+            const requestingUserId = userResult[0].user_id;
 
-            if (caseData.length > 0) {
-              response.body = JSON.stringify(caseData[0]); // Return the case data
-            } else {
+            // Step 2: Get case with student_notes and ownership check
+            const caseData = await sqlConnection`
+              SELECT student_notes, student_id FROM "cases" WHERE case_id = ${case_id};
+            `;
+
+            if (caseData.length === 0) {
               response.statusCode = 404;
               response.body = JSON.stringify({ error: "Case not found" });
+              break;
             }
+
+            // Step 3: Check ownership or instructor relationship
+            const caseOwnerId = caseData[0].student_id;
+            let hasAccess = false;
+            if (requestingUserId === caseOwnerId) {
+              hasAccess = true;
+            } else {
+              const instructorCheck = await sqlConnection`
+                SELECT 1 FROM "instructor_students"
+                WHERE instructor_id = ${requestingUserId} AND student_id = ${caseOwnerId};
+              `;
+              if (instructorCheck.length > 0) {
+                hasAccess = true;
+              }
+            }
+
+            if (!hasAccess) {
+              response.statusCode = 403;
+              response.body = JSON.stringify({ error: "Access denied" });
+              break;
+            }
+
+            response.body = JSON.stringify({
+              student_notes: caseData[0].student_notes,
+            });
           } catch (err) {
             response.statusCode = 500;
             console.log(err);
@@ -1153,22 +1188,52 @@ ORDER BY time_uploaded DESC;
         break;
 
       case "PUT /student/notes":
+        // SECURITY: Use trusted cognito_id from authorizer for ownership check
         if (
           event.queryStringParameters != null &&
           event.queryStringParameters.case_id
         ) {
           const { case_id } = event.queryStringParameters;
-
           const { notes } = JSON.parse(event.body || "{}");
 
           try {
+            // Step 1: Get user ID using trusted cognito_id
+            const userResult = await sqlConnection`
+              SELECT user_id FROM "users" WHERE cognito_id = ${cognito_id};
+            `;
+            if (userResult.length === 0) {
+              response.statusCode = 403;
+              response.body = JSON.stringify({ error: "User not found" });
+              break;
+            }
+            const requestingUserId = userResult[0].user_id;
+
+            // Step 2: Get the case and verify ownership
+            const caseResult = await sqlConnection`
+              SELECT student_id FROM "cases" WHERE case_id = ${case_id};
+            `;
+            if (caseResult.length === 0) {
+              response.statusCode = 404;
+              response.body = JSON.stringify({ error: "Case not found" });
+              break;
+            }
+
+            // Step 3: Only owner can update notes
+            if (requestingUserId !== caseResult[0].student_id) {
+              response.statusCode = 403;
+              response.body = JSON.stringify({
+                error: "Access denied - only the case owner can update notes",
+              });
+              break;
+            }
+
             await sqlConnection`
-                  UPDATE "cases"
-                  SET 
-                      student_notes = ${notes},
-                      last_updated = NOW()
-                  WHERE case_id = ${case_id}; 
-              `;
+              UPDATE "cases"
+              SET 
+                student_notes = ${notes},
+                last_updated = NOW()
+              WHERE case_id = ${case_id}; 
+            `;
             response.statusCode = 200;
             response.body = JSON.stringify({
               message: "Notes Updated Successfully",
@@ -1180,10 +1245,14 @@ ORDER BY time_uploaded DESC;
               error: "Internal server error",
             });
           }
+        } else {
+          response.statusCode = 400;
+          response.body = JSON.stringify({ error: "case_id is required" });
         }
         break;
 
       case "PUT /student/edit_case":
+        // SECURITY: Use trusted cognito_id from authorizer for ownership check
         if (
           event.queryStringParameters != null &&
           event.queryStringParameters.case_id
@@ -1200,18 +1269,48 @@ ORDER BY time_uploaded DESC;
             statute,
           } = JSON.parse(event.body || "{}");
           try {
+            // Step 1: Get user ID using trusted cognito_id
+            const userResult = await sqlConnection`
+              SELECT user_id FROM "users" WHERE cognito_id = ${cognito_id};
+            `;
+            if (userResult.length === 0) {
+              response.statusCode = 403;
+              response.body = JSON.stringify({ error: "User not found" });
+              break;
+            }
+            const requestingUserId = userResult[0].user_id;
+
+            // Step 2: Get the case and verify ownership
+            const caseResult = await sqlConnection`
+              SELECT student_id FROM "cases" WHERE case_id = ${case_id};
+            `;
+            if (caseResult.length === 0) {
+              response.statusCode = 404;
+              response.body = JSON.stringify({ error: "Case not found" });
+              break;
+            }
+
+            // Step 3: Only owner can edit case
+            if (requestingUserId !== caseResult[0].student_id) {
+              response.statusCode = 403;
+              response.body = JSON.stringify({
+                error: "Access denied - only the case owner can edit",
+              });
+              break;
+            }
+
             await sqlConnection`
-                    UPDATE "cases"
-                    SET 
-                        case_title = ${case_title},
-                        case_type = ${case_type},
-                        case_description = ${case_description},
-                        status = ${status},
-                        jurisdiction = ${jurisdiction}, 
-                        province = ${province},
-                        statute = ${statute}
-                    WHERE case_id = ${case_id}; 
-                `;
+              UPDATE "cases"
+              SET 
+                case_title = ${case_title},
+                case_type = ${case_type},
+                case_description = ${case_description},
+                status = ${status},
+                jurisdiction = ${jurisdiction}, 
+                province = ${province},
+                statute = ${statute}
+              WHERE case_id = ${case_id}; 
+            `;
             response.statusCode = 200;
             response.body = JSON.stringify({
               message: "Case Updated Successfully",
@@ -1223,10 +1322,14 @@ ORDER BY time_uploaded DESC;
               error: "Internal server error",
             });
           }
+        } else {
+          response.statusCode = 400;
+          response.body = JSON.stringify({ error: "case_id is required" });
         }
         break;
 
       case "DELETE /student/delete_case":
+        // SECURITY: Use trusted cognito_id from authorizer for ownership check
         console.log(event);
         if (
           event.queryStringParameters != null &&
@@ -1235,10 +1338,40 @@ ORDER BY time_uploaded DESC;
           const caseId = event.queryStringParameters.case_id;
 
           try {
+            // Step 1: Get user ID using trusted cognito_id
+            const userResult = await sqlConnection`
+              SELECT user_id FROM "users" WHERE cognito_id = ${cognito_id};
+            `;
+            if (userResult.length === 0) {
+              response.statusCode = 403;
+              response.body = JSON.stringify({ error: "User not found" });
+              break;
+            }
+            const requestingUserId = userResult[0].user_id;
+
+            // Step 2: Get the case and verify ownership
+            const caseResult = await sqlConnection`
+              SELECT student_id FROM "cases" WHERE case_id = ${caseId};
+            `;
+            if (caseResult.length === 0) {
+              response.statusCode = 404;
+              response.body = JSON.stringify({ error: "Case not found" });
+              break;
+            }
+
+            // Step 3: Only owner can delete case
+            if (requestingUserId !== caseResult[0].student_id) {
+              response.statusCode = 403;
+              response.body = JSON.stringify({
+                error: "Access denied - only the case owner can delete",
+              });
+              break;
+            }
+
             await sqlConnection`
-                    DELETE FROM "cases"
-                    WHERE case_id = ${caseId};
-                `;
+              DELETE FROM "cases"
+              WHERE case_id = ${caseId};
+            `;
 
             response.statusCode = 200;
             response.body = JSON.stringify({
@@ -1256,6 +1389,7 @@ ORDER BY time_uploaded DESC;
         break;
 
       case "DELETE /student/delete_transcription":
+        // SECURITY: Use trusted cognito_id from authorizer for ownership check
         console.log(event);
         if (
           event.queryStringParameters != null &&
@@ -1264,14 +1398,48 @@ ORDER BY time_uploaded DESC;
           const audioFileId = event.queryStringParameters.audio_file_id;
 
           try {
+            // Step 1: Get user ID using trusted cognito_id
+            const userResult = await sqlConnection`
+              SELECT user_id FROM "users" WHERE cognito_id = ${cognito_id};
+            `;
+            if (userResult.length === 0) {
+              response.statusCode = 403;
+              response.body = JSON.stringify({ error: "User not found" });
+              break;
+            }
+            const requestingUserId = userResult[0].user_id;
+
+            // Step 2: Get the audio file's case and verify ownership
+            const audioResult = await sqlConnection`
+              SELECT a.case_id, c.student_id 
+              FROM "audio_files" a
+              JOIN "cases" c ON a.case_id = c.case_id
+              WHERE a.audio_file_id = ${audioFileId};
+            `;
+            if (audioResult.length === 0) {
+              response.statusCode = 404;
+              response.body = JSON.stringify({ error: "Audio file not found" });
+              break;
+            }
+
+            // Step 3: Only owner can delete transcription
+            if (requestingUserId !== audioResult[0].student_id) {
+              response.statusCode = 403;
+              response.body = JSON.stringify({
+                error:
+                  "Access denied - only the case owner can delete transcriptions",
+              });
+              break;
+            }
+
             await sqlConnection`
-                    DELETE FROM "audio_files"
-                    WHERE audio_file_id = ${audioFileId};
-                `;
+              DELETE FROM "audio_files"
+              WHERE audio_file_id = ${audioFileId};
+            `;
 
             response.statusCode = 200;
             response.body = JSON.stringify({
-              message: "Case deleted successfully",
+              message: "Transcription deleted successfully",
             });
           } catch (err) {
             response.statusCode = 500;
@@ -1281,18 +1449,18 @@ ORDER BY time_uploaded DESC;
         } else {
           response.statusCode = 400;
           response.body = JSON.stringify({
-            error: "audio_File_id is required",
+            error: "audio_file_id is required",
           });
         }
         break;
 
       case "PUT /student/review_case":
+        // SECURITY: Use trusted cognito_id from authorizer for ownership check
         if (
           event.queryStringParameters != null &&
-          event.queryStringParameters.case_id &&
-          event.queryStringParameters.cognito_id
+          event.queryStringParameters.case_id
         ) {
-          const { case_id, cognito_id } = event.queryStringParameters;
+          const case_id = event.queryStringParameters.case_id;
 
           let reviewer_ids = [];
           try {
@@ -1307,6 +1475,38 @@ ORDER BY time_uploaded DESC;
           }
 
           try {
+            // Step 1: Get user ID using trusted cognito_id
+            const userResult = await sqlConnection`
+              SELECT user_id FROM "users" WHERE cognito_id = ${cognito_id};
+            `;
+            if (userResult.length === 0) {
+              response.statusCode = 403;
+              response.body = JSON.stringify({ error: "User not found" });
+              break;
+            }
+            const requestingUserId = userResult[0].user_id;
+
+            // Step 2: Get the case and its owner
+            const caseResult = await sqlConnection`
+              SELECT student_id FROM "cases" WHERE case_id = ${case_id};
+            `;
+            if (caseResult.length === 0) {
+              response.statusCode = 404;
+              response.body = JSON.stringify({ error: "Case not found" });
+              break;
+            }
+            const caseOwnerId = caseResult[0].student_id;
+
+            // Step 3: Check ownership — only owner can submit for review
+            if (requestingUserId !== caseOwnerId) {
+              response.statusCode = 403;
+              response.body = JSON.stringify({
+                error:
+                  "Access denied - only the case owner can submit for review",
+              });
+              break;
+            }
+
             await sqlConnection.begin(async (sql) => {
               // 1. Update case status
               await sql`
@@ -1340,27 +1540,60 @@ ORDER BY time_uploaded DESC;
               error: "Internal server error",
             });
           }
+        } else {
+          response.statusCode = 400;
+          response.body = JSON.stringify({ error: "case_id is required" });
         }
 
         break;
 
       case "PUT /student/archive_case":
+        // SECURITY: Use trusted cognito_id from authorizer for ownership check
         if (
           event.queryStringParameters != null &&
-          event.queryStringParameters.case_id &&
-          event.queryStringParameters.cognito_id
+          event.queryStringParameters.case_id
         ) {
-          const { case_id, cognito_id } = event.queryStringParameters;
+          const case_id = event.queryStringParameters.case_id;
           try {
+            // Step 1: Get user ID using trusted cognito_id
+            const userResult = await sqlConnection`
+              SELECT user_id FROM "users" WHERE cognito_id = ${cognito_id};
+            `;
+            if (userResult.length === 0) {
+              response.statusCode = 403;
+              response.body = JSON.stringify({ error: "User not found" });
+              break;
+            }
+            const requestingUserId = userResult[0].user_id;
+
+            // Step 2: Get the case and its owner
+            const caseResult = await sqlConnection`
+              SELECT student_id FROM "cases" WHERE case_id = ${case_id};
+            `;
+            if (caseResult.length === 0) {
+              response.statusCode = 404;
+              response.body = JSON.stringify({ error: "Case not found" });
+              break;
+            }
+            const caseOwnerId = caseResult[0].student_id;
+
+            // Step 3: Check ownership — only owner can archive
+            if (requestingUserId !== caseOwnerId) {
+              response.statusCode = 403;
+              response.body = JSON.stringify({
+                error: "Access denied - only the case owner can archive",
+              });
+              break;
+            }
+
             await sqlConnection`
-                    UPDATE "cases"
-                    SET 
-                        status = 'archived'
-                    WHERE case_id = ${case_id}; 
-                `;
+              UPDATE "cases"
+              SET status = 'archived'
+              WHERE case_id = ${case_id}; 
+            `;
             response.statusCode = 200;
             response.body = JSON.stringify({
-              message: "Case Updated Successfully",
+              message: "Case Archived Successfully",
             });
           } catch (err) {
             response.statusCode = 500;
@@ -1369,27 +1602,60 @@ ORDER BY time_uploaded DESC;
               error: "Internal server error",
             });
           }
+        } else {
+          response.statusCode = 400;
+          response.body = JSON.stringify({ error: "case_id is required" });
         }
 
         break;
 
       case "PUT /student/unarchive_case":
+        // SECURITY: Use trusted cognito_id from authorizer for ownership check
         if (
           event.queryStringParameters != null &&
-          event.queryStringParameters.case_id &&
-          event.queryStringParameters.cognito_id
+          event.queryStringParameters.case_id
         ) {
-          const { case_id, cognito_id } = event.queryStringParameters;
+          const case_id = event.queryStringParameters.case_id;
           try {
+            // Step 1: Get user ID using trusted cognito_id
+            const userResult = await sqlConnection`
+              SELECT user_id FROM "users" WHERE cognito_id = ${cognito_id};
+            `;
+            if (userResult.length === 0) {
+              response.statusCode = 403;
+              response.body = JSON.stringify({ error: "User not found" });
+              break;
+            }
+            const requestingUserId = userResult[0].user_id;
+
+            // Step 2: Get the case and its owner
+            const caseResult = await sqlConnection`
+              SELECT student_id FROM "cases" WHERE case_id = ${case_id};
+            `;
+            if (caseResult.length === 0) {
+              response.statusCode = 404;
+              response.body = JSON.stringify({ error: "Case not found" });
+              break;
+            }
+            const caseOwnerId = caseResult[0].student_id;
+
+            // Step 3: Check ownership — only owner can unarchive
+            if (requestingUserId !== caseOwnerId) {
+              response.statusCode = 403;
+              response.body = JSON.stringify({
+                error: "Access denied - only the case owner can unarchive",
+              });
+              break;
+            }
+
             await sqlConnection`
-                    UPDATE "cases"
-                    SET 
-                        status = 'in_progress'
-                    WHERE case_id = ${case_id}; 
-                `;
+              UPDATE "cases"
+              SET status = 'in_progress'
+              WHERE case_id = ${case_id}; 
+            `;
             response.statusCode = 200;
             response.body = JSON.stringify({
-              message: "Case Updated Successfully",
+              message: "Case Unarchived Successfully",
             });
           } catch (err) {
             response.statusCode = 500;
@@ -1398,6 +1664,9 @@ ORDER BY time_uploaded DESC;
               error: "Internal server error",
             });
           }
+        } else {
+          response.statusCode = 400;
+          response.body = JSON.stringify({ error: "case_id is required" });
         }
 
         break;

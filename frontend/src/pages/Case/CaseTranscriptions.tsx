@@ -58,7 +58,7 @@ const constructTranscriptionWebSocketUrl = (cognitoToken: string) => {
   const urlObj = new URL(apiUrl);
   urlObj.hostname = urlObj.hostname.replace(
     "appsync-api",
-    "appsync-realtime-api"
+    "appsync-realtime-api",
   );
   const header = {
     host: new URL(tempUrl).hostname,
@@ -106,7 +106,7 @@ const CaseTranscriptions: React.FC = () => {
             Authorization: token,
             "Content-Type": "application/json",
           },
-        }
+        },
       );
       if (response.ok) {
         const data = await response.json();
@@ -121,20 +121,19 @@ const CaseTranscriptions: React.FC = () => {
     try {
       const { tokens } = await fetchAuthSession();
       const token = tokens?.idToken?.toString();
-      const cognitoId = tokens?.idToken?.payload?.sub;
-      if (!token || !cognitoId) return;
+      if (!token) return;
 
       const response = await fetch(
         `${
           import.meta.env.VITE_API_ENDPOINT
-        }student/get_transcriptions?case_id=${caseId}&cognito_id=${cognitoId}`,
+        }student/get_transcriptions?case_id=${caseId}`,
         {
           method: "GET",
           headers: {
             Authorization: token,
             "Content-Type": "application/json",
           },
-        }
+        },
       );
 
       if (!response.ok) throw new Error("Transcriptions not found");
@@ -150,20 +149,19 @@ const CaseTranscriptions: React.FC = () => {
       try {
         const { tokens } = await fetchAuthSession();
         const token = tokens?.idToken?.toString();
-        const cognitoId = tokens?.idToken?.payload?.sub;
-        if (!token || !cognitoId) return;
+        if (!token) return;
 
         const response = await fetch(
           `${
             import.meta.env.VITE_API_ENDPOINT
-          }student/case_page?case_id=${caseId}&cognito_id=${cognitoId}`,
+          }student/case_page?case_id=${caseId}`,
           {
             method: "GET",
             headers: {
               Authorization: token,
               "Content-Type": "application/json",
             },
-          }
+          },
         );
 
         if (!response.ok) throw new Error("Case not found");
@@ -200,7 +198,7 @@ const CaseTranscriptions: React.FC = () => {
       {
         method: "GET",
         headers: { Authorization: token, "Content-Type": "application/json" },
-      }
+      },
     );
 
     if (!response.ok) throw new Error("Failed to generate presigned URL");
@@ -210,25 +208,23 @@ const CaseTranscriptions: React.FC = () => {
 
   const initializeAudioFileInDb = async (
     audioFileId: string,
-    fileName: string
+    fileName: string,
   ) => {
     const { tokens } = await fetchAuthSession();
     const token = tokens?.idToken?.toString();
-    const cognitoId = tokens?.idToken?.payload?.sub;
-    if (!token || !cognitoId) throw new Error("No token");
+    if (!token) throw new Error("No token");
     const s3FilePath = `${audioFileId}/${fileName}`;
 
     const response = await fetch(
       `${import.meta.env.VITE_API_ENDPOINT}student/initialize_audio_file?` +
         `audio_file_id=${encodeURIComponent(audioFileId)}&` +
         `s3_file_path=${encodeURIComponent(s3FilePath)}&` +
-        `cognito_id=${encodeURIComponent(cognitoId)}&` +
         `case_id=${encodeURIComponent(caseId || "")}&` +
         `title=${encodeURIComponent(audioTitle)}`,
       {
         method: "POST",
         headers: { Authorization: token, "Content-Type": "application/json" },
-      }
+      },
     );
 
     if (!response.ok) throw new Error("Failed to initialize audio file");
@@ -264,7 +260,7 @@ const CaseTranscriptions: React.FC = () => {
       {
         method: "GET",
         headers: { Authorization: token, "Content-Type": "application/json" },
-      }
+      },
     );
 
     if (!response.ok) throw new Error("Failed to transcribe audio");
@@ -308,7 +304,7 @@ const CaseTranscriptions: React.FC = () => {
                   },
                 },
               },
-            })
+            }),
           );
         } else if (
           msg.type === "data" &&
@@ -374,8 +370,8 @@ const CaseTranscriptions: React.FC = () => {
     if (fileSizeInMB > maxFileSizeMB) {
       setError(
         `File size (${fileSizeInMB.toFixed(
-          2
-        )}MB) exceeds the ${maxFileSizeMB}MB limit`
+          2,
+        )}MB) exceeds the ${maxFileSizeMB}MB limit`,
       );
       return;
     }
@@ -406,20 +402,19 @@ const CaseTranscriptions: React.FC = () => {
     try {
       const { tokens } = await fetchAuthSession();
       const token = tokens?.idToken?.toString();
-      const cognitoId = tokens?.idToken?.payload?.sub;
-      if (!token || !cognitoId) return "Error: No token";
+      if (!token) return "Error: No token";
 
       const response = await fetch(
         `${
           import.meta.env.VITE_API_ENDPOINT
-        }student/transcription?audio_file_id=${audioFileId}&cognito_id=${cognitoId}`,
+        }student/transcription?audio_file_id=${audioFileId}`,
         {
           method: "GET",
           headers: {
             Authorization: token,
             "Content-Type": "application/json",
           },
-        }
+        },
       );
 
       if (!response.ok) throw new Error("Failed to fetch transcription text");
@@ -473,15 +468,15 @@ const CaseTranscriptions: React.FC = () => {
 
     doc.text(
       `Interview Date: ${new Date(
-        transcription.time_uploaded
+        transcription.time_uploaded,
       ).toLocaleString()}`,
       margin,
-      y + 10
+      y + 10,
     );
 
     doc.save(
       `Case-${caseData.case_hash}:Transcription-${new Date(
-        transcription.time_uploaded
+        transcription.time_uploaded,
       ).toLocaleString("en-US", {
         month: "long",
         day: "numeric",
@@ -489,7 +484,7 @@ const CaseTranscriptions: React.FC = () => {
         hour: "numeric",
         minute: "numeric",
         hour12: true,
-      })}.pdf`
+      })}.pdf`,
     );
   };
 
@@ -497,7 +492,7 @@ const CaseTranscriptions: React.FC = () => {
 
   const handleMenuOpen = (
     event: React.MouseEvent<HTMLElement>,
-    transcriptionId: string
+    transcriptionId: string,
   ) => {
     setAnchorEl(event.currentTarget);
     setSelectedTranscriptionId(transcriptionId);
@@ -526,11 +521,11 @@ const CaseTranscriptions: React.FC = () => {
             Authorization: token,
             "Content-Type": "application/json",
           },
-        }
+        },
       );
       if (!response.ok) throw new Error("Failed to delete transcription");
       setTranscriptions((prev) =>
-        prev.filter((t) => t.audio_file_id !== selectedTranscriptionId)
+        prev.filter((t) => t.audio_file_id !== selectedTranscriptionId),
       );
     } catch (error) {
       console.error("Error deleting transcription:", error);
@@ -678,7 +673,7 @@ const CaseTranscriptions: React.FC = () => {
                           hour: "numeric",
                           minute: "numeric",
                           hour12: true,
-                        }
+                        },
                       )}
                     </TableCell>
                     <TableCell
@@ -1048,8 +1043,8 @@ const CaseTranscriptions: React.FC = () => {
                   __html: DOMPurify.sanitize(
                     marked.parse(
                       selectedTranscription.audio_text ||
-                        "No transcription available"
-                    ) as string
+                        "No transcription available",
+                    ) as string,
                   ),
                 }}
                 style={{ fontFamily: "Outfit, sans-serif" }}

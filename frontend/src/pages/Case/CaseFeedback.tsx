@@ -59,10 +59,8 @@ const CaseFeedback: React.FC = () => {
         return;
       }
 
-      const userId = session.tokens?.accessToken?.payload.sub as string;
-
       const response = await fetch(
-        `${import.meta.env.VITE_API_ENDPOINT}/student/feedback?case_id=${caseId}&cognito_id=${userId}`,
+        `${import.meta.env.VITE_API_ENDPOINT}/student/feedback?case_id=${caseId}`,
         {
           headers: {
             Authorization: token,

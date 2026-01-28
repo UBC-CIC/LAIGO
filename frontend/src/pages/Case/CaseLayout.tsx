@@ -37,13 +37,13 @@ const CaseLayout: React.FC = () => {
       const res = await fetch(
         `${
           import.meta.env.VITE_API_ENDPOINT
-        }/student/case_page?case_id=${caseId}&cognito_id=${cId}`,
+        }/student/case_page?case_id=${caseId}`,
         {
           headers: {
             Authorization: token,
             "Content-Type": "application/json",
           },
-        }
+        },
       );
 
       if (res.ok) {
@@ -77,13 +77,13 @@ const CaseLayout: React.FC = () => {
         const res = await fetch(
           `${
             import.meta.env.VITE_API_ENDPOINT
-          }/student/case_page?case_id=${caseId}&cognito_id=${cId}`,
+          }/student/case_page?case_id=${caseId}`,
           {
             headers: {
               Authorization: token,
               "Content-Type": "application/json",
             },
-          }
+          },
         );
 
         if (res.ok) {
@@ -106,7 +106,7 @@ const CaseLayout: React.FC = () => {
                 Authorization: token,
                 "Content-Type": "application/json",
               },
-            }
+            },
           );
 
           if (!viewRes.ok) {
@@ -147,7 +147,7 @@ const CaseLayout: React.FC = () => {
               case_id: caseId,
               notes: content,
             }),
-          }
+          },
         );
 
         setNotepadContent(content);
@@ -155,7 +155,7 @@ const CaseLayout: React.FC = () => {
         console.error("Failed to save notes", e);
       }
     },
-    [caseId, cognitoId]
+    [caseId, cognitoId],
   );
 
   return (
