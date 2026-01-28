@@ -472,14 +472,14 @@ def handler(event, context):
         # Try to get from request context (HTTP fallback)
         cognito_id = request_context.get("authorizer", {}).get("principalId")
     
-    if is_websocket:
-        if not cognito_id:
-            logger.error("Authorization failed: Missing cognitoId")
-            return _error_response(401, "Unauthorized: Missing user identity", is_websocket, connection_id, ws_endpoint, request_id)
-        
-        if not check_authorization(cognito_id, case_id):
-            logger.error(f"Authorization failed: User {cognito_id} does not own case {case_id}")
-            return _error_response(403, "Forbidden: You do not have access to this case", is_websocket, connection_id, ws_endpoint, request_id)
+    # Enforce authorization for ALL requests (HTTP and WebSocket)
+    if not cognito_id:
+        logger.error("Authorization failed: Missing cognitoId")
+        return _error_response(401, "Unauthorized: Missing user identity", is_websocket, connection_id, ws_endpoint, request_id)
+    
+    if not check_authorization(cognito_id, case_id):
+        logger.error(f"Authorization failed: User {cognito_id} does not own case {case_id}")
+        return _error_response(403, "Forbidden: You do not have access to this case", is_websocket, connection_id, ws_endpoint, request_id)
 
     case_type, jurisdiction, case_description = get_case_details(case_id)
     if case_type is None or jurisdiction is None or case_description is None:

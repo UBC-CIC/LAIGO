@@ -615,25 +615,57 @@ def handler(event, context):
         
         # Check if this is a WebSocket invocation
         is_websocket = event.get("isWebSocket", False)
-        cognito_id = event.get("cognitoId")  # Extract authenticated user ID
-        request_id = event.get("requestId")  # Extract request ID for response correlation
         request_context = event.get("requestContext", {})
         connection_id = request_context.get("connectionId")
         domain_name = request_context.get("domainName")
         stage = request_context.get("stage")
+        request_id = event.get("requestId")
         
+        # Unified Identity Extraction
+        cognito_id = event.get("cognitoId")
+        if not cognito_id:
+            # Try extracting from HTTP authorizer context
+            cognito_id = request_context.get("authorizer", {}).get("principalId")
+
+        # Unified Authorization Check
+        if not cognito_id:
+            logger.error("Authorization failed: Missing user identity")
+            error_body = json.dumps({"error": "Unauthorized: Missing user identity"})
+            if is_websocket:
+                 return {"statusCode": 401, "body": "Unauthorized"}
+            else:
+                 return {
+                    'statusCode': 401,
+                    "headers": {
+                        "Content-Type": "application/json",
+                        "Access-Control-Allow-Headers": "*",
+                        "Access-Control-Allow-Origin": "*",
+                        "Access-Control-Allow-Methods": "*",
+                    },
+                    "body": error_body
+                }
+
+        if not check_authorization(cognito_id, case_id):
+            logger.error(f"Authorization failed: User {cognito_id} does not own case {case_id}")
+            error_body = json.dumps({"error": "Forbidden: You do not have access to this case."})
+            if is_websocket:
+                 return {"statusCode": 403, "body": "Forbidden"}
+            else:
+                 return {
+                    'statusCode': 403,
+                    "headers": {
+                        "Content-Type": "application/json",
+                        "Access-Control-Allow-Headers": "*",
+                        "Access-Control-Allow-Origin": "*",
+                        "Access-Control-Allow-Methods": "*",
+                    },
+                    "body": error_body
+                 }
+
+        # Request Processing
         if is_websocket and connection_id:
-            # WebSocket streaming mode - perform authorization check
+            # WebSocket streaming mode
             logger.info(f"WebSocket streaming mode - connectionId: {connection_id}, cognitoId: {cognito_id}")
-            
-            # IDOR Protection: Verify user owns the case
-            if not cognito_id:
-                logger.error("Authorization failed: Missing cognitoId in WebSocket request")
-                return {"statusCode": 401, "body": "Unauthorized"}
-            
-            if not check_authorization(cognito_id, case_id):
-                logger.error(f"Authorization failed: User {cognito_id} does not own case {case_id}")
-                return {"statusCode": 403, "body": "Forbidden"}
             
             websocket_endpoint = os.environ.get("WEBSOCKET_API_ENDPOINT")
             if not websocket_endpoint:
@@ -661,28 +693,8 @@ def handler(event, context):
             return {"statusCode": 200}
         else:
             # Traditional HTTP mode
-            logger.info("HTTP mode processing request")
+            logger.info(f"HTTP mode processing request from user {cognito_id}")
             
-            # Extract cognitoId from Authorizer (passed by API Gateway)
-            cognito_id_http = request_context.get("authorizer", {}).get("principalId")
-            
-            if cognito_id_http:
-                logger.info(f"HTTP User Identity extracted: {cognito_id_http}")
-                if not check_authorization(cognito_id_http, case_id):
-                    logger.warning(f"Authorization failed for HTTP: User {cognito_id_http} does not own case {case_id}")
-                    return {
-                        'statusCode': 403,
-                        "headers": {
-                            "Content-Type": "application/json",
-                            "Access-Control-Allow-Headers": "*",
-                            "Access-Control-Allow-Origin": "*",
-                            "Access-Control-Allow-Methods": "*",
-                        },
-                        "body": json.dumps({"error": "Forbidden: You do not have access to this case."})
-                    }
-            else:
-                logger.warning("No Identity found in HTTP request context - proceeding (assuming Auth disabled or testing)")
-
             response = get_response(
                 query=student_query,
                 province=province,
