@@ -277,9 +277,7 @@ const CaseOverview: React.FC = () => {
       }
 
       const res = await fetch(
-        `${
-          import.meta.env.VITE_API_ENDPOINT
-        }/student/instructors?user_id=${cognitoId}`,
+        `${import.meta.env.VITE_API_ENDPOINT}/student/instructors`,
         {
           headers: { Authorization: token, "Content-Type": "application/json" },
         },

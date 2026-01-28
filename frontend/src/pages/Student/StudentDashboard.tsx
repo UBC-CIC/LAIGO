@@ -77,9 +77,7 @@ const StudentDashboard: React.FC = () => {
           return;
         }
 
-        const url = `${
-          import.meta.env.VITE_API_ENDPOINT
-        }/student/get_cases?user_id=${cognito_id}`;
+        const url = `${import.meta.env.VITE_API_ENDPOINT}/student/get_cases`;
 
         const resp = await fetch(url, {
           method: "GET",

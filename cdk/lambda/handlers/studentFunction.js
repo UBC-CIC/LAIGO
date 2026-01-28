@@ -23,10 +23,7 @@ let sqlConnection;
 
 exports.handler = async (event) => {
   console.log(event);
-  const cognito_id =
-    event.requestContext?.authorizer?.userId ||
-    event.queryStringParameters?.user_id ||
-    null;
+  const cognito_id = event.requestContext?.authorizer?.userId || null;
   const client = new CognitoIdentityProviderClient();
   const userAttributesCommand = new AdminGetUserCommand({
     UserPoolId: USER_POOL,
@@ -271,142 +268,116 @@ exports.handler = async (event) => {
         break;
 
       case "GET /student/get_cases":
-        if (
-          event.queryStringParameters &&
-          event.queryStringParameters.user_id
-        ) {
-          const cognito_id = event.queryStringParameters.user_id;
+        // SECURITY: Use trusted cognito_id from authorizer, not query params
+        try {
+          // Retrieve the user ID using the trusted cognito_id
+          const user = await sqlConnection`
+            SELECT user_id FROM "users" WHERE cognito_id = ${cognito_id};
+          `;
 
-          try {
-            // Retrieve the user ID using the cognito_id
-            const user = await sqlConnection`
-        SELECT user_id FROM "users" where cognito_id = ${cognito_id};
-      `;
+          const user_id = user[0]?.user_id;
 
-            const user_id = user[0]?.user_id;
+          if (user_id) {
+            const data = await sqlConnection`
+              SELECT * 
+              FROM "cases" WHERE student_id = ${user_id};
+            `;
 
-            if (user_id) {
-              const data = await sqlConnection`
-          SELECT * 
-          FROM "cases" WHERE student_id = ${user_id};
-        `;
-
-              // Check if data is empty and handle the case
-              if (data.length === 0) {
-                response.statusCode = 404; // Not Found
-                response.body = JSON.stringify({ message: "No cases found" });
-              } else {
-                response.statusCode = 200; // OK
-                response.body = JSON.stringify(data); // Ensure the data is always valid JSON
-              }
-            } else {
+            // Check if data is empty and handle the case
+            if (data.length === 0) {
               response.statusCode = 404; // Not Found
-              response.body = JSON.stringify({ error: "User not found" });
+              response.body = JSON.stringify({ message: "No cases found" });
+            } else {
+              response.statusCode = 200; // OK
+              response.body = JSON.stringify(data); // Ensure the data is always valid JSON
             }
-          } catch (err) {
-            response.statusCode = 500; // Internal server error
-            console.error(err);
-            response.body = JSON.stringify({ error: "Internal server error" });
+          } else {
+            response.statusCode = 404; // Not Found
+            response.body = JSON.stringify({ error: "User not found" });
           }
-        } else {
-          response.statusCode = 400; // Bad Request
-          response.body = JSON.stringify({ error: "Invalid value" });
+        } catch (err) {
+          response.statusCode = 500; // Internal server error
+          console.error(err);
+          response.body = JSON.stringify({ error: "Internal server error" });
         }
         break;
 
       case "GET /student/get_disclaimer":
-        if (
-          event.queryStringParameters &&
-          event.queryStringParameters.user_id
-        ) {
-          const cognito_id = event.queryStringParameters.user_id;
+        // SECURITY: Use trusted cognito_id from authorizer
+        try {
+          // Step 1: Get internal user_id
+          const user = await sqlConnection`
+            SELECT user_id FROM "users" WHERE cognito_id = ${cognito_id};
+          `;
 
-          try {
-            // Step 1: Get internal user_id
-            const user = await sqlConnection`
-        SELECT user_id FROM "users" WHERE cognito_id = ${cognito_id};
-      `;
+          const user_id = user[0]?.user_id;
 
-            const user_id = user[0]?.user_id;
-
-            if (!user_id) {
-              response.statusCode = 404;
-              response.body = JSON.stringify({ error: "User not found" });
-              break;
-            }
-
-            // Step 2: Fetch the latest disclaimer
-            const disclaimer = await sqlConnection`
-        SELECT disclaimer_text, last_updated
-        FROM disclaimers
-        ORDER BY last_updated DESC
-        LIMIT 1;
-      `;
-
-            if (!disclaimer.length) {
-              response.statusCode = 404;
-              response.body = JSON.stringify({
-                message: "No disclaimer found",
-              });
-              break;
-            }
-
-            response.statusCode = 200;
-            response.body = JSON.stringify(disclaimer[0]);
-          } catch (err) {
-            console.error("Error fetching disclaimer:", err);
-            response.statusCode = 500;
-            response.body = JSON.stringify({ error: "Internal server error" });
+          if (!user_id) {
+            response.statusCode = 404;
+            response.body = JSON.stringify({ error: "User not found" });
+            break;
           }
-        } else {
-          response.statusCode = 400;
-          response.body = JSON.stringify({ error: "Missing user_id" });
+
+          // Step 2: Fetch the latest active disclaimer
+          const disclaimer = await sqlConnection`
+            SELECT disclaimer_text, last_updated
+            FROM disclaimers
+            WHERE is_active = true
+            ORDER BY last_updated DESC
+            LIMIT 1;
+          `;
+
+          if (!disclaimer.length) {
+            response.statusCode = 404;
+            response.body = JSON.stringify({
+              message: "No disclaimer found",
+            });
+            break;
+          }
+
+          response.statusCode = 200;
+          response.body = JSON.stringify(disclaimer[0]);
+        } catch (err) {
+          console.error("Error fetching disclaimer:", err);
+          response.statusCode = 500;
+          response.body = JSON.stringify({ error: "Internal server error" });
         }
         break;
 
       case "GET /student/recent_cases":
-        if (
-          event.queryStringParameters &&
-          event.queryStringParameters.user_id
-        ) {
-          const cognito_id = event.queryStringParameters.user_id;
+        // SECURITY: Use trusted cognito_id from authorizer
+        try {
+          // Retrieve the user ID using the trusted cognito_id
+          const user = await sqlConnection`
+            SELECT user_id FROM "users" WHERE cognito_id = ${cognito_id};
+          `;
 
-          try {
-            // Retrieve the user ID using the cognito_id
-            const user = await sqlConnection`
-        SELECT user_id FROM "users" WHERE cognito_id = ${cognito_id};
-      `;
+          const user_id = user[0]?.user_id;
 
-            const user_id = user[0]?.user_id;
+          if (user_id) {
+            const data = await sqlConnection`
+              SELECT * 
+              FROM "cases"
+              WHERE student_id = ${user_id}
+              ORDER BY last_viewed DESC
+              LIMIT 6;
+            `;
 
-            if (user_id) {
-              const data = await sqlConnection`
-          SELECT * 
-          FROM "cases"
-          WHERE student_id = ${user_id}
-          ORDER BY last_viewed DESC
-          LIMIT 6;
-        `;
-
-              if (data.length === 0) {
-                response.statusCode = 404;
-                response.body = JSON.stringify({ message: "No cases found" });
-              } else {
-                response.statusCode = 200;
-                response.body = JSON.stringify(data);
-              }
-            } else {
+            if (data.length === 0) {
               response.statusCode = 404;
-              response.body = JSON.stringify({ error: "User not found" });
+              response.body = JSON.stringify({ message: "No cases found" });
+            } else {
+              response.statusCode = 200;
+              response.body = JSON.stringify(data);
             }
-          } catch (err) {
-            response.statusCode = 500;
-            console.error(err);
-            response.body = JSON.stringify({ error: "Internal server error" });
+          } else {
+            response.statusCode = 404;
+            response.body = JSON.stringify({ error: "User not found" });
           }
-        } else {
-          response.statusCode = 400;
-          response.body = JSON.stringify({ error: "Invalid value" });
+        } catch (err) {
+          response.statusCode = 500;
+          console.error(err);
+          response.body = JSON.stringify({ error: "Internal server error" });
         }
         break;
 
@@ -691,108 +662,90 @@ ORDER BY time_uploaded DESC;
         break;
 
       case "GET /student/notifications":
-        if (
-          event.queryStringParameters &&
-          event.queryStringParameters.user_id
-        ) {
-          const cognito_id = event.queryStringParameters.user_id;
+        // SECURITY: Use trusted cognito_id from authorizer
+        try {
+          // Retrieve the user ID using the trusted cognito_id
+          const user = await sqlConnection`
+            SELECT user_id FROM "users" WHERE cognito_id = ${cognito_id};
+          `;
 
-          try {
-            // Retrieve the user ID using the cognito_id
-            const user = await sqlConnection`
-                SELECT user_id FROM "users" where cognito_id = ${cognito_id};
-              `;
+          const user_id = user[0]?.user_id;
 
-            const user_id = user[0]?.user_id;
+          if (user_id) {
+            const data = await sqlConnection`
+              SELECT 
+                c.case_id,
+                c.case_title,
+                m.message_content,
+                m.time_sent,
+                u.first_name||' '||u.last_name AS instructor_name
+              FROM cases c
+              JOIN messages m ON c.case_id = m.case_id
+              JOIN users u ON m.instructor_id = u.user_id
+              WHERE c.student_id = ${user_id}
+              AND m.time_sent >= NOW() - INTERVAL '1 week'
+              AND m.is_read = false
+              ORDER BY m.time_sent DESC;
+            `;
 
-            if (user_id) {
-              const data = await sqlConnection`
-                  SELECT 
-                  c.case_id,
-                  c.case_title,
-                  m.message_content,
-                  m.time_sent,
-                  u.first_name||' '||u.last_name AS instructor_name
-                  FROM cases c
-                  JOIN messages m ON c.case_id = m.case_id
-                  JOIN users u ON m.instructor_id = u.user_id
-                  WHERE c.student_id = ${user_id}
-                  AND m.time_sent >= NOW() - INTERVAL '1 week'
-                  AND m.is_read = false
-                  ORDER BY m.time_sent DESC;
-                `;
-
-              // Check if data is empty and handle the case
-              if (data.length === 0) {
-                response.statusCode = 404; // Not Found
-                response.body = JSON.stringify({
-                  message: "No notifications found",
-                });
-              } else {
-                response.statusCode = 200; // OK
-                response.body = JSON.stringify(data); // Ensure the data is always valid JSON
-              }
+            // Check if data is empty and handle the case
+            if (data.length === 0) {
+              response.statusCode = 404;
+              response.body = JSON.stringify({
+                message: "No notifications found",
+              });
             } else {
-              response.statusCode = 404; // Not Found
-              response.body = JSON.stringify({ error: "User not found" });
+              response.statusCode = 200;
+              response.body = JSON.stringify(data);
             }
-          } catch (err) {
-            response.statusCode = 500; // Internal server error
-            console.error(err);
-            response.body = JSON.stringify({ error: "Internal server error" });
+          } else {
+            response.statusCode = 404;
+            response.body = JSON.stringify({ error: "User not found" });
           }
-        } else {
-          response.statusCode = 400; // Bad Request
-          response.body = JSON.stringify({ error: "Invalid value" });
+        } catch (err) {
+          response.statusCode = 500;
+          console.error(err);
+          response.body = JSON.stringify({ error: "Internal server error" });
         }
         break;
 
       case "GET /student/instructors":
-        if (
-          event.queryStringParameters &&
-          event.queryStringParameters.user_id
-        ) {
-          const cognito_id = event.queryStringParameters.user_id;
+        // SECURITY: Use trusted cognito_id from authorizer
+        try {
+          // Retrieve the user ID using the trusted cognito_id
+          const user = await sqlConnection`
+            SELECT user_id FROM "users" WHERE cognito_id = ${cognito_id};
+          `;
 
-          try {
-            // Retrieve the user ID using the cognito_id
-            const user = await sqlConnection`
-                  SELECT user_id FROM "users" where cognito_id = ${cognito_id};
-                `;
+          const user_id = user[0]?.user_id;
 
-            const user_id = user[0]?.user_id;
+          if (user_id) {
+            const data = await sqlConnection`
+              SELECT 
+                u.user_id AS instructor_id,
+                u.first_name||' '||u.last_name AS instructor_name
+              FROM instructor_students inst
+              JOIN users u ON inst.instructor_id = u.user_id
+              WHERE inst.student_id = ${user_id}
+            `;
 
-            if (user_id) {
-              const data = await sqlConnection`
-                    SELECT 
-                    u.user_id AS instructor_id,
-                    u.first_name||' '||u.last_name AS instructor_name
-                    FROM instructor_students inst
-                    JOIN users u ON inst.instructor_id = u.user_id
-                    WHERE inst.student_id = ${user_id}
-                  `;
-
-              if (data.length === 0) {
-                response.statusCode = 404;
-                response.body = JSON.stringify({
-                  message: "No instructors assigned to this user.",
-                });
-              } else {
-                response.statusCode = 200;
-                response.body = JSON.stringify(data);
-              }
-            } else {
+            if (data.length === 0) {
               response.statusCode = 404;
-              response.body = JSON.stringify({ error: "User not found" });
+              response.body = JSON.stringify({
+                message: "No instructors assigned to this user.",
+              });
+            } else {
+              response.statusCode = 200;
+              response.body = JSON.stringify(data);
             }
-          } catch (err) {
-            response.statusCode = 500;
-            console.error(err);
-            response.body = JSON.stringify({ error: "Internal server error" });
+          } else {
+            response.statusCode = 404;
+            response.body = JSON.stringify({ error: "User not found" });
           }
-        } else {
-          response.statusCode = 400;
-          response.body = JSON.stringify({ error: "Invalid user" });
+        } catch (err) {
+          response.statusCode = 500;
+          console.error(err);
+          response.body = JSON.stringify({ error: "Internal server error" });
         }
         break;
 
@@ -878,49 +831,40 @@ ORDER BY time_uploaded DESC;
         break;
 
       case "GET /student/disclaimer":
-        if (
-          event.queryStringParameters &&
-          event.queryStringParameters.user_id
-        ) {
-          const cognito_id = event.queryStringParameters.user_id;
+        // SECURITY: Use trusted cognito_id from authorizer
+        try {
+          // Retrieve the user ID using the trusted cognito_id
+          const user = await sqlConnection`
+            SELECT user_id FROM "users" WHERE cognito_id = ${cognito_id};
+          `;
 
-          try {
-            // Retrieve the user ID using the cognito_id
-            const user = await sqlConnection`
-                SELECT user_id FROM "users" where cognito_id = ${cognito_id};
-              `;
+          const user_id = user[0]?.user_id;
 
-            const user_id = user[0]?.user_id;
+          if (user_id) {
+            const data = await sqlConnection`
+              SELECT accepted_disclaimer
+              FROM users
+              WHERE user_id = ${user_id};
+            `;
 
-            if (user_id) {
-              const data = await sqlConnection`
-                  SELECT accepted_disclaimer                  
-                  FROM users
-                  WHERE user_id = ${user_id};
-                `;
-
-              // Check if data is empty and handle the case
-              if (data.length === 0) {
-                response.statusCode = 404; // Not Found
-                response.body = JSON.stringify({
-                  message: "Couldn't check if disclaimer was accepted",
-                });
-              } else {
-                response.statusCode = 200; // OK
-                response.body = JSON.stringify(data); // Ensure the data is always valid JSON
-              }
+            // Check if data is empty and handle the case
+            if (data.length === 0) {
+              response.statusCode = 404;
+              response.body = JSON.stringify({
+                message: "Couldn't check if disclaimer was accepted",
+              });
             } else {
-              response.statusCode = 404; // Not Found
-              response.body = JSON.stringify({ error: "User not found" });
+              response.statusCode = 200;
+              response.body = JSON.stringify(data);
             }
-          } catch (err) {
-            response.statusCode = 500; // Internal server error
-            console.error(err);
-            response.body = JSON.stringify({ error: "Internal server error" });
+          } else {
+            response.statusCode = 404;
+            response.body = JSON.stringify({ error: "User not found" });
           }
-        } else {
-          response.statusCode = 400; // Bad Request
-          response.body = JSON.stringify({ error: "Invalid value" });
+        } catch (err) {
+          response.statusCode = 500;
+          console.error(err);
+          response.body = JSON.stringify({ error: "Internal server error" });
         }
         break;
 
@@ -947,109 +891,93 @@ ORDER BY time_uploaded DESC;
         break;
 
       case "GET /student/message_counter":
-        if (
-          event.queryStringParameters &&
-          event.queryStringParameters.user_id
-        ) {
-          const user_id = event.queryStringParameters.user_id;
-          try {
-            const activityData = await sqlConnection`
-                SELECT activity_counter, last_activity FROM "users" WHERE cognito_id = ${user_id};
-              `;
-            if (activityData.length > 0) {
-              let activity_counter = parseInt(
-                activityData[0].activity_counter,
-                10,
+        // SECURITY: Use trusted cognito_id from authorizer
+        try {
+          const activityData = await sqlConnection`
+            SELECT activity_counter, last_activity FROM "users" WHERE cognito_id = ${cognito_id};
+          `;
+          if (activityData.length > 0) {
+            let activity_counter = parseInt(
+              activityData[0].activity_counter,
+              10,
+            );
+            const last_activity = activityData[0].last_activity;
+            if (activity_counter > 0) {
+              const currentTime = new Date();
+              const lastActivityTime = new Date(last_activity);
+              const timeDifference = Math.abs(currentTime - lastActivityTime);
+              const hoursDifference = Math.floor(
+                timeDifference / (1000 * 60 * 60),
               );
-              const last_activity = activityData[0].last_activity;
-              if (activity_counter > 0) {
-                const currentTime = new Date();
-                const lastActivityTime = new Date(last_activity);
-                const timeDifference = Math.abs(currentTime - lastActivityTime);
-                const hoursDifference = Math.floor(
-                  timeDifference / (1000 * 60 * 60),
-                );
 
-                // Check if 24 hours have passed since the last activity
-                if (hoursDifference >= 24) {
-                  await sqlConnection`
-                      UPDATE "users" SET activity_counter = 0 WHERE cognito_id = ${user_id};
-                    `;
+              // Check if 24 hours have passed since the last activity
+              if (hoursDifference >= 24) {
+                await sqlConnection`
+                  UPDATE "users" SET activity_counter = 0 WHERE cognito_id = ${cognito_id};
+                `;
 
-                  activity_counter = 0;
-                }
+                activity_counter = 0;
               }
-              response.body = JSON.stringify({ activity_counter });
-            } else {
-              response.statusCode = 404;
-              response.body = JSON.stringify({ error: "User not found" });
             }
-          } catch (err) {
-            response.statusCode = 500;
-            console.log(err);
-            response.body = JSON.stringify({ error: "Internal server error" });
+            response.body = JSON.stringify({ activity_counter });
+          } else {
+            response.statusCode = 404;
+            response.body = JSON.stringify({ error: "User not found" });
           }
-        } else {
-          response.statusCode = 400;
-          response.body = JSON.stringify({ error: "User ID is required" });
+        } catch (err) {
+          response.statusCode = 500;
+          console.log(err);
+          response.body = JSON.stringify({ error: "Internal server error" });
         }
         break;
 
       case "PUT /student/message_counter":
-        if (
-          event.queryStringParameters &&
-          event.queryStringParameters.user_id
-        ) {
-          const user_id = event.queryStringParameters.user_id;
-          try {
-            const activityData = await sqlConnection`
-                  SELECT activity_counter, last_activity FROM "users" WHERE cognito_id = ${user_id};
-                `;
+        // SECURITY: Use trusted cognito_id from authorizer
+        try {
+          const activityData = await sqlConnection`
+            SELECT activity_counter, last_activity FROM "users" WHERE cognito_id = ${cognito_id};
+          `;
 
-            if (activityData.length > 0) {
-              let activity_counter = parseInt(
-                activityData[0].activity_counter,
-                10,
-              );
-              const last_activity = new Date(activityData[0].last_activity);
-              const now = new Date();
-              const hoursSinceLast = (now - last_activity) / (1000 * 60 * 60);
+          if (activityData.length > 0) {
+            let activity_counter = parseInt(
+              activityData[0].activity_counter,
+              10,
+            );
+            const last_activity = new Date(activityData[0].last_activity);
+            const now = new Date();
+            const hoursSinceLast = (now - last_activity) / (1000 * 60 * 60);
 
-              if (hoursSinceLast >= 24) {
-                // Reset counter and last_activity
-                await sqlConnection`
-                      UPDATE "users" SET activity_counter = 1, last_activity = CURRENT_TIMESTAMP WHERE cognito_id = ${user_id};
-                    `;
-                activity_counter = 1;
-                // HARDCODED TO 10 RIGHT NOW, CHANGE TO BE FROM SECRETS MANAGER OR PARAM STORE
-              } else if (activity_counter < 10) {
-                // Increment counter
-                await sqlConnection`
-                      UPDATE "users" SET activity_counter = activity_counter + 1 WHERE cognito_id = ${user_id};
-                    `;
-                activity_counter += 1;
-              } else {
-                // Limit reached
-                response.statusCode = 429;
-                response.body = JSON.stringify({
-                  error: "Daily message limit reached",
-                });
-                break;
-              }
-
-              response.body = JSON.stringify({ activity_counter });
+            if (hoursSinceLast >= 24) {
+              // Reset counter and last_activity
+              await sqlConnection`
+                UPDATE "users" SET activity_counter = 1, last_activity = CURRENT_TIMESTAMP WHERE cognito_id = ${cognito_id};
+              `;
+              activity_counter = 1;
+              // HARDCODED TO 10 RIGHT NOW, CHANGE TO BE FROM SECRETS MANAGER OR PARAM STORE
+            } else if (activity_counter < 10) {
+              // Increment counter
+              await sqlConnection`
+                UPDATE "users" SET activity_counter = activity_counter + 1 WHERE cognito_id = ${cognito_id};
+              `;
+              activity_counter += 1;
             } else {
-              response.statusCode = 404;
-              response.body = JSON.stringify({ error: "User not found" });
+              // Limit reached
+              response.statusCode = 429;
+              response.body = JSON.stringify({
+                error: "Daily message limit reached",
+              });
+              break;
             }
-          } catch (err) {
-            response.statusCode = 500;
-            console.log(err);
-            response.body = JSON.stringify({ error: "Internal server error" });
+
+            response.body = JSON.stringify({ activity_counter });
+          } else {
+            response.statusCode = 404;
+            response.body = JSON.stringify({ error: "User not found" });
           }
-        } else {
-          response.statusCode = 400;
-          response.body = JSON.stringify({ error: "User ID is required" });
+        } catch (err) {
+          response.statusCode = 500;
+          console.log(err);
+          response.body = JSON.stringify({ error: "Internal server error" });
         }
         break;
 
@@ -1088,84 +1016,22 @@ ORDER BY time_uploaded DESC;
         break;
 
       case "PUT /student/disclaimer":
-        if (
-          event.queryStringParameters &&
-          event.queryStringParameters.user_id
-        ) {
-          const user_id = event.queryStringParameters.user_id;
-          try {
-            // Mark the disclaimer as accepted
-            await sqlConnection`
-                  UPDATE users SET accepted_disclaimer = true WHERE cognito_id = ${user_id};
-                `;
+        // SECURITY: Use trusted cognito_id from authorizer
+        try {
+          // Mark the disclaimer as accepted
+          await sqlConnection`
+            UPDATE users SET accepted_disclaimer = true WHERE cognito_id = ${cognito_id};
+          `;
 
-            response.body = JSON.stringify({ success: true });
-          } catch (err) {
-            response.statusCode = 500;
-            console.log(err);
-            response.body = JSON.stringify({ error: "Internal server error" });
-          }
-        } else {
-          response.statusCode = 400;
-          response.body = JSON.stringify({ error: "User ID is required" });
+          response.body = JSON.stringify({ success: true });
+        } catch (err) {
+          response.statusCode = 500;
+          console.log(err);
+          response.body = JSON.stringify({ error: "Internal server error" });
         }
         break;
 
-      case "GET /student/notifications":
-        if (
-          event.queryStringParameters &&
-          event.queryStringParameters.user_id
-        ) {
-          const cognito_id = event.queryStringParameters.user_id;
-
-          try {
-            // Retrieve the user ID using the cognito_id
-            const user = await sqlConnection`
-                    SELECT user_id FROM "users" where cognito_id = ${cognito_id};
-                  `;
-
-            const user_id = user[0]?.user_id;
-
-            if (user_id) {
-              const data = await sqlConnection`
-                      SELECT 
-                      c.case_id,
-                      c.case_title,
-                      m.message_content,
-                      m.time_sent,
-                      u.first_name||' '||u.last_name AS instructor_name
-                      FROM cases c
-                      JOIN messages m ON c.case_id = m.case_id
-                      JOIN users u ON m.instructor_id = u.user_id
-                      WHERE c.student_id = ${user_id}
-                      AND m.time_sent >= NOW() - INTERVAL '1 week'
-                      ORDER BY m.time_sent DESC;
-                    `;
-
-              // Check if data is empty and handle the case
-              if (data.length === 0) {
-                response.statusCode = 404; // Not Found
-                response.body = JSON.stringify({
-                  message: "No notifications found",
-                });
-              } else {
-                response.statusCode = 200; // OK
-                response.body = JSON.stringify(data); // Ensure the data is always valid JSON
-              }
-            } else {
-              response.statusCode = 404; // Not Found
-              response.body = JSON.stringify({ error: "User not found" });
-            }
-          } catch (err) {
-            response.statusCode = 500; // Internal server error
-            console.error(err);
-            response.body = JSON.stringify({ error: "Internal server error" });
-          }
-        } else {
-          response.statusCode = 400; // Bad Request
-          response.body = JSON.stringify({ error: "Invalid value" });
-        }
-        break;
+      // NOTE: Duplicate GET /student/notifications case removed - already handled above
 
       case "GET /student/get_messages":
         if (
