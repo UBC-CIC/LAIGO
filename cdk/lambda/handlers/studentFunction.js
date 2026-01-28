@@ -413,18 +413,18 @@ exports.handler = async (event) => {
         break;
 
       case "GET /student/get_transcriptions":
+        // SECURITY: Use trusted cognito_id from authorizer for ownership check
         if (
           event.queryStringParameters &&
           event.queryStringParameters.case_id
         ) {
           const caseId = event.queryStringParameters.case_id;
-          const cognito_id = event.queryStringParameters.cognito_id;
 
           try {
-            // Step 1: Get user's UUID from their cognito stuff
+            // Step 1: Get user's UUID using trusted cognito_id from authorizer
             const userResult = await sqlConnection`
-      SELECT user_id FROM "users" WHERE cognito_id = ${cognito_id};
-    `;
+              SELECT user_id FROM "users" WHERE cognito_id = ${cognito_id};
+            `;
             if (userResult.length === 0) {
               response.statusCode = 403;
               response.body = JSON.stringify({ error: "User not found" });
@@ -434,8 +434,8 @@ exports.handler = async (event) => {
 
             // Step 2: Get the case and its owner
             const caseResult = await sqlConnection`
-      SELECT * FROM "cases" WHERE case_id = ${caseId};
-    `;
+              SELECT * FROM "cases" WHERE case_id = ${caseId};
+            `;
             if (caseResult.length === 0) {
               response.statusCode = 404;
               response.body = JSON.stringify({ error: "Case not found" });
@@ -451,9 +451,9 @@ exports.handler = async (event) => {
             } else {
               // Check if requesting user is an instructor of the student who owns the case
               const instructorCheck = await sqlConnection`
-        SELECT 1 FROM "instructor_students"
-        WHERE instructor_id = ${requestingUserId} AND student_id = ${caseOwnerId};
-      `;
+                SELECT 1 FROM "instructor_students"
+                WHERE instructor_id = ${requestingUserId} AND student_id = ${caseOwnerId};
+              `;
               if (instructorCheck.length > 0) {
                 hasAccess = true;
               }
@@ -465,14 +465,13 @@ exports.handler = async (event) => {
               break;
             }
 
-            // Step 4: Fetch messages and summaries
             // Step 4: Fetch transcriptions from audio_files for the case
             const transcriptions = await sqlConnection`
-SELECT audio_file_id, file_title, time_uploaded
-FROM "audio_files"
-WHERE case_id = ${caseId}
-ORDER BY time_uploaded DESC;
-`;
+              SELECT audio_file_id, file_title, time_uploaded
+              FROM "audio_files"
+              WHERE case_id = ${caseId}
+              ORDER BY time_uploaded DESC;
+            `;
 
             // Step 5: Return transcriptions
             response.statusCode = 200;
@@ -485,7 +484,7 @@ ORDER BY time_uploaded DESC;
           }
         } else {
           response.statusCode = 400; // Bad Request
-          response.body = JSON.stringify({ error: "Invalid value" });
+          response.body = JSON.stringify({ error: "case_id is required" });
         }
         break;
 
