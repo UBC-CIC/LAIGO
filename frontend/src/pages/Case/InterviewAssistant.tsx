@@ -7,7 +7,12 @@ import {
   Typography,
   Snackbar,
   Alert,
+  IconButton,
+  Card,
+  CardContent,
 } from "@mui/material";
+import KeyboardDoubleArrowLeftIcon from "@mui/icons-material/KeyboardDoubleArrowLeft";
+import KeyboardDoubleArrowRightIcon from "@mui/icons-material/KeyboardDoubleArrowRight";
 import { useParams, useOutletContext } from "react-router-dom";
 import { fetchAuthSession } from "aws-amplify/auth";
 import UserMessage from "../../components/Chat/UserMessage";
@@ -27,6 +32,12 @@ interface WebSocketMessage {
   type: "start" | "chunk" | "complete" | "error" | "pong";
   content?: string;
   metadata?: { llm_output?: string };
+}
+
+interface AssessmentResponse {
+  progress: number;
+  reasoning?: string;
+  unlocked?: boolean;
 }
 
 // Map sub_route to block_type for assessment
@@ -61,6 +72,50 @@ const InterviewAssistant: React.FC = () => {
   // Progress & Notification State
   const [progress, setProgress] = useState(0);
   const [showSnackbar, setShowSnackbar] = useState(false);
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const [rightOpen, setRightOpen] = useState(true);
+  const [sidebarWidth, setSidebarWidth] = useState(320);
+  const [isResizing, setIsResizing] = useState(false);
+
+  const startResizing = useCallback(() => {
+    setIsResizing(true);
+  }, []);
+
+  const stopResizing = useCallback(() => {
+    setIsResizing(false);
+  }, []);
+
+  const resize = useCallback(
+    (e: MouseEvent) => {
+      if (isResizing) {
+        const newWidth = window.innerWidth - e.clientX;
+        if (newWidth > 240 && newWidth < 600) {
+          setSidebarWidth(newWidth);
+        }
+      }
+    },
+    [isResizing],
+  );
+
+  useEffect(() => {
+    if (isResizing) {
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
+      window.addEventListener("mousemove", resize);
+      window.addEventListener("mouseup", stopResizing);
+    } else {
+      document.body.style.cursor = "default";
+      document.body.style.userSelect = "auto";
+      window.removeEventListener("mousemove", resize);
+      window.removeEventListener("mouseup", stopResizing);
+    }
+    return () => {
+      document.body.style.cursor = "default";
+      document.body.style.userSelect = "auto";
+      window.removeEventListener("mousemove", resize);
+      window.removeEventListener("mouseup", stopResizing);
+    };
+  }, [isResizing, resize, stopResizing]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const streamingIndexRef = useRef<number | null>(null);
@@ -82,6 +137,8 @@ const InterviewAssistant: React.FC = () => {
 
     return !allNextUnlocked;
   }, [currentBlock, unlockedBlocks]);
+
+  const assessProgressRef = useRef<(() => Promise<void>) | null>(null);
 
   // Handle incoming WebSocket messages
   const handleWebSocketMessage = useCallback(
@@ -152,7 +209,7 @@ const InterviewAssistant: React.FC = () => {
             unlockedBlocks.includes(block),
           );
           if (!allNextUnlocked) {
-            assessProgress();
+            assessProgressRef.current?.();
           }
         }
       } else if (message.type === "error") {
@@ -184,30 +241,13 @@ const InterviewAssistant: React.FC = () => {
     },
     [currentBlock, unlockedBlocks],
   );
-
   // Initialize WebSocket connection
   const { sendStreamingRequest, isConnected } = useWebSocket(wsUrl, {
     onMessage: handleWebSocketMessage,
   });
 
-  // Set up WebSocket URL when auth is available
-  useEffect(() => {
-    const setupWebSocket = async () => {
-      try {
-        const session = await fetchAuthSession();
-        const token = session.tokens?.idToken?.toString();
-        if (token && import.meta.env.VITE_WEBSOCKET_URL) {
-          setWsUrl(`${import.meta.env.VITE_WEBSOCKET_URL}?token=${token}`);
-        }
-      } catch (error) {
-        console.error("Error setting up WebSocket:", error);
-      }
-    };
-    setupWebSocket();
-  }, []);
-
   // Call assess_progress endpoint
-  const assessProgress = async () => {
+  const assessProgress = useCallback(async () => {
     if (!caseId || !currentBlock) return;
 
     // Try WebSocket first if connected
@@ -216,12 +256,17 @@ const InterviewAssistant: React.FC = () => {
         "assess_progress",
         { case_id: caseId, block_type: currentBlock },
         {
-          onComplete: async (data) => {
+          onComplete: async (data: Record<string, unknown>) => {
+            const assessment = data as unknown as AssessmentResponse;
             const progress =
-              typeof data.progress === "number" ? data.progress : 0;
+              typeof assessment.progress === "number" ? assessment.progress : 0;
             setProgress((progress / 5) * 100);
 
-            if (data.unlocked) {
+            if (assessment.reasoning) {
+              setFeedback(assessment.reasoning);
+            }
+
+            if (assessment.unlocked) {
               setShowSnackbar(true);
               await refreshUnlockedBlocks();
             }
@@ -260,6 +305,10 @@ const InterviewAssistant: React.FC = () => {
           typeof data.progress === "number" ? data.progress : 0;
         setProgress((currentScore / 5) * 100);
 
+        if (data.reasoning) {
+          setFeedback(data.reasoning);
+        }
+
         if (data.unlocked) {
           setShowSnackbar(true);
           await refreshUnlockedBlocks();
@@ -268,7 +317,33 @@ const InterviewAssistant: React.FC = () => {
     } catch (error) {
       console.error("Error calling assess_progress:", error);
     }
-  };
+  }, [
+    caseId,
+    currentBlock,
+    isConnected,
+    sendStreamingRequest,
+    refreshUnlockedBlocks,
+  ]);
+
+  useEffect(() => {
+    assessProgressRef.current = assessProgress;
+  }, [assessProgress]);
+
+  // Set up WebSocket URL when auth is available
+  useEffect(() => {
+    const setupWebSocket = async () => {
+      try {
+        const session = await fetchAuthSession();
+        const token = session.tokens?.idToken?.toString();
+        if (token && import.meta.env.VITE_WEBSOCKET_URL) {
+          setWsUrl(`${import.meta.env.VITE_WEBSOCKET_URL}?token=${token}`);
+        }
+      } catch (error) {
+        console.error("Error setting up WebSocket:", error);
+      }
+    };
+    setupWebSocket();
+  }, []);
 
   // Generate summary for current block
   const handleGenerateSummary = async () => {
@@ -665,71 +740,255 @@ const InterviewAssistant: React.FC = () => {
         </Box>
       )}
 
-      {/* Messages Area */}
-      <Container
-        maxWidth="lg"
+      {/* Main Layout: Split into Center (Chat) and Right (Sidebar) */}
+      <Box
         sx={{
-          flexGrow: 1,
           display: "flex",
-          flexDirection: "column",
-          gap: 4,
-          overflowY: "auto",
-          py: 4,
-          px: { xs: 2, md: 8 }, // Add more horizontal padding
+          flexGrow: 1,
+          overflow: "hidden",
           position: "relative",
         }}
       >
-        {isLoadingHistory ? (
-          <Box
+        {/* Chat Area + Bottom Bar Container */}
+        <Box
+          sx={{
+            flexGrow: 1,
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
+            position: "relative",
+          }}
+        >
+          {/* Right Ribbon Trigger (only visible when sidebar is closed) */}
+          {!rightOpen && (
+            <Box
+              sx={{
+                position: "absolute",
+                right: 0,
+                top: 12,
+                zIndex: 10,
+                backgroundColor: "var(--background)",
+                border: "1px solid var(--border)",
+                borderRight: "none",
+                borderTopLeftRadius: "8px",
+                borderBottomLeftRadius: "8px",
+                boxShadow: "-2px 0 5px rgba(0,0,0,0.1)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: "24px",
+                height: "40px",
+                cursor: "pointer",
+                "&:hover": {
+                  backgroundColor: "var(--secondary)",
+                },
+              }}
+              onClick={() => setRightOpen(true)}
+            >
+              <KeyboardDoubleArrowLeftIcon
+                sx={{ fontSize: "16px", color: "var(--text-secondary)" }}
+              />
+            </Box>
+          )}
+
+          {/* Messages Area */}
+          <Container
+            maxWidth="lg"
             sx={{
+              flexGrow: 1,
               display: "flex",
-              justifyContent: "center",
-              alignItems: "center",
-              height: "100%",
+              flexDirection: "column",
+              gap: 4,
+              overflowY: "auto",
+              py: 4,
+              px: { xs: 2, md: 8 },
+              position: "relative",
             }}
           >
-            <CircularProgress sx={{ color: "var(--text-secondary)" }} />
-          </Box>
-        ) : (
-          messages.map((msg, index) =>
-            msg.type === "human" ? (
-              <UserMessage key={index} message={msg.content} />
+            {isLoadingHistory ? (
+              <Box
+                sx={{
+                  display: "flex",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  height: "100%",
+                }}
+              >
+                <CircularProgress sx={{ color: "var(--text-secondary)" }} />
+              </Box>
             ) : (
-              <AiResponse
-                key={`ai-${index}-${
-                  msg.isStreaming ? "streaming" : "complete"
-                }`}
-                message={msg.content}
-                onGenerateSummary={handleGenerateSummary}
-                isGeneratingSummary={isGeneratingSummary}
-                isStreaming={msg.isStreaming === true}
+              messages.map((msg, index) =>
+                msg.type === "human" ? (
+                  <UserMessage key={index} message={msg.content} />
+                ) : (
+                  <AiResponse
+                    key={`ai-${index}-${
+                      msg.isStreaming ? "streaming" : "complete"
+                    }`}
+                    message={msg.content}
+                    onGenerateSummary={handleGenerateSummary}
+                    isGeneratingSummary={isGeneratingSummary}
+                    isStreaming={msg.isStreaming === true}
+                  />
+                ),
+              )
+            )}
+
+            {isLoading && !messages.some((m) => m.isStreaming) && (
+              <Box
+                sx={{ display: "flex", justifyContent: "flex-start", pl: 2 }}
+              >
+                <ThinkingIndicator />
+              </Box>
+            )}
+
+            <div ref={scrollRef} />
+          </Container>
+
+          {/* Bottom Bar Area */}
+          <Box
+            sx={{
+              width: "100%",
+              pb: 2,
+              pt: 1,
+              backgroundColor: "var(--background)",
+              flexShrink: 0,
+            }}
+          >
+            <Container maxWidth="lg" sx={{ px: { xs: 2, md: 8 } }}>
+              <ChatBar
+                onSendMessage={handleSendMessage}
+                isLoading={isLoading}
               />
-            ),
-          )
-        )}
-
-        {isLoading && !messages.some((m) => m.isStreaming) && (
-          <Box sx={{ display: "flex", justifyContent: "flex-start", pl: 2 }}>
-            <ThinkingIndicator />
+            </Container>
           </Box>
-        )}
+        </Box>
 
-        <div ref={scrollRef} />
-      </Container>
+        {/* Right Sidebar */}
+        <Box
+          sx={{
+            width: rightOpen ? sidebarWidth : 0,
+            transition: isResizing ? "none" : "width 0.1s ease",
+            borderLeft: rightOpen ? "1px solid var(--border)" : "none",
+            backgroundColor: "var(--background)",
+            display: "flex",
+            flexDirection: "column",
+            flexShrink: 0,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            height: "100%",
+            position: "relative",
+          }}
+        >
+          {/* Resize Handle */}
+          {rightOpen && (
+            <Box
+              onMouseDown={startResizing}
+              sx={{
+                position: "absolute",
+                left: 0,
+                top: 0,
+                bottom: 0,
+                width: "4px",
+                cursor: "col-resize",
+                zIndex: 100,
+                "&:hover": {
+                  backgroundColor: "rgba(25, 118, 210, 0.2)",
+                  width: "6px",
+                },
+                transition: "background-color 0.2s",
+              }}
+            />
+          )}
 
-      {/* Bottom Bar Area */}
-      <Box
-        sx={{
-          width: "100%",
-          pb: 2,
-          pt: 1,
-          backgroundColor: "var(--background)",
-          flexShrink: 0,
-        }}
-      >
-        <Container maxWidth="lg" sx={{ px: { xs: 2, md: 8 } }}>
-          <ChatBar onSendMessage={handleSendMessage} isLoading={isLoading} />
-        </Container>
+          <Box
+            sx={{
+              p: 2,
+              height: "56px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: rightOpen ? "space-between" : "center",
+              borderBottom: "1px solid var(--border)",
+              boxSizing: "border-box",
+            }}
+          >
+            <IconButton
+              size="small"
+              onClick={() => setRightOpen(!rightOpen)}
+              sx={{ color: "var(--text-secondary)" }}
+            >
+              {rightOpen ? (
+                <KeyboardDoubleArrowRightIcon />
+              ) : (
+                <KeyboardDoubleArrowLeftIcon />
+              )}
+            </IconButton>
+
+            {rightOpen && (
+              <Typography
+                variant="subtitle2"
+                sx={{
+                  fontFamily: "Outfit",
+                  fontWeight: 600,
+                  color: "var(--text)",
+                }}
+              >
+                Assessment Feedback
+              </Typography>
+            )}
+          </Box>
+
+          {rightOpen && (
+            <Box
+              sx={{
+                flexGrow: 1,
+                overflowY: "auto",
+                p: 1.5,
+                backgroundColor: "var(--background)",
+              }}
+            >
+              {feedback ? (
+                <Card
+                  sx={{
+                    backgroundColor: "var(--background2)",
+                    border: "1px solid var(--border)",
+                    boxShadow: "none",
+                  }}
+                >
+                  <CardContent sx={{ p: 1.25, "&:last-child": { pb: 1.25 } }}>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        color: "var(--text)",
+                        fontSize: "0.875rem",
+                        lineHeight: 1.4,
+                        whiteSpace: "pre-wrap",
+                        textAlign: "left",
+                      }}
+                    >
+                      {feedback}
+                    </Typography>
+                  </CardContent>
+                </Card>
+              ) : (
+                <Typography
+                  variant="body2"
+                  sx={{
+                    color: "var(--text-secondary)",
+                    textAlign: "center",
+                    mt: 4,
+                    fontSize: "0.875rem",
+                    whiteSpace: "normal",
+                    lineHeight: 1.4,
+                  }}
+                >
+                  No feedback available yet. Continue the conversation to
+                  receive assessment.
+                </Typography>
+              )}
+            </Box>
+          )}
+        </Box>
       </Box>
 
       {/* Unlock Notification Snackbar */}
