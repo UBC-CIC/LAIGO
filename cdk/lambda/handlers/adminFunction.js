@@ -690,23 +690,33 @@ exports.handler = async (event) => {
         break;
       case "POST /admin/disclaimer":
         try {
-          console.log("Disclaimer update initiated");
+          console.log("Disclaimer creation initiated");
 
           if (!event.body) throw new Error("Request body is missing");
 
-          const { disclaimer_text } = JSON.parse(event.body);
+          const { disclaimer_text, version_name, author_id } = JSON.parse(
+            event.body,
+          );
 
           if (!disclaimer_text)
             throw new Error("Missing 'disclaimer_text' in request body");
 
-          // Insert new disclaimer into the disclaimers table
-          const insertResult = await sqlConnectionTableCreator`
-            INSERT INTO "disclaimers" (disclaimer_text)
-            VALUES (${disclaimer_text})
-            RETURNING disclaimer_id, disclaimer_text, last_updated;
-        `;
+          // Get the next version number
+          const versionCheck = await sqlConnectionTableCreator`
+            SELECT COALESCE(MAX(version_number), 0) + 1 as next_version
+            FROM "disclaimers";
+          `;
 
-          response.body = JSON.stringify(insertResult[0]); // Return inserted record
+          const nextVersion = versionCheck[0].next_version;
+
+          // Insert new disclaimer with versioning
+          const insertResult = await sqlConnectionTableCreator`
+            INSERT INTO "disclaimers" (disclaimer_text, version_number, version_name, author_id, is_active)
+            VALUES (${disclaimer_text}, ${nextVersion}, ${version_name || null}, ${author_id || null}, false)
+            RETURNING *;
+          `;
+
+          response.body = JSON.stringify(insertResult[0]);
         } catch (err) {
           response.statusCode = 500;
           console.error("Error inserting disclaimer:", err);
@@ -717,11 +727,22 @@ exports.handler = async (event) => {
         break;
       case "GET /admin/disclaimer":
         try {
+          // Fetch ALL disclaimers with author info, ordered by version
           const result = await sqlConnectionTableCreator`
-    SELECT disclaimer_text, last_updated
-            FROM "disclaimers"
-            ORDER BY last_updated DESC;
-  `;
+            SELECT 
+              d.disclaimer_id,
+              d.disclaimer_text,
+              d.version_number,
+              d.version_name,
+              d.author_id,
+              d.time_created,
+              d.last_updated,
+              d.is_active,
+              CONCAT(u.first_name, ' ', u.last_name) AS author_name
+            FROM "disclaimers" d
+            LEFT JOIN "users" u ON d.author_id = u.user_id
+            ORDER BY d.version_number DESC;
+          `;
           response.body = JSON.stringify(result);
         } catch (err) {
           console.error("Error fetching disclaimers:", err);
@@ -731,6 +752,161 @@ exports.handler = async (event) => {
           });
         }
         break;
+
+      case "PUT /admin/disclaimer":
+        try {
+          console.log("Disclaimer version update initiated");
+
+          if (!event.body) throw new Error("Request body is missing");
+
+          const { disclaimer_id, disclaimer_text, version_name } = JSON.parse(
+            event.body,
+          );
+
+          if (!disclaimer_id)
+            throw new Error("Missing required field: disclaimer_id");
+
+          if (!disclaimer_text && !version_name)
+            throw new Error(
+              "At least one field to update is required: disclaimer_text or version_name",
+            );
+
+          // Check if disclaimer exists
+          const existingDisclaimer = await sqlConnectionTableCreator`
+            SELECT disclaimer_id FROM "disclaimers"
+            WHERE disclaimer_id = ${disclaimer_id};
+          `;
+
+          if (existingDisclaimer.length === 0) {
+            response.statusCode = 404;
+            throw new Error("Disclaimer version not found");
+          }
+
+          // Update the disclaimer
+          const updateResult = await sqlConnectionTableCreator`
+            UPDATE "disclaimers"
+            SET 
+              disclaimer_text = COALESCE(${disclaimer_text || null}, disclaimer_text),
+              version_name = COALESCE(${version_name || null}, version_name),
+              last_updated = now()
+            WHERE disclaimer_id = ${disclaimer_id}
+            RETURNING *;
+          `;
+
+          response.body = JSON.stringify(updateResult[0]);
+        } catch (err) {
+          if (response.statusCode === 200) {
+            response.statusCode = 500;
+          }
+          console.error("Error updating disclaimer:", err);
+          response.body = JSON.stringify({
+            error: err.message || "Internal server error",
+          });
+        }
+        break;
+
+      case "DELETE /admin/disclaimer":
+        try {
+          if (
+            !event.queryStringParameters ||
+            !event.queryStringParameters.disclaimer_id
+          ) {
+            throw new Error("Missing required query parameter: disclaimer_id");
+          }
+
+          const disclaimer_id = event.queryStringParameters.disclaimer_id;
+
+          // Get the disclaimer to verify it exists and check if it's active
+          const disclaimerToDelete = await sqlConnectionTableCreator`
+            SELECT is_active
+            FROM "disclaimers"
+            WHERE disclaimer_id = ${disclaimer_id};
+          `;
+
+          if (disclaimerToDelete.length === 0) {
+            response.statusCode = 404;
+            throw new Error("Disclaimer version not found");
+          }
+
+          const { is_active } = disclaimerToDelete[0];
+
+          // Prevent deletion of active disclaimer
+          if (is_active) {
+            response.statusCode = 400;
+            throw new Error(
+              "Cannot delete an active disclaimer. Please activate another first.",
+            );
+          }
+
+          // Delete the disclaimer
+          await sqlConnectionTableCreator`
+            DELETE FROM "disclaimers"
+            WHERE disclaimer_id = ${disclaimer_id};
+          `;
+
+          response.body = JSON.stringify({
+            message: "Disclaimer deleted successfully",
+          });
+        } catch (err) {
+          if (response.statusCode === 200) {
+            response.statusCode = 500;
+          }
+          console.error("Error deleting disclaimer:", err);
+          response.body = JSON.stringify({
+            error: err.message || "Internal server error",
+          });
+        }
+        break;
+
+      case "POST /admin/disclaimer/activate":
+        try {
+          if (!event.body) throw new Error("Request body is missing");
+
+          const { disclaimer_id } = JSON.parse(event.body);
+
+          if (!disclaimer_id)
+            throw new Error("Missing required field: disclaimer_id");
+
+          // Check if disclaimer exists
+          const disclaimerToActivate = await sqlConnectionTableCreator`
+            SELECT disclaimer_id
+            FROM "disclaimers"
+            WHERE disclaimer_id = ${disclaimer_id};
+          `;
+
+          if (disclaimerToActivate.length === 0) {
+            throw new Error("Disclaimer version not found");
+          }
+
+          // Begin transaction: deactivate current active disclaimer and activate new one
+          await sqlConnectionTableCreator.begin(async (sql) => {
+            // Deactivate any currently active disclaimer
+            await sql`
+              UPDATE "disclaimers"
+              SET is_active = false
+              WHERE is_active = true;
+            `;
+
+            // Activate the selected disclaimer
+            await sql`
+              UPDATE "disclaimers"
+              SET is_active = true
+              WHERE disclaimer_id = ${disclaimer_id};
+            `;
+          });
+
+          response.body = JSON.stringify({
+            message: "Disclaimer activated successfully",
+          });
+        } catch (err) {
+          response.statusCode = 500;
+          console.error("Error activating disclaimer:", err);
+          response.body = JSON.stringify({
+            error: err.message || "Internal server error",
+          });
+        }
+        break;
+
       case "POST /admin/elevate_instructor":
         if (
           event.queryStringParameters != null &&

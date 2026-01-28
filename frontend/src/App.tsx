@@ -6,6 +6,7 @@ import Login from "./pages/Login";
 import InstructorDashboard from "./pages/Instructor/InstructorDashboard";
 import AdminDashboard from "./pages/Admin/AdminDashboard";
 import AIConfiguration from "./pages/Admin/AIConfiguration";
+import AdminWaiver from "./pages/Admin/AdminWaiver";
 import { CircularProgress, Box } from "@mui/material";
 import "./App.css";
 import StudentDashboard from "./pages/Student/StudentDashboard";
@@ -105,6 +106,7 @@ function App() {
           <Routes>
             <Route path="/" element={<AdminDashboard userInfo={userInfo} />} />
             <Route path="/ai-configuration" element={<AIConfiguration />} />
+            <Route path="/waiver" element={<AdminWaiver />} />
             <Route path="*" element={<AdminDashboard userInfo={userInfo} />} />
           </Routes>
         );

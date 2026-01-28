@@ -100,7 +100,7 @@ const AdminHeader: React.FC = () => {
         <HeaderItem
           icon={<DescriptionOutlinedIcon sx={iconStyle} />}
           label="Waiver"
-          // Add navigation logic if needed
+          onClick={() => navigate("/waiver")}
         />
 
         <Stack
