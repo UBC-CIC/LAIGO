@@ -117,10 +117,9 @@ const CaseFeedback: React.FC = () => {
         return;
       }
 
-      // We need to pass the instructor's cognito ID (userId) as 'instructor_id' query param
-      // and the body content.
+      // Backend now uses cognito_id from authorizer
       const response = await fetch(
-        `${import.meta.env.VITE_API_ENDPOINT}/instructor/send_feedback?case_id=${caseId}&instructor_id=${userId}`,
+        `${import.meta.env.VITE_API_ENDPOINT}/instructor/send_feedback?case_id=${caseId}`,
         {
           method: "PUT",
           headers: {

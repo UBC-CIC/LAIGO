@@ -111,7 +111,7 @@ const InstructorDashboard = ({ userInfo }: InstructorDashboardProps) => {
 
         // 1. Fetch cases pending review
         const pendingResp = await fetch(
-          `${import.meta.env.VITE_API_ENDPOINT}/instructor/cases_to_review?cognito_id=${userInfo.userId}`,
+          `${import.meta.env.VITE_API_ENDPOINT}/instructor/cases_to_review`,
           { headers },
         );
 
@@ -125,7 +125,7 @@ const InstructorDashboard = ({ userInfo }: InstructorDashboardProps) => {
 
         // 2. Fetch all student cases (view_students)
         const allCasesResp = await fetch(
-          `${import.meta.env.VITE_API_ENDPOINT}/instructor/view_students?cognito_id=${userInfo.userId}`,
+          `${import.meta.env.VITE_API_ENDPOINT}/instructor/view_students`,
           { headers },
         );
 

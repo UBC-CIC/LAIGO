@@ -75,18 +75,11 @@ exports.handler = async (event) => {
 
     switch (pathData) {
       case "GET /instructor/students":
-        if (!event.queryStringParameters?.cognito_id) {
-          response = buildResponse(400, {
-            error: "Missing required parameter: cognito_id",
-          });
-          break;
-        }
-        const students_cognito_id = event.queryStringParameters.cognito_id;
-
+        // SECURITY: Use trusted cognito_id from authorizer
         try {
-          // First, get the user_id for the given email
+          // First, get the user_id using trusted cognito_id from authorizer
           const userResult = await sqlConnection`
-            SELECT user_id FROM "users" WHERE cognito_id = ${students_cognito_id};
+            SELECT user_id FROM "users" WHERE cognito_id = ${cognito_id};
           `;
 
           if (userResult.length === 0) {
@@ -114,17 +107,10 @@ exports.handler = async (event) => {
         break;
 
       case "GET /instructor/cases_to_review":
-        if (!event.queryStringParameters?.cognito_id) {
-          response = buildResponse(400, {
-            error: "Missing required parameter: cognito_id",
-          });
-          break;
-        }
-        const review_cognito_id = event.queryStringParameters.cognito_id;
-
+        // SECURITY: Use trusted cognito_id from authorizer
         try {
           const userIdResult = await sqlConnection`
-            SELECT user_id FROM "users" WHERE cognito_id = ${review_cognito_id};
+            SELECT user_id FROM "users" WHERE cognito_id = ${cognito_id};
           `;
 
           if (userIdResult.length === 0) {
@@ -155,19 +141,15 @@ exports.handler = async (event) => {
         break;
 
       case "PUT /instructor/send_feedback":
-        if (
-          !event.queryStringParameters?.case_id ||
-          !event.queryStringParameters?.instructor_id ||
-          !event.body
-        ) {
+        // SECURITY: Use trusted cognito_id from authorizer
+        if (!event.queryStringParameters?.case_id || !event.body) {
           response = buildResponse(400, {
-            error:
-              "Missing required parameters: case_id, instructor_id, or body",
+            error: "Missing required parameters: case_id or body",
           });
           break;
         }
 
-        const { case_id, instructor_id } = event.queryStringParameters;
+        const { case_id } = event.queryStringParameters;
         let message_content;
         try {
           const parsedBody = JSON.parse(event.body);
@@ -185,8 +167,9 @@ exports.handler = async (event) => {
         }
 
         try {
+          // Get instructor user_id using trusted cognito_id from authorizer
           const user = await sqlConnection`
-            SELECT user_id FROM "users" WHERE cognito_id = ${instructor_id};
+            SELECT user_id FROM "users" WHERE cognito_id = ${cognito_id};
           `;
 
           if (user.length === 0) {
@@ -257,18 +240,11 @@ exports.handler = async (event) => {
         break;
 
       case "GET /instructor/view_students":
-        if (!event.queryStringParameters?.cognito_id) {
-          response = buildResponse(400, {
-            error: "Missing required parameter: cognito_id",
-          });
-          break;
-        }
-        const view_cognito_id = event.queryStringParameters.cognito_id;
-
+        // SECURITY: Use trusted cognito_id from authorizer
         try {
-          // Step 1: Get the instructor's user_id
+          // Step 1: Get the instructor's user_id using trusted cognito_id
           const userIdResult = await sqlConnection`
-            SELECT user_id FROM "users" WHERE cognito_id = ${view_cognito_id};
+            SELECT user_id FROM "users" WHERE cognito_id = ${cognito_id};
           `;
 
           if (userIdResult.length === 0) {
