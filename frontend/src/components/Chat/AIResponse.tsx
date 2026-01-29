@@ -53,7 +53,7 @@ const AiResponse: React.FC<AiResponseProps> = ({
       "AIResponse isStreaming:",
       isStreaming,
       "message length:",
-      message.length
+      message.length,
     );
   }, [isStreaming, message]);
 
@@ -131,7 +131,7 @@ const AiResponse: React.FC<AiResponseProps> = ({
               <Box
                 component="blockquote"
                 sx={{
-                  borderLeft: "3px solid rgba(255,255,255,0.06)",
+                  borderLeft: "3px solid var(--border)",
                   pl: 1.5,
                   color: "var(--text-secondary)",
                   mb: 1,
@@ -145,7 +145,7 @@ const AiResponse: React.FC<AiResponseProps> = ({
                 <Box
                   component="code"
                   sx={{
-                    backgroundColor: "rgba(255,255,255,0.03)",
+                    backgroundColor: "var(--background2)",
                     px: 0.5,
                     borderRadius: 1,
                   }}
@@ -157,7 +157,7 @@ const AiResponse: React.FC<AiResponseProps> = ({
                 <Box
                   component="pre"
                   sx={{
-                    backgroundColor: "rgba(255,255,255,0.03)",
+                    backgroundColor: "var(--background2)",
                     p: 1,
                     borderRadius: 1,
                     overflowX: "auto",
@@ -229,7 +229,7 @@ const AiResponse: React.FC<AiResponseProps> = ({
                 py: 0.5,
                 "&:hover": {
                   borderColor: "var(--text-secondary)",
-                  backgroundColor: "rgba(255,255,255,0.05)",
+                  backgroundColor: "var(--secondary)",
                 },
                 "&.Mui-focusVisible, &:focus, &:focus-visible": {
                   outline: "none !important",

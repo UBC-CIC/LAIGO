@@ -1,5 +1,5 @@
 import React from "react";
-import { Box, Typography, Avatar } from "@mui/material";
+import { Box, Typography } from "@mui/material";
 
 interface UserMessageProps {
   message: string;
@@ -25,7 +25,7 @@ const UserMessage: React.FC<UserMessageProps> = ({ message }) => {
           width: "fit-content",
           p: 2,
           maxWidth: "80%",
-          border: "1px solid transparent", // keeping layout structure, assuming the blue box in image was selection only
+          border: "1px solid var(--border)",
         }}
       >
         <Typography
@@ -40,7 +40,15 @@ const UserMessage: React.FC<UserMessageProps> = ({ message }) => {
           {message}
         </Typography>
       </Box>
-      <Avatar sx={{ bgcolor: "#ffffff", width: 40, height: 40 }} />
+      <Box
+        sx={{
+          width: 40,
+          height: 40,
+          borderRadius: "50%",
+          backgroundColor: "var(--accent)",
+          flexShrink: 0,
+        }}
+      />
     </Box>
   );
 };

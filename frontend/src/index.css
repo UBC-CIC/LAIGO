@@ -17,7 +17,7 @@
   --header-text: var(--primary);
   --primary: #64b5f6;
   --secondary: rgba(100, 181, 246, 0.15);
-  --accent: #1c187a;
+  --accent: #f0f0f0;
   --bot-text: var(--background);
   --sender-text: #f0f0f0;
   --input: #c4c4c4;
@@ -60,7 +60,7 @@
     --header-text: #ffffff;
     --primary: #64b5f6;
     --secondary: rgba(100, 181, 246, 0.15);
-    --accent: #3949ff;
+    --accent: #ffffff;
     --bot-text: --background;
     --sender-text: #424141;
     --input: #5c5c5c;
