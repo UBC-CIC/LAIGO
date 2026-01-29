@@ -720,9 +720,10 @@ const InterviewAssistant: React.FC = () => {
               sx={{
                 width: "100%",
                 zIndex: 10,
-                backgroundColor: "var(--background2)",
+                backgroundColor: "var(--background)",
                 backdropFilter: "blur(10px)",
-                borderBottom: "1px solid var(--border)",
+                borderTop: "1px solid var(--border)",
+                boxShadow: "0px -2px 4px rgba(0, 0, 0, 0.9)",
                 display: "flex",
                 alignItems: "center",
                 py: "2px",
