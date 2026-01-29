@@ -390,13 +390,14 @@ const CreateCase: React.FC = () => {
                 fullWidth
                 disabled={submitting}
                 sx={{
-                  backgroundColor: "#76b9f0",
+                  backgroundColor: "var(--primary)",
                   color: "var(--text)",
                   textTransform: "none",
                   fontSize: "1rem",
                   py: 1.5,
                   "&:hover": {
-                    backgroundColor: "#5a9bd0",
+                    backgroundColor: "var(--primary)",
+                    opacity: 0.9,
                   },
                 }}
               >
