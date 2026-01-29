@@ -695,51 +695,6 @@ const InterviewAssistant: React.FC = () => {
         overflow: "hidden", // Prevent outer scroll
       }}
     >
-      {/* Progress Bar (Absolute Top) */}
-      {showProgressBar && (
-        <Box
-          sx={{
-            width: "100%",
-            zIndex: 10,
-            backgroundColor: "var(--background-secondary)",
-            backdropFilter: "blur(10px)",
-            borderBottom: "1px solid rgba(255,255,255,0.05)",
-            display: "flex",
-            alignItems: "center",
-            py: "2px",
-            px: 3,
-            gap: 2,
-          }}
-        >
-          <Typography
-            variant="caption"
-            sx={{
-              color: "var(--text-secondary)",
-              fontSize: "0.75rem",
-              whiteSpace: "nowrap",
-              fontFamily: "Outfit",
-            }}
-          >
-            Progress to next block
-          </Typography>
-          <Box sx={{ flexGrow: 1 }}>
-            <LinearProgress
-              variant="determinate"
-              value={progress}
-              sx={{
-                height: 4,
-                borderRadius: 2,
-                backgroundColor: "rgba(255,255,255,0.1)",
-                "& .MuiLinearProgress-bar": {
-                  backgroundColor: "#64B5F6",
-                  borderRadius: 2,
-                },
-              }}
-            />
-          </Box>
-        </Box>
-      )}
-
       {/* Main Layout: Split into Center (Chat) and Right (Sidebar) */}
       <Box
         sx={{
@@ -759,6 +714,50 @@ const InterviewAssistant: React.FC = () => {
             position: "relative",
           }}
         >
+          {/* Progress Bar (Above messages, constrained to layout width) */}
+          {showProgressBar && (
+            <Box
+              sx={{
+                width: "100%",
+                zIndex: 10,
+                backgroundColor: "var(--background2)",
+                backdropFilter: "blur(10px)",
+                borderBottom: "1px solid var(--border)",
+                display: "flex",
+                alignItems: "center",
+                py: "2px",
+                px: 3,
+                gap: 2,
+              }}
+            >
+              <Typography
+                variant="caption"
+                sx={{
+                  color: "var(--text-secondary)",
+                  fontSize: "0.75rem",
+                  whiteSpace: "nowrap",
+                  fontFamily: "Outfit",
+                }}
+              >
+                Progress to next block
+              </Typography>
+              <Box sx={{ flexGrow: 1 }}>
+                <LinearProgress
+                  variant="determinate"
+                  value={progress}
+                  sx={{
+                    height: 4,
+                    borderRadius: 2,
+                    backgroundColor: "var(--border)",
+                    "& .MuiLinearProgress-bar": {
+                      backgroundColor: "var(--primary)",
+                      borderRadius: 2,
+                    },
+                  }}
+                />
+              </Box>
+            </Box>
+          )}
           {/* Right Ribbon Trigger (only visible when sidebar is closed) */}
           {!rightOpen && (
             <Box
