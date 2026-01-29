@@ -15,7 +15,7 @@ const FeedbackMessage: React.FC<FeedbackMessageProps> = ({
   return (
     <Box
       sx={{
-        border: "1px solid rgba(255, 255, 255, 0.2)",
+        border: "1px solid var(--border)",
         borderRadius: 1,
         mb: 2,
         overflow: "hidden",
@@ -29,22 +29,18 @@ const FeedbackMessage: React.FC<FeedbackMessageProps> = ({
           display: "flex",
           flexDirection: "column",
           alignItems: "flex-start",
-          borderBottom: "1px solid rgba(255,255,255,0.05)",
+          borderBottom: "1px solid var(--border)",
         }}
       >
         <Typography
           variant="subtitle1"
           fontWeight="bold"
           fontFamily="Outfit"
-          color="var(--header-text)"
+          color="var(--text-secondary)"
         >
           {sender}
         </Typography>
-        <Typography
-          variant="caption"
-          color="var(--text-secondary)"
-          fontFamily="Outfit"
-        >
+        <Typography variant="caption" color="var(--text)" fontFamily="Outfit">
           {timestamp}
         </Typography>
       </Box>
@@ -59,7 +55,7 @@ const FeedbackMessage: React.FC<FeedbackMessageProps> = ({
       >
         <Typography
           variant="body2"
-          color="var(--text-secondary)"
+          color="var(--text)"
           sx={{ whiteSpace: "pre-wrap", lineHeight: 1.6 }}
         >
           {content}
