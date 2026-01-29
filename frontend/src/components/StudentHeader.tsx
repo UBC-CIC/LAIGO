@@ -8,7 +8,7 @@ import AccountCircleOutlinedIcon from "@mui/icons-material/AccountCircleOutlined
 import { signOut } from "aws-amplify/auth";
 import { useUser } from "../contexts/UserContext";
 
-const iconStyle = { color: "var(--header-text)", fontSize: "1.5rem" };
+const iconStyle = { color: "var(--text-secondary)", fontSize: "1.5rem" };
 const labelStyle = {
   color: "var(--text-secondary)",
   fontSize: "0.7rem",

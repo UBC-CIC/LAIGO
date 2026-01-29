@@ -13,7 +13,7 @@
   --background-translucent: hwb(from var(--background) h w b / 0.8);
   --background2: #f5f5f5;
   --background3: #ffffff;
-  --header: #ffffff;
+  --header: #f5f5f5;
   --header-text: var(--primary);
   --primary: #64b5f6;
   --secondary: rgba(100, 181, 246, 0.15);
