@@ -681,11 +681,11 @@ const CaseOverview: React.FC = () => {
                               alignItems: "center",
                               gap: 1.5,
                               color: isSelected
-                                ? "var(--feedback)"
+                                ? "var(--primary)"
                                 : "var(--text)",
                               transition: "all 0.2s ease",
                               backgroundColor: isSelected
-                                ? "var(--feedback-bg)"
+                                ? "var(--secondary)"
                                 : "transparent",
                               "&:hover": {
                                 backgroundColor: "var(--background2)",
@@ -738,14 +738,15 @@ const CaseOverview: React.FC = () => {
                       fontWeight: 500,
                       px: 3,
                       py: 1,
-                      color: "var(--text-button)",
-                      backgroundColor: "var(--feedback)",
+                      color: "var(--text)",
+                      backgroundColor: "var(--primary)",
                       "&:hover": {
-                        backgroundColor: "var(--accent)",
+                        backgroundColor: "var(--primary)",
+                        opacity: 0.9,
                       },
                       "&.Mui-disabled": {
-                        backgroundColor: "rgba(255, 255, 255, 0.12)",
-                        color: "rgba(255, 255, 255, 0.3)",
+                        backgroundColor: "var(--border)",
+                        color: "var(--text-secondary)",
                       },
                     }}
                   >
