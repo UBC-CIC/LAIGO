@@ -10,7 +10,12 @@ import {
   CircularProgress,
   Snackbar,
   Alert,
-  Paper,
+  Tabs,
+  Tab,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
 import InstructorHeader from "../../components/InstructorHeader";
@@ -42,39 +47,12 @@ interface Case {
   last_name?: string;
 }
 
-// Mock Stats Data (still mock for now as backend endpoint isn't ready for stats)
-const mockStats = {
-  associatesAssigned: 4,
-  pendingReviews: 3,
-  completedReviews: 12,
-};
-
-const StatCard = ({ title, value }: { title: string; value: number }) => (
-  <Paper
-    variant="outlined"
-    sx={{
-      p: 2,
-      backgroundColor: "transparent",
-      borderColor: "var(--border)",
-      color: "var(--text)",
-      height: "100%",
-    }}
-  >
-    <Typography variant="body2" sx={{ color: "var(--text-secondary)", mb: 1 }}>
-      {title}
-    </Typography>
-    <Typography variant="h4" fontWeight="bold">
-      {value}
-    </Typography>
-  </Paper>
-);
-
 const InstructorDashboard = ({ userInfo }: InstructorDashboardProps) => {
   const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState(0);
   const [query, setQuery] = useState("");
-  // pendingCases = cases returned from /instructor/cases_to_review
-  const [pendingCases, setPendingCases] = useState<Case[]>([]);
-  // allStudentCases = cases returned from /instructor/view_students
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [myCases, setMyCases] = useState<Case[]>([]);
   const [allStudentCases, setAllStudentCases] = useState<Case[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
@@ -109,21 +87,24 @@ const InstructorDashboard = ({ userInfo }: InstructorDashboardProps) => {
           "Content-Type": "application/json",
         };
 
-        // 1. Fetch cases pending review
-        const pendingResp = await fetch(
-          `${import.meta.env.VITE_API_ENDPOINT}/instructor/cases_to_review`,
+        // 1. Fetch My Cases (created by instructor)
+        const myCasesResp = await fetch(
+          `${import.meta.env.VITE_API_ENDPOINT}/student/get_cases`,
           { headers },
         );
 
-        if (pendingResp.ok) {
-          const pendingData = await pendingResp.json();
-          setPendingCases(Array.isArray(pendingData) ? pendingData : []);
+        if (myCasesResp.ok) {
+          const myCasesData = await myCasesResp.json();
+          setMyCases(Array.isArray(myCasesData) ? myCasesData : []);
         } else {
-          console.error("Failed to fetch pending cases");
-          setPendingCases([]);
+          // If 404, it might just mean no cases created
+          if (myCasesResp.status !== 404) {
+            console.error("Failed to fetch my cases");
+          }
+          setMyCases([]);
         }
 
-        // 2. Fetch all student cases (view_students)
+        // 3. Fetch all student cases (view_students)
         const allCasesResp = await fetch(
           `${import.meta.env.VITE_API_ENDPOINT}/instructor/view_students`,
           { headers },
@@ -189,16 +170,51 @@ const InstructorDashboard = ({ userInfo }: InstructorDashboardProps) => {
     };
   }, [query]);
 
-  const visiblePending = useMemo(
-    () => filterCases(pendingCases),
-    [filterCases, pendingCases],
+  // Derived filtered lists
+  const visibleMyCases = useMemo(
+    () => filterCases(myCases),
+    [filterCases, myCases],
   );
 
-  // Reuse the 'completed' section to show ALL student cases for now, as requested ("view cases returned from this endpoint")
-  const visibleAllStudentCases = useMemo(
-    () => filterCases(allStudentCases),
-    [filterCases, allStudentCases],
-  );
+  const visibleAllStudentCases = useMemo(() => {
+    return filterCases(allStudentCases);
+  }, [filterCases, allStudentCases]);
+
+  // Apply Status Filter to visibleAllStudentCases
+  const visibleFilteredAllStudentCases = useMemo(() => {
+    if (statusFilter === "All") return visibleAllStudentCases;
+    return visibleAllStudentCases.filter((c) => {
+      // Database values: 'in_progress', 'submitted', 'reviewed'
+      const s = (c.status || "").toLowerCase();
+
+      if (statusFilter === "Sent to Review") return s === "submitted";
+      if (statusFilter === "Reviewed") return s === "reviewed";
+      if (statusFilter === "In Progress") return s === "in_progress";
+
+      return s === statusFilter.toLowerCase();
+    });
+  }, [visibleAllStudentCases, statusFilter]);
+
+  // --- Dynamic Stats Calculation ---
+  const stats = useMemo(() => {
+    // 1. Associates Assigned (Unique Students)
+    const uniqueStudents = new Set();
+
+    allStudentCases.forEach((c) => {
+      if (c.first_name && c.last_name) {
+        uniqueStudents.add(`${c.first_name}|${c.last_name}`);
+      }
+    });
+
+    return {
+      associatesAssigned: uniqueStudents.size,
+    };
+  }, [allStudentCases]);
+
+  const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
+    setActiveTab(newValue);
+    setQuery(""); // Clear search on tab switch
+  };
 
   return (
     <Box
@@ -213,148 +229,222 @@ const InstructorDashboard = ({ userInfo }: InstructorDashboardProps) => {
       <InstructorHeader />
 
       <Container maxWidth="lg" sx={{ mt: 8, mb: 4, flexGrow: 1 }}>
-        {/* Stats Section */}
-        <Box sx={{ mb: 6 }}>
-          <Grid container spacing={4} justifyContent="center">
-            <Grid size={{ xs: 12, sm: 4, md: 3 }}>
-              <StatCard
-                title="Associates Assigned"
-                value={mockStats.associatesAssigned}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 4, md: 3 }}>
-              <StatCard
-                title="Pending Reviews"
-                value={mockStats.pendingReviews}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 4, md: 3 }}>
-              <StatCard
-                title="Completed Reviews"
-                value={mockStats.completedReviews}
-              />
-            </Grid>
-          </Grid>
-        </Box>
-
-        {/* Search Bar - only show if there are cases logic or just always show */}
-        <Box sx={{ display: "flex", justifyContent: "center", mb: 6 }}>
-          <TextField
-            variant="outlined"
-            placeholder="Search for a case"
-            fullWidth
-            sx={{
-              backgroundColor: "var(--background)",
-              borderRadius: "4px",
-              maxWidth: "100%",
-              "& .MuiOutlinedInput-root": {
-                color: "var(--text)",
-                "& fieldset": { borderColor: "var(--border)" },
-                "&:hover fieldset": { borderColor: "var(--text-secondary)" },
-                "&.Mui-focused fieldset": { borderColor: "var(--primary)" },
-              },
-            }}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon sx={{ color: "var(--text-secondary)" }} />
-                </InputAdornment>
-              ),
-            }}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-        </Box>
-
         {loading ? (
           <Box display="flex" justifyContent="center" sx={{ mt: 4 }}>
             <CircularProgress />
           </Box>
         ) : (
-          <>
-            {/* Pending Cases */}
-            <Box sx={{ mb: 4 }}>
-              <Typography
-                variant="h5"
-                fontWeight="bold"
-                gutterBottom
-                sx={{ mb: 3 }}
+          <Box>
+            {/* Tabs for Section Selection */}
+            <Box
+              sx={{
+                borderBottom: 1,
+                borderColor: "divider",
+                mb: 3,
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "flex-end",
+              }}
+            >
+              <Tabs
+                value={activeTab}
+                onChange={handleTabChange}
+                textColor="inherit"
+                indicatorColor="primary"
+                sx={{
+                  "& .MuiTab-root": {
+                    textTransform: "none",
+                    fontFamily: "Outfit",
+                    fontSize: "1rem",
+                    fontWeight: 500,
+                    marginRight: 2,
+                  },
+                  "& .Mui-selected": {
+                    color: "var(--primary)",
+                  },
+                }}
               >
-                Pending Cases
-              </Typography>
+                <Tab
+                  label={`My Cases (${myCases.length})`}
+                  id="tab-0"
+                  aria-controls="tabpanel-0"
+                />
+                <Tab
+                  label={`All Student Cases (${visibleAllStudentCases.length})`}
+                  id="tab-1"
+                  aria-controls="tabpanel-1"
+                />
+              </Tabs>
 
-              <Grid container spacing={3}>
-                {visiblePending.length === 0 ? (
-                  <Grid size={{ xs: 12 }}>
-                    <Typography sx={{ color: "var(--text-secondary)" }}>
-                      No pending cases found.
-                    </Typography>
-                  </Grid>
-                ) : (
-                  visiblePending.map((caseItem, index) => (
-                    <Grid
-                      size={{ xs: 12, sm: 6, md: 4 }}
-                      key={`pending-${index}`}
-                    >
-                      <CaseCard
-                        caseId={caseItem.case_id}
-                        caseHash={caseItem.case_hash}
-                        title={caseItem.case_title}
-                        status={caseItem.status}
-                        jurisdiction={caseItem.jurisdiction?.join(", ")}
-                        // Add student name to date or as subtitle if supported, for now appending to date area or title
-                        // Actually, CaseCard prop structure is fixed. Let's pass student name in title or Date for visibility
-                        dateAdded={`Student: ${caseItem.first_name || ""} ${caseItem.last_name || ""} • ${new Date(caseItem.last_updated).toLocaleDateString()}`}
-                        onDelete={handleDeleteCase}
-                        onArchive={handleArchiveCase}
-                        onClick={(id) => navigate(`/case/${id}/overview`)}
-                      />
-                    </Grid>
-                  ))
-                )}
-              </Grid>
+              {/* Search Bar aligned with Tabs */}
+              <Box sx={{ mb: 1, minWidth: "250px" }}>
+                <TextField
+                  variant="outlined"
+                  size="small"
+                  placeholder="Search..."
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <SearchIcon
+                          sx={{ color: "var(--text-secondary)", fontSize: 20 }}
+                        />
+                      </InputAdornment>
+                    ),
+                  }}
+                  sx={{
+                    backgroundColor: "var(--background)",
+                    "& .MuiOutlinedInput-root": {
+                      color: "var(--text)",
+                      "& fieldset": { borderColor: "var(--border)" },
+                    },
+                  }}
+                />
+              </Box>
             </Box>
 
-            {/* All Student Cases */}
-            <Box sx={{ mb: 4 }}>
-              <Typography
-                variant="h5"
-                fontWeight="bold"
-                gutterBottom
-                sx={{ mb: 3 }}
-              >
-                All Student Cases
-              </Typography>
-              <Grid container spacing={3}>
-                {visibleAllStudentCases.length === 0 ? (
-                  <Grid size={{ xs: 12 }}>
-                    <Typography sx={{ color: "var(--text-secondary)" }}>
-                      No student cases found.
-                    </Typography>
-                  </Grid>
-                ) : (
-                  visibleAllStudentCases.map((caseItem, index) => (
-                    <Grid
-                      size={{ xs: 12, sm: 6, md: 4 }}
-                      key={`student-case-${index}`}
-                    >
-                      <CaseCard
-                        caseId={caseItem.case_id}
-                        caseHash={caseItem.case_hash}
-                        title={caseItem.case_title}
-                        status={caseItem.status}
-                        jurisdiction={caseItem.jurisdiction?.join(", ")}
-                        dateAdded={`Student: ${caseItem.first_name || ""} ${caseItem.last_name || ""} • ${new Date(caseItem.last_updated).toLocaleDateString()}`}
-                        onDelete={handleDeleteCase}
-                        onArchive={handleArchiveCase}
-                        onClick={(id) => navigate(`/case/${id}/overview`)}
-                      />
+            {/* Tab Panel 0: My Cases (formerly Pending Reviews) */}
+            {activeTab === 0 && (
+              <Box role="tabpanel" hidden={activeTab !== 0}>
+                <Grid container spacing={3}>
+                  {visibleMyCases.length === 0 ? (
+                    <Grid size={{ xs: 12 }}>
+                      <Typography sx={{ color: "var(--text-secondary)" }}>
+                        No cases created by you found.
+                      </Typography>
                     </Grid>
-                  ))
-                )}
-              </Grid>
-            </Box>
-          </>
+                  ) : (
+                    visibleMyCases.map((caseItem, index) => (
+                      <Grid
+                        size={{ xs: 12, sm: 6, md: 4 }}
+                        key={`my-case-${index}`}
+                      >
+                        <CaseCard
+                          caseId={caseItem.case_id}
+                          caseHash={caseItem.case_hash}
+                          title={caseItem.case_title}
+                          status={caseItem.status}
+                          jurisdiction={caseItem.jurisdiction?.join(", ")}
+                          dateAdded={`Student: ${caseItem.first_name || "Me"} ${
+                            caseItem.last_name || ""
+                          } • ${new Date(
+                            caseItem.last_updated,
+                          ).toLocaleDateString()}`}
+                          onDelete={handleDeleteCase}
+                          onArchive={handleArchiveCase}
+                          onClick={(id) => navigate(`/case/${id}/overview`)}
+                        />
+                      </Grid>
+                    ))
+                  )}
+                </Grid>
+              </Box>
+            )}
+
+            {/* Tab Panel 1: All Student Cases */}
+            {activeTab === 1 && (
+              <Box role="tabpanel" hidden={activeTab !== 1}>
+                {/* Stats & Filter Bar within Tab 1 */}
+                <Box
+                  sx={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    mb: 3,
+                    flexWrap: "wrap",
+                    gap: 2,
+                  }}
+                >
+                  <Box
+                    sx={{
+                      display: "flex",
+                      gap: 3,
+                      color: "var(--text-secondary)",
+                      alignItems: "center",
+                    }}
+                  >
+                    <Typography variant="body2" sx={{ fontFamily: "Outfit" }}>
+                      <Box
+                        component="span"
+                        sx={{ fontWeight: "bold", color: "var(--text)" }}
+                      >
+                        {stats.associatesAssigned}
+                      </Box>{" "}
+                      Associates Assigned
+                    </Typography>
+                  </Box>
+
+                  <FormControl
+                    size="small"
+                    sx={{
+                      minWidth: 150,
+                      "& .MuiOutlinedInput-root": {
+                        color: "var(--text)",
+                        "& fieldset": { borderColor: "var(--border)" },
+                        "&:hover fieldset": {
+                          borderColor: "var(--text-secondary)",
+                        },
+                        "&.Mui-focused fieldset": {
+                          borderColor: "var(--primary)",
+                        },
+                        "& .MuiSvgIcon-root": { color: "var(--text)" },
+                      },
+                      "& .MuiInputLabel-root": {
+                        color: "var(--text-secondary)",
+                      },
+                    }}
+                  >
+                    <InputLabel id="status-filter-label">Status</InputLabel>
+                    <Select
+                      labelId="status-filter-label"
+                      value={statusFilter}
+                      label="Status"
+                      onChange={(e) => setStatusFilter(e.target.value)}
+                    >
+                      <MenuItem value="All">All Statuses</MenuItem>
+                      <MenuItem value="Sent to Review">Pending Review</MenuItem>
+                      <MenuItem value="Reviewed">Reviewed</MenuItem>
+                      <MenuItem value="In Progress">In Progress</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Box>
+
+                <Grid container spacing={3}>
+                  {visibleFilteredAllStudentCases.length === 0 ? (
+                    <Grid size={{ xs: 12 }}>
+                      <Typography sx={{ color: "var(--text-secondary)" }}>
+                        No student cases found matching current filters.
+                      </Typography>
+                    </Grid>
+                  ) : (
+                    visibleFilteredAllStudentCases.map((caseItem, index) => (
+                      <Grid
+                        size={{ xs: 12, sm: 6, md: 4 }}
+                        key={`student-case-${index}`}
+                      >
+                        <CaseCard
+                          caseId={caseItem.case_id}
+                          caseHash={caseItem.case_hash}
+                          title={caseItem.case_title}
+                          status={caseItem.status}
+                          jurisdiction={caseItem.jurisdiction?.join(", ")}
+                          dateAdded={`Student: ${caseItem.first_name || ""} ${
+                            caseItem.last_name || ""
+                          } • ${new Date(
+                            caseItem.last_updated,
+                          ).toLocaleDateString()}`}
+                          onDelete={handleDeleteCase}
+                          onArchive={handleArchiveCase}
+                          onClick={(id) => navigate(`/case/${id}/overview`)}
+                        />
+                      </Grid>
+                    ))
+                  )}
+                </Grid>
+              </Box>
+            )}
+          </Box>
         )}
       </Container>
 
