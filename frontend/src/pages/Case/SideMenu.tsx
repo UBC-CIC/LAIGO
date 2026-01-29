@@ -88,7 +88,7 @@ const SideMenu: React.FC<SideMenuProps> = ({
           color: "var(--text)",
           marginTop: "64px", // Below header approx height
           height: "calc(100% - 64px)",
-          borderRight: "1px solid #333",
+          borderRight: "1px solid var(--border)",
           display: "flex",
           flexDirection: "column",
         },
@@ -159,7 +159,7 @@ const SideMenu: React.FC<SideMenuProps> = ({
           {loading ? "Loading..." : caseTitle}
         </Typography>
 
-        <Divider sx={{ borderColor: "#444", mb: 2, mx: 2 }} />
+        <Divider sx={{ borderColor: "var(--border)", mb: 2, mx: 2 }} />
 
         {/* Menu Items */}
         <List sx={{ px: 0 }}>
@@ -169,7 +169,7 @@ const SideMenu: React.FC<SideMenuProps> = ({
             const isParentOfActiveSub =
               hasSubItems &&
               item.subItems!.some((sub) =>
-                location.pathname.includes(sub.path)
+                location.pathname.includes(sub.path),
               );
 
             const highlightParent = isActive || isParentOfActiveSub;
@@ -182,11 +182,11 @@ const SideMenu: React.FC<SideMenuProps> = ({
                     sx={{
                       mb: 0.5,
                       borderLeft: highlightParent
-                        ? "4px solid #64B5F6"
+                        ? "4px solid var(--primary)"
                         : "4px solid transparent",
                       pl: highlightParent ? 1.5 : 2,
                       "&:hover": {
-                        backgroundColor: "rgba(255,255,255,0.05)",
+                        backgroundColor: "var(--secondary)",
                       },
                     }}
                   >
@@ -195,7 +195,9 @@ const SideMenu: React.FC<SideMenuProps> = ({
                       primaryTypographyProps={{
                         fontFamily: "Outfit",
                         fontWeight: highlightParent ? 600 : 400,
-                        color: highlightParent ? "#64B5F6" : "white",
+                        color: highlightParent
+                          ? "var(--primary)"
+                          : "var(--text)",
                         fontSize: "0.95rem",
                       }}
                     />
@@ -204,7 +206,9 @@ const SideMenu: React.FC<SideMenuProps> = ({
 
                 {/* Nested Sub-items */}
                 {hasSubItems && highlightParent && (
-                  <Box sx={{ ml: 3, borderLeft: "1px solid #444", mb: 1 }}>
+                  <Box
+                    sx={{ ml: 3, borderLeft: "1px solid var(--border)", mb: 1 }}
+                  >
                     {item.subItems!.map((sub) => {
                       const isSubActive = location.pathname.includes(sub.path);
                       const isLocked = !!(
@@ -221,14 +225,12 @@ const SideMenu: React.FC<SideMenuProps> = ({
                               pl: 1,
                               borderRadius: 1,
                               backgroundColor: isSubActive
-                                ? "rgba(100, 181, 246, 0.15)"
+                                ? "var(--secondary)"
                                 : "transparent",
                               "&:hover": {
                                 backgroundColor: isLocked
                                   ? "transparent"
-                                  : isSubActive
-                                  ? "rgba(100, 181, 246, 0.2)"
-                                  : "rgba(255,255,255,0.05)",
+                                  : "var(--secondary)",
                               },
                             }}
                           >
@@ -238,15 +240,20 @@ const SideMenu: React.FC<SideMenuProps> = ({
                                 fontFamily: "Outfit",
                                 fontSize: "0.85rem",
                                 color: isSubActive
-                                  ? "#64B5F6"
+                                  ? "var(--primary)"
                                   : isLocked
-                                  ? "#666"
-                                  : "rgba(255,255,255,0.7)",
+                                    ? "var(--text-secondary)"
+                                    : "var(--text)",
+                                opacity: isSubActive ? 1 : 0.8,
                               }}
                             />
                             {isLocked && (
                               <LockIcon
-                                sx={{ fontSize: 14, color: "#666", mr: 1 }}
+                                sx={{
+                                  fontSize: 14,
+                                  color: "var(--text-secondary)",
+                                  mr: 1,
+                                }}
                               />
                             )}
                           </ListItemButton>
@@ -262,21 +269,26 @@ const SideMenu: React.FC<SideMenuProps> = ({
       </Box>
 
       {/* Notepad Toggle Button at Bottom */}
-      <Box sx={{ borderTop: "1px solid #333" }}>
+      <Box sx={{ borderTop: "1px solid var(--border)" }}>
         <List>
           <ListItem disablePadding>
             <ListItemButton
               onClick={onToggleNotepad}
               disabled={loading}
-              sx={{ "&:hover": { backgroundColor: "rgba(255,255,255,0.05)" } }}
+              sx={{ "&:hover": { backgroundColor: "var(--secondary)" } }}
             >
-              <EditNoteIcon sx={{ color: loading ? "#666" : "white", mr: 2 }} />
+              <EditNoteIcon
+                sx={{
+                  color: loading ? "var(--text-secondary)" : "var(--text)",
+                  mr: 2,
+                }}
+              />
               <ListItemText
                 primary="Notepad"
                 primaryTypographyProps={{
                   fontFamily: "Outfit",
                   fontSize: "0.95rem",
-                  color: loading ? "#666" : "white",
+                  color: loading ? "var(--text-secondary)" : "var(--text)",
                 }}
               />
             </ListItemButton>
