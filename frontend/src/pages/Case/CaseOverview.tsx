@@ -357,6 +357,7 @@ const CaseOverview: React.FC = () => {
           flexGrow: 1,
           p: 4,
           mx: "auto",
+          borderTop: "1px solid var(--border)",
         }}
       >
         {!caseData ? (

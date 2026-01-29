@@ -154,6 +154,7 @@ const CaseFeedback: React.FC = () => {
         minHeight: "calc(100vh - 80px)",
         backgroundColor: "var(--background)",
         color: "var(--text)",
+        borderTop: "1px solid var(--border)",
         p: 4,
       }}
     >

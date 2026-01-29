@@ -342,6 +342,7 @@ const CaseSummaries: React.FC = () => {
         position: "relative", // Needed for absolute ribbons
         backgroundColor: "var(--background)",
         color: "var(--text)",
+        borderTop: "1px solid var(--border)",
         overflow: "hidden",
       }}
     >
@@ -627,7 +628,7 @@ const CaseSummaries: React.FC = () => {
               <>
                 <ListItemButton
                   onClick={() => toggleCategory("block")}
-                  sx={{ py: 0.5, backgroundColor: "rgba(0,0,0,0.03)", mt: 1 }}
+                  sx={{ py: 0.5, backgroundColor: "var(--background2)", mt: 1 }}
                 >
                   <ArticleIcon
                     sx={{
@@ -745,7 +746,7 @@ const CaseSummaries: React.FC = () => {
           p: 4,
           display: "flex",
           justifyContent: "center",
-          backgroundColor: "#1e1e1e", // Slightly darker/distinct for the "document" feel, or var(--background)
+          backgroundColor: "var(--background)", // Same color as card, but darker overlay for "document" feel
         }}
       >
         <Card
