@@ -73,7 +73,7 @@ const Notepad: React.FC<NotepadProps> = ({
         if (isMountedFn.current) setIsSaving(false);
       }
     },
-    [lastSavedContent, onSave]
+    [lastSavedContent, onSave],
   );
 
   // Debounce save
@@ -122,8 +122,8 @@ const Notepad: React.FC<NotepadProps> = ({
           className="notepad-handle"
           sx={{
             cursor: "move",
-            backgroundColor: "#171717",
-            borderBottom: "2px solid #333",
+            backgroundColor: "var(--background2)",
+            borderBottom: "1px solid var(--border)",
             padding: "4px 8px",
             display: "flex",
             justifyContent: "space-between",
@@ -133,13 +133,20 @@ const Notepad: React.FC<NotepadProps> = ({
         >
           <Typography
             variant="subtitle2"
-            sx={{ fontWeight: "bold", color: "white", userSelect: "none" }}
+            sx={{
+              fontWeight: "bold",
+              color: "var(--text)",
+              userSelect: "none",
+            }}
           >
             Notepad
           </Typography>
           <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
             {isSaving ? (
-              <CircularProgress size={16} sx={{ color: "white", mx: 1 }} />
+              <CircularProgress
+                size={16}
+                sx={{ color: "var(--text)", mx: 1 }}
+              />
             ) : showSavedIcon ? (
               <CheckCircleOutlineIcon
                 sx={{ color: "#4caf50", fontSize: 18, mx: 1 }}
@@ -149,7 +156,7 @@ const Notepad: React.FC<NotepadProps> = ({
               content !== lastSavedContent && (
                 <Typography
                   variant="caption"
-                  sx={{ color: "rgba(255,255,255,0.6)", fontSize: "0.65rem" }}
+                  sx={{ color: "var(--text-secondary)", fontSize: "0.65rem" }}
                 >
                   Unsaved changes
                 </Typography>
@@ -159,12 +166,16 @@ const Notepad: React.FC<NotepadProps> = ({
               size="small"
               onClick={() => handleSave(content)}
               title="Save Now"
-              sx={{ color: "white" }}
+              sx={{ color: "var(--text)" }}
               disabled={isSaving || content === lastSavedContent}
             >
               <SaveIcon fontSize="small" />
             </IconButton>
-            <IconButton size="small" onClick={onClose} sx={{ color: "white" }}>
+            <IconButton
+              size="small"
+              onClick={onClose}
+              sx={{ color: "var(--text)" }}
+            >
               <CloseIcon fontSize="small" />
             </IconButton>
           </Box>
