@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   TextField,
   Button,
@@ -12,7 +12,13 @@ import {
   Alert,
 } from "@mui/material";
 import type { AlertColor } from "@mui/material";
-import { Visibility, VisibilityOff, Email, Lock } from "@mui/icons-material";
+import {
+  Visibility,
+  VisibilityOff,
+  Email,
+  Lock,
+  Gavel,
+} from "@mui/icons-material";
 import {
   signIn,
   signUp,
@@ -36,7 +42,7 @@ const Login = () => {
   const [newPassword, setNewPassword] = useState("");
   const [step, setStep] = useState("requestReset");
   const [isConfirmingSignUp, setIsConfirmingSignUp] = useState(false);
-  const [logo, setLogo] = useState("logo_dark.svg");
+
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
     message: string;
@@ -56,7 +62,7 @@ const Login = () => {
   // Check password requirements
   const checkPasswordRequirements = (
     password: string,
-    confirmPwd: string = confirmPassword
+    confirmPwd: string = confirmPassword,
   ) => {
     setPasswordRequirements({
       minLength: password.length >= 12,
@@ -67,31 +73,6 @@ const Login = () => {
       passwordsMatch: password === confirmPwd && password !== "",
     });
   };
-
-  const updateLogoBasedOnTheme = () => {
-    const isDarkMode = window.matchMedia(
-      "(prefers-color-scheme: dark)"
-    ).matches;
-    setLogo(isDarkMode ? "/logo_dark.svg" : "/logo_light.svg");
-  };
-
-  useEffect(() => {
-    updateLogoBasedOnTheme();
-
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const themeChangeListener = (_e: MediaQueryListEvent) => {
-      updateLogoBasedOnTheme();
-    };
-    window
-      .matchMedia("(prefers-color-scheme: dark)")
-      .addEventListener("change", themeChangeListener);
-
-    return () => {
-      window
-        .matchMedia("(prefers-color-scheme: dark)")
-        .removeEventListener("change", themeChangeListener);
-    };
-  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -324,16 +305,20 @@ const Login = () => {
                 gap: "8px",
               }}
             >
-              <img
-                src={logo}
-                alt="Logo"
-                style={{ width: "50px", height: "50px" }}
+              <Gavel
+                sx={{
+                  fontSize: 40,
+                  color: "var(--primary)",
+                  backgroundColor: "var(--secondary)",
+                  p: 1,
+                  borderRadius: "50%",
+                }}
               />
               {isReset
                 ? "Reset Password"
                 : isSignUp
-                ? "Create Account"
-                : "Legal Aid Tool"}
+                  ? "Create Account"
+                  : "Legal Aid Tool"}
             </div>
           </Typography>
 
@@ -344,8 +329,8 @@ const Login = () => {
               isReset && step === "confirmReset"
                 ? handleConfirmReset
                 : isConfirmingSignUp
-                ? handleConfirmSignUp
-                : handleSubmit
+                  ? handleConfirmSignUp
+                  : handleSubmit
             }
           >
             {isConfirmingSignUp ? (
