@@ -42,7 +42,7 @@ interface DisclaimerVersion {
 
 const DRAFT_ID = "new_draft";
 
-const AdminWaiver = () => {
+const AdminDisclaimer = () => {
   const [allDisclaimers, setAllDisclaimers] = useState<DisclaimerVersion[]>([]);
   const [selectedVersionId, setSelectedVersionId] = useState<string>("");
   const [editorContent, setEditorContent] = useState<string>("");
@@ -266,7 +266,7 @@ const AdminWaiver = () => {
       await activateDisclaimer(targetId);
       setSnackbar({
         open: true,
-        message: "Waiver activated!",
+        message: "Disclaimer activated!",
         severity: "success",
       });
       await fetchDisclaimers();
@@ -286,7 +286,7 @@ const AdminWaiver = () => {
     if (disclaimerToDelete?.is_active) {
       setSnackbar({
         open: true,
-        message: "Cannot delete an active waiver. Activate another first.",
+        message: "Cannot delete an active disclaimer. Activate another first.",
         severity: "error",
       });
       return;
@@ -308,7 +308,7 @@ const AdminWaiver = () => {
       await deleteDisclaimerVersion(itemToDelete.disclaimer_id);
       setSnackbar({
         open: true,
-        message: "Waiver deleted.",
+        message: "Disclaimer deleted.",
         severity: "success",
       });
       await fetchDisclaimers();
@@ -367,7 +367,7 @@ const AdminWaiver = () => {
             variant="h5"
             sx={{ fontWeight: "bold", color: "var(--text)" }}
           >
-            Waiver Management
+            Disclaimer Management
           </Typography>
 
           {/* Workspace Panel */}
@@ -404,7 +404,7 @@ const AdminWaiver = () => {
                     textAlign: "left",
                   }}
                 >
-                  Waiver Editor
+                  Disclaimer Editor
                 </Typography>
                 <Typography
                   variant="caption"
@@ -414,8 +414,8 @@ const AdminWaiver = () => {
                     display: "block",
                   }}
                 >
-                  Edit the waiver text that users must accept before using the
-                  system.
+                  Edit the disclaimer text that users must accept before using
+                  the system.
                 </Typography>
               </Box>
 
@@ -509,14 +509,14 @@ const AdminWaiver = () => {
                 }}
               />
               <TextField
-                label="Waiver Content"
+                label="Disclaimer Content"
                 multiline
                 fullWidth
                 minRows={10}
                 maxRows={25}
                 value={editorContent}
                 onChange={(e) => setEditorContent(e.target.value)}
-                placeholder="Enter waiver content here..."
+                placeholder="Enter disclaimer content here..."
                 variant="outlined"
                 sx={{
                   flex: 1,
@@ -750,7 +750,7 @@ const AdminWaiver = () => {
                         align="center"
                         sx={{ color: "var(--text-secondary)", py: 4 }}
                       >
-                        No waiver versions found. Create one to get started.
+                        No disclaimer versions found. Create one to get started.
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -917,7 +917,7 @@ const AdminWaiver = () => {
         open={deleteConfirmOpen}
         onClose={handleCloseDeleteDialog}
         onConfirm={handleConfirmDelete}
-        title="Delete Waiver Version"
+        title="Delete Disclaimer Version"
         itemName={
           itemToDelete?.version_name || `v${itemToDelete?.version_number}`
         }
@@ -927,4 +927,4 @@ const AdminWaiver = () => {
   );
 };
 
-export default AdminWaiver;
+export default AdminDisclaimer;

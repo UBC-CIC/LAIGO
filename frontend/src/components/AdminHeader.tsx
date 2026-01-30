@@ -99,8 +99,8 @@ const AdminHeader: React.FC = () => {
         />
         <HeaderItem
           icon={<DescriptionOutlinedIcon sx={iconStyle} />}
-          label="Waiver"
-          onClick={() => navigate("/waiver")}
+          label="Disclaimer"
+          onClick={() => navigate("/disclaimer")}
         />
 
         <Stack
