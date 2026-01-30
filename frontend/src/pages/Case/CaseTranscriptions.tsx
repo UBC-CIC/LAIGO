@@ -377,7 +377,15 @@ const CaseTranscriptions: React.FC = () => {
     }
     const fileNameWithoutExtension = file.name.replace(/\.[^/.]+$/, "");
     const fileTypeShort = file.type.split("/")[1];
-    const normalizedType = fileTypeShort === "mpeg" ? "mp3" : fileTypeShort;
+
+    // Normalize file type to match backend allowed types
+    let normalizedType = fileTypeShort;
+    if (fileTypeShort === "mpeg") {
+      normalizedType = "mp3";
+    } else if (fileTypeShort.startsWith("x-")) {
+      // Handle types like "x-m4a" -> "m4a"
+      normalizedType = fileTypeShort.substring(2);
+    }
 
     setAudioFile({
       file: file,

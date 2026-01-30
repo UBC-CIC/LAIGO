@@ -489,19 +489,18 @@ exports.handler = async (event) => {
         break;
 
       case "GET /student/transcription":
+        // SECURITY: Use trusted cognito_id from authorizer, not query params
         if (
           event.queryStringParameters &&
-          event.queryStringParameters.audio_file_id &&
-          event.queryStringParameters.cognito_id
+          event.queryStringParameters.audio_file_id
         ) {
           const audioFileId = event.queryStringParameters.audio_file_id;
-          const cognitoId = event.queryStringParameters.cognito_id;
 
           try {
-            // Step 1: Get user ID from cognito_id
+            // Step 1: Get user ID from trusted cognito_id (from authorizer)
             const userResult = await sqlConnection`
-        SELECT user_id FROM "users" WHERE cognito_id = ${cognitoId};
-      `;
+              SELECT user_id FROM "users" WHERE cognito_id = ${cognito_id};
+            `;
             if (userResult.length === 0) {
               response.statusCode = 403;
               response.body = JSON.stringify({ error: "User not found" });
@@ -511,11 +510,11 @@ exports.handler = async (event) => {
 
             // Step 2: Get case + owner for the audio file
             const caseResult = await sqlConnection`
-        SELECT af.case_id, c.student_id AS case_owner_id
-        FROM "audio_files" af
-        JOIN "cases" c ON af.case_id = c.case_id
-        WHERE af.audio_file_id = ${audioFileId};
-      `;
+              SELECT af.case_id, c.student_id AS case_owner_id
+              FROM "audio_files" af
+              JOIN "cases" c ON af.case_id = c.case_id
+              WHERE af.audio_file_id = ${audioFileId};
+            `;
             if (caseResult.length === 0) {
               response.statusCode = 404;
               response.body = JSON.stringify({ error: "Audio file not found" });
@@ -525,15 +524,15 @@ exports.handler = async (event) => {
             const caseId = caseResult[0].case_id;
             const caseOwnerId = caseResult[0].case_owner_id;
 
-            // Step 3: Check access
+            // Step 3: Check access (owner or assigned instructor)
             let hasAccess = false;
             if (requestingUserId === caseOwnerId) {
               hasAccess = true;
             } else {
               const instructorCheck = await sqlConnection`
-          SELECT 1 FROM "instructor_students"
-          WHERE instructor_id = ${requestingUserId} AND student_id = ${caseOwnerId};
-        `;
+                SELECT 1 FROM "instructor_students"
+                WHERE instructor_id = ${requestingUserId} AND student_id = ${caseOwnerId};
+              `;
               if (instructorCheck.length > 0) {
                 hasAccess = true;
               }
@@ -547,10 +546,10 @@ exports.handler = async (event) => {
 
             // Step 4: Fetch transcription
             const data = await sqlConnection`
-        SELECT audio_text
-        FROM "audio_files"
-        WHERE audio_file_id = ${audioFileId};
-      `;
+              SELECT audio_text
+              FROM "audio_files"
+              WHERE audio_file_id = ${audioFileId};
+            `;
 
             if (data.length === 0) {
               response.statusCode = 404;
@@ -559,7 +558,7 @@ exports.handler = async (event) => {
               });
             } else {
               response.statusCode = 200;
-              response.body = JSON.stringify(data[0]); // Just return the single result
+              response.body = JSON.stringify(data[0]);
             }
           } catch (err) {
             response.statusCode = 500;
@@ -569,7 +568,7 @@ exports.handler = async (event) => {
         } else {
           response.statusCode = 400;
           response.body = JSON.stringify({
-            error: "Missing audio_file_id or cognito_id",
+            error: "Missing audio_file_id",
           });
         }
         break;
