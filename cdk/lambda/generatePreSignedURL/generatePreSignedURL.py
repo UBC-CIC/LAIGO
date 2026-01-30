@@ -30,6 +30,12 @@ def lambda_handler(event, context):
     if not query_params:
         return {
             'statusCode': 400,
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Headers': '*',
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': '*',
+            },
             'body': json.dumps('Missing queries to generate pre-signed URL')
         }
 
@@ -40,12 +46,24 @@ def lambda_handler(event, context):
     if not audio_file_id:
         return {
             'statusCode': 400,
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Headers': '*',
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': '*',
+            },
             'body': json.dumps('Missing required parameter: audio_file_id')
         }
 
     if not file_name:
         return {
             'statusCode': 400,
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Headers': '*',
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': '*',
+            },
             'body': json.dumps('Missing required parameter: file_name')
         }
 
@@ -64,6 +82,12 @@ def lambda_handler(event, context):
     if file_type not in allowed_audio_types:
         return {
             'statusCode': 400,
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Headers': '*',
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': '*',
+            },
             'body': json.dumps(f'Unsupported audio file type. Allowed types: {", ".join(allowed_audio_types.keys())}')
         }
 
@@ -98,5 +122,11 @@ def lambda_handler(event, context):
         logger.error(f"Error generating presigned URL: {e}")
         return {
             'statusCode': 500,
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Headers': '*',
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': '*',
+            },
             'body': json.dumps('Internal server error')
         }
