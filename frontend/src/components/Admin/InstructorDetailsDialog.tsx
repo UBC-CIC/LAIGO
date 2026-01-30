@@ -270,9 +270,9 @@ const InstructorDetailsDialog: React.FC<InstructorDetailsDialogProps> = ({
                   <ListItemText
                     primary={`${student.first_name} ${student.last_name}`}
                     secondary={student.user_email}
-                    primaryTypographyProps={{ color: "var(--text)" }}
-                    secondaryTypographyProps={{
-                      color: "var(--text-secondary)",
+                    slotProps={{
+                      primary: { color: "var(--text)" },
+                      secondary: { color: "var(--text-secondary)" },
                     }}
                   />
                 </ListItem>

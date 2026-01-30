@@ -192,13 +192,17 @@ const SideMenu: React.FC<SideMenuProps> = ({
                   >
                     <ListItemText
                       primary={item.text}
-                      primaryTypographyProps={{
-                        fontFamily: "Outfit",
-                        fontWeight: highlightParent ? 600 : 400,
-                        color: highlightParent
-                          ? "var(--primary)"
-                          : "var(--text)",
-                        fontSize: "0.95rem",
+                      slotProps={{
+                        primary: {
+                          sx: {
+                            fontFamily: "Outfit",
+                            fontWeight: highlightParent ? 600 : 400,
+                            color: highlightParent
+                              ? "var(--primary)"
+                              : "var(--text)",
+                            fontSize: "0.95rem",
+                          },
+                        },
                       }}
                     />
                   </ListItemButton>
@@ -236,15 +240,19 @@ const SideMenu: React.FC<SideMenuProps> = ({
                           >
                             <ListItemText
                               primary={sub.text}
-                              primaryTypographyProps={{
-                                fontFamily: "Outfit",
-                                fontSize: "0.85rem",
-                                color: isSubActive
-                                  ? "var(--primary)"
-                                  : isLocked
-                                    ? "var(--text-secondary)"
-                                    : "var(--text)",
-                                opacity: isSubActive ? 1 : 0.8,
+                              slotProps={{
+                                primary: {
+                                  sx: {
+                                    fontFamily: "Outfit",
+                                    fontSize: "0.85rem",
+                                    color: isSubActive
+                                      ? "var(--primary)"
+                                      : isLocked
+                                        ? "var(--text-secondary)"
+                                        : "var(--text)",
+                                    opacity: isSubActive ? 1 : 0.8,
+                                  },
+                                },
                               }}
                             />
                             {isLocked && (
@@ -285,10 +293,14 @@ const SideMenu: React.FC<SideMenuProps> = ({
               />
               <ListItemText
                 primary="Notepad"
-                primaryTypographyProps={{
-                  fontFamily: "Outfit",
-                  fontSize: "0.95rem",
-                  color: loading ? "var(--text-secondary)" : "var(--text)",
+                slotProps={{
+                  primary: {
+                    sx: {
+                      fontFamily: "Outfit",
+                      fontSize: "0.95rem",
+                      color: loading ? "var(--text-secondary)" : "var(--text)",
+                    },
+                  },
                 }}
               />
             </ListItemButton>

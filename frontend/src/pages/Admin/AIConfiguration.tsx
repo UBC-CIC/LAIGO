@@ -711,12 +711,14 @@ const AIConfiguration = () => {
                         >
                           <ListItemText
                             primary={item.label}
-                            primaryTypographyProps={{
-                              fontSize: "0.9rem",
-                              color:
-                                selectedBlockId === item.id
-                                  ? "var(--primary)"
-                                  : "var(--text-secondary)",
+                            slotProps={{
+                              primary: {
+                                fontSize: "0.9rem",
+                                color:
+                                  selectedBlockId === item.id
+                                    ? "var(--primary)"
+                                    : "var(--text-secondary)",
+                              },
                             }}
                           />
                         </ListItemButton>

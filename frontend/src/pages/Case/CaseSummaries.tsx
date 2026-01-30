@@ -528,11 +528,13 @@ const CaseSummaries: React.FC = () => {
                   />
                   <ListItemText
                     primary="Full Case"
-                    primaryTypographyProps={{
-                      fontSize: "0.85rem",
-                      fontWeight: 600,
-                      color: "var(--text-secondary)",
-                      fontFamily: "Outfit",
+                    slotProps={{
+                      primary: {
+                        fontSize: "0.85rem",
+                        fontWeight: 600,
+                        color: "var(--text-secondary)",
+                        fontFamily: "Outfit",
+                      },
                     }}
                   />
                   {openCategories["full_case"] ? (
@@ -639,11 +641,13 @@ const CaseSummaries: React.FC = () => {
                   />
                   <ListItemText
                     primary="Block Summaries"
-                    primaryTypographyProps={{
-                      fontSize: "0.85rem",
-                      fontWeight: 600,
-                      color: "var(--text-secondary)",
-                      fontFamily: "Outfit",
+                    slotProps={{
+                      primary: {
+                        fontSize: "0.85rem",
+                        fontWeight: 600,
+                        color: "var(--text-secondary)",
+                        fontFamily: "Outfit",
+                      },
                     }}
                   />
                   {openCategories["block"] ? (
