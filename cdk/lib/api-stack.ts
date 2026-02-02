@@ -1109,6 +1109,18 @@ export class ApiGatewayStack extends cdk.Stack {
       .defaultChild as lambda.CfnFunction;
     cfnLambda_Instructor.overrideLogicalId("instructorFunction");
 
+    // ========================================
+    // Notification System (Event Bus)
+    // ========================================
+    // Defined early so other constructs can reference it
+    const notificationEventBus = new events.EventBus(
+      this,
+      `${id}-NotificationEventBus`,
+      {
+        eventBusName: `${id}-notifications`,
+      },
+    );
+
     const bedrockPolicyStatement = new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
       actions: ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"],
@@ -1605,6 +1617,21 @@ export class ApiGatewayStack extends cdk.Stack {
       }),
     );
 
+    // Grant EventBridge permissions for notification publishing
+    audioToTextFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["events:PutEvents"],
+        resources: [notificationEventBus.eventBusArn],
+      }),
+    );
+
+    // Add EventBridge environment variable
+    audioToTextFunction.addEnvironment(
+      "NOTIFICATION_EVENT_BUS_NAME",
+      notificationEventBus.eventBusName,
+    );
+
     // Create Lambda function for generating case summaries
     const summaryGenerationFunction = new lambda.DockerImageFunction(
       this,
@@ -1678,6 +1705,21 @@ export class ApiGatewayStack extends cdk.Stack {
 
     // Grant access to Bedrock (using shared policy with specific model ARNs)
     summaryGenerationFunction.addToRolePolicy(bedrockPolicyStatement);
+
+    // Grant EventBridge permissions for notification publishing
+    summaryGenerationFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["events:PutEvents"],
+        resources: [notificationEventBus.eventBusArn],
+      }),
+    );
+
+    // Add EventBridge environment variable
+    summaryGenerationFunction.addEnvironment(
+      "NOTIFICATION_EVENT_BUS_NAME",
+      notificationEventBus.eventBusName,
+    );
 
     // ========================================
     // DynamoDB Tables for Notification System
@@ -1940,17 +1982,12 @@ export class ApiGatewayStack extends cdk.Stack {
     );
 
     // ========================================
-    // Notification Service and EventBridge
+    // Notification Service (Lambda)
     // ========================================
 
-    // Create EventBridge custom bus for notification events
-    const notificationEventBus = new events.EventBus(
-      this,
-      `${id}-NotificationEventBus`,
-      {
-        eventBusName: `${id}-notifications`,
-      },
-    );
+    // ========================================
+    // Notification Service (Lambda)
+    // ========================================
 
     // Create notification service Lambda function
     const notificationServiceFunction = new lambda.Function(
@@ -2013,6 +2050,21 @@ export class ApiGatewayStack extends cdk.Stack {
     // Grant EventBridge permission to invoke notification service
     notificationServiceFunction.grantInvoke(
       new iam.ServicePrincipal("events.amazonaws.com"),
+    );
+
+    // Grant EventBridge permissions for instructor function feedback notifications
+    lambdaInstructorFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["events:PutEvents"],
+        resources: [notificationEventBus.eventBusArn],
+      }),
+    );
+
+    // Add EventBridge environment variable to instructor function
+    lambdaInstructorFunction.addEnvironment(
+      "NOTIFICATION_EVENT_BUS_NAME",
+      notificationEventBus.eventBusName,
     );
 
     // Store EventBridge bus reference for other constructs

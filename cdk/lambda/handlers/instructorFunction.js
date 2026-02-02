@@ -4,6 +4,51 @@ const {
   CognitoIdentityProviderClient,
   AdminGetUserCommand,
 } = require("@aws-sdk/client-cognito-identity-provider");
+const { EventBridgeClient, PutEventsCommand } = require("@aws-sdk/client-eventbridge");
+
+const eventBridgeClient = new EventBridgeClient({});
+
+/**
+ * Publish feedback notification event to EventBridge
+ */
+async function publishFeedbackNotificationEvent(caseId, studentId, instructorId, messageContent) {
+  try {
+    const eventBusName = process.env.NOTIFICATION_EVENT_BUS_NAME;
+    if (!eventBusName) {
+      console.warn("NOTIFICATION_EVENT_BUS_NAME not configured, skipping notification");
+      return;
+    }
+
+    const eventDetail = {
+      type: "feedback",
+      recipientId: studentId,
+      title: "New Feedback Received",
+      message: "You have received feedback from your instructor",
+      metadata: {
+        caseId: caseId,
+        instructorId: instructorId,
+        feedbackPreview: messageContent.substring(0, 100) + (messageContent.length > 100 ? "..." : "")
+      },
+      createdBy: instructorId
+    };
+
+    const response = await eventBridgeClient.send(new PutEventsCommand({
+      Entries: [
+        {
+          Source: "notification.system",
+          DetailType: "Feedback Notification",
+          Detail: JSON.stringify(eventDetail),
+          EventBusName: eventBusName
+        }
+      ]
+    }));
+
+    console.log("Published feedback notification event:", response);
+  } catch (error) {
+    console.error("Error publishing feedback notification event:", error);
+    // Don't fail the main operation if notification fails
+  }
+}
 
 let sqlConnection = global.sqlConnection;
 
@@ -180,6 +225,19 @@ exports.handler = async (event) => {
           }
           const user_id = user[0].user_id;
 
+          // Get student_id from the case
+          const caseResult = await sqlConnection`
+            SELECT student_id FROM "cases" WHERE case_id = ${case_id};
+          `;
+
+          if (caseResult.length === 0) {
+            response = buildResponse(404, {
+              error: "Case not found",
+            });
+            break;
+          }
+          const student_id = caseResult[0].student_id;
+
           // Insert message
           await sqlConnection`
               INSERT INTO "messages" (
@@ -205,6 +263,9 @@ exports.handler = async (event) => {
               status = 'reviewed'
             WHERE case_id = ${case_id};
           `;
+
+          // Publish feedback notification event
+          await publishFeedbackNotificationEvent(case_id, student_id, user_id, message_content);
 
           response = buildResponse(200, {
             message: "Feedback sent successfully",

@@ -44,6 +44,7 @@ BEDROCK_MAX_TOKENS_PARAM = os.environ.get("BEDROCK_MAX_TOKENS_PARAM")
 secrets_manager_client = boto3.client("secretsmanager")
 ssm_client = boto3.client("ssm", region_name=REGION)
 bedrock_runtime = boto3.client("bedrock-runtime", region_name=REGION)
+eventbridge_client = boto3.client("events", region_name=REGION)
 
 # Cached resources
 connection = None
@@ -277,7 +278,7 @@ def get_case_details(case_id):
 
             logger.info(f"client details found for case_id {case_id}: "
                         f"Title: {case_title} \n Case type: {case_type} \n Jurisdiction: {jurisdiction} \n Case description: {case_description}")
-            return case_type, jurisdiction, case_description
+            return case_title, case_type, jurisdiction, case_description
         else:
             logger.warning(f"No details found for case_id {case_id}")
             return None, None, None, None
@@ -418,6 +419,60 @@ def update_summaries(case_id, summary, block_type, scope='block'):
         connection.rollback()
         return False
 
+def publish_notification_event(event_type, case_id, cognito_id, success=True, error_message=None):
+    """
+    Publish notification event to EventBridge for summary generation completion
+    """
+    try:
+        event_bus_name = os.environ.get("NOTIFICATION_EVENT_BUS_NAME")
+        if not event_bus_name:
+            logger.warning("NOTIFICATION_EVENT_BUS_NAME not configured, skipping notification")
+            return
+
+        # Get case details for notification context
+        case_title, case_type, jurisdiction, case_description = get_case_details(case_id)
+        
+        # Determine notification details based on success/failure
+        if success:
+            title = "Summary Generation Complete"
+            message = f"Your case summary has been generated successfully"
+            notification_type = "summary_complete"
+        else:
+            title = "Summary Generation Failed"
+            message = f"Summary generation failed: {error_message or 'Unknown error'}"
+            notification_type = "summary_complete"
+
+        event_detail = {
+            "type": notification_type,
+            "recipientId": cognito_id,
+            "title": title,
+            "message": message,
+            "metadata": {
+                "caseId": case_id,
+                "caseName": case_title or "Unknown Case",
+                "status": "success" if success else "failed",
+                "eventType": event_type,
+                **({"errorMessage": error_message} if error_message else {})
+            }
+        }
+
+        response = eventbridge_client.put_events(
+            Entries=[
+                {
+                    "Source": "notification.system",
+                    "DetailType": "Summary Generation Complete",
+                    "Detail": json.dumps(event_detail),
+                    "EventBusName": event_bus_name
+                }
+            ]
+        )
+
+        logger.info(f"Published notification event: {response}")
+        
+    except Exception as e:
+        logger.error(f"Error publishing notification event: {e}")
+        # Don't fail the main operation if notification fails
+
 def handler(event, context):
     """
     Lambda function handler for generating conversation summaries.
@@ -481,8 +536,8 @@ def handler(event, context):
         logger.error(f"Authorization failed: User {cognito_id} does not own case {case_id}")
         return _error_response(403, "Forbidden: You do not have access to this case", is_websocket, connection_id, ws_endpoint, request_id)
 
-    case_type, jurisdiction, case_description = get_case_details(case_id)
-    if case_type is None or jurisdiction is None or case_description is None:
+    case_title, case_type, jurisdiction, case_description = get_case_details(case_id)
+    if case_title is None or case_type is None or jurisdiction is None or case_description is None:
         logger.error(f"Error fetching case details for case_id: {case_id}")
         return _error_response(400, 'Error fetching summary details', is_websocket, connection_id, ws_endpoint, request_id)
 
@@ -542,6 +597,7 @@ def handler(event, context):
                 )
         except Exception as e:
             logger.error(f"Error generating full case summary: {e}")
+            publish_notification_event("full-case", case_id, cognito_id, success=False, error_message=str(e))
             return _error_response(500, 'Error generating full case summary', is_websocket, connection_id, ws_endpoint, request_id)
 
         # 4. Save summary
@@ -549,7 +605,11 @@ def handler(event, context):
             update_summaries(case_id, response, None, scope='full_case')
         except Exception as e:
             logger.error(f"Error saving full case summary: {e}")
+            publish_notification_event("full-case", case_id, cognito_id, success=False, error_message=str(e))
             return _error_response(500, 'Error saving full case summary', is_websocket, connection_id, ws_endpoint, request_id)
+        
+        # 5. Publish success notification event
+        publish_notification_event("full-case", case_id, cognito_id, success=True)
         
         # Return response
         if is_websocket and connection_id:
@@ -621,6 +681,7 @@ def handler(event, context):
                 )
         except Exception as e:
             logger.error(f"Error getting response: {e}")
+            publish_notification_event(sub_route, case_id, cognito_id, success=False, error_message=str(e))
             return _error_response(500, 'Error getting response', is_websocket, connection_id, ws_endpoint, request_id)
             
         try:
@@ -629,7 +690,11 @@ def handler(event, context):
             update_summaries(case_id, response, block_type, scope='block')
         except Exception as e:
             logger.error(f"Error updating case summary: {e}")
+            publish_notification_event(sub_route, case_id, cognito_id, success=False, error_message=str(e))
             return _error_response(500, 'Error updating case summary', is_websocket, connection_id, ws_endpoint, request_id)
+        
+        # Publish success notification event
+        publish_notification_event(sub_route, case_id, cognito_id, success=True)
         
         # Return response
         if is_websocket and connection_id:

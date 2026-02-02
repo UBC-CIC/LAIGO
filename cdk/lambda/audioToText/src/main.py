@@ -26,6 +26,7 @@ APPSYNC_API_URL = os.environ.get("APPSYNC_API_URL")   # AppSync GraphQL endpoint
 # AWS clients for Secrets Manager and Parameter Store
 secrets_manager_client = boto3.client("secretsmanager")
 ssm_client = boto3.client("ssm", region_name=REGION)
+eventbridge_client = boto3.client("events", region_name=REGION)
 
 # Cached database connection and secret to reuse across Lambda invocations
 connection = None
@@ -231,6 +232,59 @@ def customize_pii_markers(transcript_text):
     
     return transcript_text
 
+def publish_transcription_notification_event(audio_file_id, cognito_id, success=True, error_message=None):
+    """
+    Publish notification event to EventBridge for transcription completion
+    """
+    try:
+        event_bus_name = os.environ.get("NOTIFICATION_EVENT_BUS_NAME")
+        if not event_bus_name:
+            logger.warning("NOTIFICATION_EVENT_BUS_NAME not configured, skipping notification")
+            return
+
+        # Get case context from audio_file_id if possible
+        # For now, we'll use the audio_file_id as context
+        
+        # Determine notification details based on success/failure
+        if success:
+            title = "Transcription Complete"
+            message = f"Your case transcription has been completed successfully"
+            notification_type = "transcript_complete"
+        else:
+            title = "Transcription Failed"
+            message = f"Transcription failed: {error_message or 'Unknown error'}"
+            notification_type = "transcript_complete"
+
+        event_detail = {
+            "type": notification_type,
+            "recipientId": cognito_id,
+            "title": title,
+            "message": message,
+            "metadata": {
+                "transcriptId": audio_file_id,
+                "audioFileId": audio_file_id,
+                "status": "success" if success else "failed",
+                **({"errorMessage": error_message} if error_message else {})
+            }
+        }
+
+        response = eventbridge_client.put_events(
+            Entries=[
+                {
+                    "Source": "notification.system",
+                    "DetailType": "Transcription Complete",
+                    "Detail": json.dumps(event_detail),
+                    "EventBusName": event_bus_name
+                }
+            ]
+        )
+
+        logger.info(f"Published transcription notification event: {response}")
+        
+    except Exception as e:
+        logger.error(f"Error publishing transcription notification event: {e}")
+        # Don't fail the main operation if notification fails
+
 def handler(event, context):
     """
     AWS Lambda handler:
@@ -252,10 +306,19 @@ def handler(event, context):
         file_type = qs.get("file_type", "mp3").lower()
         cognito_token = qs.get("cognito_token")
 
+        # Extract cognito_id from request context (if available from authorizer)
+        cognito_id = event.get("requestContext", {}).get("authorizer", {}).get("principalId")
+        if not cognito_id:
+            # Fallback: try to extract from cognito_token if needed
+            # For now, we'll log a warning and continue without notification
+            logger.warning("No cognito_id available for notification")
+
         # Validate required parameters
         if not file_name or not audio_file_id:
             missing = [k for k in ("file_name", "audio_file_id") if not qs.get(k)]
             logger.error(f"Missing params: {missing}")
+            if cognito_id:
+                publish_transcription_notification_event(audio_file_id, cognito_id, success=False, error_message=f"Missing parameters: {missing}")
             return {"statusCode": 400, "headers": get_cors_headers(),
                     "body": json.dumps({"error": f"Missing parameters: {missing}"})}
 
@@ -318,6 +381,10 @@ def handler(event, context):
         # This sends to AppSync → triggers `onNotify`
         invoke_event_notification(audio_file_id, "transcription_complete", cognito_token)
 
+        # Publish success notification event
+        if cognito_id:
+            publish_transcription_notification_event(audio_file_id, cognito_id, success=True)
+
         # 6. Delete the audio file from S3
         try:
             s3.delete_object(
@@ -340,5 +407,12 @@ def handler(event, context):
 
     except Exception as e:
         logger.error("Handler error: %s", e, exc_info=True)
+        # Publish failure notification event if cognito_id is available
+        cognito_id = event.get("requestContext", {}).get("authorizer", {}).get("principalId")
+        if cognito_id:
+            # Try to get audio_file_id from query params for notification
+            qs = event.get("queryStringParameters") or {}
+            audio_file_id = qs.get("audio_file_id", "unknown")
+            publish_transcription_notification_event(audio_file_id, cognito_id, success=False, error_message=str(e))
         return {"statusCode": 500, "headers": get_cors_headers(),
                 "body": json.dumps({"error": str(e)})}
