@@ -26,6 +26,8 @@ import * as apigwv2 from "aws-cdk-lib/aws-apigatewayv2";
 import { WebSocketLambdaIntegration } from "aws-cdk-lib/aws-apigatewayv2-integrations";
 import { WebSocketLambdaAuthorizer } from "aws-cdk-lib/aws-apigatewayv2-authorizers";
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
+import * as events from "aws-cdk-lib/aws-events";
+import * as targets from "aws-cdk-lib/aws-events-targets";
 
 // Stack properties for API Gateway configuration
 interface ApiGatewayStackProps extends cdk.StackProps {
@@ -61,6 +63,8 @@ export class ApiGatewayStack extends cdk.Stack {
   // DynamoDB tables for notification system
   public readonly notificationTable!: dynamodb.Table;
   public readonly connectionTable!: dynamodb.Table;
+  // EventBridge bus for notification events
+  public readonly notificationEventBus!: events.EventBus;
   // Getter methods for accessing stack resources
   public getEndpointUrl = () => this.api.url;
   public getUserPoolId = () => this.userPool.userPoolId;
@@ -1680,20 +1684,24 @@ export class ApiGatewayStack extends cdk.Stack {
     // ========================================
 
     // Create notification table for storing user notifications
-    const notificationTable = new dynamodb.Table(this, `${id}-NotificationTable`, {
-      tableName: `${id}-notifications`,
-      partitionKey: {
-        name: "PK",
-        type: dynamodb.AttributeType.STRING,
+    const notificationTable = new dynamodb.Table(
+      this,
+      `${id}-NotificationTable`,
+      {
+        tableName: `${id}-notifications`,
+        partitionKey: {
+          name: "PK",
+          type: dynamodb.AttributeType.STRING,
+        },
+        sortKey: {
+          name: "SK",
+          type: dynamodb.AttributeType.STRING,
+        },
+        billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+        timeToLiveAttribute: "ttl",
+        removalPolicy: cdk.RemovalPolicy.DESTROY,
       },
-      sortKey: {
-        name: "SK", 
-        type: dynamodb.AttributeType.STRING,
-      },
-      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
-      timeToLiveAttribute: "ttl",
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
-    });
+    );
 
     // Add GSI for notification lookup by notification ID
     notificationTable.addGlobalSecondaryIndex({
@@ -1930,5 +1938,84 @@ export class ApiGatewayStack extends cdk.Stack {
       "WEBSOCKET_API_ENDPOINT",
       this.wsStage.url.replace("wss://", "https://"),
     );
+
+    // ========================================
+    // Notification Service and EventBridge
+    // ========================================
+
+    // Create EventBridge custom bus for notification events
+    const notificationEventBus = new events.EventBus(
+      this,
+      `${id}-NotificationEventBus`,
+      {
+        eventBusName: `${id}-notifications`,
+      },
+    );
+
+    // Create notification service Lambda function
+    const notificationServiceFunction = new lambda.Function(
+      this,
+      `${id}-NotificationService`,
+      {
+        runtime: lambda.Runtime.NODEJS_22_X,
+        code: lambda.Code.fromAsset("lambda/notificationService"),
+        handler: "index.handler",
+        timeout: Duration.seconds(30),
+        memorySize: 512,
+        functionName: `${id}-NotificationService`,
+        environment: {
+          NOTIFICATION_TABLE_NAME: notificationTable.tableName,
+          CONNECTION_TABLE_NAME: connectionTable.tableName,
+          WEBSOCKET_API_ENDPOINT: this.wsStage.url.replace(
+            "wss://",
+            "https://",
+          ),
+        },
+      },
+    );
+
+    // Override Logical ID for OpenAPI reference
+    const cfnNotificationServiceFunction = notificationServiceFunction.node
+      .defaultChild as lambda.CfnFunction;
+    cfnNotificationServiceFunction.overrideLogicalId(
+      "notificationServiceFunction",
+    );
+
+    // Grant notification service permissions
+    notificationTable.grantReadWriteData(notificationServiceFunction);
+    connectionTable.grantReadData(notificationServiceFunction);
+
+    // Grant WebSocket API permissions for notification delivery
+    notificationServiceFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["execute-api:ManageConnections"],
+        resources: [
+          `arn:aws:execute-api:${this.region}:${this.account}:${this.wsApi.apiId}/${this.wsStage.stageName}/POST/@connections/*`,
+        ],
+      }),
+    );
+
+    // Create EventBridge rule for notification events
+    const notificationRule = new events.Rule(this, `${id}-NotificationRule`, {
+      eventBus: notificationEventBus,
+      eventPattern: {
+        source: ["notification.system"],
+        detailType: [
+          "Feedback Notification",
+          "Summary Generation Complete",
+          "Transcription Complete",
+        ],
+      },
+      targets: [new targets.LambdaFunction(notificationServiceFunction)],
+    });
+
+    // Grant EventBridge permission to invoke notification service
+    notificationServiceFunction.grantInvoke(
+      new iam.ServicePrincipal("events.amazonaws.com"),
+    );
+
+    // Store EventBridge bus reference for other constructs
+    this.notificationEventBus = notificationEventBus;
   }
 }
