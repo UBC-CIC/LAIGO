@@ -1985,10 +1985,6 @@ export class ApiGatewayStack extends cdk.Stack {
     // Notification Service (Lambda)
     // ========================================
 
-    // ========================================
-    // Notification Service (Lambda)
-    // ========================================
-
     // Create notification service Lambda function
     const notificationServiceFunction = new lambda.Function(
       this,
