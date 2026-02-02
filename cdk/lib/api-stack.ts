@@ -1676,6 +1676,72 @@ export class ApiGatewayStack extends cdk.Stack {
     summaryGenerationFunction.addToRolePolicy(bedrockPolicyStatement);
 
     // ========================================
+    // DynamoDB Tables for Notification System
+    // ========================================
+
+    // Create notification table for storing user notifications
+    const notificationTable = new dynamodb.Table(this, `${id}-NotificationTable`, {
+      tableName: `${id}-notifications`,
+      partitionKey: {
+        name: "PK",
+        type: dynamodb.AttributeType.STRING,
+      },
+      sortKey: {
+        name: "SK", 
+        type: dynamodb.AttributeType.STRING,
+      },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      timeToLiveAttribute: "ttl",
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
+    // Add GSI for notification lookup by notification ID
+    notificationTable.addGlobalSecondaryIndex({
+      indexName: "GSI1",
+      partitionKey: {
+        name: "GSI1PK",
+        type: dynamodb.AttributeType.STRING,
+      },
+      sortKey: {
+        name: "GSI1SK",
+        type: dynamodb.AttributeType.STRING,
+      },
+    });
+
+    // Create connection tracking table for WebSocket connections
+    const connectionTable = new dynamodb.Table(this, `${id}-ConnectionTable`, {
+      tableName: `${id}-connections`,
+      partitionKey: {
+        name: "PK",
+        type: dynamodb.AttributeType.STRING,
+      },
+      sortKey: {
+        name: "SK",
+        type: dynamodb.AttributeType.STRING,
+      },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      timeToLiveAttribute: "ttl",
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
+    // Add GSI for connection lookup by user ID
+    connectionTable.addGlobalSecondaryIndex({
+      indexName: "GSI1",
+      partitionKey: {
+        name: "GSI1PK",
+        type: dynamodb.AttributeType.STRING,
+      },
+      sortKey: {
+        name: "GSI1SK",
+        type: dynamodb.AttributeType.STRING,
+      },
+    });
+
+    // Store table references for use by other constructs
+    this.notificationTable = notificationTable;
+    this.connectionTable = connectionTable;
+
+    // ========================================
     // WebSocket API for Chat Streaming
     // ========================================
 
@@ -1694,6 +1760,7 @@ export class ApiGatewayStack extends cdk.Stack {
         environment: {
           COGNITO_USER_POOL_ID: this.userPool.userPoolId,
           COGNITO_CLIENT_ID: this.appClient.userPoolClientId,
+          CONNECTION_TABLE_NAME: connectionTable.tableName,
         },
       },
     );
@@ -1728,6 +1795,9 @@ export class ApiGatewayStack extends cdk.Stack {
         timeout: Duration.seconds(10),
         memorySize: 128,
         functionName: `${id}-WsDisconnect`,
+        environment: {
+          CONNECTION_TABLE_NAME: connectionTable.tableName,
+        },
       },
     );
 
@@ -1754,6 +1824,10 @@ export class ApiGatewayStack extends cdk.Stack {
     textGenLambdaDockerFunc.grantInvoke(wsDefaultFunction);
     assessProgressFunction.grantInvoke(wsDefaultFunction);
     summaryGenerationFunction.grantInvoke(wsDefaultFunction);
+
+    // Grant WebSocket functions permission to access DynamoDB connection table
+    connectionTable.grantWriteData(wsConnectFunction);
+    connectionTable.grantWriteData(wsDisconnectFunction);
 
     // Create Lambda Authorizer for WebSocket connections
     const wsAuthorizer = new WebSocketLambdaAuthorizer(
@@ -1856,71 +1930,5 @@ export class ApiGatewayStack extends cdk.Stack {
       "WEBSOCKET_API_ENDPOINT",
       this.wsStage.url.replace("wss://", "https://"),
     );
-
-    // ========================================
-    // DynamoDB Tables for Notification System
-    // ========================================
-
-    // Create notification table for storing user notifications
-    const notificationTable = new dynamodb.Table(this, `${id}-NotificationTable`, {
-      tableName: `${id}-notifications`,
-      partitionKey: {
-        name: "PK",
-        type: dynamodb.AttributeType.STRING,
-      },
-      sortKey: {
-        name: "SK", 
-        type: dynamodb.AttributeType.STRING,
-      },
-      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
-      timeToLiveAttribute: "ttl",
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
-    });
-
-    // Add GSI for notification lookup by notification ID
-    notificationTable.addGlobalSecondaryIndex({
-      indexName: "GSI1",
-      partitionKey: {
-        name: "GSI1PK",
-        type: dynamodb.AttributeType.STRING,
-      },
-      sortKey: {
-        name: "GSI1SK",
-        type: dynamodb.AttributeType.STRING,
-      },
-    });
-
-    // Create connection tracking table for WebSocket connections
-    const connectionTable = new dynamodb.Table(this, `${id}-ConnectionTable`, {
-      tableName: `${id}-connections`,
-      partitionKey: {
-        name: "PK",
-        type: dynamodb.AttributeType.STRING,
-      },
-      sortKey: {
-        name: "SK",
-        type: dynamodb.AttributeType.STRING,
-      },
-      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
-      timeToLiveAttribute: "ttl",
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
-    });
-
-    // Add GSI for connection lookup by user ID
-    connectionTable.addGlobalSecondaryIndex({
-      indexName: "GSI1",
-      partitionKey: {
-        name: "GSI1PK",
-        type: dynamodb.AttributeType.STRING,
-      },
-      sortKey: {
-        name: "GSI1SK",
-        type: dynamodb.AttributeType.STRING,
-      },
-    });
-
-    // Store table references for use by other constructs
-    this.notificationTable = notificationTable;
-    this.connectionTable = connectionTable;
   }
 }

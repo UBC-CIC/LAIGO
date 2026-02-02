@@ -157,6 +157,43 @@ exports.handler = async (event) => {
       return { statusCode: 200 };
     }
 
+    // Handle notification delivery (from notification service)
+    if (action === "notification_delivery") {
+      const { type, notification } = body;
+
+      console.log("Delivering notification via WebSocket:", {
+        connectionId,
+        type,
+        notificationId: notification?.notificationId,
+        cognitoId,
+      });
+
+      const apigw = new ApiGatewayManagementApiClient({
+        endpoint: `https://${domainName}/${stage}`,
+      });
+
+      try {
+        await apigw.send(
+          new PostToConnectionCommand({
+            ConnectionId: connectionId,
+            Data: JSON.stringify({
+              action: "notification_delivery",
+              type: type,
+              notification: notification,
+              timestamp: new Date().toISOString(),
+            }),
+          }),
+        );
+
+        console.log("Notification delivered successfully via WebSocket");
+        return { statusCode: 200 };
+      } catch (error) {
+        console.error("Error delivering notification via WebSocket:", error);
+        // If connection is stale, the notification service will handle retry
+        return { statusCode: 410 }; // Gone - connection no longer exists
+      }
+    }
+
     return {
       statusCode: 400,
       body: JSON.stringify({ error: "Unknown action" }),
