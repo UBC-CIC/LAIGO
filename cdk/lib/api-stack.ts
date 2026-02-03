@@ -2048,6 +2048,11 @@ export class ApiGatewayStack extends cdk.Stack {
       new iam.ServicePrincipal("events.amazonaws.com"),
     );
 
+    // Grant API Gateway permission to invoke the notification service
+    notificationServiceFunction.grantInvoke(
+      new iam.ServicePrincipal("apigateway.amazonaws.com"),
+    );
+
     // Grant EventBridge permissions for instructor function feedback notifications
     lambdaInstructorFunction.addToRolePolicy(
       new iam.PolicyStatement({

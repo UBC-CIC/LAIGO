@@ -1,5 +1,14 @@
-const { DynamoDBClient, PutItemCommand, QueryCommand, UpdateItemCommand, DeleteItemCommand } = require("@aws-sdk/client-dynamodb");
-const { ApiGatewayManagementApiClient, PostToConnectionCommand } = require("@aws-sdk/client-apigatewaymanagementapi");
+const {
+  DynamoDBClient,
+  PutItemCommand,
+  QueryCommand,
+  UpdateItemCommand,
+  DeleteItemCommand,
+} = require("@aws-sdk/client-dynamodb");
+const {
+  ApiGatewayManagementApiClient,
+  PostToConnectionCommand,
+} = require("@aws-sdk/client-apigatewaymanagementapi");
 const { marshall, unmarshall } = require("@aws-sdk/util-dynamodb");
 
 const dynamodb = new DynamoDBClient({});
@@ -7,7 +16,7 @@ const dynamodb = new DynamoDBClient({});
 /**
  * Notification Service Lambda
  * Handles notification creation, storage, and real-time delivery via WebSocket
- * 
+ *
  * Supports two invocation modes:
  * 1. EventBridge events for notification creation and delivery
  * 2. REST API requests for notification queries and updates
@@ -16,7 +25,7 @@ exports.handler = async (event, context) => {
   console.log("Notification Service invoked:", {
     source: event.source || "API",
     eventType: event["detail-type"] || event.httpMethod,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 
   try {
@@ -24,7 +33,7 @@ exports.handler = async (event, context) => {
     if (event.source === "notification.system") {
       return await handleEventBridgeEvent(event);
     }
-    
+
     // Handle REST API requests
     if (event.httpMethod) {
       return await handleRestApiRequest(event);
@@ -36,7 +45,7 @@ exports.handler = async (event, context) => {
     return {
       statusCode: 500,
       headers: getCorsHeaders(),
-      body: JSON.stringify({ error: "Internal server error" })
+      body: JSON.stringify({ error: "Internal server error" }),
     };
   }
 };
@@ -51,12 +60,12 @@ async function handleEventBridgeEvent(event) {
   console.log("Processing EventBridge event:", {
     eventType,
     recipientId: detail.recipientId,
-    notificationType: detail.type
+    notificationType: detail.type,
   });
 
   // Create notification record
   const notification = await createNotification(detail);
-  
+
   // Attempt real-time delivery via WebSocket
   await deliverNotificationViaWebSocket(notification);
 
@@ -74,30 +83,33 @@ async function handleRestApiRequest(event) {
     return {
       statusCode: 401,
       headers: getCorsHeaders(),
-      body: JSON.stringify({ error: "Unauthorized" })
+      body: JSON.stringify({ error: "Unauthorized" }),
     };
   }
 
   const pathData = `${httpMethod} ${resource}`;
 
   switch (pathData) {
-    case "GET /notifications":
+    case "GET /student/notifications":
       return await getNotifications(userId, queryStringParameters);
-    
-    case "PUT /notifications/{notificationId}/read":
-      return await markNotificationAsRead(userId, pathParameters.notificationId);
-    
-    case "PUT /notifications/read-all":
+
+    case "PUT /student/notifications/{notificationId}/read":
+      return await markNotificationAsRead(
+        userId,
+        pathParameters.notificationId,
+      );
+
+    case "PUT /student/notifications/read-all":
       return await markAllNotificationsAsRead(userId);
-    
-    case "GET /notifications/unread-count":
+
+    case "GET /student/notifications/unread-count":
       return await getUnreadCount(userId);
-    
+
     default:
       return {
         statusCode: 404,
         headers: getCorsHeaders(),
-        body: JSON.stringify({ error: "Route not found" })
+        body: JSON.stringify({ error: "Route not found" }),
       };
   }
 }
@@ -112,12 +124,12 @@ async function createNotification(eventDetail) {
     title,
     message,
     metadata = {},
-    createdBy
+    createdBy,
   } = eventDetail;
 
   const notificationId = generateNotificationId();
   const timestamp = new Date().toISOString();
-  const ttl = Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60); // 30 days
+  const ttl = Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60; // 30 days
 
   const notification = {
     PK: `USER#${recipientId}`,
@@ -133,18 +145,20 @@ async function createNotification(eventDetail) {
     isRead: false,
     createdAt: timestamp,
     ttl,
-    ...(createdBy && { createdBy })
+    ...(createdBy && { createdBy }),
   };
 
-  await dynamodb.send(new PutItemCommand({
-    TableName: process.env.NOTIFICATION_TABLE_NAME,
-    Item: marshall(notification)
-  }));
+  await dynamodb.send(
+    new PutItemCommand({
+      TableName: process.env.NOTIFICATION_TABLE_NAME,
+      Item: marshall(notification),
+    }),
+  );
 
   console.log("Notification created:", {
     notificationId,
     userId: recipientId,
-    type
+    type,
   });
 
   return notification;
@@ -155,11 +169,11 @@ async function createNotification(eventDetail) {
  */
 async function deliverNotificationViaWebSocket(notification) {
   const userId = notification.userId;
-  
+
   try {
     // Get active connections for the user
     const connections = await getUserConnections(userId);
-    
+
     if (connections.length === 0) {
       console.log("No active connections for user:", userId);
       return;
@@ -167,40 +181,42 @@ async function deliverNotificationViaWebSocket(notification) {
 
     const wsEndpoint = process.env.WEBSOCKET_API_ENDPOINT;
     const apigw = new ApiGatewayManagementApiClient({
-      endpoint: wsEndpoint
+      endpoint: wsEndpoint,
     });
 
     // Deliver to all active connections
     const deliveryPromises = connections.map(async (connection) => {
       try {
-        await apigw.send(new PostToConnectionCommand({
-          ConnectionId: connection.connectionId,
-          Data: JSON.stringify({
-            action: "notification_delivery",
-            type: notification.type,
-            notification: {
-              notificationId: notification.notificationId,
+        await apigw.send(
+          new PostToConnectionCommand({
+            ConnectionId: connection.connectionId,
+            Data: JSON.stringify({
+              action: "notification_delivery",
               type: notification.type,
-              title: notification.title,
-              message: notification.message,
-              metadata: notification.metadata,
-              createdAt: notification.createdAt,
-              isRead: notification.isRead
-            },
-            timestamp: new Date().toISOString()
-          })
-        }));
+              notification: {
+                notificationId: notification.notificationId,
+                type: notification.type,
+                title: notification.title,
+                message: notification.message,
+                metadata: notification.metadata,
+                createdAt: notification.createdAt,
+                isRead: notification.isRead,
+              },
+              timestamp: new Date().toISOString(),
+            }),
+          }),
+        );
 
         console.log("Notification delivered via WebSocket:", {
           connectionId: connection.connectionId,
-          notificationId: notification.notificationId
+          notificationId: notification.notificationId,
         });
       } catch (error) {
         console.error("Failed to deliver to connection:", {
           connectionId: connection.connectionId,
-          error: error.message
+          error: error.message,
         });
-        
+
         // If connection is stale (410 Gone), clean it up
         if (error.statusCode === 410) {
           await cleanupStaleConnection(connection.connectionId, userId);
@@ -220,16 +236,18 @@ async function deliverNotificationViaWebSocket(notification) {
  */
 async function getUserConnections(userId) {
   try {
-    const result = await dynamodb.send(new QueryCommand({
-      TableName: process.env.CONNECTION_TABLE_NAME,
-      IndexName: "GSI1",
-      KeyConditionExpression: "GSI1PK = :pk",
-      ExpressionAttributeValues: {
-        ":pk": { S: `USER#${userId}` }
-      }
-    }));
+    const result = await dynamodb.send(
+      new QueryCommand({
+        TableName: process.env.CONNECTION_TABLE_NAME,
+        IndexName: "GSI1",
+        KeyConditionExpression: "GSI1PK = :pk",
+        ExpressionAttributeValues: {
+          ":pk": { S: `USER#${userId}` },
+        },
+      }),
+    );
 
-    return result.Items?.map(item => unmarshall(item)) || [];
+    return result.Items?.map((item) => unmarshall(item)) || [];
   } catch (error) {
     console.error("Error getting user connections:", error);
     return [];
@@ -241,14 +259,16 @@ async function getUserConnections(userId) {
  */
 async function cleanupStaleConnection(connectionId, userId) {
   try {
-    await dynamodb.send(new DeleteItemCommand({
-      TableName: process.env.CONNECTION_TABLE_NAME,
-      Key: marshall({
-        PK: `CONNECTION#${connectionId}`,
-        SK: `USER#${userId}`
-      })
-    }));
-    
+    await dynamodb.send(
+      new DeleteItemCommand({
+        TableName: process.env.CONNECTION_TABLE_NAME,
+        Key: marshall({
+          PK: `CONNECTION#${connectionId}`,
+          SK: `USER#${userId}`,
+        }),
+      }),
+    );
+
     console.log("Cleaned up stale connection:", connectionId);
   } catch (error) {
     console.error("Error cleaning up stale connection:", error);
@@ -267,49 +287,54 @@ async function getNotifications(userId, queryParams = {}) {
       TableName: process.env.NOTIFICATION_TABLE_NAME,
       KeyConditionExpression: "PK = :pk",
       ExpressionAttributeValues: {
-        ":pk": { S: `USER#${userId}` }
+        ":pk": { S: `USER#${userId}` },
       },
       ScanIndexForward: false, // Reverse chronological order
-      Limit: limit
+      Limit: limit,
     };
 
     if (lastKey) {
-      params.ExclusiveStartKey = JSON.parse(Buffer.from(lastKey, 'base64').toString());
+      params.ExclusiveStartKey = JSON.parse(
+        Buffer.from(lastKey, "base64").toString(),
+      );
     }
 
     const result = await dynamodb.send(new QueryCommand(params));
-    
-    const notifications = result.Items?.map(item => {
-      const notification = unmarshall(item);
-      // Remove DynamoDB keys from response
-      delete notification.PK;
-      delete notification.SK;
-      delete notification.GSI1PK;
-      delete notification.GSI1SK;
-      delete notification.ttl;
-      return notification;
-    }) || [];
+
+    const notifications =
+      result.Items?.map((item) => {
+        const notification = unmarshall(item);
+        // Remove DynamoDB keys from response
+        delete notification.PK;
+        delete notification.SK;
+        delete notification.GSI1PK;
+        delete notification.GSI1SK;
+        delete notification.ttl;
+        return notification;
+      }) || [];
 
     const response = {
       notifications,
-      hasMore: !!result.LastEvaluatedKey
+      hasMore: !!result.LastEvaluatedKey,
     };
 
     if (result.LastEvaluatedKey) {
-      response.nextKey = Buffer.from(JSON.stringify(result.LastEvaluatedKey)).toString('base64');
+      response.nextKey = Buffer.from(
+        JSON.stringify(result.LastEvaluatedKey),
+      ).toString("base64");
     }
 
     return {
       statusCode: 200,
       headers: getCorsHeaders(),
-      body: JSON.stringify(response)
+      body: JSON.stringify(response),
     };
   } catch (error) {
     console.error("Error getting notifications:", error);
     return {
       statusCode: 500,
       headers: getCorsHeaders(),
-      body: JSON.stringify({ error: "Failed to get notifications" })
+      body: JSON.stringify({ error: "Failed to get notifications" }),
     };
   }
 }
@@ -320,51 +345,55 @@ async function getNotifications(userId, queryParams = {}) {
 async function markNotificationAsRead(userId, notificationId) {
   try {
     // First, get the notification to verify ownership and get the sort key
-    const getResult = await dynamodb.send(new QueryCommand({
-      TableName: process.env.NOTIFICATION_TABLE_NAME,
-      IndexName: "GSI1",
-      KeyConditionExpression: "GSI1PK = :pk AND GSI1SK = :sk",
-      ExpressionAttributeValues: {
-        ":pk": { S: `NOTIFICATION#${notificationId}` },
-        ":sk": { S: `USER#${userId}` }
-      }
-    }));
+    const getResult = await dynamodb.send(
+      new QueryCommand({
+        TableName: process.env.NOTIFICATION_TABLE_NAME,
+        IndexName: "GSI1",
+        KeyConditionExpression: "GSI1PK = :pk AND GSI1SK = :sk",
+        ExpressionAttributeValues: {
+          ":pk": { S: `NOTIFICATION#${notificationId}` },
+          ":sk": { S: `USER#${userId}` },
+        },
+      }),
+    );
 
     if (!getResult.Items || getResult.Items.length === 0) {
       return {
         statusCode: 404,
         headers: getCorsHeaders(),
-        body: JSON.stringify({ error: "Notification not found" })
+        body: JSON.stringify({ error: "Notification not found" }),
       };
     }
 
     const notification = unmarshall(getResult.Items[0]);
-    
+
     // Update the notification
-    await dynamodb.send(new UpdateItemCommand({
-      TableName: process.env.NOTIFICATION_TABLE_NAME,
-      Key: marshall({
-        PK: notification.PK,
-        SK: notification.SK
+    await dynamodb.send(
+      new UpdateItemCommand({
+        TableName: process.env.NOTIFICATION_TABLE_NAME,
+        Key: marshall({
+          PK: notification.PK,
+          SK: notification.SK,
+        }),
+        UpdateExpression: "SET isRead = :isRead, readAt = :readAt",
+        ExpressionAttributeValues: marshall({
+          ":isRead": true,
+          ":readAt": new Date().toISOString(),
+        }),
       }),
-      UpdateExpression: "SET isRead = :isRead, readAt = :readAt",
-      ExpressionAttributeValues: marshall({
-        ":isRead": true,
-        ":readAt": new Date().toISOString()
-      })
-    }));
+    );
 
     return {
       statusCode: 200,
       headers: getCorsHeaders(),
-      body: JSON.stringify({ success: true })
+      body: JSON.stringify({ success: true }),
     };
   } catch (error) {
     console.error("Error marking notification as read:", error);
     return {
       statusCode: 500,
       headers: getCorsHeaders(),
-      body: JSON.stringify({ error: "Failed to mark notification as read" })
+      body: JSON.stringify({ error: "Failed to mark notification as read" }),
     };
   }
 }
@@ -375,39 +404,43 @@ async function markNotificationAsRead(userId, notificationId) {
 async function markAllNotificationsAsRead(userId) {
   try {
     // Get all unread notifications for the user
-    const result = await dynamodb.send(new QueryCommand({
-      TableName: process.env.NOTIFICATION_TABLE_NAME,
-      KeyConditionExpression: "PK = :pk",
-      FilterExpression: "isRead = :isRead",
-      ExpressionAttributeValues: {
-        ":pk": { S: `USER#${userId}` },
-        ":isRead": { BOOL: false }
-      }
-    }));
+    const result = await dynamodb.send(
+      new QueryCommand({
+        TableName: process.env.NOTIFICATION_TABLE_NAME,
+        KeyConditionExpression: "PK = :pk",
+        FilterExpression: "isRead = :isRead",
+        ExpressionAttributeValues: {
+          ":pk": { S: `USER#${userId}` },
+          ":isRead": { BOOL: false },
+        },
+      }),
+    );
 
     if (!result.Items || result.Items.length === 0) {
       return {
         statusCode: 200,
         headers: getCorsHeaders(),
-        body: JSON.stringify({ updated: 0 })
+        body: JSON.stringify({ updated: 0 }),
       };
     }
 
     // Update each notification
-    const updatePromises = result.Items.map(item => {
+    const updatePromises = result.Items.map((item) => {
       const notification = unmarshall(item);
-      return dynamodb.send(new UpdateItemCommand({
-        TableName: process.env.NOTIFICATION_TABLE_NAME,
-        Key: marshall({
-          PK: notification.PK,
-          SK: notification.SK
+      return dynamodb.send(
+        new UpdateItemCommand({
+          TableName: process.env.NOTIFICATION_TABLE_NAME,
+          Key: marshall({
+            PK: notification.PK,
+            SK: notification.SK,
+          }),
+          UpdateExpression: "SET isRead = :isRead, readAt = :readAt",
+          ExpressionAttributeValues: marshall({
+            ":isRead": true,
+            ":readAt": new Date().toISOString(),
+          }),
         }),
-        UpdateExpression: "SET isRead = :isRead, readAt = :readAt",
-        ExpressionAttributeValues: marshall({
-          ":isRead": true,
-          ":readAt": new Date().toISOString()
-        })
-      }));
+      );
     });
 
     await Promise.all(updatePromises);
@@ -415,14 +448,14 @@ async function markAllNotificationsAsRead(userId) {
     return {
       statusCode: 200,
       headers: getCorsHeaders(),
-      body: JSON.stringify({ updated: result.Items.length })
+      body: JSON.stringify({ updated: result.Items.length }),
     };
   } catch (error) {
     console.error("Error marking all notifications as read:", error);
     return {
       statusCode: 500,
       headers: getCorsHeaders(),
-      body: JSON.stringify({ error: "Failed to mark notifications as read" })
+      body: JSON.stringify({ error: "Failed to mark notifications as read" }),
     };
   }
 }
@@ -432,28 +465,30 @@ async function markAllNotificationsAsRead(userId) {
  */
 async function getUnreadCount(userId) {
   try {
-    const result = await dynamodb.send(new QueryCommand({
-      TableName: process.env.NOTIFICATION_TABLE_NAME,
-      KeyConditionExpression: "PK = :pk",
-      FilterExpression: "isRead = :isRead",
-      ExpressionAttributeValues: {
-        ":pk": { S: `USER#${userId}` },
-        ":isRead": { BOOL: false }
-      },
-      Select: "COUNT"
-    }));
+    const result = await dynamodb.send(
+      new QueryCommand({
+        TableName: process.env.NOTIFICATION_TABLE_NAME,
+        KeyConditionExpression: "PK = :pk",
+        FilterExpression: "isRead = :isRead",
+        ExpressionAttributeValues: {
+          ":pk": { S: `USER#${userId}` },
+          ":isRead": { BOOL: false },
+        },
+        Select: "COUNT",
+      }),
+    );
 
     return {
       statusCode: 200,
       headers: getCorsHeaders(),
-      body: JSON.stringify({ count: result.Count || 0 })
+      body: JSON.stringify({ count: result.Count || 0 }),
     };
   } catch (error) {
     console.error("Error getting unread count:", error);
     return {
       statusCode: 500,
       headers: getCorsHeaders(),
-      body: JSON.stringify({ error: "Failed to get unread count" })
+      body: JSON.stringify({ error: "Failed to get unread count" }),
     };
   }
 }
@@ -473,6 +508,6 @@ function getCorsHeaders() {
     "Content-Type": "application/json",
     "Access-Control-Allow-Headers": "*",
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "*"
+    "Access-Control-Allow-Methods": "*",
   };
 }
