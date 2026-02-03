@@ -432,14 +432,27 @@ def publish_notification_event(event_type, case_id, cognito_id, success=True, er
         # Get case details for notification context
         case_title, case_type, jurisdiction, case_description = get_case_details(case_id)
         
+        # Map event_type (sub_route) to readable block name
+        block_titles = {
+            "intake-facts": "Intake Facts",
+            "issue-identification": "Issue Identification",
+            "research-strategy": "Research Strategy",
+            "argument-construction": "Argument Construction",
+            "contrarian-analysis": "Contrarian Analysis",
+            "policy-context": "Policy Context",
+            "full-case": "Full Case"
+        }
+        block_name = block_titles.get(event_type, "Summary")
+        case_display_name = case_title or "Unknown Case"
+
         # Determine notification details based on success/failure
         if success:
             title = "Summary Generation Complete"
-            message = f"Your case summary has been generated successfully"
+            message = f"Summary generated for {block_name} on {case_display_name}"
             notification_type = "summary_complete"
         else:
             title = "Summary Generation Failed"
-            message = f"Summary generation failed: {error_message or 'Unknown error'}"
+            message = f"Summary generation failed for {block_name}: {error_message or 'Unknown error'}"
             notification_type = "summary_complete"
 
         event_detail = {
@@ -449,9 +462,10 @@ def publish_notification_event(event_type, case_id, cognito_id, success=True, er
             "message": message,
             "metadata": {
                 "caseId": case_id,
-                "caseName": case_title or "Unknown Case",
+                "caseName": case_display_name,
                 "status": "success" if success else "failed",
                 "eventType": event_type,
+                "blockName": block_name,
                 **({"errorMessage": error_message} if error_message else {})
             }
         }

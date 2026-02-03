@@ -19,6 +19,8 @@ async function publishFeedbackNotificationEvent(
   studentId,
   instructorId,
   messageContent,
+  caseTitle,
+  instructorName,
 ) {
   try {
     const eventBusName = process.env.NOTIFICATION_EVENT_BUS_NAME;
@@ -33,10 +35,12 @@ async function publishFeedbackNotificationEvent(
       type: "feedback",
       recipientId: studentId,
       title: "New Feedback Received",
-      message: "You have received feedback from your instructor",
+      message: `You have received feedback from ${instructorName} on ${caseTitle}`,
       metadata: {
         caseId: caseId,
+        caseName: caseTitle,
         instructorId: instructorId,
+        instructorName: instructorName,
         feedbackPreview:
           messageContent.substring(0, 100) +
           (messageContent.length > 100 ? "..." : ""),
@@ -226,9 +230,9 @@ exports.handler = async (event) => {
         }
 
         try {
-          // Get instructor user_id using trusted cognito_id from authorizer
+          // Get instructor user_id and name using trusted cognito_id from authorizer
           const user = await sqlConnection`
-            SELECT user_id FROM "users" WHERE cognito_id = ${cognito_id};
+            SELECT user_id, first_name, last_name FROM "users" WHERE cognito_id = ${cognito_id};
           `;
 
           if (user.length === 0) {
@@ -238,10 +242,11 @@ exports.handler = async (event) => {
             break;
           }
           const user_id = user[0].user_id;
+          const instructorName = `${user[0].first_name} ${user[0].last_name}`;
 
-          // Get student_id and cognito_id from the case and user tables
+          // Get student_id, cognito_id, and case_title from the case and user tables
           const caseResult = await sqlConnection`
-            SELECT c.student_id, u.cognito_id 
+            SELECT c.student_id, c.case_title, u.cognito_id 
             FROM "cases" c
             JOIN "users" u ON c.student_id = u.user_id
             WHERE c.case_id = ${case_id};
@@ -255,6 +260,7 @@ exports.handler = async (event) => {
           }
           const student_id = caseResult[0].student_id;
           const student_cognito_id = caseResult[0].cognito_id;
+          const case_title = caseResult[0].case_title;
 
           // Insert message
           await sqlConnection`
@@ -288,6 +294,8 @@ exports.handler = async (event) => {
             student_cognito_id,
             cognito_id,
             message_content,
+            case_title,
+            instructorName,
           );
 
           response = buildResponse(200, {

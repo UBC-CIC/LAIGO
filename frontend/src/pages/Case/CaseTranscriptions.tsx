@@ -256,6 +256,8 @@ const CaseTranscriptions: React.FC = () => {
         `audio_file_id=${encodeURIComponent(audioFileId)}&` +
         `file_name=${encodeURIComponent(fileName)}&` +
         `file_type=${encodeURIComponent(fileExtension)}&` +
+        `case_title=${encodeURIComponent(caseData?.case_title || "Unknown Case")}&` +
+        `case_id=${encodeURIComponent(caseId || "unknown")}&` +
         `cognito_token=${encodeURIComponent(token)}`,
       {
         method: "GET",

@@ -232,7 +232,7 @@ def customize_pii_markers(transcript_text):
     
     return transcript_text
 
-def publish_transcription_notification_event(audio_file_id, cognito_id, success=True, error_message=None):
+def publish_transcription_notification_event(audio_file_id, cognito_id, file_name, case_name, case_id, success=True, error_message=None):
     """
     Publish notification event to EventBridge for transcription completion
     """
@@ -242,17 +242,17 @@ def publish_transcription_notification_event(audio_file_id, cognito_id, success=
             logger.warning("NOTIFICATION_EVENT_BUS_NAME not configured, skipping notification")
             return
 
-        # Get case context from audio_file_id if possible
-        # For now, we'll use the audio_file_id as context
-        
+        file_display_name = file_name or "Audio File"
+        case_display_name = case_name or "Unknown Case"
+
         # Determine notification details based on success/failure
         if success:
             title = "Transcription Complete"
-            message = f"Your case transcription has been completed successfully"
+            message = f"Transcription complete for {file_display_name} in {case_display_name}"
             notification_type = "transcript_complete"
         else:
             title = "Transcription Failed"
-            message = f"Transcription failed: {error_message or 'Unknown error'}"
+            message = f"Transcription failed for {file_display_name}: {error_message or 'Unknown error'}"
             notification_type = "transcript_complete"
 
         event_detail = {
@@ -263,6 +263,9 @@ def publish_transcription_notification_event(audio_file_id, cognito_id, success=
             "metadata": {
                 "transcriptId": audio_file_id,
                 "audioFileId": audio_file_id,
+                "caseId": case_id,
+                "caseName": case_display_name,
+                "fileName": file_display_name,
                 "status": "success" if success else "failed",
                 **({"errorMessage": error_message} if error_message else {})
             }
@@ -305,6 +308,9 @@ def handler(event, context):
         audio_file_id = qs.get("audio_file_id")
         file_type = qs.get("file_type", "mp3").lower()
         cognito_token = qs.get("cognito_token")
+        # Extract case metadata from query params (optimization to avoid DB lookup)
+        case_title = qs.get("case_title")
+        case_id = qs.get("case_id")
 
         # Extract cognito_id from request context (if available from authorizer)
         cognito_id = event.get("requestContext", {}).get("authorizer", {}).get("principalId")
@@ -318,7 +324,7 @@ def handler(event, context):
             missing = [k for k in ("file_name", "audio_file_id") if not qs.get(k)]
             logger.error(f"Missing params: {missing}")
             if cognito_id:
-                publish_transcription_notification_event(audio_file_id, cognito_id, success=False, error_message=f"Missing parameters: {missing}")
+                 publish_transcription_notification_event(audio_file_id, cognito_id, file_name, case_title, case_id, success=False, error_message=f"Missing parameters: {missing}")
             return {"statusCode": 400, "headers": get_cors_headers(),
                     "body": json.dumps({"error": f"Missing parameters: {missing}"})}
 
@@ -383,7 +389,7 @@ def handler(event, context):
 
         # Publish success notification event
         if cognito_id:
-            publish_transcription_notification_event(audio_file_id, cognito_id, success=True)
+            publish_transcription_notification_event(audio_file_id, cognito_id, file_name, case_title, case_id, success=True)
 
         # 6. Delete the audio file from S3
         try:
