@@ -4,18 +4,28 @@ const {
   CognitoIdentityProviderClient,
   AdminGetUserCommand,
 } = require("@aws-sdk/client-cognito-identity-provider");
-const { EventBridgeClient, PutEventsCommand } = require("@aws-sdk/client-eventbridge");
+const {
+  EventBridgeClient,
+  PutEventsCommand,
+} = require("@aws-sdk/client-eventbridge");
 
 const eventBridgeClient = new EventBridgeClient({});
 
 /**
  * Publish feedback notification event to EventBridge
  */
-async function publishFeedbackNotificationEvent(caseId, studentId, instructorId, messageContent) {
+async function publishFeedbackNotificationEvent(
+  caseId,
+  studentId,
+  instructorId,
+  messageContent,
+) {
   try {
     const eventBusName = process.env.NOTIFICATION_EVENT_BUS_NAME;
     if (!eventBusName) {
-      console.warn("NOTIFICATION_EVENT_BUS_NAME not configured, skipping notification");
+      console.warn(
+        "NOTIFICATION_EVENT_BUS_NAME not configured, skipping notification",
+      );
       return;
     }
 
@@ -27,21 +37,25 @@ async function publishFeedbackNotificationEvent(caseId, studentId, instructorId,
       metadata: {
         caseId: caseId,
         instructorId: instructorId,
-        feedbackPreview: messageContent.substring(0, 100) + (messageContent.length > 100 ? "..." : "")
+        feedbackPreview:
+          messageContent.substring(0, 100) +
+          (messageContent.length > 100 ? "..." : ""),
       },
-      createdBy: instructorId
+      createdBy: instructorId,
     };
 
-    const response = await eventBridgeClient.send(new PutEventsCommand({
-      Entries: [
-        {
-          Source: "notification.system",
-          DetailType: "Feedback Notification",
-          Detail: JSON.stringify(eventDetail),
-          EventBusName: eventBusName
-        }
-      ]
-    }));
+    const response = await eventBridgeClient.send(
+      new PutEventsCommand({
+        Entries: [
+          {
+            Source: "notification.system",
+            DetailType: "Feedback Notification",
+            Detail: JSON.stringify(eventDetail),
+            EventBusName: eventBusName,
+          },
+        ],
+      }),
+    );
 
     console.log("Published feedback notification event:", response);
   } catch (error) {
@@ -225,9 +239,12 @@ exports.handler = async (event) => {
           }
           const user_id = user[0].user_id;
 
-          // Get student_id from the case
+          // Get student_id and cognito_id from the case and user tables
           const caseResult = await sqlConnection`
-            SELECT student_id FROM "cases" WHERE case_id = ${case_id};
+            SELECT c.student_id, u.cognito_id 
+            FROM "cases" c
+            JOIN "users" u ON c.student_id = u.user_id
+            WHERE c.case_id = ${case_id};
           `;
 
           if (caseResult.length === 0) {
@@ -237,6 +254,7 @@ exports.handler = async (event) => {
             break;
           }
           const student_id = caseResult[0].student_id;
+          const student_cognito_id = caseResult[0].cognito_id;
 
           // Insert message
           await sqlConnection`
@@ -264,8 +282,13 @@ exports.handler = async (event) => {
             WHERE case_id = ${case_id};
           `;
 
-          // Publish feedback notification event
-          await publishFeedbackNotificationEvent(case_id, student_id, user_id, message_content);
+          // Publish feedback notification event using student's cognito_id
+          await publishFeedbackNotificationEvent(
+            case_id,
+            student_cognito_id,
+            cognito_id,
+            message_content,
+          );
 
           response = buildResponse(200, {
             message: "Feedback sent successfully",
