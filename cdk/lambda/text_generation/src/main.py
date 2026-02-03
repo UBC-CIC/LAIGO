@@ -294,15 +294,15 @@ def setup_guardrail(guardrail_name: str) -> tuple[str, str]:
                     }
                 ]
             },
-            # sensitiveInformationPolicyConfig={
-            #     'piiEntitiesConfig': [
-            #         {'type': 'EMAIL', 'action': 'BLOCK'},
-            #         {'type': 'PHONE', 'action': 'BLOCK'},
-            #         {'type': 'NAME', 'action': 'BLOCK'},
-            #         {'type': 'ADDRESS', 'action': 'BLOCK'},
-            #         {'type': 'US_SOCIAL_SECURITY_NUMBER', 'action': 'BLOCK'}
-            #     ]
-            # },
+            sensitiveInformationPolicyConfig={
+                'piiEntitiesConfig': [
+                    {'type': 'EMAIL', 'action': 'BLOCK'},
+                    {'type': 'PHONE', 'action': 'BLOCK'},
+                    {'type': 'NAME', 'action': 'BLOCK'},
+                    {'type': 'ADDRESS', 'action': 'BLOCK'},
+                    {'type': 'US_SOCIAL_SECURITY_NUMBER', 'action': 'BLOCK'}
+                ]
+            },
             blockedInputMessaging='Sorry, I cannot process inputs that appear to contain prompt manipulation attempts or personal information.',
             blockedOutputsMessaging='Sorry, I cannot respond to that request as it may contain Personal Information.'
         )
