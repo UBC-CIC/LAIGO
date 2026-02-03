@@ -181,16 +181,18 @@ const CaseCard: React.FC<CaseCardProps> = ({
           },
         }}
       >
-        <MenuItem
-          onClick={(e) => {
-            e.stopPropagation();
-            handleDelete();
-          }}
-          sx={{ color: "var(--text)", gap: 1 }}
-        >
-          <DeleteOutlineIcon sx={{ mr: 1, color: "var(--text)" }} />
-          Delete
-        </MenuItem>
+        {onDelete && (
+          <MenuItem
+            onClick={(e) => {
+              e.stopPropagation();
+              handleDelete();
+            }}
+            sx={{ color: "var(--text)", gap: 1 }}
+          >
+            <DeleteOutlineIcon sx={{ mr: 1, color: "var(--text)" }} />
+            Delete
+          </MenuItem>
+        )}
         <MenuItem
           onClick={(e) => {
             e.stopPropagation();

@@ -140,41 +140,6 @@ const StudentDashboard: React.FC = () => {
     fetchCases();
   }, []);
 
-  // Delete handler
-  const handleDeleteCase = async (caseId: string) => {
-    try {
-      setLoading(true);
-      const session = await fetchAuthSession();
-      const token = session.tokens?.idToken?.toString();
-      if (!token) throw new Error("No auth token");
-
-      const resp = await fetch(
-        `${
-          import.meta.env.VITE_API_ENDPOINT
-        }/student/delete_case?case_id=${caseId}`,
-        {
-          method: "DELETE",
-          headers: { Authorization: token },
-        },
-      );
-
-      if (!resp.ok) {
-        const text = await resp.text();
-        throw new Error(`Failed to delete case: ${resp.status} ${text}`);
-      }
-
-      // remove from UI
-      setCases((prev) => (prev ? prev.filter((c) => c.id !== caseId) : []));
-      showSnackbar("Case deleted", "success");
-    } catch (err) {
-      console.error("Delete failed", err);
-      const msg = err instanceof Error ? err.message : "Failed to delete case";
-      showSnackbar(msg, "error");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   // Archive handler (only wiring archive button)
   const handleArchiveCase = async (caseId: string) => {
     try {
@@ -320,7 +285,6 @@ const StudentDashboard: React.FC = () => {
                     status={caseItem.status}
                     jurisdiction={caseItem.jurisdiction}
                     dateAdded={caseItem.dateAdded}
-                    onDelete={handleDeleteCase}
                     onArchive={handleArchiveCase}
                     onClick={(id) => navigate(`/case/${id}/overview`)}
                   />

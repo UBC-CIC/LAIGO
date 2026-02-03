@@ -377,6 +377,69 @@ exports.handler = async (event) => {
         }
         break;
 
+      case "DELETE /instructor/delete_case":
+        if (!event.queryStringParameters?.case_id) {
+          response = buildResponse(400, {
+            error: "Missing required parameter: case_id",
+          });
+          break;
+        }
+        const deleteCaseId = event.queryStringParameters.case_id;
+        try {
+          // Get instructor user_id from cognito_id
+          const userResult = await sqlConnection`
+            SELECT user_id FROM "users" WHERE cognito_id = ${cognito_id};
+          `;
+          if (userResult.length === 0) {
+            response = buildResponse(404, {
+              error: "Instructor user not found",
+            });
+            break;
+          }
+          const instructorId = userResult[0].user_id;
+
+          // Get case owner
+          const caseResult = await sqlConnection`
+            SELECT student_id FROM "cases" WHERE case_id = ${deleteCaseId};
+          `;
+          if (caseResult.length === 0) {
+            response = buildResponse(404, { error: "Case not found" });
+            break;
+          }
+          const studentId = caseResult[0].student_id;
+
+          // Check permission:
+          // 1. Instructor is the owner (studentId === instructorId)
+          // 2. Instructor is assigned to the student
+          if (studentId !== instructorId) {
+            const isAssigned = await sqlConnection`
+              SELECT 1 FROM "instructor_students"
+              WHERE instructor_id = ${instructorId} AND student_id = ${studentId};
+            `;
+
+            if (isAssigned.length === 0) {
+              response = buildResponse(403, {
+                error:
+                  "Permission denied: Instructor is not assigned to this student and does not own this case.",
+              });
+              break;
+            }
+          }
+
+          // Delete case
+          await sqlConnection`
+            DELETE FROM "cases" WHERE case_id = ${deleteCaseId};
+          `;
+
+          response = buildResponse(200, {
+            message: "Case deleted successfully",
+          });
+        } catch (err) {
+          console.error("/instructor/delete_case error:", err);
+          response = buildResponse(500, { error: "Internal server error" });
+        }
+        break;
+
       default:
         response = buildResponse(404, {
           error: `Route not found: ${pathData}`,

@@ -20,6 +20,7 @@ import {
 import SearchIcon from "@mui/icons-material/Search";
 import InstructorHeader from "../../components/InstructorHeader";
 import CaseCard from "../../components/CaseCard";
+import CaseDeleteConfirmationDialog from "../../components/Case/CaseDeleteConfirmationDialog";
 
 interface UserInfo {
   userId: string;
@@ -62,6 +63,9 @@ const InstructorDashboard = ({ userInfo }: InstructorDashboardProps) => {
   const [snackbarSeverity, setSnackbarSeverity] = useState<
     "success" | "error" | "info" | "warning"
   >("info");
+
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [caseToDelete, setCaseToDelete] = useState<Case | null>(null);
 
   const showSnackbar = (
     message: string,
@@ -129,14 +133,55 @@ const InstructorDashboard = ({ userInfo }: InstructorDashboardProps) => {
     fetchInstructorData();
   }, [userInfo.userId]);
 
-  // Handlers (stubbed for now since we are using mocks)
-  const handleDeleteCase = async (caseId: string) => {
-    // Stub
-    console.log("Delete case", caseId);
-    showSnackbar(
-      "Delete not implemented for instructor view yet (mock data)",
-      "info",
-    );
+  // Handlers
+  const handleDeleteCase = (caseId: string) => {
+    const caseItem =
+      myCases.find((c) => c.case_id === caseId) ||
+      allStudentCases.find((c) => c.case_id === caseId);
+    if (caseItem) {
+      setCaseToDelete(caseItem);
+      setDeleteDialogOpen(true);
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!caseToDelete) return;
+
+    try {
+      const session = await fetchAuthSession();
+      const token = session.tokens?.idToken?.toString();
+
+      if (!token) throw new Error("No auth token");
+
+      const response = await fetch(
+        `${import.meta.env.VITE_API_ENDPOINT}/instructor/delete_case?case_id=${caseToDelete.case_id}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: token,
+          },
+        },
+      );
+
+      if (response.ok) {
+        showSnackbar("Case deleted successfully", "success");
+        // Update both lists
+        setMyCases((prev) =>
+          prev.filter((c) => c.case_id !== caseToDelete.case_id),
+        );
+        setAllStudentCases((prev) =>
+          prev.filter((c) => c.case_id !== caseToDelete.case_id),
+        );
+        setDeleteDialogOpen(false);
+        setCaseToDelete(null);
+      } else {
+        const data = await response.json();
+        showSnackbar(data.error || "Failed to delete case", "error");
+      }
+    } catch (err) {
+      console.error("Error deleting case", err);
+      showSnackbar("Failed to delete case", "error");
+    }
   };
 
   const handleArchiveCase = async (caseId: string) => {
@@ -461,6 +506,13 @@ const InstructorDashboard = ({ userInfo }: InstructorDashboardProps) => {
           {snackbarMessage}
         </Alert>
       </Snackbar>
+
+      <CaseDeleteConfirmationDialog
+        open={deleteDialogOpen}
+        onClose={() => setDeleteDialogOpen(false)}
+        onConfirm={confirmDelete}
+        caseTitle={caseToDelete?.case_title || ""}
+      />
     </Box>
   );
 };

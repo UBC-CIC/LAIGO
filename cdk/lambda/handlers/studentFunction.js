@@ -1326,66 +1326,6 @@ exports.handler = async (event) => {
         }
         break;
 
-      case "DELETE /student/delete_case":
-        // SECURITY: Use trusted cognito_id from authorizer for ownership check
-        console.log(event);
-        if (
-          event.queryStringParameters != null &&
-          event.queryStringParameters.case_id
-        ) {
-          const caseId = event.queryStringParameters.case_id;
-
-          try {
-            // Step 1: Get user ID using trusted cognito_id
-            const userResult = await sqlConnection`
-              SELECT user_id FROM "users" WHERE cognito_id = ${cognito_id};
-            `;
-            if (userResult.length === 0) {
-              response.statusCode = 403;
-              response.body = JSON.stringify({ error: "User not found" });
-              break;
-            }
-            const requestingUserId = userResult[0].user_id;
-
-            // Step 2: Get the case and verify ownership
-            const caseResult = await sqlConnection`
-              SELECT student_id FROM "cases" WHERE case_id = ${caseId};
-            `;
-            if (caseResult.length === 0) {
-              response.statusCode = 404;
-              response.body = JSON.stringify({ error: "Case not found" });
-              break;
-            }
-
-            // Step 3: Only owner can delete case
-            if (requestingUserId !== caseResult[0].student_id) {
-              response.statusCode = 403;
-              response.body = JSON.stringify({
-                error: "Access denied - only the case owner can delete",
-              });
-              break;
-            }
-
-            await sqlConnection`
-              DELETE FROM "cases"
-              WHERE case_id = ${caseId};
-            `;
-
-            response.statusCode = 200;
-            response.body = JSON.stringify({
-              message: "Case deleted successfully",
-            });
-          } catch (err) {
-            response.statusCode = 500;
-            console.error(err);
-            response.body = JSON.stringify({ error: "Internal server error" });
-          }
-        } else {
-          response.statusCode = 400;
-          response.body = JSON.stringify({ error: "case_id is required" });
-        }
-        break;
-
       case "DELETE /student/delete_transcription":
         // SECURITY: Use trusted cognito_id from authorizer for ownership check
         console.log(event);
