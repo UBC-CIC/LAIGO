@@ -16,6 +16,8 @@ import {
   getUnreadCount,
   markNotificationAsRead,
   markAllNotificationsAsRead,
+  markNotificationAsUnread,
+  deleteNotification as deleteNotificationService,
 } from "../services/notificationService";
 
 interface NotificationContextType {
@@ -27,6 +29,8 @@ interface NotificationContextType {
   refreshNotifications: () => Promise<void>;
   markAsRead: (notificationId: string) => Promise<void>;
   markAllAsRead: () => Promise<void>;
+  markAsUnread: (notificationId: string) => Promise<void>;
+  deleteNotification: (notificationId: string) => Promise<void>;
 }
 
 const NotificationContext = createContext<NotificationContextType | undefined>(
@@ -133,6 +137,76 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
       setUnreadCount(previousUnreadCount);
     }
   }, [notifications, unreadCount]);
+
+  // Mark a single notification as unread
+  const markAsUnread = useCallback(
+    async (notificationId: string) => {
+      // Optimistic update
+      const previousNotifications = [...notifications];
+      const previousUnreadCount = unreadCount;
+
+      // Find the notification and check if it's already unread
+      const notification = notifications.find(
+        (n) => n.notificationId === notificationId,
+      );
+      if (!notification || !notification.isRead) {
+        return; // Already unread, no need to update
+      }
+
+      // Update local state immediately
+      setNotifications((prev) =>
+        prev.map((n) =>
+          n.notificationId === notificationId ? { ...n, isRead: false } : n,
+        ),
+      );
+      setUnreadCount((prev) => prev + 1);
+
+      try {
+        // Call API in background
+        await markNotificationAsUnread(notificationId);
+      } catch (err) {
+        console.error("Failed to mark notification as unread:", err);
+        // Revert optimistic update on error
+        setNotifications(previousNotifications);
+        setUnreadCount(previousUnreadCount);
+      }
+    },
+    [notifications, unreadCount],
+  );
+
+  // Delete a notification
+  const deleteNotification = useCallback(
+    async (notificationId: string) => {
+      // Optimistic update
+      const previousNotifications = [...notifications];
+      const previousUnreadCount = unreadCount;
+
+      // Find the notification to check if it was unread
+      const notification = notifications.find(
+        (n) => n.notificationId === notificationId,
+      );
+      const wasUnread = notification && !notification.isRead;
+
+      // Update local state immediately
+      setNotifications((prev) =>
+        prev.filter((n) => n.notificationId !== notificationId),
+      );
+      if (wasUnread) {
+        setUnreadCount((prev) => Math.max(0, prev - 1));
+      }
+
+      try {
+        // Call API in background
+        await deleteNotificationService(notificationId);
+      } catch (err) {
+        console.error("Failed to delete notification:", err);
+        // Revert optimistic update on error
+        setNotifications(previousNotifications);
+        setUnreadCount(previousUnreadCount);
+      }
+    },
+    [notifications, unreadCount],
+  );
 
   // Handle incoming WebSocket notification
   const handleWebSocketMessage = useCallback((event: MessageEvent) => {
@@ -259,6 +333,8 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
     refreshNotifications,
     markAsRead,
     markAllAsRead,
+    markAsUnread,
+    deleteNotification,
   };
 
   return (

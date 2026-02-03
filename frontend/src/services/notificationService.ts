@@ -111,3 +111,49 @@ export async function markAllNotificationsAsRead(): Promise<void> {
     throw new Error("Failed to mark all notifications as read");
   }
 }
+
+/**
+ * Mark a specific notification as unread
+ */
+export async function markNotificationAsUnread(
+  notificationId: string,
+): Promise<void> {
+  const token = await getAuthToken();
+
+  const response = await fetch(
+    `${API_ENDPOINT}/student/notifications/${notificationId}/unread`,
+    {
+      method: "PUT",
+      headers: {
+        Authorization: token,
+      },
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error("Failed to mark notification as unread");
+  }
+}
+
+/**
+ * Delete a specific notification
+ */
+export async function deleteNotification(
+  notificationId: string,
+): Promise<void> {
+  const token = await getAuthToken();
+
+  const response = await fetch(
+    `${API_ENDPOINT}/student/notifications/${notificationId}`,
+    {
+      method: "DELETE",
+      headers: {
+        Authorization: token,
+      },
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error("Failed to delete notification");
+  }
+}

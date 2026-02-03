@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   Menu,
   MenuItem,
@@ -6,7 +6,16 @@ import {
   Box,
   CircularProgress,
   Divider,
+  IconButton,
+  ListItemIcon,
+  ListItemText,
 } from "@mui/material";
+import {
+  MoreVert as MoreVertIcon,
+  MarkEmailRead as MarkReadIcon,
+  MarkEmailUnread as MarkUnreadIcon,
+  Delete as DeleteIcon,
+} from "@mui/icons-material";
 import { useNotifications } from "../../contexts/NotificationContext";
 import type { Notification } from "../../types/notification";
 
@@ -33,72 +42,186 @@ const formatTimestamp = (timestamp: string): string => {
 
 const NotificationItem: React.FC<{
   notification: Notification;
-  onClick: () => void;
-}> = ({ notification, onClick }) => (
-  <MenuItem
-    onClick={onClick}
-    sx={{
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "flex-start",
-      py: 1.5,
-      px: 2,
-      maxWidth: "100%",
-      overflow: "hidden",
-      backgroundColor: notification.isRead
-        ? "inherit"
-        : "rgba(var(--primary-rgb), 0.08)",
-      "&:hover": {
-        backgroundColor: "rgba(var(--primary-rgb), 0.12)",
-      },
-      borderLeft: notification.isRead ? "none" : "3px solid var(--primary)",
-    }}
-  >
-    <Typography
-      variant="subtitle2"
+  onMarkAsRead: () => void;
+  onMarkAsUnread: () => void;
+  onDelete: () => void;
+}> = ({ notification, onMarkAsRead, onMarkAsUnread, onDelete }) => {
+  const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
+
+  const handleMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+    event.stopPropagation();
+    setMenuAnchor(event.currentTarget);
+  };
+
+  const handleMenuClose = () => {
+    setMenuAnchor(null);
+  };
+
+  const handleMarkToggle = () => {
+    if (notification.isRead) {
+      onMarkAsUnread();
+    } else {
+      onMarkAsRead();
+    }
+    handleMenuClose();
+  };
+
+  const handleDelete = () => {
+    onDelete();
+    handleMenuClose();
+  };
+
+  return (
+    <MenuItem
       sx={{
-        fontWeight: notification.isRead ? 400 : 600,
-        color: "var(--text)",
-        fontSize: "0.85rem",
-        width: "100%",
-        whiteSpace: "nowrap",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "flex-start",
+        py: 1.5,
+        px: 2,
+        maxWidth: "100%",
         overflow: "hidden",
-        textOverflow: "ellipsis",
+        backgroundColor: notification.isRead
+          ? "inherit"
+          : "rgba(var(--primary-rgb), 0.08)",
+        "&:hover": {
+          backgroundColor: "rgba(var(--primary-rgb), 0.12)",
+        },
+        borderLeft: notification.isRead ? "none" : "3px solid var(--primary)",
+        position: "relative",
       }}
     >
-      {notification.title}
-    </Typography>
-    <Typography
-      variant="body2"
-      sx={{
-        color: "var(--text-secondary)",
-        fontSize: "0.75rem",
-        mt: 0.5,
-        width: "100%",
-        display: "-webkit-box",
-        WebkitLineClamp: 2,
-        WebkitBoxOrient: "vertical",
-        overflow: "hidden",
-        textOverflow: "ellipsis",
-        whiteSpace: "normal",
-        wordBreak: "break-word",
-      }}
-    >
-      {notification.message}
-    </Typography>
-    <Typography
-      variant="caption"
-      sx={{
-        color: "var(--text-secondary)",
-        fontSize: "0.65rem",
-        mt: 0.5,
-        opacity: 0.7,
-      }}
-    >
-      {formatTimestamp(notification.createdAt)}
-    </Typography>
-  </MenuItem>
-);
+      <Typography
+        variant="subtitle2"
+        sx={{
+          fontWeight: notification.isRead ? 400 : 600,
+          color: "var(--text)",
+          fontSize: "0.85rem",
+          width: "100%",
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          pr: 4, // Make room for the menu icon
+        }}
+      >
+        {notification.title}
+      </Typography>
+      <Typography
+        variant="body2"
+        sx={{
+          color: "var(--text-secondary)",
+          fontSize: "0.75rem",
+          mt: 0.5,
+          width: "100%",
+          display: "-webkit-box",
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: "vertical",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "normal",
+          wordBreak: "break-word",
+        }}
+      >
+        {notification.message}
+      </Typography>
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          width: "100%",
+          mt: 0.5,
+        }}
+      >
+        <Typography
+          variant="caption"
+          sx={{
+            color: "var(--text-secondary)",
+            fontSize: "0.65rem",
+            opacity: 0.7,
+          }}
+        >
+          {formatTimestamp(notification.createdAt)}
+        </Typography>
+      </Box>
+      <IconButton
+        size="small"
+        onClick={handleMenuOpen}
+        sx={{
+          position: "absolute",
+          top: 8,
+          right: 8,
+          opacity: 0,
+          transition: "opacity 0.2s",
+          ".MuiMenuItem-root:hover &": {
+            opacity: 1,
+          },
+          color: "var(--text-secondary)",
+          "&:hover": {
+            color: "var(--text)",
+            backgroundColor: "rgba(var(--text-rgb), 0.05)",
+          },
+        }}
+      >
+        <MoreVertIcon fontSize="small" />
+      </IconButton>
+      <Menu
+        anchorEl={menuAnchor}
+        open={Boolean(menuAnchor)}
+        onClose={handleMenuClose}
+        anchorOrigin={{ vertical: "top", horizontal: "right" }}
+        transformOrigin={{ vertical: "top", horizontal: "left" }}
+        PaperProps={{
+          sx: {
+            backgroundColor: "var(--header)",
+            color: "var(--text)",
+            minWidth: "140px",
+            boxShadow: "0 2px 10px rgba(0, 0, 0, 0.15)",
+          },
+        }}
+        MenuListProps={{
+          dense: true,
+          sx: {
+            py: 0.5,
+          },
+        }}
+      >
+        <MenuItem onClick={handleMarkToggle} sx={{ py: 0.75, px: 1.5 }}>
+          <ListItemIcon sx={{ minWidth: 32 }}>
+            {notification.isRead ? (
+              <MarkUnreadIcon
+                fontSize="small"
+                sx={{ color: "var(--text)", fontSize: "1rem" }}
+              />
+            ) : (
+              <MarkReadIcon
+                fontSize="small"
+                sx={{ color: "var(--text)", fontSize: "1rem" }}
+              />
+            )}
+          </ListItemIcon>
+          <ListItemText primaryTypographyProps={{ fontSize: "0.8rem" }}>
+            {notification.isRead ? "Mark as unread" : "Mark as read"}
+          </ListItemText>
+        </MenuItem>
+        <MenuItem onClick={handleDelete} sx={{ py: 0.75, px: 1.5 }}>
+          <ListItemIcon sx={{ minWidth: 32 }}>
+            <DeleteIcon
+              fontSize="small"
+              sx={{ color: "#f44336", fontSize: "1rem" }}
+            />
+          </ListItemIcon>
+          <ListItemText
+            sx={{ color: "#f44336" }}
+            primaryTypographyProps={{ fontSize: "0.8rem" }}
+          >
+            Delete
+          </ListItemText>
+        </MenuItem>
+      </Menu>
+    </MenuItem>
+  );
+};
 
 const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
   open,
@@ -113,6 +236,8 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
     unreadCount,
     markAllAsRead,
     markAsRead,
+    markAsUnread,
+    deleteNotification,
   } = useNotifications();
 
   return (
@@ -231,17 +356,23 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
           </Typography>
         </Box>
       ) : (
-        notifications.map((notification, index) => (
-          <React.Fragment key={notification.notificationId}>
-            <NotificationItem
-              notification={notification}
-              onClick={() => markAsRead(notification.notificationId)}
-            />
-            {index < notifications.length - 1 && (
-              <Divider sx={{ borderColor: "rgba(var(--text-rgb), 0.1)" }} />
-            )}
-          </React.Fragment>
-        ))
+        notifications.flatMap((notification, index) => [
+          <NotificationItem
+            key={notification.notificationId}
+            notification={notification}
+            onMarkAsRead={() => markAsRead(notification.notificationId)}
+            onMarkAsUnread={() => markAsUnread(notification.notificationId)}
+            onDelete={() => deleteNotification(notification.notificationId)}
+          />,
+          ...(index < notifications.length - 1
+            ? [
+                <Divider
+                  key={`divider-${notification.notificationId}`}
+                  sx={{ borderColor: "rgba(var(--text-rgb), 0.1)" }}
+                />,
+              ]
+            : []),
+        ])
       )}
     </Menu>
   );

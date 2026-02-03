@@ -102,6 +102,15 @@ async function handleRestApiRequest(event) {
     case "PUT /student/notifications/read-all":
       return await markAllNotificationsAsRead(userId);
 
+    case "PUT /student/notifications/{notificationId}/unread":
+      return await markNotificationAsUnread(
+        userId,
+        pathParameters.notificationId,
+      );
+
+    case "DELETE /student/notifications/{notificationId}":
+      return await deleteNotification(userId, pathParameters.notificationId);
+
     case "GET /student/notifications/unread-count":
       return await getUnreadCount(userId);
 
@@ -394,6 +403,118 @@ async function markNotificationAsRead(userId, notificationId) {
       statusCode: 500,
       headers: getCorsHeaders(),
       body: JSON.stringify({ error: "Failed to mark notification as read" }),
+    };
+  }
+}
+
+/**
+ * Mark a specific notification as unread
+ */
+async function markNotificationAsUnread(userId, notificationId) {
+  try {
+    // First, get the notification to verify ownership and get the sort key
+    const getResult = await dynamodb.send(
+      new QueryCommand({
+        TableName: process.env.NOTIFICATION_TABLE_NAME,
+        IndexName: "GSI1",
+        KeyConditionExpression: "GSI1PK = :pk AND GSI1SK = :sk",
+        ExpressionAttributeValues: {
+          ":pk": { S: `NOTIFICATION#${notificationId}` },
+          ":sk": { S: `USER#${userId}` },
+        },
+      }),
+    );
+
+    if (!getResult.Items || getResult.Items.length === 0) {
+      return {
+        statusCode: 404,
+        headers: getCorsHeaders(),
+        body: JSON.stringify({ error: "Notification not found" }),
+      };
+    }
+
+    const notification = unmarshall(getResult.Items[0]);
+
+    // Update the notification
+    await dynamodb.send(
+      new UpdateItemCommand({
+        TableName: process.env.NOTIFICATION_TABLE_NAME,
+        Key: marshall({
+          PK: notification.PK,
+          SK: notification.SK,
+        }),
+        UpdateExpression: "SET isRead = :isRead REMOVE readAt",
+        ExpressionAttributeValues: marshall({
+          ":isRead": false,
+        }),
+      }),
+    );
+
+    return {
+      statusCode: 200,
+      headers: getCorsHeaders(),
+      body: JSON.stringify({ success: true }),
+    };
+  } catch (error) {
+    console.error("Error marking notification as unread:", error);
+    return {
+      statusCode: 500,
+      headers: getCorsHeaders(),
+      body: JSON.stringify({ error: "Failed to mark notification as unread" }),
+    };
+  }
+}
+
+/**
+ * Delete a specific notification
+ */
+async function deleteNotification(userId, notificationId) {
+  try {
+    // First, get the notification to verify ownership and get the sort key
+    const getResult = await dynamodb.send(
+      new QueryCommand({
+        TableName: process.env.NOTIFICATION_TABLE_NAME,
+        IndexName: "GSI1",
+        KeyConditionExpression: "GSI1PK = :pk AND GSI1SK = :sk",
+        ExpressionAttributeValues: {
+          ":pk": { S: `NOTIFICATION#${notificationId}` },
+          ":sk": { S: `USER#${userId}` },
+        },
+      }),
+    );
+
+    if (!getResult.Items || getResult.Items.length === 0) {
+      return {
+        statusCode: 404,
+        headers: getCorsHeaders(),
+        body: JSON.stringify({ error: "Notification not found" }),
+      };
+    }
+
+    const notification = unmarshall(getResult.Items[0]);
+
+    // Delete the notification
+    await dynamodb.send(
+      new DeleteItemCommand({
+        TableName: process.env.NOTIFICATION_TABLE_NAME,
+        Key: marshall({
+          PK: notification.PK,
+          SK: notification.SK,
+        }),
+      }),
+    );
+
+    return {
+      statusCode: 200,
+      headers: getCorsHeaders(),
+      body: JSON.stringify({ success: true }),
+    };
+  } catch (error) {
+    console.error("Error deleting notification:", error);
+    return {
+      statusCode: 500,
+      headers: getCorsHeaders(),
+      body: JSON.stringify({ error: "Failed to delete notification" }),
     };
   }
 }
