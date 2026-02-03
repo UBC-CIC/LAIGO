@@ -19,6 +19,7 @@ import CaseFeedback from "./pages/Case/CaseFeedback";
 import InterviewAssistant from "./pages/Case/InterviewAssistant";
 import { UserProvider } from "./contexts/UserContext";
 import type { UserInfo } from "./contexts/UserContext";
+import { NotificationProvider } from "./contexts/NotificationContext";
 
 // Amplify configuration
 const amplifyConfig = {
@@ -155,26 +156,31 @@ function App() {
 
   return (
     <UserProvider value={{ userInfo, setUserInfo }}>
-      <div className="app">
-        <Routes>
-          {/* Shared Case Routes - Accessible to all authenticated users */}
-          <Route path="/case/:caseId" element={<CaseLayout />}>
-            <Route index element={<Navigate to="overview" replace />} />
-            <Route path="overview" element={<CaseOverview />} />
-            <Route
-              path="interview"
-              element={<Navigate to="intake-facts" replace />}
-            />
-            <Route path="interview/:section" element={<InterviewAssistant />} />
-            <Route path="summaries" element={<CaseSummaries />} />
-            <Route path="transcriptions" element={<CaseTranscriptions />} />
-            <Route path="feedback" element={<CaseFeedback />} />
-          </Route>
+      <NotificationProvider>
+        <div className="app">
+          <Routes>
+            {/* Shared Case Routes - Accessible to all authenticated users */}
+            <Route path="/case/:caseId" element={<CaseLayout />}>
+              <Route index element={<Navigate to="overview" replace />} />
+              <Route path="overview" element={<CaseOverview />} />
+              <Route
+                path="interview"
+                element={<Navigate to="intake-facts" replace />}
+              />
+              <Route
+                path="interview/:section"
+                element={<InterviewAssistant />}
+              />
+              <Route path="summaries" element={<CaseSummaries />} />
+              <Route path="transcriptions" element={<CaseTranscriptions />} />
+              <Route path="feedback" element={<CaseFeedback />} />
+            </Route>
 
-          {/* Dashboard Routes based on Role */}
-          <Route path="/*" element={<RoleBasedRoutes />} />
-        </Routes>
-      </div>
+            {/* Dashboard Routes based on Role */}
+            <Route path="/*" element={<RoleBasedRoutes />} />
+          </Routes>
+        </div>
+      </NotificationProvider>
     </UserProvider>
   );
 }

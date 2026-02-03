@@ -1,0 +1,206 @@
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+} from "react";
+import { fetchAuthSession } from "aws-amplify/auth";
+import type {
+  Notification,
+  WebSocketNotificationMessage,
+} from "../types/notification";
+import {
+  getNotifications,
+  getUnreadCount,
+} from "../services/notificationService";
+
+interface NotificationContextType {
+  notifications: Notification[];
+  unreadCount: number;
+  isLoading: boolean;
+  error: string | null;
+  isConnected: boolean;
+  refreshNotifications: () => Promise<void>;
+}
+
+const NotificationContext = createContext<NotificationContextType | undefined>(
+  undefined,
+);
+
+export function useNotifications() {
+  const context = useContext(NotificationContext);
+  if (!context) {
+    throw new Error(
+      "useNotifications must be used within a NotificationProvider",
+    );
+  }
+  return context;
+}
+
+interface NotificationProviderProps {
+  children: React.ReactNode;
+}
+
+export function NotificationProvider({ children }: NotificationProviderProps) {
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
+
+  const wsRef = useRef<WebSocket | null>(null);
+  const reconnectTimeoutRef = useRef<number | null>(null);
+  const reconnectAttemptsRef = useRef(0);
+
+  // Fetch notifications from REST API
+  const refreshNotifications = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const [notificationResponse, count] = await Promise.all([
+        getNotifications(20),
+        getUnreadCount(),
+      ]);
+      setNotifications(notificationResponse.notifications);
+      setUnreadCount(count);
+    } catch (err) {
+      console.error("Failed to fetch notifications:", err);
+      setError("Failed to load notifications");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  // Handle incoming WebSocket notification
+  const handleWebSocketMessage = useCallback((event: MessageEvent) => {
+    try {
+      const data = JSON.parse(event.data);
+
+      // Check if this is a notification delivery message
+      if (data.action === "notification_delivery") {
+        const wsMessage = data as WebSocketNotificationMessage;
+        console.log(
+          "[Notifications] Received real-time notification:",
+          wsMessage,
+        );
+
+        // Add new notification to the beginning of the list
+        setNotifications((prev) => [wsMessage.notification, ...prev]);
+
+        // Increment unread count
+        setUnreadCount((prev) => prev + 1);
+      }
+    } catch (err) {
+      console.error("[Notifications] Error parsing WebSocket message:", err);
+    }
+  }, []);
+
+  // Set up WebSocket connection - defined before scheduleReconnect to avoid circular dep
+  const connectWebSocket = useCallback(async () => {
+    try {
+      const session = await fetchAuthSession();
+      const token = session.tokens?.idToken?.toString();
+
+      if (!token || !import.meta.env.VITE_WEBSOCKET_URL) {
+        console.warn("[Notifications] Missing token or WebSocket URL");
+        return;
+      }
+
+      // Close existing connection if any
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
+
+      const wsUrl = `${import.meta.env.VITE_WEBSOCKET_URL}?token=${token}`;
+      console.log("[Notifications] Connecting to WebSocket...");
+
+      wsRef.current = new WebSocket(wsUrl);
+
+      wsRef.current.onopen = () => {
+        console.log("[Notifications] WebSocket connected");
+        setIsConnected(true);
+        reconnectAttemptsRef.current = 0;
+      };
+
+      wsRef.current.onmessage = handleWebSocketMessage;
+
+      wsRef.current.onclose = (event) => {
+        console.log("[Notifications] WebSocket disconnected:", event.code);
+        setIsConnected(false);
+
+        // Attempt reconnection for abnormal closures (handled in useEffect)
+      };
+
+      wsRef.current.onerror = (wsError) => {
+        console.error("[Notifications] WebSocket error:", wsError);
+        setIsConnected(false);
+      };
+    } catch (err) {
+      console.error("[Notifications] Failed to connect WebSocket:", err);
+    }
+  }, [handleWebSocketMessage]);
+
+  // Initial setup and reconnection logic
+  useEffect(() => {
+    refreshNotifications();
+    connectWebSocket();
+
+    // Handle reconnection on disconnect
+    const handleReconnect = () => {
+      if (reconnectAttemptsRef.current >= 5) {
+        console.log("[Notifications] Max reconnection attempts reached");
+        return;
+      }
+
+      const delay = Math.min(
+        1000 * Math.pow(2, reconnectAttemptsRef.current),
+        30000,
+      );
+      console.log(`[Notifications] Scheduling reconnect in ${delay}ms`);
+
+      reconnectTimeoutRef.current = window.setTimeout(() => {
+        reconnectAttemptsRef.current++;
+        connectWebSocket();
+      }, delay);
+    };
+
+    // Set up interval to check connection status
+    const checkInterval = window.setInterval(() => {
+      if (
+        wsRef.current &&
+        wsRef.current.readyState === WebSocket.CLOSED &&
+        reconnectAttemptsRef.current < 5
+      ) {
+        handleReconnect();
+      }
+    }, 5000);
+
+    return () => {
+      // Cleanup
+      window.clearInterval(checkInterval);
+      if (wsRef.current) {
+        wsRef.current.close(1000, "Component unmounting");
+      }
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
+    };
+  }, [refreshNotifications, connectWebSocket]);
+
+  const value: NotificationContextType = {
+    notifications,
+    unreadCount,
+    isLoading,
+    error,
+    isConnected,
+    refreshNotifications,
+  };
+
+  return (
+    <NotificationContext.Provider value={value}>
+      {children}
+    </NotificationContext.Provider>
+  );
+}
