@@ -118,9 +118,33 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
           color: "var(--text)",
           minWidth: "320px",
           maxWidth: "400px",
-          maxHeight: "400px",
+          maxHeight: "450px",
           boxShadow: "0 4px 20px rgba(0, 0, 0, 0.15)",
-          borderRadius: "8px",
+          borderRadius: "12px",
+          overflow: "hidden", // Let MenuList handle scrolling
+          display: "flex",
+          flexDirection: "column",
+        },
+      }}
+      MenuListProps={{
+        sx: {
+          padding: 0,
+          overflowY: "auto",
+          flexGrow: 1,
+          maxHeight: "380px", // Reserve space for header
+          "&::-webkit-scrollbar": {
+            width: "6px",
+          },
+          "&::-webkit-scrollbar-track": {
+            backgroundColor: "transparent",
+          },
+          "&::-webkit-scrollbar-thumb": {
+            backgroundColor: "rgba(var(--text-rgb), 0.2)",
+            borderRadius: "10px",
+            "&:hover": {
+              backgroundColor: "rgba(var(--text-rgb), 0.3)",
+            },
+          },
         },
       }}
     >
@@ -133,6 +157,10 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
           justifyContent: "space-between",
           alignItems: "center",
           borderBottom: "1px solid rgba(var(--text-rgb), 0.1)",
+          backgroundColor: "var(--header)",
+          position: "sticky",
+          top: 0,
+          zIndex: 10,
         }}
       >
         <Typography
@@ -175,16 +203,14 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
           </Typography>
         </Box>
       ) : (
-        <Box sx={{ maxHeight: "300px", overflowY: "auto" }}>
-          {notifications.map((notification, index) => (
-            <React.Fragment key={notification.notificationId}>
-              <NotificationItem notification={notification} />
-              {index < notifications.length - 1 && (
-                <Divider sx={{ borderColor: "rgba(var(--text-rgb), 0.1)" }} />
-              )}
-            </React.Fragment>
-          ))}
-        </Box>
+        notifications.map((notification, index) => (
+          <React.Fragment key={notification.notificationId}>
+            <NotificationItem notification={notification} />
+            {index < notifications.length - 1 && (
+              <Divider sx={{ borderColor: "rgba(var(--text-rgb), 0.1)" }} />
+            )}
+          </React.Fragment>
+        ))
       )}
     </Menu>
   );

@@ -7,6 +7,7 @@
   --font-family:
     "Outfit", Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
   --text: #050315;
+  --text-rgb: 5, 3, 21;
   --text-secondary: #6e6e6e;
   --text-button: #f0f0f0;
   --background: #ffffff;
@@ -16,6 +17,7 @@
   --header: #f5f5f5;
   --header-text: var(--primary);
   --primary: #64b5f6;
+  --primary-rgb: 100, 181, 246;
   --secondary: rgba(100, 181, 246, 0.15);
   --accent: #f0f0f0;
   --bot-text: var(--background);
@@ -47,6 +49,7 @@
 @media (prefers-color-scheme: dark) {
   :root {
     --text: #ffffff;
+    --text-rgb: 255, 255, 255;
     --text-secondary: #aaaaaa;
     --green-text: #65ff6a;
     --orange-text: #ffb74d;
@@ -59,6 +62,7 @@
     --header: #171717;
     --header-text: #ffffff;
     --primary: #64b5f6;
+    --primary-rgb: 100, 181, 246;
     --secondary: rgba(100, 181, 246, 0.15);
     --accent: #ffffff;
     --bot-text: --background;
