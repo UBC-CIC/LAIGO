@@ -16,6 +16,7 @@ import {
   MarkEmailUnread as MarkUnreadIcon,
   Delete as DeleteIcon,
 } from "@mui/icons-material";
+import { useNavigate } from "react-router-dom";
 import { useNotifications } from "../../contexts/NotificationContext";
 import type { Notification } from "../../types/notification";
 
@@ -42,10 +43,11 @@ const formatTimestamp = (timestamp: string): string => {
 
 const NotificationItem: React.FC<{
   notification: Notification;
+  onClick: () => void;
   onMarkAsRead: () => void;
   onMarkAsUnread: () => void;
   onDelete: () => void;
-}> = ({ notification, onMarkAsRead, onMarkAsUnread, onDelete }) => {
+}> = ({ notification, onClick, onMarkAsRead, onMarkAsUnread, onDelete }) => {
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
 
   const handleMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
@@ -73,6 +75,7 @@ const NotificationItem: React.FC<{
 
   return (
     <MenuItem
+      onClick={onClick}
       sx={{
         display: "flex",
         flexDirection: "column",
@@ -240,6 +243,41 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
     deleteNotification,
   } = useNotifications();
 
+  const navigate = useNavigate();
+
+  const handleNotificationClick = async (notification: Notification) => {
+    // Mark as read if not already read
+    if (!notification.isRead) {
+      markAsRead(notification.notificationId);
+    }
+
+    // Determine navigation based on notification type
+    const caseId = notification.metadata?.caseId;
+
+    if (!caseId) {
+      // Fallback if no case ID
+      navigate("/student");
+      onClose();
+      return;
+    }
+
+    switch (notification.type) {
+      case "feedback":
+        navigate(`/case/${caseId}/feedback`);
+        break;
+      case "summary_complete":
+        navigate(`/case/${caseId}/summaries`);
+        break;
+      case "transcript_complete":
+        navigate(`/case/${caseId}/transcriptions`);
+        break;
+      default:
+        navigate(`/case/${caseId}/overview`);
+    }
+
+    onClose();
+  };
+
   return (
     <Menu
       open={open}
@@ -360,6 +398,7 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
           <NotificationItem
             key={notification.notificationId}
             notification={notification}
+            onClick={() => handleNotificationClick(notification)}
             onMarkAsRead={() => markAsRead(notification.notificationId)}
             onMarkAsUnread={() => markAsUnread(notification.notificationId)}
             onDelete={() => deleteNotification(notification.notificationId)}
