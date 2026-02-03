@@ -31,10 +31,12 @@ const formatTimestamp = (timestamp: string): string => {
   return date.toLocaleDateString();
 };
 
-const NotificationItem: React.FC<{ notification: Notification }> = ({
-  notification,
-}) => (
+const NotificationItem: React.FC<{
+  notification: Notification;
+  onClick: () => void;
+}> = ({ notification, onClick }) => (
   <MenuItem
+    onClick={onClick}
     sx={{
       display: "flex",
       flexDirection: "column",
@@ -103,7 +105,15 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
   anchorEl,
   onClose,
 }) => {
-  const { notifications, isLoading, error, isConnected } = useNotifications();
+  const {
+    notifications,
+    isLoading,
+    error,
+    isConnected,
+    unreadCount,
+    markAllAsRead,
+    markAsRead,
+  } = useNotifications();
 
   return (
     <Menu
@@ -165,10 +175,28 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
       >
         <Typography
           variant="subtitle1"
-          sx={{ fontWeight: 600, color: "var(--text)" }}
+          sx={{ fontWeight: 600, color: "var(--text)", flexGrow: 1 }}
         >
           Notifications
         </Typography>
+        {unreadCount > 0 && (
+          <Typography
+            variant="body2"
+            onClick={markAllAsRead}
+            sx={{
+              color: "var(--primary)",
+              fontSize: "0.75rem",
+              cursor: "pointer",
+              fontWeight: 500,
+              mr: 1,
+              "&:hover": {
+                textDecoration: "underline",
+              },
+            }}
+          >
+            Mark all as read
+          </Typography>
+        )}
         {isConnected && (
           <Box
             sx={{
@@ -205,7 +233,10 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
       ) : (
         notifications.map((notification, index) => (
           <React.Fragment key={notification.notificationId}>
-            <NotificationItem notification={notification} />
+            <NotificationItem
+              notification={notification}
+              onClick={() => markAsRead(notification.notificationId)}
+            />
             {index < notifications.length - 1 && (
               <Divider sx={{ borderColor: "rgba(var(--text-rgb), 0.1)" }} />
             )}

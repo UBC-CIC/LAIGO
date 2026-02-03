@@ -14,6 +14,8 @@ import type {
 import {
   getNotifications,
   getUnreadCount,
+  markNotificationAsRead,
+  markAllNotificationsAsRead,
 } from "../services/notificationService";
 
 interface NotificationContextType {
@@ -23,6 +25,8 @@ interface NotificationContextType {
   error: string | null;
   isConnected: boolean;
   refreshNotifications: () => Promise<void>;
+  markAsRead: (notificationId: string) => Promise<void>;
+  markAllAsRead: () => Promise<void>;
 }
 
 const NotificationContext = createContext<NotificationContextType | undefined>(
@@ -72,6 +76,63 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
       setIsLoading(false);
     }
   }, []);
+
+  // Mark a single notification as read
+  const markAsRead = useCallback(
+    async (notificationId: string) => {
+      // Optimistic update
+      const previousNotifications = [...notifications];
+      const previousUnreadCount = unreadCount;
+
+      // Find the notification and check if it's already read
+      const notification = notifications.find(
+        (n) => n.notificationId === notificationId,
+      );
+      if (!notification || notification.isRead) {
+        return; // Already read, no need to update
+      }
+
+      // Update local state immediately
+      setNotifications((prev) =>
+        prev.map((n) =>
+          n.notificationId === notificationId ? { ...n, isRead: true } : n,
+        ),
+      );
+      setUnreadCount((prev) => Math.max(0, prev - 1));
+
+      try {
+        // Call API in background
+        await markNotificationAsRead(notificationId);
+      } catch (err) {
+        console.error("Failed to mark notification as read:", err);
+        // Revert optimistic update on error
+        setNotifications(previousNotifications);
+        setUnreadCount(previousUnreadCount);
+      }
+    },
+    [notifications, unreadCount],
+  );
+
+  // Mark all notifications as read
+  const markAllAsRead = useCallback(async () => {
+    // Optimistic update
+    const previousNotifications = [...notifications];
+    const previousUnreadCount = unreadCount;
+
+    // Update local state immediately
+    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+    setUnreadCount(0);
+
+    try {
+      // Call API in background
+      await markAllNotificationsAsRead();
+    } catch (err) {
+      console.error("Failed to mark all notifications as read:", err);
+      // Revert optimistic update on error
+      setNotifications(previousNotifications);
+      setUnreadCount(previousUnreadCount);
+    }
+  }, [notifications, unreadCount]);
 
   // Handle incoming WebSocket notification
   const handleWebSocketMessage = useCallback((event: MessageEvent) => {
@@ -196,6 +257,8 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
     error,
     isConnected,
     refreshNotifications,
+    markAsRead,
+    markAllAsRead,
   };
 
   return (
