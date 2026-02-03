@@ -429,7 +429,7 @@ def get_case_details(case_id):
         logger.info(f"Query result: {result}")
 
         cur.close()
-
+ 
         if result:
             case_title, case_type, jurisdiction, case_description, province, statute = result
             logger.info(f"Case details found for case_id {case_id}: "
