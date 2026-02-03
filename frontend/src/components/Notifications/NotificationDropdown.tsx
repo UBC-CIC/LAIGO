@@ -41,6 +41,8 @@ const NotificationItem: React.FC<{ notification: Notification }> = ({
       alignItems: "flex-start",
       py: 1.5,
       px: 2,
+      maxWidth: "100%",
+      overflow: "hidden",
       backgroundColor: notification.isRead
         ? "inherit"
         : "rgba(var(--primary-rgb), 0.08)",
@@ -56,6 +58,10 @@ const NotificationItem: React.FC<{ notification: Notification }> = ({
         fontWeight: notification.isRead ? 400 : 600,
         color: "var(--text)",
         fontSize: "0.85rem",
+        width: "100%",
+        whiteSpace: "nowrap",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
       }}
     >
       {notification.title}
@@ -66,6 +72,12 @@ const NotificationItem: React.FC<{ notification: Notification }> = ({
         color: "var(--text-secondary)",
         fontSize: "0.75rem",
         mt: 0.5,
+        width: "100%",
+        display: "-webkit-box",
+        WebkitLineClamp: 2,
+        WebkitBoxOrient: "vertical",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
         whiteSpace: "normal",
         wordBreak: "break-word",
       }}

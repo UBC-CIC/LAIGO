@@ -34,8 +34,8 @@ async function publishFeedbackNotificationEvent(
     const eventDetail = {
       type: "feedback",
       recipientId: studentId,
-      title: "New Feedback Received",
-      message: `You have received feedback from ${instructorName} on ${caseTitle}`,
+      title: `Feedback from ${instructorName} on ${caseTitle}`,
+      message: messageContent,
       metadata: {
         caseId: caseId,
         caseName: caseTitle,
