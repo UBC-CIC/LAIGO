@@ -451,6 +451,14 @@ def handler(event, context):
     logger.info("Text Generation Lambda function is called!")
     initialize_constants()
     
+    # Extract request context early for both WebSocket and HTTP
+    is_websocket = event.get("isWebSocket", False)
+    request_context = event.get("requestContext", {})
+    connection_id = request_context.get("connectionId")
+    domain_name = request_context.get("domainName")
+    stage = request_context.get("stage")
+    request_id = event.get("requestId")
+
     query_params = event.get("queryStringParameters", {})
     case_id = query_params.get("case_id", "")
     sub_route = query_params.get("sub_route", "intake-facts") # Default to intake-facts if missing
@@ -533,7 +541,23 @@ def handler(event, context):
                 else:
                     error_message = ("Sorry, I cannot process your request because it appears to contain prompt manipulation attempts. "
                                     "Please submit a query without any instructions attempting to manipulate the system.")
-                
+            
+            if is_websocket and connection_id:
+                try:
+                    websocket_endpoint = os.environ.get("WEBSOCKET_API_ENDPOINT")
+                    if not websocket_endpoint:
+                         websocket_endpoint = f"https://{domain_name}/{stage}"
+                    
+                    apigw_client = boto3.client('apigatewaymanagementapi', endpoint_url=websocket_endpoint)
+                    apigw_client.post_to_connection(
+                        ConnectionId=connection_id,
+                        Data=json.dumps({"type": "error", "content": error_message}).encode('utf-8')  # Send as type: "error" so frontend handles it
+                    )
+                    return {"statusCode": 200} # Return 200 to acknowledge processing
+                except Exception as ws_error:
+                    logger.error(f"Failed to send guardrail error to WebSocket: {ws_error}")
+                    return {"statusCode": 500}
+
             return {
                 'statusCode': 400,
                 "headers": {
@@ -613,13 +637,7 @@ def handler(event, context):
     try:
         logger.info("Generating response from the LLM.")
         
-        # Check if this is a WebSocket invocation
-        is_websocket = event.get("isWebSocket", False)
-        request_context = event.get("requestContext", {})
-        connection_id = request_context.get("connectionId")
-        domain_name = request_context.get("domainName")
-        stage = request_context.get("stage")
-        request_id = event.get("requestId")
+        #Unified Identity Extraction
         
         # Unified Identity Extraction
         cognito_id = event.get("cognitoId")
@@ -715,7 +733,6 @@ def handler(event, context):
         # For WebSocket errors, try to send error message to client
         if is_websocket and connection_id:
             try:
-                import boto3
                 websocket_endpoint = os.environ.get("WEBSOCKET_API_ENDPOINT", f"https://{domain_name}/{stage}")
                 apigw_client = boto3.client('apigatewaymanagementapi', endpoint_url=websocket_endpoint)
                 apigw_client.post_to_connection(
