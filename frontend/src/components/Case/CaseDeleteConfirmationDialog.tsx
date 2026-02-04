@@ -27,7 +27,7 @@ const CaseDeleteConfirmationDialog: React.FC<
   };
 
   const handleConfirm = () => {
-    if (confirmText === caseTitle) {
+    if (confirmText === "delete case") {
       onConfirm();
       setConfirmText("");
     }
@@ -51,11 +51,11 @@ const CaseDeleteConfirmationDialog: React.FC<
       </DialogTitle>
       <DialogContent>
         <DialogContentText sx={{ color: "var(--text-secondary)", mb: 2 }}>
-          Are you sure you want to delete this case? This action cannot be
-          undone.
+          Are you sure you want to delete <strong>{caseTitle}</strong>? This
+          action cannot be undone.
         </DialogContentText>
         <DialogContentText sx={{ mt: 2, color: "var(--text)" }}>
-          Please type <strong>{caseTitle}</strong> to confirm.
+          Please type <strong>delete case</strong> to confirm.
         </DialogContentText>
         <TextField
           autoFocus
@@ -89,7 +89,7 @@ const CaseDeleteConfirmationDialog: React.FC<
           onClick={handleConfirm}
           variant="contained"
           color="error"
-          disabled={confirmText !== caseTitle}
+          disabled={confirmText !== "delete case"}
           sx={{ textTransform: "none", borderRadius: 2 }}
         >
           Delete Case
