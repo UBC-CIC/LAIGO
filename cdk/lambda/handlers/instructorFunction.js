@@ -440,6 +440,60 @@ exports.handler = async (event) => {
         }
         break;
 
+      case "DELETE /instructor/delete_feedback":
+        if (!event.queryStringParameters?.message_id) {
+          response = buildResponse(400, {
+            error: "Missing required parameter: message_id",
+          });
+          break;
+        }
+        const deleteMessageId = event.queryStringParameters.message_id;
+        try {
+          // Get instructor user_id from cognito_id
+          const userResult = await sqlConnection`
+            SELECT user_id FROM "users" WHERE cognito_id = ${cognito_id};
+          `;
+          if (userResult.length === 0) {
+            response = buildResponse(404, {
+              error: "Instructor user not found",
+            });
+            break;
+          }
+          const instructorId = userResult[0].user_id;
+
+          // Get message and its author
+          const messageResult = await sqlConnection`
+            SELECT instructor_id FROM "messages" WHERE message_id = ${deleteMessageId};
+          `;
+          if (messageResult.length === 0) {
+            response = buildResponse(404, { error: "Feedback not found" });
+            break;
+          }
+          const messageAuthorId = messageResult[0].instructor_id;
+
+          // Check permission: Instructor must be the author of the message
+          if (instructorId !== messageAuthorId) {
+            response = buildResponse(403, {
+              error:
+                "Permission denied: You can only delete your own feedback.",
+            });
+            break;
+          }
+
+          // Delete message
+          await sqlConnection`
+            DELETE FROM "messages" WHERE message_id = ${deleteMessageId};
+          `;
+
+          response = buildResponse(200, {
+            message: "Feedback deleted successfully",
+          });
+        } catch (err) {
+          console.error("/instructor/delete_feedback error:", err);
+          response = buildResponse(500, { error: "Internal server error" });
+        }
+        break;
+
       default:
         response = buildResponse(404, {
           error: `Route not found: ${pathData}`,

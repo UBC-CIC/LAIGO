@@ -147,6 +147,39 @@ const CaseFeedback: React.FC = () => {
     }
   };
 
+  const handleDeleteFeedback = async (messageId: string) => {
+    try {
+      const session = await fetchAuthSession();
+      const token = session.tokens?.idToken?.toString();
+
+      if (!token) {
+        showSnackbar("Authentication error", "error");
+        return;
+      }
+
+      const response = await fetch(
+        `${import.meta.env.VITE_API_ENDPOINT}/instructor/delete_feedback?message_id=${messageId}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: token,
+          },
+        },
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to delete feedback");
+      }
+
+      showSnackbar("Feedback deleted successfully", "success");
+      loadFeedback(); // Refresh list
+    } catch (err: any) {
+      console.error("Error deleting feedback:", err);
+      showSnackbar(err.message || "Failed to delete feedback", "error");
+    }
+  };
+
   return (
     <Box
       sx={{
@@ -281,6 +314,11 @@ const CaseFeedback: React.FC = () => {
                     sender={msg.sender}
                     timestamp={msg.timestamp}
                     content={msg.content}
+                    onDelete={
+                      isInstructor
+                        ? () => handleDeleteFeedback(msg.id)
+                        : undefined
+                    }
                   />
                 ))}
               </Box>
