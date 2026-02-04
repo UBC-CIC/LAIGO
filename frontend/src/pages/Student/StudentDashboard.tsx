@@ -10,6 +10,10 @@ import {
   CircularProgress,
   Snackbar,
   Alert,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from "@mui/material";
 import { fetchAuthSession, fetchUserAttributes } from "aws-amplify/auth";
 import SearchIcon from "@mui/icons-material/Search";
@@ -39,6 +43,7 @@ interface RawCase {
 const StudentDashboard: React.FC = () => {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
   const [cases, setCases] = useState<Case[] | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
@@ -184,17 +189,34 @@ const StudentDashboard: React.FC = () => {
   // Using fetched data (or empty list) for search/filtering
   const filteredCases = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const source = cases || [];
-    if (!q) return source;
-    return source.filter((c) => {
-      return (
-        (c.title || "").toLowerCase().includes(q) ||
-        (c.jurisdiction || "").toLowerCase().includes(q) ||
-        (c.status || "").toLowerCase().includes(q) ||
-        (c.id || "").toLowerCase().includes(q)
-      );
-    });
-  }, [query, cases]);
+    let result = cases || [];
+
+    // Filter by query
+    if (q) {
+      result = result.filter((c) => {
+        return (
+          (c.title || "").toLowerCase().includes(q) ||
+          (c.jurisdiction || "").toLowerCase().includes(q) ||
+          (c.status || "").toLowerCase().includes(q) ||
+          (c.id || "").toLowerCase().includes(q)
+        );
+      });
+    }
+
+    // Filter by status
+    if (statusFilter !== "All") {
+      result = result.filter((c) => {
+        const s = (c.status || "").toLowerCase();
+        if (statusFilter === "In Progress") return s === "in_progress";
+        if (statusFilter === "Sent to Review") return s === "submitted";
+        if (statusFilter === "Reviewed") return s === "reviewed";
+        if (statusFilter === "Archived") return s === "archived";
+        return s === statusFilter.toLowerCase();
+      });
+    }
+
+    return result;
+  }, [query, cases, statusFilter]);
 
   return (
     <Box
@@ -218,8 +240,8 @@ const StudentDashboard: React.FC = () => {
           View All Cases
         </Typography>
 
-        {/* Search Bar */}
-        <Box sx={{ display: "flex", justifyContent: "center", mb: 6 }}>
+        {/* Search Bar & Filter */}
+        <Box sx={{ display: "flex", justifyContent: "center", mb: 6, gap: 2 }}>
           <TextField
             variant="outlined"
             placeholder="Search for a case"
@@ -251,6 +273,45 @@ const StudentDashboard: React.FC = () => {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
+
+          <FormControl
+            sx={{
+              minWidth: 200,
+              "& .MuiOutlinedInput-root": {
+                color: "var(--text)",
+                backgroundColor: "var(--background)",
+                "& fieldset": { borderColor: "var(--border)" },
+                "&:hover fieldset": { borderColor: "var(--text-secondary)" },
+                "&.Mui-focused fieldset": { borderColor: "var(--primary)" },
+              },
+              "& .MuiInputLabel-root": { color: "var(--text-secondary)" },
+              "& .MuiSelect-icon": { color: "var(--text-secondary)" },
+              "& .MuiSelect-select": { textAlign: "left" },
+            }}
+          >
+            <InputLabel id="status-filter-label">Status</InputLabel>
+            <Select
+              labelId="status-filter-label"
+              value={statusFilter}
+              label="Status"
+              onChange={(e) => setStatusFilter(e.target.value)}
+              MenuProps={{
+                PaperProps: {
+                  sx: {
+                    backgroundColor: "var(--background)",
+                    color: "var(--text)",
+                    border: "1px solid var(--border)",
+                  },
+                },
+              }}
+            >
+              <MenuItem value="All">All</MenuItem>
+              <MenuItem value="In Progress">In Progress</MenuItem>
+              <MenuItem value="Sent to Review">Sent to Review</MenuItem>
+              <MenuItem value="Reviewed">Reviewed</MenuItem>
+              <MenuItem value="Archived">Archived</MenuItem>
+            </Select>
+          </FormControl>
         </Box>
 
         {/* Cases Grid */}

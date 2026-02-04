@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Box,
@@ -216,29 +216,29 @@ const InstructorDashboard = ({ userInfo }: InstructorDashboardProps) => {
   }, [query]);
 
   // Derived filtered lists
-  const visibleMyCases = useMemo(
-    () => filterCases(myCases),
-    [filterCases, myCases],
+  const applyStatusFilter = useCallback(
+    (cases: Case[]): Case[] => {
+      if (statusFilter === "All") return cases;
+      return cases.filter((c) => {
+        const s = (c.status || "").toLowerCase();
+        if (statusFilter === "Sent to Review") return s === "submitted";
+        if (statusFilter === "Reviewed") return s === "reviewed";
+        if (statusFilter === "In Progress") return s === "in_progress";
+        return s === statusFilter.toLowerCase();
+      });
+    },
+    [statusFilter],
   );
 
-  const visibleAllStudentCases = useMemo(() => {
-    return filterCases(allStudentCases);
-  }, [filterCases, allStudentCases]);
+  const visibleMyCases = useMemo<Case[]>(
+    () => applyStatusFilter(filterCases(myCases)),
+    [filterCases, myCases, applyStatusFilter],
+  );
 
-  // Apply Status Filter to visibleAllStudentCases
-  const visibleFilteredAllStudentCases = useMemo(() => {
-    if (statusFilter === "All") return visibleAllStudentCases;
-    return visibleAllStudentCases.filter((c) => {
-      // Database values: 'in_progress', 'submitted', 'reviewed'
-      const s = (c.status || "").toLowerCase();
-
-      if (statusFilter === "Sent to Review") return s === "submitted";
-      if (statusFilter === "Reviewed") return s === "reviewed";
-      if (statusFilter === "In Progress") return s === "in_progress";
-
-      return s === statusFilter.toLowerCase();
-    });
-  }, [visibleAllStudentCases, statusFilter]);
+  const visibleAllStudentCases = useMemo<Case[]>(
+    () => applyStatusFilter(filterCases(allStudentCases)),
+    [filterCases, allStudentCases, applyStatusFilter],
+  );
 
   // --- Dynamic Stats Calculation ---
   const stats = useMemo(() => {
@@ -310,7 +310,7 @@ const InstructorDashboard = ({ userInfo }: InstructorDashboardProps) => {
                 }}
               >
                 <Tab
-                  label={`My Cases (${myCases.length})`}
+                  label={`My Cases (${visibleMyCases.length})`}
                   id="tab-0"
                   aria-controls="tabpanel-0"
                 />
@@ -321,8 +321,10 @@ const InstructorDashboard = ({ userInfo }: InstructorDashboardProps) => {
                 />
               </Tabs>
 
-              {/* Search Bar aligned with Tabs */}
-              <Box sx={{ mb: 1, minWidth: "250px" }}>
+              {/* Search Bar & Filter */}
+              <Box
+                sx={{ mb: 1, display: "flex", gap: 2, alignItems: "center" }}
+              >
                 <TextField
                   variant="outlined"
                   size="small"
@@ -339,13 +341,67 @@ const InstructorDashboard = ({ userInfo }: InstructorDashboardProps) => {
                     ),
                   }}
                   sx={{
+                    minWidth: "250px",
                     backgroundColor: "var(--background)",
                     "& .MuiOutlinedInput-root": {
                       color: "var(--text)",
                       "& fieldset": { borderColor: "var(--border)" },
+                      "&:hover fieldset": {
+                        borderColor: "var(--text-secondary)",
+                      },
+                      "&.Mui-focused fieldset": {
+                        borderColor: "var(--primary)",
+                      },
                     },
                   }}
                 />
+
+                <FormControl
+                  size="small"
+                  sx={{
+                    minWidth: 150,
+                    "& .MuiOutlinedInput-root": {
+                      color: "var(--text)",
+                      backgroundColor: "var(--background)",
+                      "& fieldset": { borderColor: "var(--border)" },
+                      "&:hover fieldset": {
+                        borderColor: "var(--text-secondary)",
+                      },
+                      "&.Mui-focused fieldset": {
+                        borderColor: "var(--primary)",
+                      },
+                      "& .MuiSelect-select": {
+                        textAlign: "left",
+                      },
+                      "& .MuiSvgIcon-root": { color: "var(--text)" },
+                    },
+                    "& .MuiInputLabel-root": {
+                      color: "var(--text-secondary)",
+                    },
+                  }}
+                >
+                  <InputLabel id="status-filter-label">Status</InputLabel>
+                  <Select
+                    labelId="status-filter-label"
+                    value={statusFilter}
+                    label="Status"
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    MenuProps={{
+                      PaperProps: {
+                        sx: {
+                          backgroundColor: "var(--background)",
+                          color: "var(--text)",
+                          border: "1px solid var(--border)",
+                        },
+                      },
+                    }}
+                  >
+                    <MenuItem value="All">All Statuses</MenuItem>
+                    <MenuItem value="Sent to Review">Pending Review</MenuItem>
+                    <MenuItem value="Reviewed">Reviewed</MenuItem>
+                    <MenuItem value="In Progress">In Progress</MenuItem>
+                  </Select>
+                </FormControl>
               </Box>
             </Box>
 
@@ -419,51 +475,17 @@ const InstructorDashboard = ({ userInfo }: InstructorDashboardProps) => {
                       Associates Assigned
                     </Typography>
                   </Box>
-
-                  <FormControl
-                    size="small"
-                    sx={{
-                      minWidth: 150,
-                      "& .MuiOutlinedInput-root": {
-                        color: "var(--text)",
-                        "& fieldset": { borderColor: "var(--border)" },
-                        "&:hover fieldset": {
-                          borderColor: "var(--text-secondary)",
-                        },
-                        "&.Mui-focused fieldset": {
-                          borderColor: "var(--primary)",
-                        },
-                        "& .MuiSvgIcon-root": { color: "var(--text)" },
-                      },
-                      "& .MuiInputLabel-root": {
-                        color: "var(--text-secondary)",
-                      },
-                    }}
-                  >
-                    <InputLabel id="status-filter-label">Status</InputLabel>
-                    <Select
-                      labelId="status-filter-label"
-                      value={statusFilter}
-                      label="Status"
-                      onChange={(e) => setStatusFilter(e.target.value)}
-                    >
-                      <MenuItem value="All">All Statuses</MenuItem>
-                      <MenuItem value="Sent to Review">Pending Review</MenuItem>
-                      <MenuItem value="Reviewed">Reviewed</MenuItem>
-                      <MenuItem value="In Progress">In Progress</MenuItem>
-                    </Select>
-                  </FormControl>
                 </Box>
 
                 <Grid container spacing={3}>
-                  {visibleFilteredAllStudentCases.length === 0 ? (
+                  {visibleAllStudentCases.length === 0 ? (
                     <Grid size={{ xs: 12 }}>
                       <Typography sx={{ color: "var(--text-secondary)" }}>
                         No student cases found matching current filters.
                       </Typography>
                     </Grid>
                   ) : (
-                    visibleFilteredAllStudentCases.map((caseItem, index) => (
+                    visibleAllStudentCases.map((caseItem, index) => (
                       <Grid
                         size={{ xs: 12, sm: 6, md: 4 }}
                         key={`student-case-${index}`}
