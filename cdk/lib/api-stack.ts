@@ -966,6 +966,15 @@ export class ApiGatewayStack extends cdk.Stack {
     );
 
     // --- Student Cases Lambda (GET /student/cases) ---
+    // Defined early so other constructs can reference it
+    const notificationEventBus = new events.EventBus(
+      this,
+      `${id}-NotificationEventBus`,
+      {
+        eventBusName: `${id}-notifications`,
+      },
+    );
+
     const lambdaStudentFunction = new lambda.Function(
       this,
       `${id}-studentFunction`,
@@ -981,6 +990,7 @@ export class ApiGatewayStack extends cdk.Stack {
           USER_POOL: this.userPool.userPoolId,
           MESSAGE_LIMIT: messageLimitParameter.parameterName,
           FILE_SIZE_LIMIT: fileSizeLimitParameter.parameterName,
+          NOTIFICATION_EVENT_BUS_NAME: notificationEventBus.eventBusName,
         },
         functionName: `${id}-studentFunction`,
         memorySize: 512,
@@ -997,6 +1007,15 @@ export class ApiGatewayStack extends cdk.Stack {
           `arn:aws:dynamodb:${this.region}:${this.account}:table/DynamoDB-Conversation-Table`,
         ],
         effect: iam.Effect.ALLOW,
+      }),
+    );
+
+    // Grant EventBridge permissions for notification publishing
+    lambdaStudentFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["events:PutEvents"],
+        resources: [notificationEventBus.eventBusArn],
       }),
     );
 
@@ -1108,18 +1127,6 @@ export class ApiGatewayStack extends cdk.Stack {
     const cfnLambda_Instructor = lambdaInstructorFunction.node
       .defaultChild as lambda.CfnFunction;
     cfnLambda_Instructor.overrideLogicalId("instructorFunction");
-
-    // ========================================
-    // Notification System (Event Bus)
-    // ========================================
-    // Defined early so other constructs can reference it
-    const notificationEventBus = new events.EventBus(
-      this,
-      `${id}-NotificationEventBus`,
-      {
-        eventBusName: `${id}-notifications`,
-      },
-    );
 
     const bedrockPolicyStatement = new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
@@ -2038,6 +2045,7 @@ export class ApiGatewayStack extends cdk.Stack {
           "Feedback Notification",
           "Summary Generation Complete",
           "Transcription Complete",
+          "Case Submitted",
         ],
       },
       targets: [new targets.LambdaFunction(notificationServiceFunction)],

@@ -271,6 +271,9 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
       case "transcript_complete":
         navigate(`/case/${caseId}/transcriptions`);
         break;
+      case "case_submission":
+        navigate(`/case/${caseId}/overview`);
+        break;
       default:
         navigate(`/case/${caseId}/overview`);
     }

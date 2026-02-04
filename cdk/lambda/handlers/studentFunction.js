@@ -17,6 +17,12 @@ const {
   CognitoIdentityProviderClient,
   AdminGetUserCommand,
 } = require("@aws-sdk/client-cognito-identity-provider");
+const {
+  EventBridgeClient,
+  PutEventsCommand,
+} = require("@aws-sdk/client-eventbridge");
+
+const eventBridge = new EventBridgeClient({});
 
 // SQL connection will be set after init
 let sqlConnection;
@@ -1463,6 +1469,72 @@ exports.handler = async (event) => {
                     VALUES (${case_id}, ${reviewerId})
                     ON CONFLICT (case_id, reviewer_id) DO NOTHING;
                   `;
+
+                  // Fetch reviewer's cognito_id to send notification
+                  const reviewerResult = await sql`
+                    SELECT cognito_id FROM "users" WHERE user_id = ${reviewerId};
+                  `;
+
+                  if (reviewerResult.length > 0) {
+                    const reviewerCognitoId = reviewerResult[0].cognito_id;
+                    const eventBusName =
+                      process.env.NOTIFICATION_EVENT_BUS_NAME;
+
+                    if (eventBusName) {
+                      try {
+                        // Get student details for the message
+                        const studentResult = await sql`
+                           SELECT first_name, last_name FROM "users" WHERE user_id = ${requestingUserId};
+                        `;
+                        const studentName =
+                          studentResult.length > 0
+                            ? `${studentResult[0].first_name} ${studentResult[0].last_name}`.trim()
+                            : "A student";
+
+                        // Get case title for the message
+                        const caseTitleResult = await sql`
+                            SELECT case_title FROM "cases" WHERE case_id = ${case_id};
+                         `;
+                        const caseTitle =
+                          caseTitleResult.length > 0
+                            ? caseTitleResult[0].case_title
+                            : "Case";
+
+                        const eventParams = {
+                          Entries: [
+                            {
+                              Source: "notification.system",
+                              DetailType: "Case Submitted",
+                              Detail: JSON.stringify({
+                                recipientId: reviewerCognitoId,
+                                type: "case_submission",
+                                title: "Case Submitted",
+                                message: `${studentName} submitted case "${caseTitle}" for your review.`,
+                                metadata: { caseId: case_id },
+                              }),
+                              EventBusName: eventBusName,
+                            },
+                          ],
+                        };
+
+                        await eventBridge.send(
+                          new PutEventsCommand(eventParams),
+                        );
+                        console.log(
+                          `Notification sent to reviewer ${reviewerId} (Cognito: ${reviewerCognitoId})`,
+                        );
+                      } catch (error) {
+                        console.error(
+                          `Failed to send notification to reviewer ${reviewerId}:`,
+                          error,
+                        );
+                      }
+                    } else {
+                      console.warn(
+                        "NOTIFICATION_EVENT_BUS_NAME not set, skipping notification.",
+                      );
+                    }
+                  }
                 }
               }
             });

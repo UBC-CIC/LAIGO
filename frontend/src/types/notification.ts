@@ -1,7 +1,11 @@
 export interface Notification {
   notificationId: string;
   userId: string;
-  type: "feedback" | "summary_complete" | "transcript_complete";
+  type:
+    | "feedback"
+    | "summary_complete"
+    | "transcript_complete"
+    | "case_submission";
   title: string;
   message: string;
   metadata: {
