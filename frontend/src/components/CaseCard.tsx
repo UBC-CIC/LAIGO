@@ -19,6 +19,7 @@ interface CaseCardProps {
   status: string;
   jurisdiction: string;
   dateAdded: string;
+  studentName?: string;
   onDelete?: (caseId: string) => void;
   onArchive?: (caseId: string) => void;
   onClick?: (caseId: string) => void;
@@ -31,6 +32,7 @@ const CaseCard: React.FC<CaseCardProps> = ({
   status,
   jurisdiction,
   dateAdded,
+  studentName,
   onDelete,
   onArchive,
   onClick,
@@ -122,6 +124,15 @@ const CaseCard: React.FC<CaseCardProps> = ({
         </Typography>
 
         <Box sx={{ mt: "auto" }}>
+          {studentName && (
+            <Typography
+              variant="caption"
+              display="block"
+              sx={{ color: "var(--text)", mb: 0.5 }}
+            >
+              <span style={{ fontWeight: "bold" }}>Student:</span> {studentName}
+            </Typography>
+          )}
           <Typography
             variant="caption"
             display="block"

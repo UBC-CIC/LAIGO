@@ -427,11 +427,9 @@ const InstructorDashboard = ({ userInfo }: InstructorDashboardProps) => {
                           title={caseItem.case_title}
                           status={caseItem.status}
                           jurisdiction={caseItem.jurisdiction?.join(", ")}
-                          dateAdded={`Student: ${caseItem.first_name || "Me"} ${
-                            caseItem.last_name || ""
-                          } • ${new Date(
+                          dateAdded={new Date(
                             caseItem.last_updated,
-                          ).toLocaleDateString()}`}
+                          ).toLocaleDateString()}
                           onDelete={handleDeleteCase}
                           onArchive={handleArchiveCase}
                           onClick={(id) => navigate(`/case/${id}/overview`)}
@@ -496,11 +494,12 @@ const InstructorDashboard = ({ userInfo }: InstructorDashboardProps) => {
                           title={caseItem.case_title}
                           status={caseItem.status}
                           jurisdiction={caseItem.jurisdiction?.join(", ")}
-                          dateAdded={`Student: ${caseItem.first_name || ""} ${
-                            caseItem.last_name || ""
-                          } • ${new Date(
+                          dateAdded={new Date(
                             caseItem.last_updated,
-                          ).toLocaleDateString()}`}
+                          ).toLocaleDateString()}
+                          studentName={`${caseItem.first_name || ""} ${
+                            caseItem.last_name || ""
+                          }`}
                           onDelete={handleDeleteCase}
                           onArchive={handleArchiveCase}
                           onClick={(id) => navigate(`/case/${id}/overview`)}
