@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Box, Typography, Stack, Menu, MenuItem } from "@mui/material";
 import CreateNewFolderIcon from "@mui/icons-material/CreateNewFolder";
 import FolderOpenOutlinedIcon from "@mui/icons-material/FolderOpenOutlined";
-import NotificationsNoneOutlinedIcon from "@mui/icons-material/NotificationsNoneOutlined";
+import NotificationButton from "./Notifications/NotificationButton";
 import AccountCircleOutlinedIcon from "@mui/icons-material/AccountCircleOutlined";
 import { signOut } from "aws-amplify/auth";
 import { useUser } from "../contexts/UserContext";
@@ -93,10 +93,7 @@ const InstructorHeader: React.FC = () => {
           label="All Cases"
           onClick={() => navigate("/")}
         />
-        <HeaderItem
-          icon={<NotificationsNoneOutlinedIcon sx={iconStyle} />}
-          label="Notifications"
-        />
+        <NotificationButton />
         <Stack
           alignItems="center"
           sx={{

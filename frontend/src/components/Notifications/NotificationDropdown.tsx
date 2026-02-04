@@ -255,8 +255,8 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
     const caseId = notification.metadata?.caseId;
 
     if (!caseId) {
-      // Fallback if no case ID
-      navigate("/student");
+      // Fallback if no case ID - go to root/dashboard
+      navigate("/");
       onClose();
       return;
     }
