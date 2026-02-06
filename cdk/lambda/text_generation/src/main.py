@@ -321,7 +321,7 @@ def setup_guardrail(guardrail_name: str) -> tuple[str, str]:
                     'outputEnabled': True
                 },
                 {
-                    'type': 'CA_HEALTH_SERVICE_NUMBER',
+                    'type': 'CA_HEALTH_NUMBER',
                     'action': 'BLOCK',
                     'inputAction': 'BLOCK',
                     'outputAction': 'BLOCK',
