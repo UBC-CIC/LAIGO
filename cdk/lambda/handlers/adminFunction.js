@@ -266,23 +266,47 @@ exports.handler = async (event) => {
         break;
       case "GET /admin/prompt":
         try {
-          // Fetch ALL prompt versions, ordered by category, block_type, and version
-          const prompts = await sqlConnectionTableCreator`
-            SELECT 
-              pv.prompt_version_id,
-              pv.category,
-              pv.block_type,
-              pv.version_number,
-              pv.version_name,
-              pv.prompt_text,
-              pv.author_id,
-              pv.time_created,
-              pv.is_active,
-              CONCAT(u.first_name, ' ', u.last_name) AS author_name
-            FROM "prompt_versions" pv
-            LEFT JOIN "users" u ON pv.author_id = u.user_id
-            ORDER BY pv.category, pv.block_type, pv.version_number DESC;
-          `;
+          const { category, block_type } = event.queryStringParameters || {};
+
+          let prompts;
+          if (category && block_type) {
+            // Fetch prompts for specific block
+            prompts = await sqlConnectionTableCreator`
+              SELECT 
+                pv.prompt_version_id,
+                pv.category,
+                pv.block_type,
+                pv.version_number,
+                pv.version_name,
+                pv.prompt_text,
+                pv.author_id,
+                pv.time_created,
+                pv.is_active,
+                CONCAT(u.first_name, ' ', u.last_name) AS author_name
+              FROM "prompt_versions" pv
+              LEFT JOIN "users" u ON pv.author_id = u.user_id
+              WHERE pv.category = ${category} AND pv.block_type = ${block_type}
+              ORDER BY pv.version_number DESC;
+            `;
+          } else {
+            // Fetch ALL prompt versions (Original behavior)
+            prompts = await sqlConnectionTableCreator`
+              SELECT 
+                pv.prompt_version_id,
+                pv.category,
+                pv.block_type,
+                pv.version_number,
+                pv.version_name,
+                pv.prompt_text,
+                pv.author_id,
+                pv.time_created,
+                pv.is_active,
+                CONCAT(u.first_name, ' ', u.last_name) AS author_name
+              FROM "prompt_versions" pv
+              LEFT JOIN "users" u ON pv.author_id = u.user_id
+              ORDER BY pv.category, pv.block_type, pv.version_number DESC;
+            `;
+          }
 
           response.body = JSON.stringify(prompts);
         } catch (err) {

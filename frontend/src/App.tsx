@@ -106,7 +106,7 @@ function App() {
         return (
           <Routes>
             <Route path="/" element={<AdminDashboard userInfo={userInfo} />} />
-            <Route path="/ai-configuration" element={<AIConfiguration />} />
+            <Route path="/ai-configuration/*" element={<AIConfiguration />} />
             <Route path="/disclaimer" element={<AdminDisclaimer />} />
             <Route path="*" element={<AdminDashboard userInfo={userInfo} />} />
           </Routes>
