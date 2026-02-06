@@ -52,6 +52,7 @@ interface Summary {
   time_created: string; // ISO string
 }
 
+/*
 interface Annotation {
   id: string;
   summaryId: string;
@@ -89,6 +90,7 @@ const MOCK_ANNOTATIONS: Annotation[] = [
       "Check local statutes regarding rent withholding. Did she escrow the funds properly? This is a critical defense point.",
   },
 ];
+*/
 
 // --- Helper Components ---
 
@@ -118,7 +120,7 @@ const CaseSummaries: React.FC = () => {
   );
   const [isGenerating, setIsGenerating] = useState(false);
   const [leftOpen, setLeftOpen] = useState(true);
-  const [rightOpen, setRightOpen] = useState(true);
+  // const [rightOpen, setRightOpen] = useState(true);
   const [openCategories, setOpenCategories] = useState<{
     [key: string]: boolean;
   }>({
@@ -276,9 +278,11 @@ const CaseSummaries: React.FC = () => {
   const selectedSummary = summaries.find(
     (s) => s.summary_id === selectedSummaryId,
   );
+  /*
   const currentAnnotations = MOCK_ANNOTATIONS.filter(
     (a) => a.summaryId === String(selectedSummaryId),
   );
+  */
 
   // Group summaries
   const groupedSummaries = summaries.reduce(
@@ -379,6 +383,7 @@ const CaseSummaries: React.FC = () => {
       )}
 
       {/* --- Right Ribbon Trigger --- */}
+      {/*
       {!rightOpen && (
         <Box
           sx={{
@@ -409,6 +414,7 @@ const CaseSummaries: React.FC = () => {
           />
         </Box>
       )}
+      */}
 
       {/* --- Left Sidebar (Summaries List) --- */}
       <Box
@@ -818,6 +824,7 @@ const CaseSummaries: React.FC = () => {
       </Box>
 
       {/* --- Right Sidebar (Annotations) --- */}
+      {/*
       <Box
         sx={{
           width: rightOpen ? 320 : 0,
@@ -963,6 +970,7 @@ const CaseSummaries: React.FC = () => {
           </Box>
         )}
       </Box>
+      */}
     </Box>
   );
 };
