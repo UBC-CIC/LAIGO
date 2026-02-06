@@ -295,14 +295,80 @@ def setup_guardrail(guardrail_name: str) -> tuple[str, str]:
                 ]
             },
             sensitiveInformationPolicyConfig={
-                'piiEntitiesConfig': [
-                    {'type': 'EMAIL', 'action': 'BLOCK'},
-                    {'type': 'PHONE', 'action': 'BLOCK'},
-                    {'type': 'NAME', 'action': 'BLOCK'},
-                    {'type': 'ADDRESS', 'action': 'BLOCK'},
-                    {'type': 'US_SOCIAL_SECURITY_NUMBER', 'action': 'BLOCK'}
-                ]
-            },
+            'piiEntitiesConfig': [
+                {
+                    'type': 'EMAIL',
+                    'action': 'BLOCK',
+                    'inputAction': 'BLOCK',
+                    'outputAction': 'BLOCK',
+                    'inputEnabled': True,
+                    'outputEnabled': True
+                },
+                {
+                    'type': 'PHONE',
+                    'action': 'BLOCK',
+                    'inputAction': 'BLOCK',
+                    'outputAction': 'BLOCK',
+                    'inputEnabled': True,
+                    'outputEnabled': True
+                },
+                {
+                    'type': 'ADDRESS',
+                    'action': 'BLOCK',
+                    'inputAction': 'BLOCK',
+                    'outputAction': 'BLOCK',
+                    'inputEnabled': True,
+                    'outputEnabled': True
+                },
+                {
+                    'type': 'CA_HEALTH_SERVICE_NUMBER',
+                    'action': 'BLOCK',
+                    'inputAction': 'BLOCK',
+                    'outputAction': 'BLOCK',
+                    'inputEnabled': True,
+                    'outputEnabled': True
+                },
+                {
+                    'type': 'CA_SOCIAL_INSURANCE_NUMBER',
+                    'action': 'BLOCK',
+                    'inputAction': 'BLOCK',
+                    'outputAction': 'BLOCK',
+                    'inputEnabled': True,
+                    'outputEnabled': True
+                }
+            ],
+            'regexesConfig': [
+                # Comprehensive legal case pattern
+                {
+                    'name': 'ComprehensiveLegalCases',
+                    'description': 'Allow all legal case citation formats',
+                    'pattern': r'\b[A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*\s+(v[s]?\.|versus)\s+[A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*\b',
+                    'action': 'NONE',
+                    'inputEnabled': True,
+                    'outputEnabled': True
+                },
+                # Comprehensive judicial titles pattern
+                {
+                    'name': 'ComprehensiveJudicialTitles',
+                    'description': 'Allow all judicial title formats',
+                    'pattern': r'\b(?:(?:The\s+Honourable\s+(?:Mr\.|Madam|Ms\.|Mrs\.)\s+)?(?:Chief\s+)?(?:Justice(?:\s+of\s+Appeal)?|Associate\s+Judge|Judge)\s+[A-Z][a-zA-Z]+(?:\s+(?:J|CJ|JA|CJC))?|[A-Z][a-zA-Z]+\s+(?:J|CJ|JA|CJC)|Dear\s+(?:Judge|Justice)\s+[A-Z][a-zA-Z]+)\b',
+                    'action': 'NONE',
+                    'inputEnabled': True,
+                    'outputEnabled': True
+                },
+                # Block other personal names not in legal/judicial context
+                {
+                    'name': 'BlockPersonalNames',
+                    'description': 'Block personal names not in legal context',
+                    'pattern': r'(?!.*\b(?:v[s]?\.|versus|Justice|Judge|Chief|Honourable|Dear|J|CJ|JA|CJC)\b)[A-Z][a-z]+\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*(?!\s+(?:J|CJ|JA|CJC)\b)',
+                    'action': 'BLOCK',
+                    'inputAction': 'BLOCK',
+                    'outputAction': 'BLOCK',
+                    'inputEnabled': True,
+                    'outputEnabled': True
+                }
+            ]
+        },
             blockedInputMessaging='Sorry, I cannot process inputs that appear to contain prompt manipulation attempts or personal information.',
             blockedOutputsMessaging='Sorry, I cannot respond to that request as it may contain Personal Information.'
         )
