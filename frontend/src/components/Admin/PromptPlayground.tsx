@@ -95,7 +95,7 @@ const ModelConfigSection: React.FC<{
   config: ConfigurationState;
   onConfigChange: (updates: Partial<ConfigurationState>) => void;
   label?: string;
-}> = ({ config, onConfigChange, label }) => {
+}> = React.memo(({ config, onConfigChange, label }) => {
   return (
     <Box
       sx={{
@@ -215,7 +215,7 @@ const ModelConfigSection: React.FC<{
       </Box>
     </Box>
   );
-};
+});
 
 // System Prompt Section - Middle section for prompt selection and editing
 const SystemPromptSection: React.FC<{
@@ -225,160 +225,165 @@ const SystemPromptSection: React.FC<{
   onLoadVersion: (versionId: string) => void;
   onSave: () => void;
   label?: string;
-}> = ({
-  config,
-  onConfigChange,
-  promptVersions,
-  onLoadVersion,
-  onSave,
-  label,
-}) => {
-  return (
-    <Box
-      sx={{
-        border: "1px solid var(--border)",
-        borderRadius: 2,
-        backgroundColor: "var(--paper)",
-        overflow: "hidden",
-      }}
-    >
+}> = React.memo(
+  ({
+    config,
+    onConfigChange,
+    promptVersions,
+    onLoadVersion,
+    onSave,
+    label,
+  }) => {
+    return (
       <Box
         sx={{
-          p: 2,
-          backgroundColor: "var(--header)",
-          borderBottom: "1px solid var(--border)",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          flexWrap: "wrap",
-          gap: 2,
+          border: "1px solid var(--border)",
+          borderRadius: 2,
+          backgroundColor: "var(--paper)",
+          overflow: "hidden",
         }}
       >
-        <Typography
-          variant="subtitle2"
-          sx={{ fontWeight: "bold", color: "var(--text)", textAlign: "left" }}
-        >
-          {label ? `${label} - System Prompt` : "System Prompt"}
-        </Typography>
-
         <Box
           sx={{
+            p: 2,
+            backgroundColor: "var(--header)",
+            borderBottom: "1px solid var(--border)",
             display: "flex",
-            gap: 1,
+            justifyContent: "space-between",
             alignItems: "center",
             flexWrap: "wrap",
+            gap: 2,
           }}
         >
-          {/* Block Type Selection */}
-          <FormControl size="small" sx={{ width: 160 }}>
-            <InputLabel sx={{ color: "var(--text-secondary)" }}>
-              Block Type
-            </InputLabel>
-            <Select
-              value={config.blockType}
-              label="Block Type"
-              onChange={(e) => onConfigChange({ blockType: e.target.value })}
-              sx={{
-                color: "var(--text)",
-                backgroundColor: "var(--background)",
-                "& .MuiOutlinedInput-notchedOutline": {
-                  borderColor: "var(--border)",
-                },
-              }}
-            >
-              {BLOCK_TYPES.map((block) => (
-                <MenuItem key={block.id} value={block.id}>
-                  {block.label}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+          <Typography
+            variant="subtitle2"
+            sx={{ fontWeight: "bold", color: "var(--text)", textAlign: "left" }}
+          >
+            {label ? `${label} - System Prompt` : "System Prompt"}
+          </Typography>
 
-          {/* Load Version */}
-          <FormControl size="small" sx={{ width: 160 }}>
-            <InputLabel sx={{ color: "var(--text-secondary)" }}>
-              Version
-            </InputLabel>
-            <Select
-              value={config.selectedVersionId || ""}
-              label="Version"
-              onChange={(e) => {
-                if (e.target.value) {
-                  onLoadVersion(e.target.value);
-                }
-              }}
-              sx={{
-                color: "var(--text)",
-                backgroundColor: "var(--background)",
-                "& .MuiOutlinedInput-notchedOutline": {
-                  borderColor: "var(--border)",
-                },
-              }}
-            >
-              <MenuItem value="" disabled>
-                <em>None</em>
-              </MenuItem>
-              {promptVersions.map((v) => (
-                <MenuItem key={v.prompt_version_id} value={v.prompt_version_id}>
-                  v{v.version_number}{" "}
-                  {v.version_name ? `- ${v.version_name}` : ""}{" "}
-                  {v.is_active ? "(Active)" : ""}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-
-          {/* Save Button */}
-          {config.selectedVersionId && (
-            <Tooltip title="Save Version">
-              <IconButton
-                size="small"
-                onClick={onSave}
+          <Box
+            sx={{
+              display: "flex",
+              gap: 1,
+              alignItems: "center",
+              flexWrap: "wrap",
+            }}
+          >
+            {/* Block Type Selection */}
+            <FormControl size="small" sx={{ width: 160 }}>
+              <InputLabel sx={{ color: "var(--text-secondary)" }}>
+                Block Type
+              </InputLabel>
+              <Select
+                value={config.blockType}
+                label="Block Type"
+                onChange={(e) => onConfigChange({ blockType: e.target.value })}
                 sx={{
-                  color: "var(--primary)",
-                  "&:hover": { backgroundColor: "var(--header-hover)" },
+                  color: "var(--text)",
+                  backgroundColor: "var(--background)",
+                  "& .MuiOutlinedInput-notchedOutline": {
+                    borderColor: "var(--border)",
+                  },
                 }}
               >
-                <SaveIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-          )}
+                {BLOCK_TYPES.map((block) => (
+                  <MenuItem key={block.id} value={block.id}>
+                    {block.label}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            {/* Load Version */}
+            <FormControl size="small" sx={{ width: 160 }}>
+              <InputLabel sx={{ color: "var(--text-secondary)" }}>
+                Version
+              </InputLabel>
+              <Select
+                value={config.selectedVersionId || ""}
+                label="Version"
+                onChange={(e) => {
+                  if (e.target.value) {
+                    onLoadVersion(e.target.value);
+                  }
+                }}
+                sx={{
+                  color: "var(--text)",
+                  backgroundColor: "var(--background)",
+                  "& .MuiOutlinedInput-notchedOutline": {
+                    borderColor: "var(--border)",
+                  },
+                }}
+              >
+                <MenuItem value="" disabled>
+                  <em>None</em>
+                </MenuItem>
+                {promptVersions.map((v) => (
+                  <MenuItem
+                    key={v.prompt_version_id}
+                    value={v.prompt_version_id}
+                  >
+                    v{v.version_number}{" "}
+                    {v.version_name ? `- ${v.version_name}` : ""}{" "}
+                    {v.is_active ? "(Active)" : ""}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            {/* Save Button */}
+            {config.selectedVersionId && (
+              <Tooltip title="Save Version">
+                <IconButton
+                  size="small"
+                  onClick={onSave}
+                  sx={{
+                    color: "var(--primary)",
+                    "&:hover": { backgroundColor: "var(--header-hover)" },
+                  }}
+                >
+                  <SaveIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            )}
+          </Box>
+        </Box>
+
+        <Box sx={{ p: 2 }}>
+          {/* Prompt Text Area */}
+          <TextField
+            multiline
+            rows={5}
+            fullWidth
+            value={config.systemPrompt}
+            onChange={(e) => onConfigChange({ systemPrompt: e.target.value })}
+            placeholder="Enter your system prompt..."
+            sx={{
+              "& .MuiOutlinedInput-root": {
+                color: "var(--text)",
+                backgroundColor: "var(--background)",
+                fontFamily: "monospace",
+                fontSize: "0.9rem",
+                "& fieldset": { borderColor: "var(--border)" },
+                "&:hover fieldset": { borderColor: "var(--primary)" },
+                "& textarea": {
+                  resize: "vertical",
+                },
+                "& textarea::-webkit-resizer": {
+                  backgroundColor: "var(--background)",
+                  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath d='M10 0 L0 10 M10 4 L4 10 M10 8 L8 10' stroke='%23888' stroke-width='1'/%3E%3C/svg%3E")`,
+                  backgroundRepeat: "no-repeat",
+                  backgroundPosition: "bottom right",
+                },
+              },
+            }}
+          />
         </Box>
       </Box>
-
-      <Box sx={{ p: 2 }}>
-        {/* Prompt Text Area */}
-        <TextField
-          multiline
-          rows={5}
-          fullWidth
-          value={config.systemPrompt}
-          onChange={(e) => onConfigChange({ systemPrompt: e.target.value })}
-          placeholder="Enter your system prompt..."
-          sx={{
-            "& .MuiOutlinedInput-root": {
-              color: "var(--text)",
-              backgroundColor: "var(--background)",
-              fontFamily: "monospace",
-              fontSize: "0.9rem",
-              "& fieldset": { borderColor: "var(--border)" },
-              "&:hover fieldset": { borderColor: "var(--primary)" },
-              "& textarea": {
-                resize: "vertical",
-              },
-              "& textarea::-webkit-resizer": {
-                backgroundColor: "var(--background)",
-                backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath d='M10 0 L0 10 M10 4 L4 10 M10 8 L8 10' stroke='%23888' stroke-width='1'/%3E%3C/svg%3E")`,
-                backgroundRepeat: "no-repeat",
-                backgroundPosition: "bottom right",
-              },
-            },
-          }}
-        />
-      </Box>
-    </Box>
-  );
-};
+    );
+  },
+);
 
 // Chat panel component
 const ChatPanel: React.FC<{
@@ -386,7 +391,7 @@ const ChatPanel: React.FC<{
   isLoading: boolean;
   onClear: () => void;
   label?: string;
-}> = ({ messages, isLoading, onClear, label }) => {
+}> = React.memo(({ messages, isLoading, onClear, label }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -510,7 +515,7 @@ const ChatPanel: React.FC<{
       </Box>
     </Box>
   );
-};
+});
 
 // Main PromptPlayground component
 const PromptPlayground: React.FC = () => {
@@ -528,6 +533,10 @@ const PromptPlayground: React.FC = () => {
     message: string;
     severity: "success" | "error" | "info";
   }>({ open: false, message: "", severity: "info" });
+
+  // Chunk buffers for batching streaming updates
+  const chunkBufferA = useRef<string | null>(null);
+  const chunkBufferB = useRef<string | null>(null);
 
   // WebSocket state
   const [wsUrl, setWsUrl] = useState<string | null>(null);
@@ -731,17 +740,28 @@ const PromptPlayground: React.FC = () => {
           }));
         },
         onChunk: (content) => {
-          setConfigA((prev) => {
-            const msgs = [...prev.messages];
-            const lastMsg = msgs[msgs.length - 1];
-            if (lastMsg && lastMsg.role === "assistant") {
-              msgs[msgs.length - 1] = {
-                ...lastMsg,
-                content: lastMsg.content + content,
-              };
-            }
-            return { ...prev, messages: msgs };
-          });
+          // Batch chunks using RAF to reduce render frequency
+          if (!chunkBufferA.current) {
+            chunkBufferA.current = content;
+            requestAnimationFrame(() => {
+              const batch = chunkBufferA.current;
+              chunkBufferA.current = null;
+
+              setConfigA((prev) => {
+                const msgs = [...prev.messages];
+                const lastMsg = msgs[msgs.length - 1];
+                if (lastMsg && lastMsg.role === "assistant") {
+                  msgs[msgs.length - 1] = {
+                    ...lastMsg,
+                    content: lastMsg.content + batch,
+                  };
+                }
+                return { ...prev, messages: msgs };
+              });
+            });
+          } else {
+            chunkBufferA.current += content;
+          }
         },
         onComplete: () => {
           setConfigA((prev) => {
@@ -789,17 +809,28 @@ const PromptPlayground: React.FC = () => {
             }));
           },
           onChunk: (content) => {
-            setConfigB((prev) => {
-              const msgs = [...prev.messages];
-              const lastMsg = msgs[msgs.length - 1];
-              if (lastMsg && lastMsg.role === "assistant") {
-                msgs[msgs.length - 1] = {
-                  ...lastMsg,
-                  content: lastMsg.content + content,
-                };
-              }
-              return { ...prev, messages: msgs };
-            });
+            // Batch chunks using RAF to reduce render frequency
+            if (!chunkBufferB.current) {
+              chunkBufferB.current = content;
+              requestAnimationFrame(() => {
+                const batch = chunkBufferB.current;
+                chunkBufferB.current = null;
+
+                setConfigB((prev) => {
+                  const msgs = [...prev.messages];
+                  const lastMsg = msgs[msgs.length - 1];
+                  if (lastMsg && lastMsg.role === "assistant") {
+                    msgs[msgs.length - 1] = {
+                      ...lastMsg,
+                      content: lastMsg.content + batch,
+                    };
+                  }
+                  return { ...prev, messages: msgs };
+                });
+              });
+            } else {
+              chunkBufferB.current += content;
+            }
           },
           onComplete: () => {
             setConfigB((prev) => {
@@ -839,6 +870,16 @@ const PromptPlayground: React.FC = () => {
       if (updates.blockType && updates.blockType !== prev.blockType) {
         newConfig.sessionId = generateTestId();
         newConfig.messages = [];
+
+        // If in compare mode, synchronize Config B's block category
+        if (compareMode) {
+          setConfigB((prevB) => ({
+            ...prevB,
+            blockType: updates.blockType!,
+            sessionId: generateTestId(),
+            messages: [],
+          }));
+        }
       }
       return newConfig;
     });
@@ -851,6 +892,16 @@ const PromptPlayground: React.FC = () => {
       if (updates.blockType && updates.blockType !== prev.blockType) {
         newConfig.sessionId = generateTestId();
         newConfig.messages = [];
+
+        // If in compare mode, synchronize Config A's block category
+        if (compareMode) {
+          setConfigA((prevA) => ({
+            ...prevA,
+            blockType: updates.blockType!,
+            sessionId: generateTestId(),
+            messages: [],
+          }));
+        }
       }
       return newConfig;
     });
