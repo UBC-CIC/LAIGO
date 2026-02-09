@@ -411,7 +411,10 @@ def get_playground_streaming_response(
         chain,
         lambda _: DynamoDBChatMessageHistory(
             table_name=table_name, 
-            session_id=session_id
+            session_id=session_id,
+            ttl=True,
+            ttl_key_name="ttl",
+            ttl_num_seconds=86400 # 24 hours
         ),
         input_messages_key="input",
         history_messages_key="chat_history",

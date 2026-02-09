@@ -465,6 +465,18 @@ def handler(event, context):
     sub_route = query_params.get("sub_route", "intake-facts") # Default to intake-facts if missing
     playground_mode = query_params.get("playground_mode", "false").lower() == "true"
 
+    # Map sub_route to block_type enum
+    subroute_map = {
+        "intake-facts": "intake",
+        "issue-identification": "issues",
+        "research-strategy": "research",
+        "argument-construction": "argument",
+        "contrarian-analysis": "contrarian",
+        "policy-context": "policy"
+    }
+    
+    block_type = subroute_map.get(sub_route, "intake") # Default to intake if invalid sub_route
+
     # Handle Playground Mode - separate flow for testing prompts
     if playground_mode and is_websocket and connection_id:
         logger.info("Playground mode activated")
@@ -473,7 +485,14 @@ def handler(event, context):
         # Extract playground parameters
         custom_prompt = body.get("custom_prompt", get_default_system_prompt())
         test_message = body.get("message_content", "")
-        playground_session_id = body.get("session_id", f"playground-{uuid.uuid4()}")
+        
+        # Determine block type for playground (from body or query params)
+        playground_block_type = body.get("block_type", block_type)
+        
+        # Construct unique session ID based on playground marker, test_id and block_type
+        # This is consistent with the standard f"{case_id}-{block_type}" pattern
+        test_id = body.get("test_id", str(uuid.uuid4())[:8])
+        playground_session_id = f"playground-{test_id}-{playground_block_type}"
         
         # Custom model configuration (override defaults)
         custom_model_id = body.get("model_id", BEDROCK_LLM_ID)
@@ -527,17 +546,7 @@ def handler(event, context):
                 logger.error(f"Failed to send playground error to WebSocket: {ws_error}")
             return {"statusCode": 500}
 
-    # Map sub_route to block_type enum
-    subroute_map = {
-        "intake-facts": "intake",
-        "issue-identification": "issues",
-        "research-strategy": "research",
-        "argument-construction": "argument",
-        "contrarian-analysis": "contrarian",
-        "policy-context": "policy"
-    }
-    
-    block_type = subroute_map.get(sub_route, "intake") # Default to intake if invalid sub_route
+    # block_type is already determined at the top
     
     if not case_id:
         return {

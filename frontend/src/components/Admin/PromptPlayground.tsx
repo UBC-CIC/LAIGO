@@ -39,7 +39,7 @@ interface ConfigurationState {
   maxTokens: number;
   systemPrompt: string;
   selectedVersionId: string | null;
-  sessionId: string;
+  sessionId: string; // This is now the testId part
   messages: Message[];
   isLoading: boolean;
 }
@@ -73,18 +73,19 @@ const BLOCK_TYPES = [
 
 const DEFAULT_PROMPT = `You are a helpful AI assistant for law students. Provide clear, educational responses that help the student think through legal problems. Be supportive and guide them through their analysis step by step.`;
 
-const generateSessionId = () =>
-  `playground-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+const generateTestId = () => Math.random().toString(36).slice(2, 10);
 
-const createDefaultConfig = (): ConfigurationState => ({
-  blockType: "intake",
+const createDefaultConfig = (
+  blockType: string = "intake",
+): ConfigurationState => ({
+  blockType,
   modelId: "anthropic.claude-3-sonnet-20240229-v1:0",
   temperature: 0.5,
   topP: 0.9,
   maxTokens: 2048,
   systemPrompt: DEFAULT_PROMPT,
   selectedVersionId: null,
-  sessionId: generateSessionId(),
+  sessionId: generateTestId(),
   messages: [],
   isLoading: false,
 });
@@ -515,10 +516,10 @@ const ChatPanel: React.FC<{
 const PromptPlayground: React.FC = () => {
   const [compareMode, setCompareMode] = useState(false);
   const [configA, setConfigA] = useState<ConfigurationState>(
-    createDefaultConfig(),
+    createDefaultConfig("intake"),
   );
   const [configB, setConfigB] = useState<ConfigurationState>(
-    createDefaultConfig(),
+    createDefaultConfig("intake"),
   );
   const [inputMessage, setInputMessage] = useState("");
   const [promptVersions, setPromptVersions] = useState<PromptVersion[]>([]);
@@ -711,8 +712,9 @@ const PromptPlayground: React.FC = () => {
       "playground_test",
       {
         message_content: message,
+        block_type: configA.blockType,
+        test_id: configA.sessionId,
         custom_prompt: configA.systemPrompt,
-        session_id: configA.sessionId,
         model_id: configA.modelId,
         temperature: configA.temperature,
         top_p: configA.topP,
@@ -768,8 +770,9 @@ const PromptPlayground: React.FC = () => {
         "playground_test",
         {
           message_content: message,
+          block_type: configB.blockType,
+          test_id: configB.sessionId,
           custom_prompt: configB.systemPrompt,
-          session_id: configB.sessionId,
           model_id: configB.modelId,
           temperature: configB.temperature,
           top_p: configB.topP,
@@ -828,12 +831,37 @@ const PromptPlayground: React.FC = () => {
     sendStreamingRequest,
   ]);
 
+  // Handle config changes with session rotation for block type
+  const handleConfigAChange = (updates: Partial<ConfigurationState>) => {
+    setConfigA((prev) => {
+      const newConfig = { ...prev, ...updates };
+      // If blockType changed, rotate test ID and clear messages
+      if (updates.blockType && updates.blockType !== prev.blockType) {
+        newConfig.sessionId = generateTestId();
+        newConfig.messages = [];
+      }
+      return newConfig;
+    });
+  };
+
+  const handleConfigBChange = (updates: Partial<ConfigurationState>) => {
+    setConfigB((prev) => {
+      const newConfig = { ...prev, ...updates };
+      // If blockType changed, rotate test ID and clear messages
+      if (updates.blockType && updates.blockType !== prev.blockType) {
+        newConfig.sessionId = generateTestId();
+        newConfig.messages = [];
+      }
+      return newConfig;
+    });
+  };
+
   // Clear chat handlers
   const clearChatA = () => {
     setConfigA((prev) => ({
       ...prev,
       messages: [],
-      sessionId: generateSessionId(),
+      sessionId: generateTestId(),
     }));
   };
 
@@ -841,14 +869,14 @@ const PromptPlayground: React.FC = () => {
     setConfigB((prev) => ({
       ...prev,
       messages: [],
-      sessionId: generateSessionId(),
+      sessionId: generateTestId(),
     }));
   };
 
   // Toggle compare mode
   const toggleCompareMode = () => {
     if (!compareMode) {
-      setConfigB(createDefaultConfig());
+      setConfigB(createDefaultConfig(configA.blockType));
     }
     setCompareMode(!compareMode);
   };
@@ -902,9 +930,7 @@ const PromptPlayground: React.FC = () => {
         <Box sx={{ flex: 1 }}>
           <ModelConfigSection
             config={configA}
-            onConfigChange={(updates) =>
-              setConfigA((prev) => ({ ...prev, ...updates }))
-            }
+            onConfigChange={handleConfigAChange}
             label={compareMode ? "Model Config A" : undefined}
           />
         </Box>
@@ -912,9 +938,7 @@ const PromptPlayground: React.FC = () => {
           <Box sx={{ flex: 1 }}>
             <ModelConfigSection
               config={configB}
-              onConfigChange={(updates) =>
-                setConfigB((prev) => ({ ...prev, ...updates }))
-              }
+              onConfigChange={handleConfigBChange}
               label="Model Config B"
             />
           </Box>
@@ -926,9 +950,7 @@ const PromptPlayground: React.FC = () => {
         <Box sx={{ flex: 1 }}>
           <SystemPromptSection
             config={configA}
-            onConfigChange={(updates) =>
-              setConfigA((prev) => ({ ...prev, ...updates }))
-            }
+            onConfigChange={handleConfigAChange}
             promptVersions={promptVersions}
             onLoadVersion={(v) => loadPromptVersion(v, setConfigA)}
             onSave={() => savePromptVersion(configA)}
@@ -939,9 +961,7 @@ const PromptPlayground: React.FC = () => {
           <Box sx={{ flex: 1 }}>
             <SystemPromptSection
               config={configB}
-              onConfigChange={(updates) =>
-                setConfigB((prev) => ({ ...prev, ...updates }))
-              }
+              onConfigChange={handleConfigBChange}
               promptVersions={promptVersions}
               onLoadVersion={(v) => loadPromptVersion(v, setConfigB)}
               onSave={() => savePromptVersion(configB)}
