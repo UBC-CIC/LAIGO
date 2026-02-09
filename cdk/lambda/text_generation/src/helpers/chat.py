@@ -1,4 +1,4 @@
-import boto3, re
+import boto3, re, time
 from langchain_aws import ChatBedrock
 from langchain_aws import BedrockLLM
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
@@ -56,6 +56,20 @@ def create_dynamodb_history_table(table_name: str) -> bool:
         
         # Wait until the table exists.
         table.meta.client.get_waiter("table_exists").wait(TableName=table_name)
+        
+    # Enable TTL if not already enabled
+    try:
+        ttl_description = dynamodb_client.describe_time_to_live(TableName=table_name)
+        if ttl_description['TimeToLiveDescription']['TimeToLiveStatus'] == 'DISABLED':
+            dynamodb_client.update_time_to_live(
+                TableName=table_name,
+                TimeToLiveSpecification={
+                    'Enabled': True,
+                    'AttributeName': 'ttl'
+                }
+            )
+    except Exception as e:
+        print(f"Error checking/enabling TTL: {e}")
 
 def get_bedrock_llm(
     bedrock_llm_id: str,
@@ -412,9 +426,6 @@ def get_playground_streaming_response(
         lambda _: DynamoDBChatMessageHistory(
             table_name=table_name, 
             session_id=session_id,
-            ttl=True,
-            ttl_key_name="ttl",
-            ttl_num_seconds=86400 # 24 hours
         ),
         input_messages_key="input",
         history_messages_key="chat_history",
@@ -425,6 +436,38 @@ def get_playground_streaming_response(
     
     full_response = ""
     try:
+        try:
+            dynamodb = boto3.resource("dynamodb")
+            table = dynamodb.Table(table_name)
+            
+            # Check current TTL first to avoid unnecessary writes
+            response = table.get_item(
+                Key={'SessionId': session_id},
+                ProjectionExpression='#ttl',
+                ExpressionAttributeNames={'#ttl': 'ttl'}
+            )
+            
+            current_time = int(time.time())
+            expiry_timestamp = current_time + 86400  # 24 hours
+            
+            # Only update if TTL is missing or expires in less than 23 hours (update roughly every hour)
+            should_update = True
+            if 'Item' in response and 'ttl' in response['Item']:
+                current_ttl = int(response['Item']['ttl'])
+                # If existing TTL is still good for > 23 hours, don't write
+                if current_ttl > (current_time + 82800):
+                    should_update = False
+            
+            if should_update:
+                table.update_item(
+                    Key={'SessionId': session_id},
+                    UpdateExpression="SET #ttl = :expiry",
+                    ExpressionAttributeNames={'#ttl': 'ttl'},
+                    ExpressionAttributeValues={':expiry': expiry_timestamp}
+                )
+        except Exception as e:
+            print(f"Error setting TTL for playground session: {e}")
+
         # Stream the response
         for chunk in conversational_chain.stream(
             {"input": query},
