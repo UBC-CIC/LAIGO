@@ -1135,6 +1135,7 @@ export class ApiGatewayStack extends cdk.Stack {
         `arn:aws:bedrock:${this.region}::foundation-model/meta.llama3-70b-instruct-v1`,
         `arn:aws:bedrock:${this.region}::foundation-model/meta.llama3-70b-instruct-v1:0`, // Explicitly add the versioned model
         `arn:aws:bedrock:${this.region}::foundation-model/amazon.titan-embed-text-v2:0`, // If using Titan
+        `arn:aws:bedrock:${this.region}::foundation-model/anthropic.claude-3-sonnet-20240229-v1:0`, // Add Claude 3 Sonnet
       ],
     });
 
