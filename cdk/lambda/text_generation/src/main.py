@@ -11,7 +11,7 @@ from langchain_aws import BedrockEmbeddings
 
 from helpers.vectorstore import get_vectorstore_retriever
 from helpers.chat import get_bedrock_llm, get_initial_student_query, create_dynamodb_history_table, get_response, get_streaming_response, get_playground_streaming_response
-
+ 
 # Set up logging - Force level to INFO to ensure CloudWatch capture
 logger = logging.getLogger()
 if len(logger.handlers) > 0:

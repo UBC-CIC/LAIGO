@@ -340,7 +340,7 @@ def get_streaming_response(
         raise
     
     return get_llm_output(full_response)
-
+ 
 def get_playground_streaming_response(
     query: str,
     llm: ChatBedrock,
