@@ -19,7 +19,7 @@ import {
 import AddIcon from "@mui/icons-material/Add";
 import CloseIcon from "@mui/icons-material/Close";
 import SendIcon from "@mui/icons-material/Send";
-import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import RestartAltIcon from "@mui/icons-material/RestartAlt";
 import SaveIcon from "@mui/icons-material/Save";
 import { fetchAuthSession } from "aws-amplify/auth";
 import { useWebSocket } from "../../hooks/useWebSocket";
@@ -55,16 +55,10 @@ interface PromptVersion {
 // Available models (same as ModelConfig)
 const AVAILABLE_MODELS = [
   {
-    id: "anthropic.claude-3-5-sonnet-20241022-v2:0",
-    name: "Claude 3.5 Sonnet v2",
+    id: "anthropic.claude-3-sonnet-20240229-v1:0",
+    name: "Claude 3 Sonnet",
   },
-  {
-    id: "anthropic.claude-3-5-sonnet-20240620-v1:0",
-    name: "Claude 3.5 Sonnet",
-  },
-  { id: "anthropic.claude-3-haiku-20240307-v1:0", name: "Claude 3 Haiku" },
-  { id: "anthropic.claude-3-sonnet-20240229-v1:0", name: "Claude 3 Sonnet" },
-  { id: "anthropic.claude-3-opus-20240229-v1:0", name: "Claude 3 Opus" },
+  { id: "meta.llama3-70b-instruct-v1:0", name: "Llama 3 70b Instruct" },
 ];
 
 // Block types for prompt selection
@@ -84,7 +78,7 @@ const generateSessionId = () =>
 
 const createDefaultConfig = (): ConfigurationState => ({
   blockType: "intake",
-  modelId: "anthropic.claude-3-5-sonnet-20241022-v2:0",
+  modelId: "anthropic.claude-3-sonnet-20240229-v1:0",
   temperature: 0.5,
   topP: 0.9,
   maxTokens: 2048,
@@ -95,62 +89,47 @@ const createDefaultConfig = (): ConfigurationState => ({
   isLoading: false,
 });
 
-// Single configuration panel component
-const ConfigPanel: React.FC<{
+// Model Configuration Section - Top section with model settings
+const ModelConfigSection: React.FC<{
   config: ConfigurationState;
   onConfigChange: (updates: Partial<ConfigurationState>) => void;
-  promptVersions: PromptVersion[];
-  onLoadVersion: (versionId: string) => void;
-  onSaveAsNew: () => void;
   label?: string;
-}> = ({
-  config,
-  onConfigChange,
-  promptVersions,
-  onLoadVersion,
-  onSaveAsNew,
-  label,
-}) => {
+}> = ({ config, onConfigChange, label }) => {
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-      {label && (
+    <Box
+      sx={{
+        border: "1px solid var(--border)",
+        borderRadius: 2,
+        backgroundColor: "var(--paper)",
+        overflow: "hidden",
+      }}
+    >
+      <Box
+        sx={{
+          p: 2,
+          backgroundColor: "var(--header)",
+          borderBottom: "1px solid var(--border)",
+        }}
+      >
         <Typography
           variant="subtitle2"
-          sx={{ fontWeight: "bold", color: "var(--text)" }}
+          sx={{ fontWeight: "bold", color: "var(--text)", textAlign: "left" }}
         >
-          {label}
+          {label ? `${label} - Model Configuration` : "Model Configuration"}
         </Typography>
-      )}
+      </Box>
 
-      {/* Model and Block Type Row */}
-      <Box sx={{ display: "flex", gap: 2 }}>
-        <FormControl size="small" sx={{ flex: 1 }}>
-          <InputLabel sx={{ color: "var(--text-secondary)" }}>
-            Block Type
-          </InputLabel>
-          <Select
-            value={config.blockType}
-            label="Block Type"
-            onChange={(e) => onConfigChange({ blockType: e.target.value })}
-            sx={{
-              color: "var(--text)",
-              "& .MuiOutlinedInput-notchedOutline": {
-                borderColor: "var(--border)",
-              },
-              "&:hover .MuiOutlinedInput-notchedOutline": {
-                borderColor: "var(--primary)",
-              },
-            }}
-          >
-            {BLOCK_TYPES.map((block) => (
-              <MenuItem key={block.id} value={block.id}>
-                {block.label}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-
-        <FormControl size="small" sx={{ flex: 1 }}>
+      <Box
+        sx={{
+          p: 2,
+          display: "flex",
+          gap: 3,
+          flexWrap: "wrap",
+          alignItems: "flex-end",
+        }}
+      >
+        {/* Model Selection */}
+        <FormControl size="small" sx={{ minWidth: 220 }}>
           <InputLabel sx={{ color: "var(--text-secondary)" }}>Model</InputLabel>
           <Select
             value={config.modelId}
@@ -158,6 +137,7 @@ const ConfigPanel: React.FC<{
             onChange={(e) => onConfigChange({ modelId: e.target.value })}
             sx={{
               color: "var(--text)",
+              backgroundColor: "var(--background)",
               "& .MuiOutlinedInput-notchedOutline": {
                 borderColor: "var(--border)",
               },
@@ -173,12 +153,13 @@ const ConfigPanel: React.FC<{
             ))}
           </Select>
         </FormControl>
-      </Box>
 
-      {/* Sliders Row */}
-      <Box sx={{ display: "flex", gap: 3, alignItems: "center" }}>
-        <Box sx={{ flex: 1 }}>
-          <Typography variant="caption" sx={{ color: "var(--text-secondary)" }}>
+        {/* Temperature */}
+        <Box sx={{ width: 140 }}>
+          <Typography
+            variant="caption"
+            sx={{ color: "var(--text-secondary)", display: "block", mb: 0.5 }}
+          >
             Temperature: {config.temperature.toFixed(2)}
           </Typography>
           <Slider
@@ -188,11 +169,16 @@ const ConfigPanel: React.FC<{
             max={1}
             step={0.01}
             size="small"
-            sx={{ color: "var(--primary)" }}
+            sx={{ color: "var(--primary)", py: 1 }}
           />
         </Box>
-        <Box sx={{ flex: 1 }}>
-          <Typography variant="caption" sx={{ color: "var(--text-secondary)" }}>
+
+        {/* Top P */}
+        <Box sx={{ width: 140 }}>
+          <Typography
+            variant="caption"
+            sx={{ color: "var(--text-secondary)", display: "block", mb: 0.5 }}
+          >
             Top P: {config.topP.toFixed(2)}
           </Typography>
           <Slider
@@ -202,9 +188,11 @@ const ConfigPanel: React.FC<{
             max={1}
             step={0.01}
             size="small"
-            sx={{ color: "var(--primary)" }}
+            sx={{ color: "var(--primary)", py: 1 }}
           />
         </Box>
+
+        {/* Max Tokens */}
         <TextField
           label="Max Tokens"
           type="number"
@@ -214,75 +202,155 @@ const ConfigPanel: React.FC<{
             onConfigChange({ maxTokens: parseInt(e.target.value) || 2048 })
           }
           sx={{
-            width: 120,
+            width: 100,
             "& .MuiInputLabel-root": { color: "var(--text-secondary)" },
             "& .MuiOutlinedInput-root": {
               color: "var(--text)",
+              backgroundColor: "var(--background)",
               "& fieldset": { borderColor: "var(--border)" },
             },
           }}
         />
       </Box>
+    </Box>
+  );
+};
 
-      {/* System Prompt Section */}
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+// System Prompt Section - Middle section for prompt selection and editing
+const SystemPromptSection: React.FC<{
+  config: ConfigurationState;
+  onConfigChange: (updates: Partial<ConfigurationState>) => void;
+  promptVersions: PromptVersion[];
+  onLoadVersion: (versionId: string) => void;
+  onSave: () => void;
+  label?: string;
+}> = ({
+  config,
+  onConfigChange,
+  promptVersions,
+  onLoadVersion,
+  onSave,
+  label,
+}) => {
+  return (
+    <Box
+      sx={{
+        border: "1px solid var(--border)",
+        borderRadius: 2,
+        backgroundColor: "var(--paper)",
+        overflow: "hidden",
+      }}
+    >
+      <Box
+        sx={{
+          p: 2,
+          backgroundColor: "var(--header)",
+          borderBottom: "1px solid var(--border)",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: 2,
+        }}
+      >
+        <Typography
+          variant="subtitle2"
+          sx={{ fontWeight: "bold", color: "var(--text)", textAlign: "left" }}
+        >
+          {label ? `${label} - System Prompt` : "System Prompt"}
+        </Typography>
+
         <Box
           sx={{
             display: "flex",
-            justifyContent: "space-between",
+            gap: 1,
             alignItems: "center",
+            flexWrap: "wrap",
           }}
         >
-          <Typography variant="subtitle2" sx={{ color: "var(--text)" }}>
-            System Prompt
-          </Typography>
-          <Box sx={{ display: "flex", gap: 1 }}>
-            <FormControl size="small" sx={{ minWidth: 150 }}>
-              <Select
-                value={config.selectedVersionId || ""}
-                displayEmpty
-                onChange={(e) => {
-                  if (e.target.value) {
-                    onLoadVersion(e.target.value);
-                  }
-                }}
-                sx={{
-                  color: "var(--text)",
-                  fontSize: "0.8rem",
-                  "& .MuiOutlinedInput-notchedOutline": {
-                    borderColor: "var(--border)",
-                  },
-                }}
-              >
-                <MenuItem value="" disabled>
-                  Load Version...
+          {/* Block Type Selection */}
+          <FormControl size="small" sx={{ width: 160 }}>
+            <InputLabel sx={{ color: "var(--text-secondary)" }}>
+              Block Type
+            </InputLabel>
+            <Select
+              value={config.blockType}
+              label="Block Type"
+              onChange={(e) => onConfigChange({ blockType: e.target.value })}
+              sx={{
+                color: "var(--text)",
+                backgroundColor: "var(--background)",
+                "& .MuiOutlinedInput-notchedOutline": {
+                  borderColor: "var(--border)",
+                },
+              }}
+            >
+              {BLOCK_TYPES.map((block) => (
+                <MenuItem key={block.id} value={block.id}>
+                  {block.label}
                 </MenuItem>
-                {promptVersions.map((v) => (
-                  <MenuItem
-                    key={v.prompt_version_id}
-                    value={v.prompt_version_id}
-                  >
-                    v{v.version_number}{" "}
-                    {v.version_name ? `- ${v.version_name}` : ""}{" "}
-                    {v.is_active ? "(Active)" : ""}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            <Tooltip title="Save as New Version">
+              ))}
+            </Select>
+          </FormControl>
+
+          {/* Load Version */}
+          <FormControl size="small" sx={{ width: 160 }}>
+            <InputLabel sx={{ color: "var(--text-secondary)" }}>
+              Version
+            </InputLabel>
+            <Select
+              value={config.selectedVersionId || ""}
+              label="Version"
+              onChange={(e) => {
+                if (e.target.value) {
+                  onLoadVersion(e.target.value);
+                }
+              }}
+              sx={{
+                color: "var(--text)",
+                backgroundColor: "var(--background)",
+                "& .MuiOutlinedInput-notchedOutline": {
+                  borderColor: "var(--border)",
+                },
+              }}
+            >
+              <MenuItem value="" disabled>
+                <em>None</em>
+              </MenuItem>
+              {promptVersions.map((v) => (
+                <MenuItem key={v.prompt_version_id} value={v.prompt_version_id}>
+                  v{v.version_number}{" "}
+                  {v.version_name ? `- ${v.version_name}` : ""}{" "}
+                  {v.is_active ? "(Active)" : ""}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
+          {/* Save Button */}
+          {config.selectedVersionId && (
+            <Tooltip title="Save Version">
               <IconButton
                 size="small"
-                onClick={onSaveAsNew}
-                sx={{ color: "var(--primary)" }}
+                onClick={onSave}
+                sx={{
+                  color: "var(--primary)",
+                  "&:hover": { backgroundColor: "var(--header-hover)" },
+                }}
               >
                 <SaveIcon fontSize="small" />
               </IconButton>
             </Tooltip>
-          </Box>
+          )}
         </Box>
+      </Box>
+
+      <Box sx={{ p: 2 }}>
+        {/* Prompt Text Area */}
         <TextField
           multiline
-          rows={4}
+          rows={5}
+          fullWidth
           value={config.systemPrompt}
           onChange={(e) => onConfigChange({ systemPrompt: e.target.value })}
           placeholder="Enter your system prompt..."
@@ -290,8 +358,19 @@ const ConfigPanel: React.FC<{
             "& .MuiOutlinedInput-root": {
               color: "var(--text)",
               backgroundColor: "var(--background)",
+              fontFamily: "monospace",
+              fontSize: "0.9rem",
               "& fieldset": { borderColor: "var(--border)" },
               "&:hover fieldset": { borderColor: "var(--primary)" },
+              "& textarea": {
+                resize: "vertical",
+              },
+              "& textarea::-webkit-resizer": {
+                backgroundColor: "var(--background)",
+                backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath d='M10 0 L0 10 M10 4 L4 10 M10 8 L8 10' stroke='%23888' stroke-width='1'/%3E%3C/svg%3E")`,
+                backgroundRepeat: "no-repeat",
+                backgroundPosition: "bottom right",
+              },
             },
           }}
         />
@@ -320,7 +399,8 @@ const ChatPanel: React.FC<{
         display: "flex",
         flexDirection: "column",
         border: "1px solid var(--border)",
-        borderRadius: 1,
+        borderRadius: 2,
+        backgroundColor: "var(--paper)",
         overflow: "hidden",
         minHeight: 300,
       }}
@@ -334,7 +414,7 @@ const ChatPanel: React.FC<{
           px: 2,
           py: 1,
           borderBottom: "1px solid var(--border)",
-          backgroundColor: "var(--secondary)",
+          backgroundColor: "var(--header)",
         }}
       >
         <Typography variant="subtitle2" sx={{ color: "var(--text)" }}>
@@ -346,7 +426,7 @@ const ChatPanel: React.FC<{
             onClick={onClear}
             sx={{ color: "var(--text-secondary)" }}
           >
-            <DeleteOutlineIcon fontSize="small" />
+            <RestartAltIcon fontSize="small" />
           </IconButton>
         </Tooltip>
       </Box>
@@ -390,7 +470,9 @@ const ChatPanel: React.FC<{
                   p: 1.5,
                   borderRadius: 2,
                   backgroundColor:
-                    msg.role === "user" ? "var(--primary)" : "var(--secondary)",
+                    msg.role === "user"
+                      ? "var(--primary)"
+                      : "rgba(128, 128, 128, 0.1)",
                   color: msg.role === "user" ? "white" : "var(--text)",
                 }}
               >
@@ -474,6 +556,7 @@ const PromptPlayground: React.FC = () => {
     try {
       const session = await fetchAuthSession();
       const token = session.tokens?.idToken?.toString();
+      if (!token) return;
       const response = await fetch(
         `${import.meta.env.VITE_API_ENDPOINT}admin/prompt?category=reasoning&block_type=${blockType}`,
         {
@@ -513,39 +596,83 @@ const PromptPlayground: React.FC = () => {
     [promptVersions],
   );
 
-  // Save current prompt as new version
-  const saveAsNewVersion = useCallback(
+  // Auto-load active version when versions are fetched
+  useEffect(() => {
+    if (promptVersions.length > 0) {
+      const activeVersion =
+        promptVersions.find((v) => v.is_active) || promptVersions[0];
+
+      // Auto-load for Panel A if nothing selected or current selected ID is invalid for this block
+      if (
+        !configA.selectedVersionId ||
+        !promptVersions.some(
+          (v) => v.prompt_version_id === configA.selectedVersionId,
+        )
+      ) {
+        loadPromptVersion(activeVersion.prompt_version_id, setConfigA);
+      }
+
+      // Auto-load for Panel B if nothing selected or current selected ID is invalid for this block
+      if (
+        compareMode &&
+        (!configB.selectedVersionId ||
+          !promptVersions.some(
+            (v) => v.prompt_version_id === configB.selectedVersionId,
+          ))
+      ) {
+        loadPromptVersion(activeVersion.prompt_version_id, setConfigB);
+      }
+    }
+  }, [
+    promptVersions,
+    loadPromptVersion,
+    compareMode,
+    configA.selectedVersionId,
+    configB.selectedVersionId,
+  ]);
+
+  // Save current prompt version
+  const savePromptVersion = useCallback(
     async (config: ConfigurationState) => {
+      if (!config.selectedVersionId) return;
+
       try {
         const session = await fetchAuthSession();
         const token = session.tokens?.idToken?.toString();
+        if (!token) {
+          setSnackbar({
+            open: true,
+            message: "Not authenticated",
+            severity: "error",
+          });
+          return;
+        }
+
         const response = await fetch(
           `${import.meta.env.VITE_API_ENDPOINT}admin/prompt`,
           {
-            method: "POST",
+            method: "PUT",
             headers: {
               Authorization: token,
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              category: "reasoning",
-              block_type: config.blockType,
+              prompt_version_id: config.selectedVersionId,
               prompt_text: config.systemPrompt,
-              version_name: `Playground - ${new Date().toISOString().split("T")[0]}`,
             }),
           },
         );
         if (response.ok) {
           setSnackbar({
             open: true,
-            message: "Saved as new version!",
+            message: "Version updated!",
             severity: "success",
           });
           fetchPromptVersions(config.blockType);
         } else {
           throw new Error("Failed to save");
         }
-      } catch (error) {
+      } catch {
         setSnackbar({
           open: true,
           message: "Failed to save version",
@@ -770,37 +897,61 @@ const PromptPlayground: React.FC = () => {
         </Alert>
       )}
 
-      {/* Configuration Panels */}
+      {/* Model Configuration Section - Top */}
       <Box sx={{ display: "flex", gap: 3 }}>
         <Box sx={{ flex: 1 }}>
-          <ConfigPanel
+          <ModelConfigSection
+            config={configA}
+            onConfigChange={(updates) =>
+              setConfigA((prev) => ({ ...prev, ...updates }))
+            }
+            label={compareMode ? "Model Config A" : undefined}
+          />
+        </Box>
+        {compareMode && (
+          <Box sx={{ flex: 1 }}>
+            <ModelConfigSection
+              config={configB}
+              onConfigChange={(updates) =>
+                setConfigB((prev) => ({ ...prev, ...updates }))
+              }
+              label="Model Config B"
+            />
+          </Box>
+        )}
+      </Box>
+
+      {/* System Prompt Section - Middle */}
+      <Box sx={{ display: "flex", gap: 3 }}>
+        <Box sx={{ flex: 1 }}>
+          <SystemPromptSection
             config={configA}
             onConfigChange={(updates) =>
               setConfigA((prev) => ({ ...prev, ...updates }))
             }
             promptVersions={promptVersions}
             onLoadVersion={(v) => loadPromptVersion(v, setConfigA)}
-            onSaveAsNew={() => saveAsNewVersion(configA)}
-            label={compareMode ? "Configuration A" : undefined}
+            onSave={() => savePromptVersion(configA)}
+            label={compareMode ? "Prompt A" : undefined}
           />
         </Box>
         {compareMode && (
           <Box sx={{ flex: 1 }}>
-            <ConfigPanel
+            <SystemPromptSection
               config={configB}
               onConfigChange={(updates) =>
                 setConfigB((prev) => ({ ...prev, ...updates }))
               }
               promptVersions={promptVersions}
               onLoadVersion={(v) => loadPromptVersion(v, setConfigB)}
-              onSaveAsNew={() => saveAsNewVersion(configB)}
-              label="Configuration B"
+              onSave={() => savePromptVersion(configB)}
+              label="Prompt B"
             />
           </Box>
         )}
       </Box>
 
-      {/* Chat Panels */}
+      {/* Chat Section - Bottom */}
       <Box sx={{ display: "flex", gap: 3, flex: 1 }}>
         <ChatPanel
           messages={configA.messages}
@@ -824,7 +975,7 @@ const PromptPlayground: React.FC = () => {
           display: "flex",
           gap: 2,
           p: 2,
-          backgroundColor: "var(--secondary)",
+          backgroundColor: "var(--paper)",
           borderRadius: 1,
           border: "1px solid var(--border)",
         }}
