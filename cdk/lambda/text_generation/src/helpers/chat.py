@@ -436,15 +436,28 @@ def get_playground_streaming_response(
     
     full_response = ""
     try:
+        # Stream the response
+        for chunk in conversational_chain.stream(
+            {"input": query},
+            config={"configurable": {"session_id": session_id}}
+        ):
+            # Extract content from the chunk
+            if hasattr(chunk, 'content') and chunk.content:
+                chunk_content = chunk.content
+                full_response += chunk_content
+                send_to_websocket("chunk", content=chunk_content)
+        
+        # Send complete message
+        send_to_websocket("complete", data={"llm_output": full_response})
+        
+        # Update TTL AFTER conversation is saved by LangChain
         try:
             dynamodb = boto3.resource("dynamodb")
             table = dynamodb.Table(table_name)
             
             # Check current TTL first to avoid unnecessary writes
             response = table.get_item(
-                Key={'SessionId': session_id},
-                ProjectionExpression='#ttl',
-                ExpressionAttributeNames={'#ttl': 'ttl'}
+                Key={'SessionId': session_id}
             )
             
             current_time = int(time.time())
@@ -467,20 +480,6 @@ def get_playground_streaming_response(
                 )
         except Exception as e:
             print(f"Error setting TTL for playground session: {e}")
-
-        # Stream the response
-        for chunk in conversational_chain.stream(
-            {"input": query},
-            config={"configurable": {"session_id": session_id}}
-        ):
-            # Extract content from the chunk
-            if hasattr(chunk, 'content') and chunk.content:
-                chunk_content = chunk.content
-                full_response += chunk_content
-                send_to_websocket("chunk", content=chunk_content)
-        
-        # Send complete message
-        send_to_websocket("complete", data={"llm_output": full_response})
         
     except Exception as e:
         send_to_websocket("error", content=str(e))

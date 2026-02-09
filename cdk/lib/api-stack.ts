@@ -1326,6 +1326,8 @@ export class ApiGatewayStack extends cdk.Stack {
           "dynamodb:PutItem",
           "dynamodb:GetItem",
           "dynamodb:UpdateItem",
+          "dynamodb:DescribeTimeToLive",
+          "dynamodb:UpdateTimeToLive",
         ],
         resources: [`arn:aws:dynamodb:${this.region}:${this.account}:table/*`],
       }),
