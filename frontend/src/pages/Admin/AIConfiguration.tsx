@@ -11,6 +11,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import AdminHeader from "../../components/AdminHeader";
 import ModelConfig from "../../components/Admin/ModelConfig";
 import PromptEditor from "../../components/Admin/PromptEditor";
+import PromptPlayground from "../../components/Admin/PromptPlayground";
 
 // --- Types based on DB Schema & Requirements ---
 
@@ -31,6 +32,7 @@ const SIDEBAR_TO_BACKEND: Record<
 > = {
   // General
   "model-configs": { category: "General Settings", block_type: null },
+  playground: { category: "General Settings", block_type: null },
 
   // Reasoning
   "intake-facts": { category: "reasoning", block_type: "intake" },
@@ -68,6 +70,12 @@ const SECTIONS: SidebarSection[] = [
         label: "Model Configs",
         description:
           "Configure the global settings for the AI models, including temperature and model selection, which affect the overall behavior of the system.",
+      },
+      {
+        id: "playground",
+        label: "Prompt Playground",
+        description:
+          "Test prompts with different configurations and multi-turn conversations before activating them.",
       },
     ],
   },
@@ -282,6 +290,8 @@ const AIConfiguration = () => {
           >
             {selectedBlockId === "model-configs" ? (
               <ModelConfig />
+            ) : selectedBlockId === "playground" ? (
+              <PromptPlayground />
             ) : target && target.block_type ? (
               <PromptEditor
                 // Key forces remount when category/block changes, ensuring fresh state

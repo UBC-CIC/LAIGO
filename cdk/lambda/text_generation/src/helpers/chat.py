@@ -341,6 +341,107 @@ def get_streaming_response(
     
     return get_llm_output(full_response)
 
+def get_playground_streaming_response(
+    query: str,
+    llm: ChatBedrock,
+    table_name: str,
+    session_id: str,
+    system_prompt: str,
+    connection_id: str,
+    websocket_endpoint: str,
+    request_id: str = None,
+) -> dict:
+    """
+    Generates a streaming response for playground testing.
+    Similar to get_streaming_response but without case context or RAG retrieval.
+    Uses DynamoDB for multi-turn conversation history.
+    
+    Args:
+    query (str): The user's test message.
+    llm (ChatBedrock): The language model instance.
+    table_name (str): DynamoDB table name for chat history.
+    session_id (str): Unique session ID for playground conversation.
+    system_prompt (str): Custom system prompt to test.
+    connection_id (str): WebSocket connection ID.
+    websocket_endpoint (str): HTTPS endpoint for ApiGatewayManagementApi.
+    request_id (str, optional): Request correlation ID.
+    
+    Returns:
+    dict: A dictionary containing the full response after streaming completes.
+    """
+    import json
+    
+    # Initialize ApiGatewayManagementApi client
+    apigw_client = boto3.client(
+        'apigatewaymanagementapi',
+        endpoint_url=websocket_endpoint
+    )
+
+    def send_to_websocket(message_type: str, content: str = None, data: dict = None):
+        """Helper to send messages to WebSocket connection."""
+        message = {
+            "requestId": request_id,
+            "action": "playground_test",
+            "type": message_type,
+        }
+        if content is not None:
+            message["content"] = content
+        if data is not None:
+            message["data"] = data
+        try:
+            apigw_client.post_to_connection(
+                ConnectionId=connection_id,
+                Data=json.dumps(message).encode('utf-8')
+            )
+        except Exception as e:
+            print(f"Error sending to WebSocket: {e}")
+
+    # Simple prompt template without RAG context
+    qa_prompt = ChatPromptTemplate.from_messages([
+        ("system", system_prompt),
+        MessagesPlaceholder("chat_history"),
+        ("human", "{input}"),
+    ])
+    
+    # Create a simple chain without RAG retrieval
+    chain = qa_prompt | llm
+    
+    # Wrap with message history for multi-turn conversation
+    conversational_chain = RunnableWithMessageHistory(
+        chain,
+        lambda _: DynamoDBChatMessageHistory(
+            table_name=table_name, 
+            session_id=session_id
+        ),
+        input_messages_key="input",
+        history_messages_key="chat_history",
+    )
+    
+    # Send start message
+    send_to_websocket("start")
+    
+    full_response = ""
+    try:
+        # Stream the response
+        for chunk in conversational_chain.stream(
+            {"input": query},
+            config={"configurable": {"session_id": session_id}}
+        ):
+            # Extract content from the chunk
+            if hasattr(chunk, 'content') and chunk.content:
+                chunk_content = chunk.content
+                full_response += chunk_content
+                send_to_websocket("chunk", content=chunk_content)
+        
+        # Send complete message
+        send_to_websocket("complete", data={"llm_output": full_response})
+        
+    except Exception as e:
+        send_to_websocket("error", content=str(e))
+        raise
+    
+    return get_llm_output(full_response)
+
 def split_into_sentences(paragraph: str) -> list[str]:
     """
     Splits a given paragraph into individual sentences using a regular expression to detect sentence boundaries.

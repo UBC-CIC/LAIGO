@@ -10,7 +10,7 @@ import functools
 from langchain_aws import BedrockEmbeddings
 
 from helpers.vectorstore import get_vectorstore_retriever
-from helpers.chat import get_bedrock_llm, get_initial_student_query, create_dynamodb_history_table, get_response, get_streaming_response
+from helpers.chat import get_bedrock_llm, get_initial_student_query, create_dynamodb_history_table, get_response, get_streaming_response, get_playground_streaming_response
 
 # Set up logging - Force level to INFO to ensure CloudWatch capture
 logger = logging.getLogger()
@@ -460,9 +460,72 @@ def handler(event, context):
     stage = request_context.get("stage")
     request_id = event.get("requestId")
 
-    query_params = event.get("queryStringParameters", {})
+    query_params = event.get("queryStringParameters", {}) or {}
     case_id = query_params.get("case_id", "")
     sub_route = query_params.get("sub_route", "intake-facts") # Default to intake-facts if missing
+    playground_mode = query_params.get("playground_mode", "false").lower() == "true"
+
+    # Handle Playground Mode - separate flow for testing prompts
+    if playground_mode and is_websocket and connection_id:
+        logger.info("Playground mode activated")
+        body = {} if event.get("body") is None else json.loads(event.get("body"))
+        
+        # Extract playground parameters
+        custom_prompt = body.get("custom_prompt", get_default_system_prompt())
+        test_message = body.get("message_content", "")
+        playground_session_id = body.get("session_id", f"playground-{uuid.uuid4()}")
+        
+        # Custom model configuration (override defaults)
+        custom_model_id = body.get("model_id", BEDROCK_LLM_ID)
+        custom_temperature = float(body.get("temperature", BEDROCK_TEMP))
+        custom_top_p = float(body.get("top_p", BEDROCK_TOP_P))
+        custom_max_tokens = int(body.get("max_tokens", BEDROCK_MAX_TOKENS))
+        
+        if not test_message:
+            logger.error("Playground mode requires message_content")
+            return {'statusCode': 400, 'body': json.dumps("Missing message_content for playground")}
+        
+        try:
+            # Create LLM with custom configuration
+            logger.info(f"Playground: Creating LLM with model={custom_model_id}, temp={custom_temperature}, top_p={custom_top_p}, max_tokens={custom_max_tokens}")
+            llm = get_bedrock_llm(
+                bedrock_llm_id=custom_model_id,
+                temperature=custom_temperature,
+                top_p=custom_top_p,
+                max_tokens=custom_max_tokens
+            )
+            
+            websocket_endpoint = os.environ.get("WEBSOCKET_API_ENDPOINT")
+            if not websocket_endpoint:
+                websocket_endpoint = f"https://{domain_name}/{stage}"
+            
+            # Use playground streaming response (no RAG, simpler prompt)
+            response = get_playground_streaming_response(
+                query=test_message,
+                llm=llm,
+                table_name=TABLE_NAME,
+                session_id=playground_session_id,
+                system_prompt=custom_prompt,
+                connection_id=connection_id,
+                websocket_endpoint=websocket_endpoint,
+                request_id=request_id,
+            )
+            
+            logger.info("Playground streaming response completed.")
+            return {"statusCode": 200}
+            
+        except Exception as e:
+            logger.error(f"Playground error: {e}")
+            try:
+                websocket_endpoint = os.environ.get("WEBSOCKET_API_ENDPOINT", f"https://{domain_name}/{stage}")
+                apigw_client = boto3.client('apigatewaymanagementapi', endpoint_url=websocket_endpoint)
+                apigw_client.post_to_connection(
+                    ConnectionId=connection_id,
+                    Data=json.dumps({"type": "error", "content": str(e)}).encode('utf-8')
+                )
+            except Exception as ws_error:
+                logger.error(f"Failed to send playground error to WebSocket: {ws_error}")
+            return {"statusCode": 500}
 
     # Map sub_route to block_type enum
     subroute_map = {
