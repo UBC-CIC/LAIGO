@@ -84,6 +84,64 @@ exports.handler = async (event) => {
       return { statusCode: 200 };
     }
 
+    // Handle playground test requests
+    if (action === "playground_test") {
+      const {
+        message_content,
+        block_type,
+        test_id,
+        custom_prompt,
+        model_id,
+        temperature,
+        top_p,
+        max_tokens,
+      } = body;
+
+      console.log("Invoking playground test:", {
+        block_type,
+        test_id,
+        cognitoId,
+        requestId,
+        model_id,
+      });
+
+      const playgroundPayload = {
+        isWebSocket: true,
+        cognitoId: cognitoId,
+        requestId: requestId,
+        queryStringParameters: {
+          playground_mode: "true",
+          sub_route: block_type, // Map block_type to sub_route logic if needed, or handle directly
+        },
+        body: JSON.stringify({
+          message_content: message_content || "",
+          block_type: block_type,
+          test_id: test_id,
+          custom_prompt: custom_prompt,
+          model_id: model_id,
+          temperature: temperature,
+          top_p: top_p,
+          max_tokens: max_tokens,
+        }),
+        requestContext: {
+          connectionId: connectionId,
+          domainName: domainName,
+          stage: stage,
+        },
+      };
+
+      await lambda.send(
+        new InvokeCommand({
+          FunctionName: process.env.TEXT_GEN_FUNCTION_NAME,
+          InvocationType: "Event",
+          Payload: JSON.stringify(playgroundPayload),
+        }),
+      );
+
+      console.log("Playground test invoked successfully");
+      return { statusCode: 200 };
+    }
+
     // Handle assess progress requests
     if (action === "assess_progress") {
       const { case_id, block_type } = body;
