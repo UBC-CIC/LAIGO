@@ -11,7 +11,6 @@ import {
   Slider,
   IconButton,
   CircularProgress,
-  Paper,
   Tooltip,
   Snackbar,
   Alert,
@@ -23,6 +22,9 @@ import RestartAltIcon from "@mui/icons-material/RestartAlt";
 import SaveIcon from "@mui/icons-material/Save";
 import { fetchAuthSession } from "aws-amplify/auth";
 import { useWebSocket } from "../../hooks/useWebSocket";
+import UserMessage from "../../components/Chat/UserMessage";
+import AiResponse from "../../components/Chat/AiResponse";
+import ThinkingIndicator from "../../components/Chat/ThinkingIndicator";
 
 // Types
 interface Message {
@@ -396,7 +398,7 @@ const ChatPanel: React.FC<{
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, isLoading]);
 
   return (
     <Box
@@ -408,7 +410,7 @@ const ChatPanel: React.FC<{
         borderRadius: 2,
         backgroundColor: "var(--paper)",
         overflow: "hidden",
-        minHeight: 300,
+        minHeight: 400,
       }}
     >
       {/* Header */}
@@ -423,7 +425,10 @@ const ChatPanel: React.FC<{
           backgroundColor: "var(--header)",
         }}
       >
-        <Typography variant="subtitle2" sx={{ color: "var(--text)" }}>
+        <Typography
+          variant="subtitle2"
+          sx={{ color: "var(--text)", fontWeight: "bold" }}
+        >
           {label || "Conversation"}
         </Typography>
         <Tooltip title="Clear Chat">
@@ -442,75 +447,56 @@ const ChatPanel: React.FC<{
         sx={{
           flex: 1,
           overflowY: "auto",
-          p: 2,
+          p: 3,
           display: "flex",
           flexDirection: "column",
-          gap: 2,
+          gap: 3,
           backgroundColor: "var(--background)",
         }}
       >
         {messages.length === 0 ? (
-          <Typography
+          <Box
             sx={{
-              color: "var(--text-secondary)",
-              textAlign: "center",
-              mt: 4,
-              fontStyle: "italic",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              height: "100%",
+              opacity: 0.5,
             }}
           >
-            Send a message to test the prompt...
-          </Typography>
-        ) : (
-          messages.map((msg, idx) => (
-            <Box
-              key={idx}
+            <Typography
+              variant="body2"
               sx={{
-                display: "flex",
-                justifyContent: msg.role === "user" ? "flex-end" : "flex-start",
+                color: "var(--text-secondary)",
+                textAlign: "center",
+                fontStyle: "italic",
               }}
             >
-              <Paper
-                elevation={0}
-                sx={{
-                  maxWidth: "80%",
-                  p: 1.5,
-                  borderRadius: 2,
-                  backgroundColor:
-                    msg.role === "user"
-                      ? "var(--primary)"
-                      : "rgba(128, 128, 128, 0.1)",
-                  color: msg.role === "user" ? "white" : "var(--text)",
-                }}
-              >
-                <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
-                  {msg.content}
-                  {msg.isStreaming && (
-                    <Box
-                      component="span"
-                      sx={{
-                        display: "inline-block",
-                        width: 8,
-                        height: 16,
-                        backgroundColor: "var(--primary)",
-                        ml: 0.5,
-                        animation: "blink 1s infinite",
-                        "@keyframes blink": {
-                          "0%, 50%": { opacity: 1 },
-                          "51%, 100%": { opacity: 0 },
-                        },
-                      }}
-                    />
-                  )}
-                </Typography>
-              </Paper>
+              Send a message to test the prompt versions...
+            </Typography>
+          </Box>
+        ) : (
+          messages.map((msg, idx) => (
+            <Box key={idx} sx={{ width: "100%" }}>
+              {msg.role === "user" ? (
+                <UserMessage message={msg.content} />
+              ) : (
+                <AiResponse
+                  message={msg.content}
+                  isStreaming={msg.isStreaming === true}
+                />
+              )}
             </Box>
           ))
         )}
-        {isLoading && messages.length === 0 && (
-          <Box sx={{ display: "flex", justifyContent: "center", py: 2 }}>
-            <CircularProgress size={24} sx={{ color: "var(--primary)" }} />
+
+        {isLoading && !messages.some((m) => m.isStreaming) && (
+          <Box sx={{ display: "flex", justifyContent: "flex-start", pl: 1 }}>
+            <ThinkingIndicator />
           </Box>
         )}
+
         <div ref={messagesEndRef} />
       </Box>
     </Box>
