@@ -12,7 +12,6 @@ import {
   Stack,
   FormGroup,
   MenuItem,
-  Snackbar,
   Alert,
 } from "@mui/material";
 import StudentHeader from "../../components/StudentHeader";
@@ -37,21 +36,8 @@ const CreateCase: React.FC = () => {
   const [overview, setOverview] = useState<string>("");
   const [submitting, setSubmitting] = useState<boolean>(false);
 
-  // Snackbar state
-  const [snackbarOpen, setSnackbarOpen] = useState<boolean>(false);
-  const [snackbarMessage, setSnackbarMessage] = useState<string>("");
-  const [snackbarSeverity, setSnackbarSeverity] = useState<
-    "success" | "error" | "info" | "warning"
-  >("info");
-
-  const showSnackbar = (
-    message: string,
-    severity: "success" | "error" | "info" | "warning" = "info",
-  ) => {
-    setSnackbarMessage(message);
-    setSnackbarSeverity(severity);
-    setSnackbarOpen(true);
-  };
+  // Form alert state
+  const [error, setError] = useState<string | null>(null);
 
   const broadLawOptions = [
     "Criminal Law",
@@ -110,6 +96,7 @@ const CreateCase: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
+    setError(null);
     try {
       const session = await fetchAuthSession();
       const token = session.tokens?.idToken?.toString() || null;
@@ -187,10 +174,7 @@ const CreateCase: React.FC = () => {
       const editCaseData = await editCaseResp.json();
       console.log("case save response", editCaseData);
 
-      showSnackbar(
-        `Case created successfully: ${newCaseData.case_title}`,
-        "success",
-      );
+      /* Success snackbar removed as we navigate away immediately */
 
       // reset form
       setIsFederal(false);
@@ -206,7 +190,7 @@ const CreateCase: React.FC = () => {
     } catch (err) {
       console.error("Failed to submit case", err);
       const msg = err instanceof Error ? err.message : "Failed to submit case";
-      showSnackbar(msg, "error");
+      setError(msg);
     } finally {
       setSubmitting(false);
     }
@@ -247,6 +231,7 @@ const CreateCase: React.FC = () => {
             display: "flex",
             flexDirection: "column",
             alignItems: "flex-start",
+            position: "relative",
           }}
         >
           <Typography variant="h5" sx={{ mb: 3, color: "var(--text)" }}>
@@ -383,6 +368,21 @@ const CreateCase: React.FC = () => {
                 onChange={(e) => setOverview(e.target.value)}
               />
 
+              {error && (
+                <Alert
+                  severity="error"
+                  onClose={() => setError(null)}
+                  sx={{
+                    backgroundColor: "rgba(211, 47, 47, 0.1)",
+                    color: "#f44336",
+                    border: "1px solid #d32f2f",
+                    "& .MuiAlert-icon": { color: "#f44336" },
+                  }}
+                >
+                  {error}
+                </Alert>
+              )}
+
               {/* Start Chat Button */}
               <Button
                 type="submit"
@@ -407,21 +407,6 @@ const CreateCase: React.FC = () => {
           </form>
         </Paper>
       </Container>
-
-      <Snackbar
-        open={snackbarOpen}
-        autoHideDuration={8000}
-        onClose={() => setSnackbarOpen(false)}
-        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
-      >
-        <Alert
-          onClose={() => setSnackbarOpen(false)}
-          severity={snackbarSeverity}
-          sx={{ width: "100%" }}
-        >
-          {snackbarMessage}
-        </Alert>
-      </Snackbar>
     </Box>
   );
 };
