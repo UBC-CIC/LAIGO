@@ -217,6 +217,49 @@ exports.handler = async (event) => {
       return { statusCode: 200 };
     }
 
+    // Handle audio transcription requests
+    if (action === "audio_to_text") {
+      const { audio_file_id, file_name, file_type, case_title, case_id } = body;
+
+      console.log("Invoking audio_to_text:", {
+        audio_file_id,
+        file_name,
+        file_type,
+        case_id,
+        cognitoId,
+        requestId,
+      });
+
+      const audioPayload = {
+        isWebSocket: true,
+        cognitoId: cognitoId,
+        requestId: requestId,
+        body: JSON.stringify({
+          audio_file_id,
+          file_name,
+          file_type,
+          case_title,
+          case_id,
+        }),
+        requestContext: {
+          connectionId: connectionId,
+          domainName: domainName,
+          stage: stage,
+        },
+      };
+
+      await lambda.send(
+        new InvokeCommand({
+          FunctionName: process.env.AUDIO_TO_TEXT_FUNCTION_NAME,
+          InvocationType: "Event",
+          Payload: JSON.stringify(audioPayload),
+        }),
+      );
+
+      console.log("Audio to text function invoked successfully");
+      return { statusCode: 200 };
+    }
+
     // Handle notification delivery (from notification service)
     if (action === "notification_delivery") {
       const { type, notification } = body;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -34,6 +34,7 @@ import DownloadIcon from "@mui/icons-material/Download";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import { v4 as uuidv4 } from "uuid";
+import { useWebSocket } from "../../hooks/useWebSocket";
 
 interface Transcription {
   audio_file_id: string;
@@ -51,22 +52,6 @@ interface CaseData {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [key: string]: any;
 }
-
-const constructTranscriptionWebSocketUrl = (cognitoToken: string) => {
-  const tempUrl = import.meta.env.VITE_GRAPHQL_WS_URL;
-  const apiUrl = tempUrl.replace("https://", "wss://");
-  const urlObj = new URL(apiUrl);
-  urlObj.hostname = urlObj.hostname.replace(
-    "appsync-api",
-    "appsync-realtime-api",
-  );
-  const header = {
-    host: new URL(tempUrl).hostname,
-    Authorization: cognitoToken,
-  };
-  const encodedHeader = btoa(JSON.stringify(header));
-  return `${urlObj.toString()}?header=${encodedHeader}&payload=e30=`;
-};
 
 const CaseTranscriptions: React.FC = () => {
   const { caseId } = useParams();
@@ -89,9 +74,28 @@ const CaseTranscriptions: React.FC = () => {
   const [selectedTranscriptionId, setSelectedTranscriptionId] = useState<
     string | null
   >(null);
-  const wsRef = useRef<WebSocket | null>(null);
   const [audioTitle, setAudioTitle] = useState("");
   const [maxFileSizeMB, setMaxFileSizeMB] = useState(500);
+  const [wsUrl, setWsUrl] = useState<string | null>(null);
+
+  // Set up WebSocket connection (same hook as CaseSummaries, InterviewAssistant, etc.)
+  const { sendStreamingRequest, isConnected } = useWebSocket(wsUrl);
+
+  // Initialize WebSocket URL when auth is available
+  useEffect(() => {
+    const setupWebSocket = async () => {
+      try {
+        const session = await fetchAuthSession();
+        const token = session.tokens?.idToken?.toString();
+        if (token && import.meta.env.VITE_WEBSOCKET_URL) {
+          setWsUrl(`${import.meta.env.VITE_WEBSOCKET_URL}?token=${token}`);
+        }
+      } catch (error) {
+        console.error("Error setting up WebSocket:", error);
+      }
+    };
+    setupWebSocket();
+  }, []);
 
   const fetchFileSizeLimit = async () => {
     try {
@@ -242,97 +246,6 @@ const CaseTranscriptions: React.FC = () => {
     return response;
   };
 
-  const audioToText = async (audioFileId: string) => {
-    if (!audioFile) return;
-    const fileName = audioFile.name;
-    const fileExtension = audioFile.type;
-    const { tokens } = await fetchAuthSession();
-    const token = tokens?.idToken?.toString();
-    const cognitoId = tokens?.idToken?.payload?.sub;
-    if (!token || !cognitoId) return;
-
-    const response = await fetch(
-      `${import.meta.env.VITE_API_ENDPOINT}student/audio_to_text?` +
-        `audio_file_id=${encodeURIComponent(audioFileId)}&` +
-        `file_name=${encodeURIComponent(fileName)}&` +
-        `file_type=${encodeURIComponent(fileExtension)}&` +
-        `case_title=${encodeURIComponent(caseData?.case_title || "Unknown Case")}&` +
-        `case_id=${encodeURIComponent(caseId || "unknown")}&` +
-        `cognito_token=${encodeURIComponent(token)}`,
-      {
-        method: "GET",
-        headers: { Authorization: token, "Content-Type": "application/json" },
-      },
-    );
-
-    if (!response.ok) throw new Error("Failed to transcribe audio");
-    const data = await response.json();
-    return data.text;
-  };
-
-  const setupWebSocket = (cognitoToken: string, audioFileId: string) => {
-    return new Promise<void>((resolve, reject) => {
-      const url = constructTranscriptionWebSocketUrl(cognitoToken);
-
-      const ws = new WebSocket(url, "graphql-ws");
-      wsRef.current = ws;
-
-      ws.onopen = () => {
-        ws.send(JSON.stringify({ type: "connection_init" }));
-      };
-
-      ws.onmessage = ({ data }) => {
-        const msg = JSON.parse(data);
-
-        if (msg.type === "connection_ack") {
-          ws.send(
-            JSON.stringify({
-              id: audioFileId,
-              type: "start",
-              payload: {
-                data: JSON.stringify({
-                  query: `subscription OnNotify($audioFileId: String!) {
-                  onNotify(audioFileId: $audioFileId) {
-                    message
-                    audioFileId
-                  }
-                }`,
-                  variables: { audioFileId },
-                }),
-                extensions: {
-                  authorization: {
-                    Authorization: cognitoToken,
-                    host: new URL(import.meta.env.VITE_GRAPHQL_WS_URL).hostname,
-                  },
-                },
-              },
-            }),
-          );
-        } else if (
-          msg.type === "data" &&
-          msg.payload?.data?.onNotify?.message === "transcription_complete"
-        ) {
-          ws.close();
-          // Refresh transcriptions in real-time
-          fetchTranscriptions();
-          resolve();
-        } else if (msg.type === "error") {
-          console.error("WebSocket subscription error:", msg);
-          reject(new Error(`Subscription error: ${JSON.stringify(msg)}`));
-        }
-      };
-
-      ws.onerror = (err: Event) => {
-        console.error("WebSocket encountered an error:", err);
-        reject(err);
-      };
-
-      ws.onclose = () => {
-        wsRef.current = null;
-      };
-    });
-  };
-
   const handleAudioUploading = async () => {
     if (isUploading || !audioFile) return;
 
@@ -342,18 +255,79 @@ const CaseTranscriptions: React.FC = () => {
     try {
       const audioFileId = uuidv4();
       const presignedUrl = await generatePresignedUrl(audioFileId);
-      if (presignedUrl) {
-        await uploadFile(audioFile.file, presignedUrl);
-        await initializeAudioFileInDb(audioFileId, audioFile.name);
-        audioToText(audioFileId);
-        const { tokens } = await fetchAuthSession();
-        const cognitoToken = tokens?.idToken?.toString();
-        if (cognitoToken) {
-          await setupWebSocket(cognitoToken, audioFileId);
-        }
-        setSnackbarMessage("Transcription complete!");
-        closeUploadDialog();
+      if (!presignedUrl) {
+        throw new Error("Failed to generate presigned URL");
       }
+
+      // Upload file to S3 and initialize DB record
+      await uploadFile(audioFile.file, presignedUrl);
+      await initializeAudioFileInDb(audioFileId, audioFile.name);
+
+      // Trigger transcription via WebSocket (primary) or HTTP (fallback)
+      if (isConnected) {
+        sendStreamingRequest(
+          "audio_to_text",
+          {
+            audio_file_id: audioFileId,
+            file_name: audioFile.name,
+            file_type: audioFile.type,
+            case_title: caseData?.case_title || "Unknown Case",
+            case_id: caseId || "unknown",
+          },
+          {
+            onStart: () => {
+              console.log("Transcription started (WebSocket)");
+              closeUploadDialog();
+            },
+            onChunk: (content) => {
+              console.log("Transcription status:", content);
+            },
+            onComplete: async () => {
+              console.log("Transcription completed via WebSocket");
+              await fetchTranscriptions();
+              setSnackbarMessage("Transcription complete!");
+              setIsUploading(false);
+            },
+            onError: (msg) => {
+              console.error("Transcription error:", msg);
+              setError(msg || "Transcription failed");
+              setIsUploading(false);
+            },
+          },
+        );
+        // Don't set isUploading=false here; the callbacks handle it
+        return;
+      }
+
+      // HTTP fallback: fire-and-forget to the REST endpoint
+      const { tokens } = await fetchAuthSession();
+      const token = tokens?.idToken?.toString();
+      if (token) {
+        // Fire the request but don't await it (it will timeout at 29s anyway)
+        fetch(
+          `${import.meta.env.VITE_API_ENDPOINT}student/audio_to_text?` +
+            `audio_file_id=${encodeURIComponent(audioFileId)}&` +
+            `file_name=${encodeURIComponent(audioFile.name)}&` +
+            `file_type=${encodeURIComponent(audioFile.type)}&` +
+            `case_title=${encodeURIComponent(caseData?.case_title || "Unknown Case")}&` +
+            `case_id=${encodeURIComponent(caseId || "unknown")}&` +
+            `cognito_token=${encodeURIComponent(token)}`,
+          {
+            method: "GET",
+            headers: {
+              Authorization: token,
+              "Content-Type": "application/json",
+            },
+          },
+        ).catch((err) =>
+          console.error("HTTP fallback transcription error:", err),
+        );
+      }
+
+      setSnackbarMessage(
+        "Transcription started. You will be notified when it completes.",
+      );
+      closeUploadDialog();
     } catch (error: unknown) {
       console.error("Upload error:", error);
       setError((error as Error).message || "Failed to upload audio file");

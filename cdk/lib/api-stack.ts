@@ -1876,14 +1876,16 @@ export class ApiGatewayStack extends cdk.Stack {
           TEXT_GEN_FUNCTION_NAME: textGenLambdaDockerFunc.functionName,
           ASSESS_PROGRESS_FUNCTION_NAME: assessProgressFunction.functionName,
           SUMMARY_GEN_FUNCTION_NAME: summaryGenerationFunction.functionName,
+          AUDIO_TO_TEXT_FUNCTION_NAME: audioToTextFunction.functionName,
         },
       },
     );
 
-    // Grant default function permission to invoke TextGen, AssessProgress, and SummaryGeneration Lambdas
+    // Grant default function permission to invoke TextGen, AssessProgress, SummaryGeneration, and AudioToText Lambdas
     textGenLambdaDockerFunc.grantInvoke(wsDefaultFunction);
     assessProgressFunction.grantInvoke(wsDefaultFunction);
     summaryGenerationFunction.grantInvoke(wsDefaultFunction);
+    audioToTextFunction.grantInvoke(wsDefaultFunction);
 
     // Grant WebSocket functions permission to access DynamoDB connection table
     connectionTable.grantWriteData(wsConnectFunction);
@@ -1987,6 +1989,23 @@ export class ApiGatewayStack extends cdk.Stack {
 
     // Add WebSocket endpoint to SummaryGeneration Lambda environment
     summaryGenerationFunction.addEnvironment(
+      "WEBSOCKET_API_ENDPOINT",
+      this.wsStage.url.replace("wss://", "https://"),
+    );
+
+    // Grant AudioToText Lambda permission to post messages back to WebSocket connections
+    audioToTextFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["execute-api:ManageConnections"],
+        resources: [
+          `arn:aws:execute-api:${this.region}:${this.account}:${this.wsApi.apiId}/${this.wsStage.stageName}/POST/@connections/*`,
+        ],
+      }),
+    );
+
+    // Add WebSocket endpoint to AudioToText Lambda environment
+    audioToTextFunction.addEnvironment(
       "WEBSOCKET_API_ENDPOINT",
       this.wsStage.url.replace("wss://", "https://"),
     );

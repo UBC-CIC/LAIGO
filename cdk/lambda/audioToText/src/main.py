@@ -21,7 +21,7 @@ DB_SECRET_NAME = os.environ["SM_DB_CREDENTIALS"]    # Secrets Manager secret for
 REGION = os.environ["REGION"]                     # AWS region for SSM and other services
 RDS_PROXY_ENDPOINT = os.environ["RDS_PROXY_ENDPOINT"]  # RDS Proxy endpoint
 AUDIO_BUCKET = os.environ.get("AUDIO_BUCKET")         # S3 bucket where audio files are stored
-APPSYNC_API_URL = os.environ.get("APPSYNC_API_URL")   # AppSync GraphQL endpoint
+APPSYNC_API_URL = os.environ.get("APPSYNC_API_URL")   # AppSync GraphQL endpoint (HTTP fallback only)
 
 # AWS clients for Secrets Manager and Parameter Store
 secrets_manager_client = boto3.client("secretsmanager")
@@ -33,10 +33,43 @@ connection = None
 db_secret = None
 
 
+def send_to_websocket(connection_id, endpoint, request_id, msg_type, content=None, data=None):
+    """Send a message to a WebSocket connection with request correlation."""
+    client = boto3.client('apigatewaymanagementapi', endpoint_url=endpoint)
+    message = {
+        "requestId": request_id,
+        "action": "audio_to_text",
+        "type": msg_type,
+    }
+    if content is not None:
+        message["content"] = content
+    if data is not None:
+        message["data"] = data
+    try:
+        client.post_to_connection(
+            ConnectionId=connection_id,
+            Data=json.dumps(message).encode('utf-8')
+        )
+    except Exception as e:
+        logger.error(f"Error sending to WebSocket: {e}")
+
+
+def _error_response(status_code, message, is_websocket=False, connection_id=None, ws_endpoint=None, request_id=None):
+    """Helper for generating error responses for both HTTP and WebSocket modes."""
+    if is_websocket and connection_id:
+        send_to_websocket(connection_id, ws_endpoint, request_id, "error", content=message)
+        return {"statusCode": status_code}
+    return {
+        'statusCode': status_code,
+        "headers": get_cors_headers(),
+        'body': json.dumps({"error": message})
+    }
+
+
 def invoke_event_notification(audio_file_id, message, cognito_token):
     """
     Send a GraphQL mutation to AppSync to notify clients of an event.
-    Requires a valid Cognito JWT token for authentication.
+    Used only in HTTP fallback mode. WebSocket mode posts directly to the connection.
     """
     try:
         # Define the GraphQL mutation
@@ -290,49 +323,92 @@ def publish_transcription_notification_event(audio_file_id, cognito_id, file_nam
 
 def handler(event, context):
     """
-    AWS Lambda handler:
-      1. Handle CORS preflight (OPTIONS).
-      2. Extract parameters from query string.
-      3. Start a Transcribe job and poll for completion.
-      4. Fetch and parse transcript JSON.
-      5. Store transcript in RDS and notify via AppSync.
+    AWS Lambda handler for audio transcription.
+    
+    Supports two invocation modes:
+    
+    1. HTTP (API Gateway REST - legacy fallback):
+       - Receives parameters via queryStringParameters
+       - Returns response in HTTP body
+       - Uses AppSync subscription for real-time notification
+    
+    2. WebSocket (API Gateway WebSocket - primary):
+       - Receives parameters via event body (from default.js router)
+       - Posts status updates back to WebSocket connection
+       - No AppSync dependency
+    
+    Expected event structure (WebSocket):
+    {
+        "isWebSocket": true,
+        "cognitoId": "user-cognito-id",
+        "requestId": "unique-request-id",
+        "body": "{\"audio_file_id\": \"...\", \"file_name\": \"...\", ...}",
+        "requestContext": { "connectionId": "...", "domainName": "...", "stage": "..." }
+    }
     """
-    # 1. Preflight
+    # 1. Handle CORS preflight (HTTP only)
     if event.get("httpMethod") == "OPTIONS":
         return {"statusCode": 200, "headers": get_cors_headers(), "body": ""}
 
-    try:
-        # 2. Extract query parameters
-        qs = event.get("queryStringParameters") or {}
-        file_name = qs.get("file_name")
-        audio_file_id = qs.get("audio_file_id")
-        file_type = qs.get("file_type", "mp3").lower()
-        cognito_token = qs.get("cognito_token")
-        # Extract case metadata from query params (optimization to avoid DB lookup)
-        case_title = qs.get("case_title")
-        case_id = qs.get("case_id")
+    # Detect invocation mode
+    is_websocket = event.get("isWebSocket", False)
+    request_id = event.get("requestId")
+    request_context = event.get("requestContext", {})
+    connection_id = request_context.get("connectionId")
+    domain_name = request_context.get("domainName")
+    stage = request_context.get("stage")
 
-        # Extract cognito_id from request context (if available from authorizer)
-        cognito_id = event.get("requestContext", {}).get("authorizer", {}).get("principalId")
-        if not cognito_id:
-            # Fallback: try to extract from cognito_token if needed
-            # For now, we'll log a warning and continue without notification
-            logger.warning("No cognito_id available for notification")
+    # Determine WebSocket endpoint
+    ws_endpoint = None
+    if is_websocket and connection_id:
+        ws_endpoint = os.environ.get("WEBSOCKET_API_ENDPOINT")
+        if not ws_endpoint:
+            ws_endpoint = f"https://{domain_name}/{stage}"
+        logger.info(f"WebSocket mode - connectionId: {connection_id}, requestId: {request_id}")
+        send_to_websocket(connection_id, ws_endpoint, request_id, "start", content="Transcription started")
+
+    try:
+        # 2. Extract parameters based on invocation mode
+        if is_websocket:
+            # WebSocket: parameters come from the event body (set by default.js)
+            body = json.loads(event.get("body", "{}"))
+            file_name = body.get("file_name")
+            audio_file_id = body.get("audio_file_id")
+            file_type = body.get("file_type", "mp3").lower()
+            case_title = body.get("case_title")
+            case_id = body.get("case_id")
+            cognito_id = event.get("cognitoId")  # Set by default.js from authorizer
+            cognito_token = None  # Not needed for WebSocket mode
+        else:
+            # HTTP: parameters come from query string
+            qs = event.get("queryStringParameters") or {}
+            file_name = qs.get("file_name")
+            audio_file_id = qs.get("audio_file_id")
+            file_type = qs.get("file_type", "mp3").lower()
+            cognito_token = qs.get("cognito_token")
+            case_title = qs.get("case_title")
+            case_id = qs.get("case_id")
+            cognito_id = request_context.get("authorizer", {}).get("principalId")
+            if not cognito_id:
+                logger.warning("No cognito_id available for notification")
 
         # Validate required parameters
         if not file_name or not audio_file_id:
-            missing = [k for k in ("file_name", "audio_file_id") if not qs.get(k)]
+            missing = []
+            if not file_name:
+                missing.append("file_name")
+            if not audio_file_id:
+                missing.append("audio_file_id")
             logger.error(f"Missing params: {missing}")
             if cognito_id:
-                 publish_transcription_notification_event(audio_file_id, cognito_id, file_name, case_title, case_id, success=False, error_message=f"Missing parameters: {missing}")
-            return {"statusCode": 400, "headers": get_cors_headers(),
-                    "body": json.dumps({"error": f"Missing parameters: {missing}"})}
+                publish_transcription_notification_event(audio_file_id, cognito_id, file_name, case_title, case_id, success=False, error_message=f"Missing parameters: {missing}")
+            return _error_response(400, f"Missing parameters: {missing}", is_websocket, connection_id, ws_endpoint, request_id)
 
         # Construct S3 file URI
         media_file_uri = f"s3://{AUDIO_BUCKET}/{audio_file_id}/{file_name}.{file_type}"
         logger.info(f"Starting transcription for: {media_file_uri}")
 
-       # 3. Start Transcription job
+        # 3. Start Transcription job
         job_name = f"transcription-{audio_file_id}-{int(time.time())}-{random.randint(1000, 9999)}"
         transcribe.start_transcription_job(
             TranscriptionJobName=job_name,
@@ -355,6 +431,9 @@ def handler(event, context):
             }
         )
 
+        if is_websocket and connection_id:
+            send_to_websocket(connection_id, ws_endpoint, request_id, "status", content="Transcription job submitted, waiting for completion...")
+
         # Poll for job completion
         transcript_uri = None
         while True:
@@ -366,6 +445,9 @@ def handler(event, context):
             if status == "FAILED":
                 raise Exception("Transcription job failed")
             time.sleep(5)
+
+        if is_websocket and connection_id:
+            send_to_websocket(connection_id, ws_endpoint, request_id, "status", content="Transcription complete, processing results...")
 
         # 4. Download and parse transcript
         with urllib.request.urlopen(transcript_uri) as r:
@@ -381,13 +463,9 @@ def handler(event, context):
         add_audio_to_db(audio_file_id, formatted_transcript)
 
         # amazonq-ignore-next-line
-        logger.info(f"About to invoke event notification with audio_file_id={audio_file_id}, file_name={file_name}")
+        logger.info(f"About to send completion notification for audio_file_id={audio_file_id}")
 
-
-        # This sends to AppSync → triggers `onNotify`
-        invoke_event_notification(audio_file_id, "transcription_complete", cognito_token)
-
-        # Publish success notification event
+        # Publish success notification via EventBridge (bell/toast notification system)
         if cognito_id:
             publish_transcription_notification_event(audio_file_id, cognito_id, file_name, case_title, case_id, success=True)
 
@@ -402,23 +480,42 @@ def handler(event, context):
         except Exception as e:
             logger.error(f"Failed to delete audio file from S3: {e}")
 
+        # 7. Return response based on invocation mode
+        if is_websocket and connection_id:
+            send_to_websocket(connection_id, ws_endpoint, request_id, "complete", data={
+                "text": formatted_transcript,
+                "audioFileId": audio_file_id,
+                "jobName": job_name
+            })
+            return {"statusCode": 200}
 
+        # HTTP fallback: also notify via AppSync for legacy clients
+        try:
+            invoke_event_notification(audio_file_id, "transcription_complete", cognito_token)
+        except Exception as e:
+            logger.error(f"AppSync notification failed (non-fatal): {e}")
 
-        # Return successful response
         return {
             "statusCode": 200,
             "headers": {"Content-Type": "application/json", **get_cors_headers()},
-            "body": json.dumps({"text": transcript_text, "audioFileId": audio_file_id, "jobName": job_name})
+            "body": json.dumps({"text": formatted_transcript, "audioFileId": audio_file_id, "jobName": job_name})
         }
 
     except Exception as e:
         logger.error("Handler error: %s", e, exc_info=True)
         # Publish failure notification event if cognito_id is available
-        cognito_id = event.get("requestContext", {}).get("authorizer", {}).get("principalId")
-        if cognito_id:
-            # Try to get audio_file_id from query params for notification
-            qs = event.get("queryStringParameters") or {}
-            audio_file_id = qs.get("audio_file_id", "unknown")
-            publish_transcription_notification_event(audio_file_id, cognito_id, success=False, error_message=str(e))
-        return {"statusCode": 500, "headers": get_cors_headers(),
-                "body": json.dumps({"error": str(e)})}
+        if is_websocket:
+            cognito_id_for_notif = event.get("cognitoId")
+        else:
+            cognito_id_for_notif = event.get("requestContext", {}).get("authorizer", {}).get("principalId")
+        
+        if cognito_id_for_notif:
+            if is_websocket:
+                body = json.loads(event.get("body", "{}"))
+                afid = body.get("audio_file_id", "unknown")
+            else:
+                qs = event.get("queryStringParameters") or {}
+                afid = qs.get("audio_file_id", "unknown")
+            publish_transcription_notification_event(afid, cognito_id_for_notif, file_name=None, case_name=None, case_id=None, success=False, error_message=str(e))
+
+        return _error_response(500, str(e), is_websocket, connection_id, ws_endpoint, request_id)
