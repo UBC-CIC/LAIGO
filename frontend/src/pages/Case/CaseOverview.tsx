@@ -850,7 +850,7 @@ const CaseOverview: React.FC = () => {
       {/* Snackbar for alerts */}
       <Snackbar
         open={snackbar.open}
-        autoHideDuration={4000}
+        autoHideDuration={8000}
         onClose={handleSnackbarClose}
         anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
       >

@@ -174,9 +174,11 @@ const CaseFeedback: React.FC = () => {
 
       showSnackbar("Feedback deleted successfully", "success");
       loadFeedback(); // Refresh list
-    } catch (err: any) {
+    } catch (err) {
       console.error("Error deleting feedback:", err);
-      showSnackbar(err.message || "Failed to delete feedback", "error");
+      const message =
+        err instanceof Error ? err.message : "Failed to delete feedback";
+      showSnackbar(message, "error");
     }
   };
 
@@ -329,7 +331,7 @@ const CaseFeedback: React.FC = () => {
 
       <Snackbar
         open={snackbarOpen}
-        autoHideDuration={6000}
+        autoHideDuration={8000}
         onClose={() => setSnackbarOpen(false)}
         anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
       >

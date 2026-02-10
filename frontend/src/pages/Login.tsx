@@ -247,9 +247,9 @@ const Login = () => {
     >
       <Snackbar
         open={snackbar.open}
-        autoHideDuration={6000}
+        autoHideDuration={8000}
         onClose={() => setSnackbar({ ...snackbar, open: false })}
-        anchorOrigin={{ vertical: "top", horizontal: "center" }}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
       >
         <Alert
           onClose={() => setSnackbar({ ...snackbar, open: false })}

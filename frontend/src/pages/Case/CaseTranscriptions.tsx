@@ -1054,7 +1054,7 @@ const CaseTranscriptions: React.FC = () => {
 
         <Snackbar
           open={!!snackbarMessage}
-          autoHideDuration={6000}
+          autoHideDuration={8000}
           onClose={() => setSnackbarMessage("")}
           anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
         >

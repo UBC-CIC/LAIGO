@@ -994,8 +994,9 @@ const InterviewAssistant: React.FC = () => {
       {/* Unlock Notification Snackbar */}
       <Snackbar
         open={showSnackbar}
-        autoHideDuration={4000}
+        autoHideDuration={8000}
         onClose={() => setShowSnackbar(false)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
       >
         <Alert
           onClose={() => setShowSnackbar(false)}
