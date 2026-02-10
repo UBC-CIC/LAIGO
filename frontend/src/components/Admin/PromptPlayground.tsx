@@ -34,9 +34,9 @@ interface Message {
 
 // Case Context Interface
 interface CaseContext {
-  caseType: string;
+  case_type: string;
   jurisdiction: string;
-  caseDescription: string;
+  case_description: string;
   province: string;
   statute: string;
 }
@@ -85,9 +85,9 @@ const BLOCK_TYPES = [
 const DEFAULT_PROMPT = `You are a helpful AI assistant for law students. Provide clear, educational responses that help the student think through legal problems. Be supportive and guide them through their analysis step by step.`;
 
 const DEFAULT_CASE_CONTEXT: CaseContext = {
-  caseType: "Criminal Law",
+  case_type: "Criminal Law",
   jurisdiction: "Federal, Provincial",
-  caseDescription:
+  case_description:
     "The defendant is an unemployed warehouse worker who is currently receiving approximately $1400 a month in unemployment insurance. His parents have a house in Mount Pleasant and he is currently living there rent-free as they are both in a long-term care facility. The first floor of the house has a front door and also has a garage. There is a side door entrance to the garage, and the garage also has an interior door which connects to a kitchen on the first floor of the house. The kitchen has a back door which leads to an open back yard. One evening the defendant was doing some woodwork in his garage when he heard someone knocking at the front door of the house, and then the person seemed to be trying to open the front door which was locked. This concerned the defendant as there had been a number of break-ins in his area recently. He then heard the person walk to the garage door. That door was not locked, but was difficult to open because the wood door had swelled because of water damage. The defendant saw that the garage door handle was turning, and then the person was attempting to push the door open. The defendant grabbed a bat which was in the garage. The door suddenly popped open, and a person stumbled into the garage. The defendant immediately panicked and hit the leg of the person with the baseball bat. The person fell to the ground. The defendant then noticed that the person was holding his phone and had a suitcase with him. It turned out that the person was a visitor who had booked a short-term rental for a residence beside the defendant’s house, and was accidentally attempting to enter the wrong address. The person developed a bruise on his leg which lasted a couple of days.",
   province: "British Columbia",
   statute: "Criminal Code of Canada",
@@ -327,8 +327,8 @@ const MockCaseContextSection: React.FC<{
           <TextField
             label="Case Type"
             size="small"
-            value={config.caseContext.caseType}
-            onChange={(e) => handleContextChange("caseType", e.target.value)}
+            value={config.caseContext.case_type}
+            onChange={(e) => handleContextChange("case_type", e.target.value)}
             fullWidth
             sx={{
               "& .MuiOutlinedInput-root": {
@@ -392,9 +392,9 @@ const MockCaseContextSection: React.FC<{
               multiline
               rows={2}
               size="small"
-              value={config.caseContext.caseDescription}
+              value={config.caseContext.case_description}
               onChange={(e) =>
-                handleContextChange("caseDescription", e.target.value)
+                handleContextChange("case_description", e.target.value)
               }
               fullWidth
               sx={{

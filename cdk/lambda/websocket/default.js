@@ -95,6 +95,7 @@ exports.handler = async (event) => {
         temperature,
         top_p,
         max_tokens,
+        case_context,
       } = body;
 
       console.log("Invoking playground test:", {
@@ -122,6 +123,7 @@ exports.handler = async (event) => {
           temperature: temperature,
           top_p: top_p,
           max_tokens: max_tokens,
+          case_context: case_context,
         }),
         requestContext: {
           connectionId: connectionId,
