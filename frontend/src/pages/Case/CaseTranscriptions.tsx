@@ -77,6 +77,9 @@ const CaseTranscriptions: React.FC = () => {
   const [audioTitle, setAudioTitle] = useState("");
   const [maxFileSizeMB, setMaxFileSizeMB] = useState(500);
   const [wsUrl, setWsUrl] = useState<string | null>(null);
+  const [snackbarSeverity, setSnackbarSeverity] = useState<
+    "success" | "info" | "error" | "warning"
+  >("success");
 
   // Set up WebSocket connection (same hook as CaseSummaries, InterviewAssistant, etc.)
   const { sendStreamingRequest, isConnected } = useWebSocket(wsUrl);
@@ -281,15 +284,22 @@ const CaseTranscriptions: React.FC = () => {
             },
             onChunk: (content) => {
               console.log("Transcription status:", content);
+              setSnackbarSeverity("info");
+              setSnackbarMessage(
+                "Transcription in progress, check back momentarily",
+              );
             },
             onComplete: async () => {
               console.log("Transcription completed via WebSocket");
               await fetchTranscriptions();
+              setSnackbarSeverity("success");
               setSnackbarMessage("Transcription complete!");
               setIsUploading(false);
             },
             onError: (msg) => {
               console.error("Transcription error:", msg);
+              setSnackbarSeverity("error");
+              setSnackbarMessage("An error occurred during transcription");
               setError(msg || "Transcription failed");
               setIsUploading(false);
             },
@@ -1046,11 +1056,11 @@ const CaseTranscriptions: React.FC = () => {
           open={!!snackbarMessage}
           autoHideDuration={6000}
           onClose={() => setSnackbarMessage("")}
-          anchorOrigin={{ vertical: "top", horizontal: "center" }}
+          anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
         >
           <Alert
             onClose={() => setSnackbarMessage("")}
-            severity="success"
+            severity={snackbarSeverity}
             sx={{ width: "100%" }}
           >
             {snackbarMessage}

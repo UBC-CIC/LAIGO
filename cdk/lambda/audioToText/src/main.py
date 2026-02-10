@@ -381,7 +381,7 @@ def handler(event, context):
         )
 
         if is_websocket and connection_id:
-            send_to_websocket(connection_id, ws_endpoint, request_id, "status", content="Transcription job submitted, waiting for completion...")
+            send_to_websocket(connection_id, ws_endpoint, request_id, "chunk", content="Transcription job submitted, waiting for completion...")
 
         # Poll for job completion
         transcript_uri = None
@@ -396,7 +396,7 @@ def handler(event, context):
             time.sleep(5)
 
         if is_websocket and connection_id:
-            send_to_websocket(connection_id, ws_endpoint, request_id, "status", content="Transcription complete, processing results...")
+            send_to_websocket(connection_id, ws_endpoint, request_id, "chunk", content="Transcription complete, processing results...")
 
         # 4. Download and parse transcript
         with urllib.request.urlopen(transcript_uri) as r:
