@@ -18,7 +18,7 @@ export class AmplifyStack extends cdk.Stack {
     scope: Construct,
     id: string,
     apiStack: ApiGatewayStack,
-    props: AmplifyStackProps
+    props: AmplifyStackProps,
   ) {
     super(scope, id, props);
 
@@ -52,7 +52,7 @@ export class AmplifyStack extends cdk.Stack {
 
     const username = cdk.aws_ssm.StringParameter.valueForStringParameter(
       this,
-      "laigo-owner-name"
+      "laigo-owner-name",
     );
 
     const amplifyApp = new App(this, `${id}-amplifyApp`, {
@@ -64,7 +64,7 @@ export class AmplifyStack extends cdk.Stack {
           "github-personal-access-token",
           {
             jsonField: "my-github-token",
-          }
+          },
         ),
       }),
       environmentVariables: {
@@ -72,7 +72,6 @@ export class AmplifyStack extends cdk.Stack {
         VITE_COGNITO_USER_POOL_ID: apiStack.getUserPoolId(),
         VITE_COGNITO_USER_POOL_CLIENT_ID: apiStack.getUserPoolClientId(),
         VITE_API_ENDPOINT: apiStack.getEndpointUrl(),
-        VITE_GRAPHQL_WS_URL: apiStack.getEventApiUrl(),
         VITE_IDENTITY_POOL_ID: apiStack.getIdentityPoolId(),
         VITE_WEBSOCKET_URL: apiStack.getWebSocketUrl(),
       },

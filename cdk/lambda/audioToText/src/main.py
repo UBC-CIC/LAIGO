@@ -6,7 +6,6 @@ import logging
 import boto3
 import psycopg
 import urllib.request
-import httpx
 
 # Set up logging for the Lambda function
 logger = logging.getLogger()
@@ -21,7 +20,6 @@ DB_SECRET_NAME = os.environ["SM_DB_CREDENTIALS"]    # Secrets Manager secret for
 REGION = os.environ["REGION"]                     # AWS region for SSM and other services
 RDS_PROXY_ENDPOINT = os.environ["RDS_PROXY_ENDPOINT"]  # RDS Proxy endpoint
 AUDIO_BUCKET = os.environ.get("AUDIO_BUCKET")         # S3 bucket where audio files are stored
-APPSYNC_API_URL = os.environ.get("APPSYNC_API_URL")   # AppSync GraphQL endpoint (HTTP fallback only)
 
 # AWS clients for Secrets Manager and Parameter Store
 secrets_manager_client = boto3.client("secretsmanager")
@@ -64,53 +62,6 @@ def _error_response(status_code, message, is_websocket=False, connection_id=None
         "headers": get_cors_headers(),
         'body': json.dumps({"error": message})
     }
-
-
-def invoke_event_notification(audio_file_id, message, cognito_token):
-    """
-    Send a GraphQL mutation to AppSync to notify clients of an event.
-    Used only in HTTP fallback mode. WebSocket mode posts directly to the connection.
-    """
-    try:
-        # Define the GraphQL mutation
-        query = """
-        mutation sendNotification($message: String!, $audioFileId: String!) {
-            sendNotification(message: $message, audioFileId: $audioFileId) {
-                message
-                audioFileId
-            }
-        }
-        """
-
-        # Set HTTP headers including the Cognito token
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": cognito_token  # Prefix with "Bearer " if your AppSync setup requires it
-        }
-
-        # Construct the payload
-        payload = {
-            "query": query,
-            "variables": {"message": message, "audioFileId": audio_file_id}
-        }
-
-        # Perform the HTTP request
-        with httpx.Client() as client:
-            response = client.post(APPSYNC_API_URL, headers=headers, json=payload)
-            response_data = response.json()
-
-        # Log AppSync response details
-        logger.info(f"AppSync Response: {json.dumps(response_data, indent=2)}")
-
-        # Check for errors in the response
-        if response.status_code != 200 or "errors" in response_data:
-            raise Exception(f"Failed to send notification: {response_data}")
-
-        return response_data["data"]["sendNotification"]
-
-    except Exception as e:
-        logger.error(f"Error publishing event to AppSync: {e}")
-        raise
 
 
 def get_secret(secret_name, expect_json=True):
@@ -330,12 +281,10 @@ def handler(event, context):
     1. HTTP (API Gateway REST - legacy fallback):
        - Receives parameters via queryStringParameters
        - Returns response in HTTP body
-       - Uses AppSync subscription for real-time notification
     
     2. WebSocket (API Gateway WebSocket - primary):
        - Receives parameters via event body (from default.js router)
        - Posts status updates back to WebSocket connection
-       - No AppSync dependency
     
     Expected event structure (WebSocket):
     {
@@ -488,12 +437,6 @@ def handler(event, context):
                 "jobName": job_name
             })
             return {"statusCode": 200}
-
-        # HTTP fallback: also notify via AppSync for legacy clients
-        try:
-            invoke_event_notification(audio_file_id, "transcription_complete", cognito_token)
-        except Exception as e:
-            logger.error(f"AppSync notification failed (non-fatal): {e}")
 
         return {
             "statusCode": 200,

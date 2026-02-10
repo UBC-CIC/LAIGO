@@ -3,7 +3,6 @@ import * as cdk from "aws-cdk-lib";
 import * as apigateway from "aws-cdk-lib/aws-apigateway";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as iam from "aws-cdk-lib/aws-iam";
-import * as appsync from "aws-cdk-lib/aws-appsync";
 import { Construct } from "constructs";
 import { Duration } from "aws-cdk-lib";
 import * as wafv2 from "aws-cdk-lib/aws-wafv2";
@@ -53,8 +52,7 @@ export class ApiGatewayStack extends cdk.Stack {
   public readonly stageARN_APIGW: string;
   // API Gateway base URL
   public readonly apiGW_basedURL: string;
-  // AppSync GraphQL API for real-time events
-  private eventApi: appsync.GraphqlApi;
+
   // Secrets Manager secret reference
   public readonly secret: secretsmanager.ISecret;
   // WebSocket API for chat streaming
@@ -68,7 +66,7 @@ export class ApiGatewayStack extends cdk.Stack {
   // Getter methods for accessing stack resources
   public getEndpointUrl = () => this.api.url;
   public getUserPoolId = () => this.userPool.userPoolId;
-  public getEventApiUrl = () => this.eventApi.graphqlUrl;
+
   public getUserPoolClientId = () => this.appClient.userPoolClientId;
   public getIdentityPoolId = () => this.identityPool.ref;
   public getWebSocketUrl = () => this.wsStage.url;
@@ -1479,70 +1477,6 @@ export class ApiGatewayStack extends cdk.Stack {
       sourceArn: `arn:aws:execute-api:${this.region}:${this.account}:${this.api.restApiId}/*/*/student*`,
     });
 
-    this.eventApi = new appsync.GraphqlApi(this, `${id}-EventApi`, {
-      name: `${id}-EventApi`,
-      definition: appsync.Definition.fromFile("./graphql/schema.graphql"),
-      authorizationConfig: {
-        defaultAuthorization: {
-          authorizationType: appsync.AuthorizationType.USER_POOL,
-          userPoolConfig: {
-            userPool: this.userPool,
-            defaultAction: appsync.UserPoolDefaultAction.ALLOW,
-          },
-        },
-        // No additional authorization modes needed
-      },
-      xrayEnabled: true,
-    });
-
-    const notificationFunction = new lambda.Function(
-      this,
-      `${id}-NotificationFunction`,
-      {
-        runtime: lambda.Runtime.PYTHON_3_11,
-        code: lambda.Code.fromAsset("lambda/eventNotification"),
-        handler: "eventNotification.lambda_handler",
-        environment: {
-          APPSYNC_API_URL: this.eventApi.graphqlUrl,
-          APPSYNC_API_ID: this.eventApi.apiId,
-          REGION: this.region,
-        },
-        functionName: `${id}-NotificationFunction`,
-        timeout: cdk.Duration.seconds(300),
-        memorySize: 128,
-        vpc: vpcStack.vpc,
-        role: lambdaRole,
-      },
-    );
-
-    notificationFunction.addToRolePolicy(
-      new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: ["appsync:GraphQL"],
-        resources: [
-          `arn:aws:appsync:${this.region}:${this.account}:apis/${this.eventApi.apiId}/*`,
-        ],
-      }),
-    );
-
-    notificationFunction.addPermission("AppSyncInvokePermission", {
-      principal: new iam.ServicePrincipal("appsync.amazonaws.com"),
-      action: "lambda:InvokeFunction",
-      sourceArn: `arn:aws:appsync:${this.region}:${this.account}:apis/${this.eventApi.apiId}/*`,
-    });
-
-    const notificationLambdaDataSource = this.eventApi.addLambdaDataSource(
-      "NotificationLambdaDataSource",
-      notificationFunction,
-    );
-
-    notificationLambdaDataSource.createResolver("ResolverEventApi", {
-      typeName: "Mutation",
-      fieldName: "sendNotification",
-      requestMappingTemplate: appsync.MappingTemplate.lambdaRequest(),
-      responseMappingTemplate: appsync.MappingTemplate.lambdaResult(),
-    });
-
     const audioToTextFunction = new lambda.DockerImageFunction(
       this,
       `${id}-audioToTextFunc`,
@@ -1561,7 +1495,6 @@ export class ApiGatewayStack extends cdk.Stack {
           AUDIO_BUCKET: audioStorageBucket.bucketName,
           SM_DB_CREDENTIALS: db.secretPathUser.secretName,
           RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint,
-          APPSYNC_API_URL: this.eventApi.graphqlUrl,
           REGION: this.region,
         },
       },
