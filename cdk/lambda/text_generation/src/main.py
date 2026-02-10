@@ -9,7 +9,7 @@ import uuid
 import functools
 from langchain_aws import BedrockEmbeddings
 
-from helpers.vectorstore import get_vectorstore_retriever
+from helpers.vectorstore import get_vectorstore_retriever, get_noop_history_aware_retriever
 from helpers.chat import get_bedrock_llm, get_initial_student_query, create_dynamodb_history_table, get_response, get_streaming_response, get_playground_streaming_response
  
 # Set up logging - Force level to INFO to ensure CloudWatch capture
@@ -518,16 +518,25 @@ def handler(event, context):
             if not websocket_endpoint:
                 websocket_endpoint = f"https://{domain_name}/{stage}"
             
-            # Use playground streaming response (no RAG, simpler prompt)
+            # Extract mock case context for playground
+            mock_case_context = body.get("case_context", {})
+            
+            # Create a no-op history-aware retriever that performs the same query rephrasing
+            # as the production flow but returns no documents
+            history_aware_retriever = get_noop_history_aware_retriever(llm)
+            
+            # Use playground streaming response (identical chain structure to standard flow)
             response = get_playground_streaming_response(
                 query=test_message,
                 llm=llm,
+                history_aware_retriever=history_aware_retriever,
                 table_name=TABLE_NAME,
                 session_id=playground_session_id,
                 system_prompt=custom_prompt,
                 connection_id=connection_id,
                 websocket_endpoint=websocket_endpoint,
                 request_id=request_id,
+                case_context=mock_case_context
             )
             
             logger.info("Playground streaming response completed.")

@@ -10,7 +10,6 @@ import {
   InputLabel,
   Slider,
   IconButton,
-  CircularProgress,
   Tooltip,
   Snackbar,
   Alert,
@@ -23,7 +22,7 @@ import SaveIcon from "@mui/icons-material/Save";
 import { fetchAuthSession } from "aws-amplify/auth";
 import { useWebSocket } from "../../hooks/useWebSocket";
 import UserMessage from "../../components/Chat/UserMessage";
-import AiResponse from "../../components/Chat/AiResponse";
+import AIResponse from "../../components/Chat/AIResponse";
 import ThinkingIndicator from "../../components/Chat/ThinkingIndicator";
 
 // Types
@@ -31,6 +30,15 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   isStreaming?: boolean;
+}
+
+// Case Context Interface
+interface CaseContext {
+  caseType: string;
+  jurisdiction: string;
+  caseDescription: string;
+  province: string;
+  statute: string;
 }
 
 interface ConfigurationState {
@@ -44,6 +52,7 @@ interface ConfigurationState {
   sessionId: string; // This is now the testId part
   messages: Message[];
   isLoading: boolean;
+  caseContext: CaseContext;
 }
 
 interface PromptVersion {
@@ -75,6 +84,15 @@ const BLOCK_TYPES = [
 
 const DEFAULT_PROMPT = `You are a helpful AI assistant for law students. Provide clear, educational responses that help the student think through legal problems. Be supportive and guide them through their analysis step by step.`;
 
+const DEFAULT_CASE_CONTEXT: CaseContext = {
+  caseType: "Criminal Law",
+  jurisdiction: "Federal, Provincial",
+  caseDescription:
+    "The defendant is an unemployed warehouse worker who is currently receiving approximately $1400 a month in unemployment insurance. His parents have a house in Mount Pleasant and he is currently living there rent-free as they are both in a long-term care facility. The first floor of the house has a front door and also has a garage. There is a side door entrance to the garage, and the garage also has an interior door which connects to a kitchen on the first floor of the house. The kitchen has a back door which leads to an open back yard. One evening the defendant was doing some woodwork in his garage when he heard someone knocking at the front door of the house, and then the person seemed to be trying to open the front door which was locked. This concerned the defendant as there had been a number of break-ins in his area recently. He then heard the person walk to the garage door. That door was not locked, but was difficult to open because the wood door had swelled because of water damage. The defendant saw that the garage door handle was turning, and then the person was attempting to push the door open. The defendant grabbed a bat which was in the garage. The door suddenly popped open, and a person stumbled into the garage. The defendant immediately panicked and hit the leg of the person with the baseball bat. The person fell to the ground. The defendant then noticed that the person was holding his phone and had a suitcase with him. It turned out that the person was a visitor who had booked a short-term rental for a residence beside the defendant’s house, and was accidentally attempting to enter the wrong address. The person developed a bruise on his leg which lasted a couple of days.",
+  province: "British Columbia",
+  statute: "Criminal Code of Canada",
+};
+
 const generateTestId = () => Math.random().toString(36).slice(2, 10);
 
 const createDefaultConfig = (
@@ -90,6 +108,7 @@ const createDefaultConfig = (
   sessionId: generateTestId(),
   messages: [],
   isLoading: false,
+  caseContext: { ...DEFAULT_CASE_CONTEXT },
 });
 
 // Model Configuration Section - Top section with model settings
@@ -215,6 +234,181 @@ const ModelConfigSection: React.FC<{
           }}
         />
       </Box>
+    </Box>
+  );
+});
+
+// Mock Case Context Section - Collapsible section for case details
+const MockCaseContextSection: React.FC<{
+  config: ConfigurationState;
+  onConfigChange: (updates: Partial<ConfigurationState>) => void;
+  label?: string;
+}> = React.memo(({ config, onConfigChange, label }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  const handleContextChange = (field: keyof CaseContext, value: string) => {
+    onConfigChange({
+      caseContext: {
+        ...config.caseContext,
+        [field]: value,
+      },
+    });
+  };
+
+  const handleReset = () => {
+    onConfigChange({
+      caseContext: { ...DEFAULT_CASE_CONTEXT },
+    });
+  };
+
+  return (
+    <Box
+      sx={{
+        border: "1px solid var(--border)",
+        borderRadius: 2,
+        backgroundColor: "var(--paper)",
+        overflow: "hidden",
+      }}
+    >
+      <Box
+        sx={{
+          p: 2,
+          backgroundColor: "var(--header)",
+          borderBottom: isExpanded ? "1px solid var(--border)" : "none",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          cursor: "pointer",
+        }}
+        onClick={() => setIsExpanded(!isExpanded)}
+      >
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          <AddIcon
+            fontSize="small"
+            sx={{
+              transform: isExpanded ? "rotate(45deg)" : "rotate(0deg)",
+              transition: "transform 0.2s",
+              color: "var(--text-secondary)",
+            }}
+          />
+          <Typography
+            variant="subtitle2"
+            sx={{ fontWeight: "bold", color: "var(--text)" }}
+          >
+            {label ? `${label} - Mock Case Context` : "Mock Case Context"}
+          </Typography>
+        </Box>
+        <Button
+          size="small"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleReset();
+          }}
+          sx={{
+            color: "var(--primary)",
+            textTransform: "none",
+            minWidth: 0,
+            p: 0.5,
+          }}
+        >
+          Reset Default
+        </Button>
+      </Box>
+
+      {isExpanded && (
+        <Box
+          sx={{
+            p: 2,
+            display: "grid",
+            gap: 2,
+            gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+          }}
+        >
+          <TextField
+            label="Case Type"
+            size="small"
+            value={config.caseContext.caseType}
+            onChange={(e) => handleContextChange("caseType", e.target.value)}
+            fullWidth
+            sx={{
+              "& .MuiOutlinedInput-root": {
+                color: "var(--text)",
+                backgroundColor: "var(--background)",
+                "& fieldset": { borderColor: "var(--border)" },
+              },
+              "& .MuiInputLabel-root": { color: "var(--text-secondary)" },
+            }}
+          />
+          <TextField
+            label="Jurisdiction"
+            size="small"
+            value={config.caseContext.jurisdiction}
+            onChange={(e) =>
+              handleContextChange("jurisdiction", e.target.value)
+            }
+            fullWidth
+            sx={{
+              "& .MuiOutlinedInput-root": {
+                color: "var(--text)",
+                backgroundColor: "var(--background)",
+                "& fieldset": { borderColor: "var(--border)" },
+              },
+              "& .MuiInputLabel-root": { color: "var(--text-secondary)" },
+            }}
+          />
+          <TextField
+            label="Province"
+            size="small"
+            value={config.caseContext.province}
+            onChange={(e) => handleContextChange("province", e.target.value)}
+            fullWidth
+            sx={{
+              "& .MuiOutlinedInput-root": {
+                color: "var(--text)",
+                backgroundColor: "var(--background)",
+                "& fieldset": { borderColor: "var(--border)" },
+              },
+              "& .MuiInputLabel-root": { color: "var(--text-secondary)" },
+            }}
+          />
+          <TextField
+            label="Statute"
+            size="small"
+            value={config.caseContext.statute}
+            onChange={(e) => handleContextChange("statute", e.target.value)}
+            fullWidth
+            sx={{
+              "& .MuiOutlinedInput-root": {
+                color: "var(--text)",
+                backgroundColor: "var(--background)",
+                "& fieldset": { borderColor: "var(--border)" },
+              },
+              "& .MuiInputLabel-root": { color: "var(--text-secondary)" },
+            }}
+          />
+          <Box sx={{ gridColumn: "1 / -1" }}>
+            <TextField
+              label="Case Description"
+              multiline
+              rows={2}
+              size="small"
+              value={config.caseContext.caseDescription}
+              onChange={(e) =>
+                handleContextChange("caseDescription", e.target.value)
+              }
+              fullWidth
+              sx={{
+                "& .MuiOutlinedInput-root": {
+                  color: "var(--text)",
+                  backgroundColor: "var(--background)",
+                  "& fieldset": { borderColor: "var(--border)" },
+                },
+                "& .MuiInputLabel-root": { color: "var(--text-secondary)" },
+              }}
+            />
+          </Box>
+        </Box>
+      )}
     </Box>
   );
 });
@@ -482,7 +676,7 @@ const ChatPanel: React.FC<{
               {msg.role === "user" ? (
                 <UserMessage message={msg.content} />
               ) : (
-                <AiResponse
+                <AIResponse
                   message={msg.content}
                   isStreaming={msg.isStreaming === true}
                 />
@@ -714,6 +908,7 @@ const PromptPlayground: React.FC = () => {
         temperature: configA.temperature,
         top_p: configA.topP,
         max_tokens: configA.maxTokens,
+        case_context: configA.caseContext,
       },
       {
         onStart: () => {
@@ -783,6 +978,7 @@ const PromptPlayground: React.FC = () => {
           temperature: configB.temperature,
           top_p: configB.topP,
           max_tokens: configB.maxTokens,
+          case_context: configB.caseContext,
         },
         {
           onStart: () => {
@@ -829,11 +1025,9 @@ const PromptPlayground: React.FC = () => {
             });
           },
           onError: (errorMsg) => {
-            setSnackbar({
-              open: true,
-              message: `Error B: ${errorMsg}`,
-              severity: "error",
-            });
+            // Only show error for B if it's different/additional?
+            // For now, simple error handling
+            console.error("Error in Config B stream:", errorMsg);
             setConfigB((prev) => ({ ...prev, isLoading: false }));
           },
         },
@@ -894,21 +1088,21 @@ const PromptPlayground: React.FC = () => {
   };
 
   // Clear chat handlers
-  const clearChatA = () => {
+  const handleClearA = useCallback(() => {
     setConfigA((prev) => ({
       ...prev,
       messages: [],
       sessionId: generateTestId(),
     }));
-  };
+  }, []);
 
-  const clearChatB = () => {
+  const handleClearB = useCallback(() => {
     setConfigB((prev) => ({
       ...prev,
       messages: [],
       sessionId: generateTestId(),
     }));
-  };
+  }, []);
 
   // Toggle compare mode
   const toggleCompareMode = () => {
@@ -920,7 +1114,13 @@ const PromptPlayground: React.FC = () => {
 
   return (
     <Box
-      sx={{ display: "flex", flexDirection: "column", gap: 3, height: "100%" }}
+      sx={{
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        gap: 2,
+        overflow: "hidden",
+      }}
     >
       {/* Header */}
       <Box
@@ -930,115 +1130,129 @@ const PromptPlayground: React.FC = () => {
           alignItems: "center",
         }}
       >
-        <Box>
-          <Typography
-            variant="h5"
-            sx={{ fontWeight: "bold", color: "var(--text)" }}
-          >
-            Prompt Playground
-          </Typography>
-          <Typography variant="body2" sx={{ color: "var(--text-secondary)" }}>
-            Test prompts with different configurations before activating them.
-          </Typography>
-        </Box>
+        <Typography
+          variant="h5"
+          sx={{ fontWeight: "bold", color: "var(--text)" }}
+        >
+          Prompt Playground
+        </Typography>
         <Button
           variant={compareMode ? "outlined" : "contained"}
           startIcon={compareMode ? <CloseIcon /> : <AddIcon />}
           onClick={toggleCompareMode}
           sx={{
-            backgroundColor: compareMode ? "transparent" : "var(--primary)",
-            color: compareMode ? "var(--primary)" : "white",
-            borderColor: "var(--primary)",
+            textTransform: "none",
+            borderRadius: 2,
           }}
         >
-          {compareMode ? "Exit Compare" : "Compare"}
+          {compareMode ? "Exit Compare Mode" : "Compare"}
         </Button>
       </Box>
 
-      {/* Connection Status */}
-      {!isConnected && (
-        <Alert severity="warning" sx={{ py: 0.5 }}>
-          WebSocket not connected. Messages cannot be sent.
-        </Alert>
-      )}
-
-      {/* Model Configuration Section - Top */}
-      <Box sx={{ display: "flex", gap: 3 }}>
-        <Box sx={{ flex: 1 }}>
-          <ModelConfigSection
-            config={configA}
-            onConfigChange={handleConfigAChange}
-            label={compareMode ? "Model Config A" : undefined}
-          />
-        </Box>
-        {compareMode && (
-          <Box sx={{ flex: 1 }}>
-            <ModelConfigSection
-              config={configB}
-              onConfigChange={handleConfigBChange}
-              label="Model Config B"
-            />
-          </Box>
-        )}
-      </Box>
-
-      {/* System Prompt Section - Middle */}
-      <Box sx={{ display: "flex", gap: 3 }}>
-        <Box sx={{ flex: 1 }}>
-          <SystemPromptSection
-            config={configA}
-            onConfigChange={handleConfigAChange}
-            promptVersions={promptVersions}
-            onLoadVersion={(v) => loadPromptVersion(v, setConfigA)}
-            onSave={() => savePromptVersion(configA)}
-            label={compareMode ? "Prompt A" : undefined}
-          />
-        </Box>
-        {compareMode && (
-          <Box sx={{ flex: 1 }}>
-            <SystemPromptSection
-              config={configB}
-              onConfigChange={handleConfigBChange}
-              promptVersions={promptVersions}
-              onLoadVersion={(v) => loadPromptVersion(v, setConfigB)}
-              onSave={() => savePromptVersion(configB)}
-              label="Prompt B"
-            />
-          </Box>
-        )}
-      </Box>
-
-      {/* Chat Section - Bottom */}
-      <Box sx={{ display: "flex", gap: 3, flex: 1 }}>
-        <ChatPanel
-          messages={configA.messages}
-          isLoading={configA.isLoading}
-          onClear={clearChatA}
-          label={compareMode ? "Conversation A" : undefined}
-        />
-        {compareMode && (
-          <ChatPanel
-            messages={configB.messages}
-            isLoading={configB.isLoading}
-            onClear={clearChatB}
-            label="Conversation B"
-          />
-        )}
-      </Box>
-
-      {/* Input Bar */}
+      {/* Main Content Area - Split if compare mode */}
       <Box
         sx={{
           display: "flex",
           gap: 2,
+          flex: 1,
+          minHeight: 0,
+          overflow: "hidden",
+        }}
+      >
+        {/* Left Panel (Config A) */}
+        <Box
+          sx={{
+            flex: 1,
+            display: "flex",
+            flexDirection: "column",
+            gap: 2,
+            overflowY: "auto",
+            pr: 1,
+          }}
+        >
+          <ModelConfigSection
+            config={configA}
+            onConfigChange={handleConfigAChange}
+            label={compareMode ? "Config A" : undefined}
+          />
+          <SystemPromptSection
+            config={configA}
+            onConfigChange={handleConfigAChange}
+            promptVersions={promptVersions}
+            onLoadVersion={(id) => loadPromptVersion(id, setConfigA)}
+            onSave={() => savePromptVersion(configA)}
+            label={compareMode ? "Config A" : undefined}
+          />
+          <MockCaseContextSection
+            config={configA}
+            onConfigChange={handleConfigAChange}
+            label={compareMode ? "Context A" : undefined}
+          />
+          <ChatPanel
+            messages={configA.messages}
+            isLoading={configA.isLoading}
+            onClear={handleClearA}
+            label={compareMode ? "Conversation A" : undefined}
+          />
+        </Box>
+
+        {/* Right Panel (Config B) - Only if compare mode */}
+        {compareMode && (
+          <Box
+            sx={{
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+              gap: 2,
+              overflowY: "auto",
+              pr: 1,
+              borderLeft: "1px dashed var(--border)",
+              pl: 2,
+            }}
+          >
+            <ModelConfigSection
+              config={configB}
+              onConfigChange={handleConfigBChange}
+              label="Config B"
+            />
+            <SystemPromptSection
+              config={configB}
+              onConfigChange={handleConfigBChange}
+              promptVersions={promptVersions}
+              onLoadVersion={(id) => loadPromptVersion(id, setConfigB)}
+              onSave={() => savePromptVersion(configB)}
+              label="Prompt B"
+            />
+            <MockCaseContextSection
+              config={configB}
+              onConfigChange={handleConfigBChange}
+              label="Context B"
+            />
+            <ChatPanel
+              messages={configB.messages}
+              isLoading={configB.isLoading}
+              onClear={handleClearB}
+              label="Conversation B"
+            />
+          </Box>
+        )}
+      </Box>
+
+      {/* Shared Input Area */}
+      <Box
+        sx={{
           p: 2,
+          borderTop: "1px solid var(--border)",
           backgroundColor: "var(--paper)",
-          borderRadius: 1,
-          border: "1px solid var(--border)",
+          display: "flex",
+          gap: 2,
+          alignItems: "flex-end",
         }}
       >
         <TextField
           fullWidth
+          multiline
+          maxRows={4}
           placeholder={
             compareMode
               ? "Type a message to test both configurations..."
@@ -1052,34 +1266,35 @@ const PromptPlayground: React.FC = () => {
               handleSendMessage();
             }
           }}
-          multiline
-          maxRows={3}
+          disabled={!isConnected || configA.isLoading || configB.isLoading}
           sx={{
             "& .MuiOutlinedInput-root": {
-              color: "var(--text)",
+              borderRadius: 3,
               backgroundColor: "var(--background)",
               "& fieldset": { borderColor: "var(--border)" },
+              "&:hover fieldset": { borderColor: "var(--primary)" },
+              "&.Mui-focused fieldset": { borderColor: "var(--primary)" },
             },
           }}
         />
         <Button
           variant="contained"
           onClick={handleSendMessage}
-          disabled={!inputMessage.trim() || !isConnected || configA.isLoading}
+          disabled={
+            !inputMessage.trim() ||
+            !isConnected ||
+            configA.isLoading ||
+            configB.isLoading
+          }
           sx={{
-            backgroundColor: "var(--primary)",
-            minWidth: 100,
-            "&:disabled": { backgroundColor: "var(--border)" },
+            borderRadius: "50%",
+            minWidth: 48,
+            width: 48,
+            height: 48,
+            p: 0,
           }}
         >
-          {configA.isLoading ? (
-            <CircularProgress size={20} sx={{ color: "white" }} />
-          ) : (
-            <>
-              <SendIcon sx={{ mr: 1 }} />
-              {compareMode ? "Send Both" : "Send"}
-            </>
-          )}
+          <SendIcon />
         </Button>
       </Box>
 

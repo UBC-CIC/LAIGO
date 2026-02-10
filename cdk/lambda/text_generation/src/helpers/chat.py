@@ -120,6 +120,39 @@ def get_initial_student_query(case_type: str, jurisdiction: str, case_descriptio
     return student_query
 
 
+def construct_case_context_prompt(system_prompt: str, case_context: dict) -> str:
+    """
+    Wraps the system prompt with case context details.
+    
+    Args:
+        system_prompt (str): The core system prompt.
+        case_context (dict): Dictionary containing case details (type, jurisdiction, description, etc.)
+        
+    Returns:
+        str: The fully constructed system prompt with context.
+    """
+    case_type = case_context.get("case_type", "")
+    jurisdiction = case_context.get("jurisdiction", "")
+    case_description = case_context.get("case_description", "")
+    province = case_context.get("province", "")
+    statute = case_context.get("statute", "")
+    
+    return f"""
+        Case Context:
+        {system_prompt}
+        Pay close attention to the latest system prompt I've given you, as it may have been updated since the last message, but don't entirely discard the previous system prompts unless they conflict. This is for your behaviour, you do not need to include it in the response.
+
+        Additional case detials that are relevant:
+        Case type: {case_type}
+        Jurisdiction: {jurisdiction}
+        Case description: {case_description}
+        Province (blank if not under provincial jurisdiction): {province}
+        Statute (blank if not applicable): {statute}
+        
+        Relevant Documents:
+        {{context}}
+        """
+
 def get_response(
     query: str,
     province: str,
@@ -149,23 +182,15 @@ def get_response(
     """
 
     # Create a system prompt for the question answering
-    processed_system_prompt = (
-        f"""
-        Case Context:
-        {system_prompt}
-        Pay close attention to the latest system prompt I've given you, as it may have been updated since the last message, but don't entirely discard the previous system prompts unless they conflict. This is for your behaviour, you do not need to include it in the response.
-
-        Additional case detials that are relevant:
-        Case type: {case_type}
-        Jurisdiction: {jurisdiction}
-        Case description: {case_description}
-        Province (blank if not under provincial jurisdiction): {province}
-        Statute (blank if not applicable): {statute}
-        
-        Relevant Documents:
-        {{context}}
-        """
-    )
+    case_context = {
+        "case_type": case_type,
+        "jurisdiction": jurisdiction,
+        "case_description": case_description,
+        "province": province,
+        "statute": statute
+    }
+    
+    processed_system_prompt = construct_case_context_prompt(system_prompt, case_context)
     
     qa_prompt = ChatPromptTemplate.from_messages(
         [
@@ -291,23 +316,15 @@ def get_streaming_response(
             print(f"Error sending to WebSocket: {e}")
 
     # Create a system prompt for the question answering
-    processed_system_prompt = (
-        f"""
-        Case Context:
-        {system_prompt}
-        Pay close attention to the latest system prompt I've given you, as it may have been updated since the last message, but don't entirely discard the previous system prompts unless they conflict. This is for your behaviour, you do not need to include it in the response.
-
-        Additional case detials that are relevant:
-        Case type: {case_type}
-        Jurisdiction: {jurisdiction}
-        Case description: {case_description}
-        Province (blank if not under provincial jurisdiction): {province}
-        Statute (blank if not applicable): {statute}
-        
-        Relevant Documents:
-        {{context}}
-        """
-    )
+    case_context = {
+        "case_type": case_type,
+        "jurisdiction": jurisdiction,
+        "case_description": case_description,
+        "province": province,
+        "statute": statute
+    }
+    
+    processed_system_prompt = construct_case_context_prompt(system_prompt, case_context)
     
     qa_prompt = ChatPromptTemplate.from_messages(
         [
@@ -358,27 +375,32 @@ def get_streaming_response(
 def get_playground_streaming_response(
     query: str,
     llm: ChatBedrock,
+    history_aware_retriever,
     table_name: str,
     session_id: str,
     system_prompt: str,
     connection_id: str,
     websocket_endpoint: str,
     request_id: str = None,
+    case_context: dict = None,
 ) -> dict:
     """
     Generates a streaming response for playground testing.
-    Similar to get_streaming_response but without case context or RAG retrieval.
+    Uses the exact same chain structure as get_streaming_response for complete
+    architectural consistency, including history-aware query rephrasing.
     Uses DynamoDB for multi-turn conversation history.
     
     Args:
     query (str): The user's test message.
     llm (ChatBedrock): The language model instance.
+    history_aware_retriever: The history-aware retriever instance (no-op for playground).
     table_name (str): DynamoDB table name for chat history.
     session_id (str): Unique session ID for playground conversation.
     system_prompt (str): Custom system prompt to test.
     connection_id (str): WebSocket connection ID.
     websocket_endpoint (str): HTTPS endpoint for ApiGatewayManagementApi.
     request_id (str, optional): Request correlation ID.
+    case_context (dict, optional): Mock case details to wrap the prompt with.
     
     Returns:
     dict: A dictionary containing the full response after streaming completes.
@@ -410,25 +432,32 @@ def get_playground_streaming_response(
         except Exception as e:
             print(f"Error sending to WebSocket: {e}")
 
-    # Simple prompt template without RAG context
-    qa_prompt = ChatPromptTemplate.from_messages([
-        ("system", system_prompt),
-        MessagesPlaceholder("chat_history"),
-        ("human", "{input}"),
-    ])
+    # Construct the prompt with case context details (consistent with standard flow)
+    if case_context is None:
+        case_context = {}
+        
+    processed_system_prompt = construct_case_context_prompt(system_prompt, case_context)
     
-    # Create a simple chain without RAG retrieval
-    chain = qa_prompt | llm
+    qa_prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", processed_system_prompt),
+            MessagesPlaceholder("chat_history"),
+            ("human", "{input}"),
+        ]
+    )
+    question_answer_chain = create_stuff_documents_chain(llm, qa_prompt)
+    rag_chain = create_retrieval_chain(history_aware_retriever, question_answer_chain)
     
     # Wrap with message history for multi-turn conversation
-    conversational_chain = RunnableWithMessageHistory(
-        chain,
+    conversational_rag_chain = RunnableWithMessageHistory(
+        rag_chain,
         lambda _: DynamoDBChatMessageHistory(
             table_name=table_name, 
             session_id=session_id,
         ),
         input_messages_key="input",
         history_messages_key="chat_history",
+        output_messages_key="answer",
     )
     
     # Send start message
@@ -437,15 +466,16 @@ def get_playground_streaming_response(
     full_response = ""
     try:
         # Stream the response
-        for chunk in conversational_chain.stream(
+        for chunk in conversational_rag_chain.stream(
             {"input": query},
             config={"configurable": {"session_id": session_id}}
         ):
-            # Extract content from the chunk
-            if hasattr(chunk, 'content') and chunk.content:
-                chunk_content = chunk.content
+            # Extract the answer portion from the chunk
+            if "answer" in chunk and chunk["answer"]:
+                chunk_content = chunk["answer"]
                 full_response += chunk_content
                 send_to_websocket("chunk", content=chunk_content)
+
         
         # Send complete message
         send_to_websocket("complete", data={"llm_output": full_response})
