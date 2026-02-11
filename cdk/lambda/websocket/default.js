@@ -179,6 +179,46 @@ exports.handler = async (event) => {
       return { statusCode: 200 };
     }
 
+    // Handle playground assessment requests (admin testing assessment prompts)
+    if (action === "playground_assess") {
+      const { block_type, session_id, custom_prompt } = body;
+
+      console.log("Invoking playground_assess:", {
+        block_type,
+        session_id,
+        cognitoId,
+        requestId,
+      });
+
+      const playgroundAssessPayload = {
+        isWebSocket: true,
+        cognitoId: cognitoId,
+        requestId: requestId,
+        body: JSON.stringify({
+          playground_mode: true,
+          block_type: block_type,
+          session_id: session_id,
+          custom_prompt: custom_prompt,
+        }),
+        requestContext: {
+          connectionId: connectionId,
+          domainName: domainName,
+          stage: stage,
+        },
+      };
+
+      await lambda.send(
+        new InvokeCommand({
+          FunctionName: process.env.ASSESS_PROGRESS_FUNCTION_NAME,
+          InvocationType: "Event",
+          Payload: JSON.stringify(playgroundAssessPayload),
+        }),
+      );
+
+      console.log("Playground assess function invoked successfully");
+      return { statusCode: 200 };
+    }
+
     // Handle summary generation requests
     if (action === "generate_summary") {
       const { case_id, sub_route } = body;

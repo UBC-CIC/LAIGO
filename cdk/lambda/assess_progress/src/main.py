@@ -361,6 +361,104 @@ def handler(event, context):
     case_id = body.get("case_id")
     block_type = body.get("block_type")
     
+    # --- Playground mode: skip authorization, use DB history + inline prompt ---
+    if body.get("playground_mode"):
+        custom_prompt = body.get("custom_prompt", "")
+        session_id = body.get("session_id", "")
+        block_type = body.get("block_type", "intake")
+        
+        logger.info(f"Playground assessment mode for block_type: {block_type}, session_id: {session_id}")
+        
+        if not custom_prompt or not session_id:
+            error_msg = "Playground mode requires custom_prompt and session_id"
+            if is_websocket and connection_id:
+                send_to_websocket(connection_id, ws_endpoint, request_id, "error", content=error_msg)
+                return {"statusCode": 400}
+            return _response(400, error_msg)
+        
+        # Fetch chat history from DynamoDB (same table used by playground_test)
+        chat_history = fetch_chat_history(session_id)
+        
+        if not chat_history:
+            error_msg = "No chat history found for this session. Send some messages first."
+            if is_websocket and connection_id:
+                send_to_websocket(connection_id, ws_endpoint, request_id, "error", content=error_msg)
+                return {"statusCode": 400}
+            return _response(400, error_msg)
+        
+        logger.info(f"Fetched {len(chat_history)} chars of chat history for session {session_id}")
+        
+        # Construct system instruction using inline prompt and DB history
+        system_instruction = f"""
+        You are an expert legal instruction assistant. Your goal is to assess whether the student has sufficiently completed the objectives of the current '{block_type}' phase based on the conversation history.
+        
+        PROMPT CRITERIA:
+        {custom_prompt}
+        
+        CONVERSATION HISTORY:
+        {chat_history}
+        
+        INSTRUCTIONS:
+        - Analyze the detailed history against the criteria.
+        - Result MUST be a JSON object: {{ "progress": int, "reasoning": "brief explanation" }}
+        - "progress": A number between 0 and 5, returning 0 if they have not met the main goals and are not ready to move on. Returning 5 if they have met the main goals and are ready to move on.
+        - "reasoning": 3-4 sentences explaining why they are ready or what is missing.
+        - Output ONLY the JSON object.
+        """
+        
+        try:
+            llm = BedrockLLM(
+                model_id=BEDROCK_LLM_ID,
+                model_kwargs={
+                    "temperature": BEDROCK_TEMP, 
+                    "max_tokens": BEDROCK_MAX_TOKENS,
+                    "top_p": BEDROCK_TOP_P
+                }
+            )
+            
+            start_time = time.time()
+            response_text = llm.invoke(system_instruction)
+            duration = time.time() - start_time
+            logger.info(f"Playground assessment took {duration:.2f}s")
+            logger.info(f"Playground LLM Response: {response_text}")
+            
+            # Parse JSON from response
+            try:
+                start = response_text.find('{')
+                end = response_text.rfind('}') + 1
+                if start == -1 or end == 0:
+                    raise ValueError("No JSON found in response")
+                result = json.loads(response_text[start:end])
+            except Exception as e:
+                logger.error(f"Failed to parse playground LLM response: {e}")
+                error_data = {'unlocked': False, 'progress': 0, 'reasoning': 'Error parsing assessment result.'}
+                if is_websocket and connection_id:
+                    send_to_websocket(connection_id, ws_endpoint, request_id, "complete", data=error_data)
+                    return {"statusCode": 200}
+                return _response(200, error_data)
+            
+            progress = int(result.get("progress", 0))
+            reasoning = result.get("reasoning", "No reasoning provided.")
+            
+            response_data = {
+                "unlocked": False,  # Never unlock in playground mode
+                "progress": progress,
+                "reasoning": reasoning
+            }
+            
+            if is_websocket and connection_id:
+                send_to_websocket(connection_id, ws_endpoint, request_id, "complete", data=response_data)
+                return {"statusCode": 200}
+            return _response(200, response_data)
+            
+        except Exception as e:
+            logger.exception(f"Playground assessment error: {e}")
+            if is_websocket and connection_id:
+                send_to_websocket(connection_id, ws_endpoint, request_id, "error", content=str(e))
+                return {"statusCode": 500}
+            return _response(500, f"Internal server error: {str(e)}")
+    
+    # --- Standard mode: requires case_id and authorization ---
     logger.info(f"Processing assessment for Case ID: {case_id}, Block Type: {block_type}")
     
     if not case_id or not block_type:
