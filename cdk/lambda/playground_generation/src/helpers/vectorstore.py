@@ -5,6 +5,10 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain.chains import create_history_aware_retriever
 
 from helpers.helper import get_vectorstore
+from langchain_core.retrievers import BaseRetriever
+from langchain_core.documents import Document
+from langchain_core.callbacks import CallbackManagerForRetrieverRun
+from typing import List
 
 def get_vectorstore_retriever(
     llm,
@@ -53,4 +57,48 @@ def get_vectorstore_retriever(
         llm, retriever, contextualize_q_prompt
     )
 
+    return history_aware_retriever
+
+def get_noop_history_aware_retriever(llm):
+    """
+    Create a no-op history-aware retriever for playground/testing purposes.
+    This performs the same history-aware query rephrasing as the production retriever,
+    but always returns an empty list of documents (no actual vector search).
+    
+    Args:
+    llm: The language model instance used for query rephrasing.
+    
+    Returns:
+    A history-aware retriever that rephrases queries but retrieves no documents.
+    """
+
+    
+    class NoOpRetriever(BaseRetriever):
+        """A retriever that always returns no documents."""
+        def _get_relevant_documents(
+            self, query: str, *, run_manager: CallbackManagerForRetrieverRun
+        ) -> List[Document]:
+            return []
+    
+    retriever = NoOpRetriever()
+    
+    # Use the exact same contextualization prompt as the production flow
+    contextualize_q_system_prompt = (
+        "Given a chat history and the latest user question "
+        "which might reference context in the chat history, "
+        "formulate a standalone question which can be understood "
+        "without the chat history. Do NOT answer the question, "
+        "just reformulate it if needed and otherwise return it as is."
+    )
+    contextualize_q_prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", contextualize_q_system_prompt),
+            MessagesPlaceholder("chat_history"),
+            ("human", "{input}"),
+        ]
+    )
+    history_aware_retriever = create_history_aware_retriever(
+        llm, retriever, contextualize_q_prompt
+    )
+    
     return history_aware_retriever

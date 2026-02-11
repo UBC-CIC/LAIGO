@@ -1347,6 +1347,97 @@ export class ApiGatewayStack extends cdk.Stack {
         ],
       }),
     );
+
+    // Create Lambda function for Playground text generation
+    const playgroundGenLambdaDockerFunc = new lambda.DockerImageFunction(
+      this,
+      `${id}-PlaygroundTextGenLambdaDockerFunction`,
+      {
+        code: lambda.DockerImageCode.fromEcr(
+          props.ecrRepositories["playgroundGeneration"],
+          {
+            tagOrDigest: "latest",
+          },
+        ),
+        memorySize: 512,
+        timeout: cdk.Duration.seconds(300),
+        vpc: vpcStack.vpc,
+        functionName: `${id}-PlaygroundTextGenLambdaDockerFunction`,
+        environment: {
+          SM_DB_CREDENTIALS: db.secretPathAdminName,
+          RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint,
+          REGION: this.region,
+          BEDROCK_LLM_PARAM: bedrockLLMParameter.parameterName,
+          EMBEDDING_MODEL_PARAM: embeddingModelParameter.parameterName,
+          TABLE_NAME_PARAM: tableNameParameter.parameterName, // Fallback/Reference
+          BEDROCK_TEMP_PARAM: bedrockTemperatureParameter.parameterName,
+          BEDROCK_TOP_P_PARAM: bedrockTopPParameter.parameterName,
+          BEDROCK_MAX_TOKENS_PARAM: bedrockMaxTokensParameter.parameterName,
+          TABLE_NAME: "DynamoDB-Playground-Table",
+        },
+      },
+    );
+
+    // Override the Logical ID
+    const cfnPlaygroundGenDockerFunc = playgroundGenLambdaDockerFunc.node
+      .defaultChild as lambda.CfnFunction;
+    cfnPlaygroundGenDockerFunc.overrideLogicalId(
+      "PlaygroundTextGenLambdaDockerFunc",
+    );
+
+    // Add permissions
+    playgroundGenLambdaDockerFunc.addPermission("AllowApiGatewayInvoke", {
+      principal: new iam.ServicePrincipal("apigateway.amazonaws.com"),
+      action: "lambda:InvokeFunction",
+      sourceArn: `arn:aws:execute-api:${this.region}:${this.account}:${this.api.restApiId}/*/*/student*`,
+    });
+
+    playgroundGenLambdaDockerFunc.addToRolePolicy(bedrockPolicyStatement);
+    playgroundGenLambdaDockerFunc.addToRolePolicy(dynamoDBPolicyStatement);
+
+    // Grant access to Secret Manager
+    playgroundGenLambdaDockerFunc.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["secretsmanager:GetSecretValue"],
+        resources: [
+          `arn:aws:secretsmanager:${this.region}:${this.account}:secret:*`,
+        ],
+      }),
+    );
+
+    // Grant access to SSM Parameter Store
+    playgroundGenLambdaDockerFunc.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["ssm:GetParameter"],
+        resources: [
+          bedrockLLMParameter.parameterArn,
+          embeddingModelParameter.parameterArn,
+          tableNameParameter.parameterArn,
+          bedrockTemperatureParameter.parameterArn,
+          bedrockTopPParameter.parameterArn,
+          bedrockMaxTokensParameter.parameterArn,
+        ],
+      }),
+    );
+
+    // Ensure it can invoke the guardrail if needed (though we removed it from code, good to have if we re-add)
+    playgroundGenLambdaDockerFunc.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: [
+          "bedrock:CreateGuardrail",
+          "bedrock:CreateGuardrailVersion",
+          "bedrock:DeleteGuardrail",
+          "bedrock:ListGuardrails",
+          "bedrock:InvokeGuardrail",
+          "bedrock:ApplyGuardrail",
+        ],
+        resources: ["*"],
+      }),
+    );
+
     // Create Lambda function for assessing user progress
     const assessProgressFunction = new lambda.DockerImageFunction(
       this,
@@ -1730,6 +1821,25 @@ export class ApiGatewayStack extends cdk.Stack {
       },
     });
 
+    // Create playground conversation table
+    const playgroundTable = new dynamodb.Table(this, `${id}-PlaygroundTable`, {
+      tableName: "DynamoDB-Playground-Table",
+      partitionKey: {
+        name: "PK",
+        type: dynamodb.AttributeType.STRING,
+      },
+      sortKey: {
+        name: "SK",
+        type: dynamodb.AttributeType.STRING,
+      },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      timeToLiveAttribute: "ttl",
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
+    // Grant access to DynamoDB (Playground table access)
+    playgroundTable.grantReadWriteData(playgroundGenLambdaDockerFunc);
+
     // Store table references for use by other constructs
     this.notificationTable = notificationTable;
     this.connectionTable = connectionTable;
@@ -1810,6 +1920,8 @@ export class ApiGatewayStack extends cdk.Stack {
           ASSESS_PROGRESS_FUNCTION_NAME: assessProgressFunction.functionName,
           SUMMARY_GEN_FUNCTION_NAME: summaryGenerationFunction.functionName,
           AUDIO_TO_TEXT_FUNCTION_NAME: audioToTextFunction.functionName,
+          PLAYGROUND_GEN_FUNCTION_NAME:
+            playgroundGenLambdaDockerFunc.functionName,
         },
       },
     );
@@ -1819,6 +1931,7 @@ export class ApiGatewayStack extends cdk.Stack {
     assessProgressFunction.grantInvoke(wsDefaultFunction);
     summaryGenerationFunction.grantInvoke(wsDefaultFunction);
     audioToTextFunction.grantInvoke(wsDefaultFunction);
+    playgroundGenLambdaDockerFunc.grantInvoke(wsDefaultFunction);
 
     // Grant WebSocket functions permission to access DynamoDB connection table
     connectionTable.grantWriteData(wsConnectFunction);
@@ -1939,6 +2052,23 @@ export class ApiGatewayStack extends cdk.Stack {
 
     // Add WebSocket endpoint to AudioToText Lambda environment
     audioToTextFunction.addEnvironment(
+      "WEBSOCKET_API_ENDPOINT",
+      this.wsStage.url.replace("wss://", "https://"),
+    );
+
+    // Grant PlaygroundGen Lambda permission to post messages back to WebSocket connections
+    playgroundGenLambdaDockerFunc.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["execute-api:ManageConnections"],
+        resources: [
+          `arn:aws:execute-api:${this.region}:${this.account}:${this.wsApi.apiId}/${this.wsStage.stageName}/POST/@connections/*`,
+        ],
+      }),
+    );
+
+    // Add WebSocket endpoint to PlaygroundGen Lambda environment
+    playgroundGenLambdaDockerFunc.addEnvironment(
       "WEBSOCKET_API_ENDPOINT",
       this.wsStage.url.replace("wss://", "https://"),
     );

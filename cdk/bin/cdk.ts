@@ -73,6 +73,11 @@ const cicd = new CICDStack(app, `${StackPrefix}-CICDStack`, {
       functionName: `${StackPrefix}-ApiStack-SummaryGenerationFunction`,
       sourceDir: "cdk/lambda/summary_generation",
     },
+    {
+      name: "playgroundGeneration",
+      functionName: `${StackPrefix}-ApiStack-PlaygroundTextGenLambdaDockerFunction`,
+      sourceDir: "cdk/lambda/playground_generation",
+    },
   ],
   pathFilters: [
     "cdk/lambda/case_generation/**",
@@ -80,6 +85,7 @@ const cicd = new CICDStack(app, `${StackPrefix}-CICDStack`, {
     "cdk/lambda/assess_progress/**",
     "cdk/lambda/audioToText/**",
     "cdk/lambda/summary_generation/**",
+    "cdk/lambda/playground_generation/**",
   ],
 });
 

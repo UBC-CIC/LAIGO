@@ -57,7 +57,19 @@ def create_dynamodb_history_table(table_name: str) -> bool:
         # Wait until the table exists.
         table.meta.client.get_waiter("table_exists").wait(TableName=table_name)
         
-
+    # Enable TTL if not already enabled
+    try:
+        ttl_description = dynamodb_client.describe_time_to_live(TableName=table_name)
+        if ttl_description['TimeToLiveDescription']['TimeToLiveStatus'] == 'DISABLED':
+            dynamodb_client.update_time_to_live(
+                TableName=table_name,
+                TimeToLiveSpecification={
+                    'Enabled': True,
+                    'AttributeName': 'ttl'
+                }
+            )
+    except Exception as e:
+        print(f"Error checking/enabling TTL: {e}")
 
 def get_bedrock_llm(
     bedrock_llm_id: str,
@@ -360,7 +372,150 @@ def get_streaming_response(
     
     return get_llm_output(full_response)
  
+def get_playground_streaming_response(
+    query: str,
+    llm: ChatBedrock,
+    history_aware_retriever,
+    table_name: str,
+    session_id: str,
+    system_prompt: str,
+    connection_id: str,
+    websocket_endpoint: str,
+    request_id: str = None,
+    case_context: dict = None,
+) -> dict:
+    """
+    Generates a streaming response for playground testing.
+    Uses the exact same chain structure as get_streaming_response for complete
+    architectural consistency, including history-aware query rephrasing.
+    Uses DynamoDB for multi-turn conversation history.
+    
+    Args:
+    query (str): The user's test message.
+    llm (ChatBedrock): The language model instance.
+    history_aware_retriever: The history-aware retriever instance (no-op for playground).
+    table_name (str): DynamoDB table name for chat history.
+    session_id (str): Unique session ID for playground conversation.
+    system_prompt (str): Custom system prompt to test.
+    connection_id (str): WebSocket connection ID.
+    websocket_endpoint (str): HTTPS endpoint for ApiGatewayManagementApi.
+    request_id (str, optional): Request correlation ID.
+    case_context (dict, optional): Mock case details to wrap the prompt with.
+    
+    Returns:
+    dict: A dictionary containing the full response after streaming completes.
+    """
+    import json
+    
+    # Initialize ApiGatewayManagementApi client
+    apigw_client = boto3.client(
+        'apigatewaymanagementapi',
+        endpoint_url=websocket_endpoint
+    )
 
+    def send_to_websocket(message_type: str, content: str = None, data: dict = None):
+        """Helper to send messages to WebSocket connection."""
+        message = {
+            "requestId": request_id,
+            "action": "playground_test",
+            "type": message_type,
+        }
+        if content is not None:
+            message["content"] = content
+        if data is not None:
+            message["data"] = data
+        try:
+            apigw_client.post_to_connection(
+                ConnectionId=connection_id,
+                Data=json.dumps(message).encode('utf-8')
+            )
+        except Exception as e:
+            print(f"Error sending to WebSocket: {e}")
+
+    # Construct the prompt with case context details (consistent with standard flow)
+    if case_context is None:
+        case_context = {}
+        
+    processed_system_prompt = construct_case_context_prompt(system_prompt, case_context)
+    
+    qa_prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", processed_system_prompt),
+            MessagesPlaceholder("chat_history"),
+            ("human", "{input}"),
+        ]
+    )
+    question_answer_chain = create_stuff_documents_chain(llm, qa_prompt)
+    rag_chain = create_retrieval_chain(history_aware_retriever, question_answer_chain)
+    
+    # Wrap with message history for multi-turn conversation
+    conversational_rag_chain = RunnableWithMessageHistory(
+        rag_chain,
+        lambda _: DynamoDBChatMessageHistory(
+            table_name=table_name, 
+            session_id=session_id,
+        ),
+        input_messages_key="input",
+        history_messages_key="chat_history",
+        output_messages_key="answer",
+    )
+    
+    # Send start message
+    send_to_websocket("start")
+    
+    full_response = ""
+    try:
+        # Stream the response
+        for chunk in conversational_rag_chain.stream(
+            {"input": query},
+            config={"configurable": {"session_id": session_id}}
+        ):
+            # Extract the answer portion from the chunk
+            if "answer" in chunk and chunk["answer"]:
+                chunk_content = chunk["answer"]
+                full_response += chunk_content
+                send_to_websocket("chunk", content=chunk_content)
+
+        
+        # Send complete message
+        send_to_websocket("complete", data={"llm_output": full_response})
+        
+        # Update TTL AFTER conversation is saved by LangChain
+        try:
+            dynamodb = boto3.resource("dynamodb")
+            table = dynamodb.Table(table_name)
+            
+            # Check current TTL first to avoid unnecessary writes
+            response = table.get_item(
+                Key={'SessionId': session_id}
+            )
+            
+            current_time = int(time.time())
+            expiry_timestamp = current_time + 86400  # 24 hours
+            
+            # Only update if TTL is missing or expires in less than 23 hours (update roughly every hour)
+            should_update = True
+            if 'Item' in response and 'ttl' in response['Item']:
+                current_ttl = int(response['Item']['ttl'])
+                # If existing TTL is still good for > 23 hours, don't write
+                if current_ttl > (current_time + 82800):
+                    should_update = False
+            
+            if should_update:
+                table.update_item(
+                    Key={'SessionId': session_id},
+                    UpdateExpression="SET #ttl = :expiry",
+                    ExpressionAttributeNames={'#ttl': 'ttl'},
+                    ExpressionAttributeValues={':expiry': expiry_timestamp}
+                )
+        except Exception as e:
+            print(f"Error setting TTL for playground session: {e}")
+        
+    except Exception as e:
+        send_to_websocket("error", content=str(e))
+        raise
+    
+    return get_llm_output(full_response)
 
 def split_into_sentences(paragraph: str) -> list[str]:
     """

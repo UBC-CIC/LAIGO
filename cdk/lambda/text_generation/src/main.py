@@ -9,8 +9,8 @@ import uuid
 import functools
 from langchain_aws import BedrockEmbeddings
 
-from helpers.vectorstore import get_vectorstore_retriever, get_noop_history_aware_retriever
-from helpers.chat import get_bedrock_llm, get_initial_student_query, create_dynamodb_history_table, get_response, get_streaming_response, get_playground_streaming_response
+from helpers.vectorstore import get_vectorstore_retriever
+from helpers.chat import get_bedrock_llm, get_initial_student_query, create_dynamodb_history_table, get_response, get_streaming_response
  
 # Set up logging - Force level to INFO to ensure CloudWatch capture
 logger = logging.getLogger()
@@ -324,16 +324,7 @@ def setup_guardrail(guardrail_name: str) -> tuple[str, str]:
     return guardrail_id, guardrail_version
     
 
-def get_default_system_prompt():
-    return '''You are a helpful assistant to me, a law student, who answers with kindness while being concise, so that it is easy to read your responses quickly yet still get valuable information from them. No need to be conversational, just skip to talking about the content. Refer to me, the law student, in the second person. I will provide you with context to a legal case I am interviewing my client about, and you exist to help provide legal context and analysis, relevant issues, possible strategies to defend the client, and other important details in a structured natural language response.
 
-To me, the law student, when I provide you with context on certain client cases, and you should provide possible follow-up questions for me, the law student, to ask the client to help progress the case more after your initial (concise and easy to read) analysis. These are NOT for the client to ask a lawyer; this is to help me, the law student, learn what kind of questions to ask my client, so in your analysis you should provide follow-up questions for me, the law student, to ask the client as if I were a lawyer.
-
-Initially, also break down the case and analyze it from a detailed but concise legal perspective. You should also mention certain legal information and implications that I, the law student, may have missed, and mention which part of Canadian law it is applicable to if possible or helpful (as well as cite where I can find that relevant info).
-
-You are NOT allowed to hallucinate, informational accuracy and being up-to-date is important. If you are asked something for which you do not know, either say "I don't know" or ask for further information if applicable and not an invasion of privacy.
-
-Do not indent your text.'''
 
 def get_system_prompt(block_type):
     # Connect to the database
@@ -477,84 +468,7 @@ def handler(event, context):
     
     block_type = subroute_map.get(sub_route, "intake") # Default to intake if invalid sub_route
 
-    # Handle Playground Mode - separate flow for testing prompts
-    if playground_mode and is_websocket and connection_id:
-        logger.info("Playground mode activated")
-        body = {} if event.get("body") is None else json.loads(event.get("body"))
-        
-        # Extract playground parameters
-        custom_prompt = body.get("custom_prompt", get_default_system_prompt())
-        test_message = body.get("message_content", "")
-        
-        # Determine block type for playground (from body or query params)
-        playground_block_type = body.get("block_type", block_type)
-        
-        # Construct unique session ID based on playground marker, test_id and block_type
-        # This is consistent with the standard f"{case_id}-{block_type}" pattern
-        test_id = body.get("test_id", str(uuid.uuid4())[:8])
-        playground_session_id = f"playground-{test_id}-{playground_block_type}"
-        
-        # Custom model configuration (override defaults)
-        custom_model_id = body.get("model_id", BEDROCK_LLM_ID)
-        custom_temperature = float(body.get("temperature", BEDROCK_TEMP))
-        custom_top_p = float(body.get("top_p", BEDROCK_TOP_P))
-        custom_max_tokens = int(body.get("max_tokens", BEDROCK_MAX_TOKENS))
-        
-        if not test_message:
-            logger.error("Playground mode requires message_content")
-            return {'statusCode': 400, 'body': json.dumps("Missing message_content for playground")}
-        
-        try:
-            # Create LLM with custom configuration
-            logger.info(f"Playground: Creating LLM with model={custom_model_id}, temp={custom_temperature}, top_p={custom_top_p}, max_tokens={custom_max_tokens}")
-            llm = get_bedrock_llm(
-                bedrock_llm_id=custom_model_id,
-                temperature=custom_temperature,
-                top_p=custom_top_p,
-                max_tokens=custom_max_tokens
-            )
-            
-            websocket_endpoint = os.environ.get("WEBSOCKET_API_ENDPOINT")
-            if not websocket_endpoint:
-                websocket_endpoint = f"https://{domain_name}/{stage}"
-            
-            # Extract mock case context for playground
-            mock_case_context = body.get("case_context", {})
-            
-            # Create a no-op history-aware retriever that performs the same query rephrasing
-            # as the production flow but returns no documents
-            history_aware_retriever = get_noop_history_aware_retriever(llm)
-            
-            # Use playground streaming response (identical chain structure to standard flow)
-            response = get_playground_streaming_response(
-                query=test_message,
-                llm=llm,
-                history_aware_retriever=history_aware_retriever,
-                table_name=TABLE_NAME,
-                session_id=playground_session_id,
-                system_prompt=custom_prompt,
-                connection_id=connection_id,
-                websocket_endpoint=websocket_endpoint,
-                request_id=request_id,
-                case_context=mock_case_context
-            )
-            
-            logger.info("Playground streaming response completed.")
-            return {"statusCode": 200}
-            
-        except Exception as e:
-            logger.error(f"Playground error: {e}")
-            try:
-                websocket_endpoint = os.environ.get("WEBSOCKET_API_ENDPOINT", f"https://{domain_name}/{stage}")
-                apigw_client = boto3.client('apigatewaymanagementapi', endpoint_url=websocket_endpoint)
-                apigw_client.post_to_connection(
-                    ConnectionId=connection_id,
-                    Data=json.dumps({"type": "error", "content": str(e)}).encode('utf-8')
-                )
-            except Exception as ws_error:
-                logger.error(f"Failed to send playground error to WebSocket: {ws_error}")
-            return {"statusCode": 500}
-
+    block_type = subroute_map.get(sub_route, "intake") # Default to intake if invalid sub_route
     # block_type is already determined at the top
     
     if not case_id:

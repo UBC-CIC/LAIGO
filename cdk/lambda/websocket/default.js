@@ -134,7 +134,7 @@ exports.handler = async (event) => {
 
       await lambda.send(
         new InvokeCommand({
-          FunctionName: process.env.TEXT_GEN_FUNCTION_NAME,
+          FunctionName: process.env.PLAYGROUND_GEN_FUNCTION_NAME,
           InvocationType: "Event",
           Payload: JSON.stringify(playgroundPayload),
         }),
