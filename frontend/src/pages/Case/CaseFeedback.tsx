@@ -10,10 +10,11 @@ import {
   Alert,
 } from "@mui/material";
 import { fetchAuthSession } from "aws-amplify/auth";
-import { useParams } from "react-router-dom";
+import { useParams, useOutletContext } from "react-router-dom";
 import FeedbackMessage from "../../components/Case/FeedbackMessage";
 import SendIcon from "@mui/icons-material/Send";
 import { useUser } from "../../contexts/UserContext";
+import type { CaseOutletContext } from "./CaseLayout";
 
 // Interface for feedback messages
 interface FeedbackMessageData {
@@ -34,6 +35,7 @@ interface ApiFeedbackMessage {
 const CaseFeedback: React.FC = () => {
   const { caseId } = useParams();
   const { userInfo } = useUser();
+  const { caseStatus } = useOutletContext<CaseOutletContext>();
   const [loading, setLoading] = useState<boolean>(true);
   const [messages, setMessages] = useState<FeedbackMessageData[]>([]);
   const [newFeedback, setNewFeedback] = useState("");
@@ -230,9 +232,14 @@ const CaseFeedback: React.FC = () => {
                 multiline
                 minRows={3}
                 variant="outlined"
-                placeholder="Enter feedback regarding the case approach"
+                placeholder={
+                  caseStatus === "archived"
+                    ? "Case archived - feedback disabled"
+                    : "Enter feedback regarding the case approach"
+                }
                 value={newFeedback}
                 onChange={(e) => setNewFeedback(e.target.value)}
+                disabled={submitting || caseStatus === "archived"}
                 sx={{
                   backgroundColor: "var(--background)",
                   marginBottom: 2,
@@ -243,6 +250,9 @@ const CaseFeedback: React.FC = () => {
                       borderColor: "var(--text-secondary)",
                     },
                     "&.Mui-focused fieldset": { borderColor: "var(--primary)" },
+                    "&.Mui-disabled": {
+                      backgroundColor: "rgba(0,0,0,0.05)",
+                    },
                   },
                 }}
               />
@@ -257,7 +267,11 @@ const CaseFeedback: React.FC = () => {
                     )
                   }
                   onClick={handleSendFeedback}
-                  disabled={submitting || !newFeedback.trim()}
+                  disabled={
+                    submitting ||
+                    !newFeedback.trim() ||
+                    caseStatus === "archived"
+                  }
                   sx={{
                     backgroundColor: "var(--primary)",
                     color: "var(--text)",
@@ -266,6 +280,10 @@ const CaseFeedback: React.FC = () => {
                     "&:hover": {
                       backgroundColor: "var(--primary)",
                       filter: "brightness(0.9)",
+                    },
+                    "&.Mui-disabled": {
+                      backgroundColor: "var(--secondary)",
+                      color: "rgba(255,255,255,0.5)",
                     },
                   }}
                 >
@@ -317,7 +335,7 @@ const CaseFeedback: React.FC = () => {
                     timestamp={msg.timestamp}
                     content={msg.content}
                     onDelete={
-                      isInstructor
+                      isInstructor && caseStatus !== "archived"
                         ? () => handleDeleteFeedback(msg.id)
                         : undefined
                     }

@@ -59,11 +59,12 @@ const PROGRESSION_MAP: Record<string, string | string[]> = {
 
 const InterviewAssistant: React.FC = () => {
   const { caseId, section } = useParams();
-  const { unlockedBlocks, refreshUnlockedBlocks } =
+  const { unlockedBlocks, refreshUnlockedBlocks, caseStatus } =
     useOutletContext<CaseOutletContext>();
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [messageCount, setMessageCount] = useState(0);
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
@@ -826,7 +827,11 @@ const InterviewAssistant: React.FC = () => {
                       msg.isStreaming ? "streaming" : "complete"
                     }`}
                     message={msg.content}
-                    onGenerateSummary={handleGenerateSummary}
+                    onGenerateSummary={
+                      caseStatus === "archived"
+                        ? undefined
+                        : handleGenerateSummary
+                    }
                     isGeneratingSummary={isGeneratingSummary}
                     isStreaming={msg.isStreaming === true}
                   />
@@ -859,6 +864,7 @@ const InterviewAssistant: React.FC = () => {
               <ChatBar
                 onSendMessage={handleSendMessage}
                 isLoading={isLoading}
+                disabled={caseStatus === "archived"}
               />
             </Container>
           </Box>

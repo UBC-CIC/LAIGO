@@ -18,12 +18,14 @@ interface NotepadProps {
   initialContent: string;
   onSave: (content: string) => Promise<void> | void;
   onClose: () => void;
+  readOnly?: boolean;
 }
 
 const Notepad: React.FC<NotepadProps> = ({
   initialContent,
   onSave,
   onClose,
+  readOnly = false,
 }) => {
   const [content, setContent] = useState(initialContent);
   const [isSaving, setIsSaving] = useState(false);
@@ -55,7 +57,7 @@ const Notepad: React.FC<NotepadProps> = ({
 
   const handleSave = useCallback(
     async (contentToSave: string) => {
-      if (contentToSave === lastSavedContent) return;
+      if (contentToSave === lastSavedContent || readOnly) return;
       setIsSaving(true);
       setShowSavedIcon(false);
       try {
@@ -73,25 +75,27 @@ const Notepad: React.FC<NotepadProps> = ({
         if (isMountedFn.current) setIsSaving(false);
       }
     },
-    [lastSavedContent, onSave],
+    [lastSavedContent, onSave, readOnly],
   );
 
   // Debounce save
   useEffect(() => {
-    const timer = setTimeout(() => {
-      handleSave(content);
-    }, 2000);
-    return () => clearTimeout(timer);
-  }, [content, handleSave]);
+    if (!readOnly) {
+      const timer = setTimeout(() => {
+        handleSave(content);
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [content, handleSave, readOnly]);
 
   // Save on unmount if dirty
   useEffect(() => {
     return () => {
-      if (contentRef.current !== lastSavedContentRef.current) {
+      if (contentRef.current !== lastSavedContentRef.current && !readOnly) {
         onSave(contentRef.current);
       }
     };
-  }, [onSave]);
+  }, [onSave, readOnly]);
 
   return (
     <Draggable
@@ -139,7 +143,7 @@ const Notepad: React.FC<NotepadProps> = ({
               userSelect: "none",
             }}
           >
-            Notepad
+            Notepad {readOnly ? "(Read-only)" : ""}
           </Typography>
           <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
             {isSaving ? (
@@ -153,7 +157,8 @@ const Notepad: React.FC<NotepadProps> = ({
                 titleAccess="Saved"
               />
             ) : (
-              content !== lastSavedContent && (
+              content !== lastSavedContent &&
+              !readOnly && (
                 <Typography
                   variant="caption"
                   sx={{ color: "var(--text-secondary)", fontSize: "0.65rem" }}
@@ -162,15 +167,17 @@ const Notepad: React.FC<NotepadProps> = ({
                 </Typography>
               )
             )}
-            <IconButton
-              size="small"
-              onClick={() => handleSave(content)}
-              title="Save Now"
-              sx={{ color: "var(--text)" }}
-              disabled={isSaving || content === lastSavedContent}
-            >
-              <SaveIcon fontSize="small" />
-            </IconButton>
+            {!readOnly && (
+              <IconButton
+                size="small"
+                onClick={() => handleSave(content)}
+                title="Save Now"
+                sx={{ color: "var(--text)" }}
+                disabled={isSaving || content === lastSavedContent}
+              >
+                <SaveIcon fontSize="small" />
+              </IconButton>
+            )}
             <IconButton
               size="small"
               onClick={onClose}
@@ -196,6 +203,7 @@ const Notepad: React.FC<NotepadProps> = ({
               border: "none",
               borderBottom: "1px solid #ccc",
               backgroundColor: "#fff9c4",
+              display: readOnly ? "none" : "flex",
             },
           }}
         >
@@ -203,12 +211,15 @@ const Notepad: React.FC<NotepadProps> = ({
             theme="snow"
             value={content}
             onChange={setContent}
+            readOnly={readOnly}
             modules={{
-              toolbar: [
-                ["bold", "italic", "underline", "strike"],
-                [{ list: "ordered" }, { list: "bullet" }],
-                ["clean"],
-              ],
+              toolbar: readOnly
+                ? false
+                : [
+                    ["bold", "italic", "underline", "strike"],
+                    [{ list: "ordered" }, { list: "bullet" }],
+                    ["clean"],
+                  ],
             }}
             style={{
               height: "100%",
@@ -240,6 +251,8 @@ const Notepad: React.FC<NotepadProps> = ({
                 /* The scrollable editor area */
                 .ql-editor {
                      height: 100%;
+                     /* If readOnly, text is not editable, cursor changes */
+                     cursor: ${readOnly ? "default" : "text"};
                      overflow-y: auto;
                      /* Legal pad yellow */
                      background-color: #fdfd96;

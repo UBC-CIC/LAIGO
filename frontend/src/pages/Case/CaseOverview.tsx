@@ -14,7 +14,7 @@ import {
   Alert,
   CircularProgress,
 } from "@mui/material";
-import { useParams } from "react-router-dom";
+import { useParams, useOutletContext } from "react-router-dom";
 import { fetchAuthSession } from "aws-amplify/auth";
 import EditIcon from "@mui/icons-material/Edit";
 import EditOffIcon from "@mui/icons-material/EditOff";
@@ -22,6 +22,7 @@ import SendIcon from "@mui/icons-material/Send";
 import ArchiveIcon from "@mui/icons-material/Archive";
 import UnarchiveIcon from "@mui/icons-material/Unarchive";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
+import type { CaseOutletContext } from "./CaseLayout";
 
 interface CaseData {
   case_id: string;
@@ -57,6 +58,7 @@ interface EditedCase {
 
 const CaseOverview: React.FC = () => {
   const { caseId } = useParams();
+  const { refreshCaseData } = useOutletContext<CaseOutletContext>();
   const [caseData, setCaseData] = useState<CaseData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [editMode, setEditMode] = useState<boolean>(false);
@@ -153,6 +155,7 @@ const CaseOverview: React.FC = () => {
       setCaseData((prev: CaseData | null) =>
         prev ? { ...prev, status: "archived" } : prev,
       );
+      await refreshCaseData();
       setSnackbar({
         open: true,
         message: "Case archived successfully.",
@@ -191,6 +194,7 @@ const CaseOverview: React.FC = () => {
       setCaseData((prev: CaseData | null) =>
         prev ? { ...prev, status: "In Progress" } : prev,
       );
+      await refreshCaseData();
       setSnackbar({
         open: true,
         message: "Case successfully unarchived.",

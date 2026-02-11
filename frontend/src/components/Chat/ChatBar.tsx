@@ -6,13 +6,18 @@ import SendIcon from "@mui/icons-material/Send";
 interface ChatBarProps {
   onSendMessage: (message: string) => void;
   isLoading: boolean;
+  disabled?: boolean;
 }
 
-const ChatBar: React.FC<ChatBarProps> = ({ onSendMessage, isLoading }) => {
+const ChatBar: React.FC<ChatBarProps> = ({
+  onSendMessage,
+  isLoading,
+  disabled = false,
+}) => {
   const [input, setInput] = React.useState("");
 
   const handleSend = () => {
-    if (input.trim() && !isLoading) {
+    if (input.trim() && !isLoading && !disabled) {
       onSendMessage(input);
       setInput("");
     }
@@ -36,6 +41,8 @@ const ChatBar: React.FC<ChatBarProps> = ({ onSendMessage, isLoading }) => {
         py: 1.5,
         border: "1px solid var(--border)",
         width: "100%",
+        opacity: disabled ? 0.5 : 1,
+        pointerEvents: disabled ? "none" : "auto",
       }}
     >
       <IconButton size="small" sx={{ color: "var(--text)", p: 0.5 }}>
@@ -43,11 +50,11 @@ const ChatBar: React.FC<ChatBarProps> = ({ onSendMessage, isLoading }) => {
       </IconButton>
 
       <InputBase
-        placeholder="Ask me a question"
+        placeholder={disabled ? "This case is archived." : "Ask me a question"}
         value={input}
         onChange={(e) => setInput(e.target.value)}
         onKeyDown={handleKeyDown}
-        disabled={isLoading}
+        disabled={isLoading || disabled}
         sx={{
           ml: 2,
           flex: 1,
@@ -65,7 +72,7 @@ const ChatBar: React.FC<ChatBarProps> = ({ onSendMessage, isLoading }) => {
         size="small"
         sx={{ color: "var(--text)", p: 0.5 }}
         onClick={handleSend}
-        disabled={isLoading || !input.trim()}
+        disabled={isLoading || !input.trim() || disabled}
       >
         <SendIcon
           fontSize="small"

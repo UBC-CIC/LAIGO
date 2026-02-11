@@ -24,7 +24,7 @@ import {
   Snackbar,
   Alert,
 } from "@mui/material";
-import { useParams } from "react-router-dom";
+import { useParams, useOutletContext } from "react-router-dom";
 import { jsPDF } from "jspdf";
 import { fetchAuthSession } from "aws-amplify/auth";
 import { marked } from "marked";
@@ -35,6 +35,7 @@ import MoreVertIcon from "@mui/icons-material/MoreVert";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import { v4 as uuidv4 } from "uuid";
 import { useWebSocket } from "../../hooks/useWebSocket";
+import type { CaseOutletContext } from "./CaseLayout";
 
 interface Transcription {
   audio_file_id: string;
@@ -55,6 +56,7 @@ interface CaseData {
 
 const CaseTranscriptions: React.FC = () => {
   const { caseId } = useParams();
+  const { caseStatus } = useOutletContext<CaseOutletContext>();
   const [transcriptions, setTranscriptions] = useState<Transcription[]>([]);
   const [caseData, setCaseData] = useState<CaseData | null>(null);
   const [audioFile, setAudioFile] = useState<{
@@ -570,7 +572,7 @@ const CaseTranscriptions: React.FC = () => {
               </Typography>
             )}
 
-            {caseData?.status === "Archived" && (
+            {caseStatus === "archived" && (
               <Typography
                 sx={{
                   mt: 1,
@@ -588,15 +590,15 @@ const CaseTranscriptions: React.FC = () => {
             color="primary"
             startIcon={<CloudUploadIcon />}
             onClick={openUploadDialog}
-            disabled={caseData?.status === "Archived"}
+            disabled={caseStatus === "archived"}
             sx={{
               backgroundColor:
-                caseData?.status === "Archived" ? "#ccc" : "var(--secondary)",
+                caseStatus === "archived" ? "#ccc" : "var(--secondary)",
               color: "white",
               textTransform: "none",
               "&:hover": {
                 backgroundColor:
-                  caseData?.status === "Archived" ? "#ccc" : "var(--primary)",
+                  caseStatus === "archived" ? "#ccc" : "var(--primary)",
               },
               boxShadow: "none",
               borderRadius: 5,
@@ -930,6 +932,7 @@ const CaseTranscriptions: React.FC = () => {
             onClick={() => {
               setConfirmDeleteOpen(true);
             }}
+            disabled={caseStatus === "archived"}
           >
             Delete
           </MenuItem>

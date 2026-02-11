@@ -25,9 +25,10 @@ import ExpandLess from "@mui/icons-material/ExpandLess";
 import ExpandMore from "@mui/icons-material/ExpandMore";
 import ArticleIcon from "@mui/icons-material/Article";
 import AssignmentIcon from "@mui/icons-material/Assignment";
-import { useParams } from "react-router-dom";
+import { useParams, useOutletContext } from "react-router-dom";
 import { fetchAuthSession } from "aws-amplify/auth";
 import { useWebSocket } from "../../hooks/useWebSocket";
+import type { CaseOutletContext } from "./CaseLayout";
 
 // --- Types ---
 
@@ -112,6 +113,7 @@ const formatTime = (dateString: string) => {
 
 const CaseSummaries: React.FC = () => {
   const { caseId } = useParams();
+  const { caseStatus } = useOutletContext<CaseOutletContext>();
   const [summaries, setSummaries] = useState<Summary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedSummaryId, setSelectedSummaryId] = useState<number | null>(
@@ -475,7 +477,7 @@ const CaseSummaries: React.FC = () => {
                 )
               }
               onClick={handleGenerateSummary}
-              disabled={isGenerating}
+              disabled={isGenerating || caseStatus === "archived"}
               sx={{
                 backgroundColor: "var(--primary)",
                 color: "white", // Fixed as primary usually needs white text
@@ -620,6 +622,7 @@ const CaseSummaries: React.FC = () => {
                             e.stopPropagation();
                             handleDeleteSummary(summary.summary_id);
                           }}
+                          disabled={caseStatus === "archived"}
                         >
                           <DeleteIcon fontSize="small" />
                         </IconButton>
@@ -734,6 +737,7 @@ const CaseSummaries: React.FC = () => {
                             e.stopPropagation();
                             handleDeleteSummary(summary.summary_id);
                           }}
+                          disabled={caseStatus === "archived"}
                         >
                           <DeleteIcon fontSize="small" />
                         </IconButton>

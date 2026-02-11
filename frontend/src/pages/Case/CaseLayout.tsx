@@ -11,11 +11,14 @@ import Notepad from "../../components/Case/Notepad";
 export interface CaseOutletContext {
   unlockedBlocks: string[];
   refreshUnlockedBlocks: () => Promise<void>;
+  caseStatus: string;
+  refreshCaseData: () => Promise<void>;
 }
 
 const CaseLayout: React.FC = () => {
   const { caseId } = useParams();
   const [caseTitle, setCaseTitle] = useState<string>("");
+  const [caseStatus, setCaseStatus] = useState<string>("");
   const [unlockedBlocks, setUnlockedBlocks] = useState<string[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
@@ -50,35 +53,60 @@ const CaseLayout: React.FC = () => {
         const data = await res.json();
         const cData = data.caseData || data;
         setUnlockedBlocks(cData.unlocked_blocks || ["intake"]);
+        // Also update status if it changed
+        if (cData.status) setCaseStatus(cData.status);
       }
     } catch (err) {
       console.error("Error refreshing unlocked blocks:", err);
     }
   }, [caseId]);
 
-  useEffect(() => {
-    const init = async () => {
-      try {
-        const session = await fetchAuthSession();
-        const token = session.tokens?.idToken?.toString();
-        const cId = session.tokens?.idToken?.payload?.sub;
-        const groups = session.tokens?.idToken?.payload?.[
-          "cognito:groups"
-        ] as string[];
+  const init = useCallback(async () => {
+    try {
+      const session = await fetchAuthSession();
+      const token = session.tokens?.idToken?.toString();
+      const cId = session.tokens?.idToken?.payload?.sub;
+      const groups = session.tokens?.idToken?.payload?.[
+        "cognito:groups"
+      ] as string[];
 
-        if (cId) setCognitoId(cId);
+      if (cId) setCognitoId(cId);
 
-        if (!token || !cId) {
-          console.error("Authentication required");
-          return;
-        }
+      if (!token || !cId) {
+        console.error("Authentication required");
+        return;
+      }
 
-        // Fetch Case Data for title
-        const res = await fetch(
+      // Fetch Case Data for title
+      const res = await fetch(
+        `${
+          import.meta.env.VITE_API_ENDPOINT
+        }/student/case_page?case_id=${caseId}`,
+        {
+          headers: {
+            Authorization: token,
+            "Content-Type": "application/json",
+          },
+        },
+      );
+
+      if (res.ok) {
+        const data = await res.json();
+        const cData = data.caseData || data;
+        setCaseTitle(cData.case_title || "Untitled Case");
+        setCaseStatus(cData.status || "");
+        setUnlockedBlocks(cData.unlocked_blocks || ["intake"]);
+        setNotepadContent(cData.student_notes || "");
+      }
+
+      // Update view_case if student
+      if (!groups?.includes("instructor") && !groups?.includes("admin")) {
+        const viewRes = await fetch(
           `${
             import.meta.env.VITE_API_ENDPOINT
-          }/student/case_page?case_id=${caseId}`,
+          }/student/view_case?case_id=${caseId}`,
           {
+            method: "PUT",
             headers: {
               Authorization: token,
               "Content-Type": "application/json",
@@ -86,44 +114,22 @@ const CaseLayout: React.FC = () => {
           },
         );
 
-        if (res.ok) {
-          const data = await res.json();
-          const cData = data.caseData || data;
-          setCaseTitle(cData.case_title || "Untitled Case");
-          setUnlockedBlocks(cData.unlocked_blocks || ["intake"]);
-          setNotepadContent(cData.student_notes || "");
+        if (!viewRes.ok) {
+          console.warn("Failed to record case view:", viewRes.statusText);
         }
-
-        // Update view_case if student
-        if (!groups?.includes("instructor") && !groups?.includes("admin")) {
-          const viewRes = await fetch(
-            `${
-              import.meta.env.VITE_API_ENDPOINT
-            }/student/view_case?case_id=${caseId}`,
-            {
-              method: "PUT",
-              headers: {
-                Authorization: token,
-                "Content-Type": "application/json",
-              },
-            },
-          );
-
-          if (!viewRes.ok) {
-            console.warn("Failed to record case view:", viewRes.statusText);
-          }
-        }
-      } catch (err) {
-        console.error("Error in CaseLayout init:", err);
-      } finally {
-        setLoading(false);
       }
-    };
+    } catch (err) {
+      console.error("Error in CaseLayout init:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [caseId]);
 
+  useEffect(() => {
     if (caseId) {
       init();
     }
-  }, [caseId]);
+  }, [caseId, init]);
 
   const handleSaveNotes = useCallback(
     async (content: string) => {
@@ -201,6 +207,8 @@ const CaseLayout: React.FC = () => {
             {
               unlockedBlocks,
               refreshUnlockedBlocks,
+              caseStatus,
+              refreshCaseData: init,
             } satisfies CaseOutletContext
           }
         />
@@ -212,6 +220,7 @@ const CaseLayout: React.FC = () => {
           initialContent={notepadContent}
           onSave={handleSaveNotes}
           onClose={() => setShowNotepad(false)}
+          readOnly={caseStatus === "archived"}
         />
       )}
     </Box>
