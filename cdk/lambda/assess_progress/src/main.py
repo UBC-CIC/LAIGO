@@ -364,20 +364,24 @@ def handler(event, context):
     # --- Playground mode: skip authorization, use DB history + inline prompt ---
     if body.get("playground_mode"):
         custom_prompt = body.get("custom_prompt", "")
-        session_id = body.get("session_id", "")
+        test_id = body.get("session_id", "")
         block_type = body.get("block_type", "intake")
         
-        logger.info(f"Playground assessment mode for block_type: {block_type}, session_id: {session_id}")
+        # Construct unique session ID consistently with text_generation Lambda
+        # Pattern: playground-{test_id}-{block_type}
+        playground_session_id = f"playground-{test_id}-{block_type}"
         
-        if not custom_prompt or not session_id:
+        logger.info(f"Playground assessment mode for block_type: {block_type}, test_id: {test_id}, session_id: {playground_session_id}")
+        
+        if not custom_prompt or not test_id:
             error_msg = "Playground mode requires custom_prompt and session_id"
             if is_websocket and connection_id:
                 send_to_websocket(connection_id, ws_endpoint, request_id, "error", content=error_msg)
                 return {"statusCode": 400}
             return _response(400, error_msg)
         
-        # Fetch chat history from DynamoDB (same table used by playground_test)
-        chat_history = fetch_chat_history(session_id)
+        # Fetch chat history from DynamoDB using the constructed playground session ID
+        chat_history = fetch_chat_history(playground_session_id)
         
         if not chat_history:
             error_msg = "No chat history found for this session. Send some messages first."
@@ -386,7 +390,7 @@ def handler(event, context):
                 return {"statusCode": 400}
             return _response(400, error_msg)
         
-        logger.info(f"Fetched {len(chat_history)} chars of chat history for session {session_id}")
+        logger.info(f"Fetched {len(chat_history)} chars of chat history for session {playground_session_id}")
         
         # Construct system instruction using inline prompt and DB history
         system_instruction = f"""
