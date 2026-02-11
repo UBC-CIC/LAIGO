@@ -13,6 +13,10 @@ import {
   Tooltip,
   Snackbar,
   Alert,
+  LinearProgress,
+  CircularProgress,
+  ToggleButton,
+  ToggleButtonGroup,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import CloseIcon from "@mui/icons-material/Close";
@@ -41,6 +45,12 @@ interface CaseContext {
   statute: string;
 }
 
+interface AssessmentResult {
+  progress: number;
+  reasoning: string;
+  unlocked: boolean;
+}
+
 interface ConfigurationState {
   blockType: string;
   modelId: string;
@@ -53,6 +63,11 @@ interface ConfigurationState {
   messages: Message[];
   isLoading: boolean;
   caseContext: CaseContext;
+  // Assessment mode state
+  assessmentPrompt: string;
+  assessmentVersionId: string | null;
+  assessmentResult: AssessmentResult | null;
+  isAssessing: boolean;
 }
 
 interface PromptVersion {
@@ -82,6 +97,15 @@ const BLOCK_TYPES = [
   { id: "policy", label: "Policy Context" },
 ];
 
+// Only these blocks have assessment prompts
+const ASSESSABLE_BLOCK_TYPES = [
+  { id: "intake", label: "Intake & Facts" },
+  { id: "issues", label: "Issue Identification" },
+  { id: "research", label: "Research Strategy" },
+];
+
+type PlaygroundMode = "reasoning" | "assessment";
+
 const DEFAULT_PROMPT = `You are a helpful AI assistant for law students. Provide clear, educational responses that help the student think through legal problems. Be supportive and guide them through their analysis step by step.`;
 
 const DEFAULT_CASE_CONTEXT: CaseContext = {
@@ -109,6 +133,10 @@ const createDefaultConfig = (
   messages: [],
   isLoading: false,
   caseContext: { ...DEFAULT_CASE_CONTEXT },
+  assessmentPrompt: "",
+  assessmentVersionId: null,
+  assessmentResult: null,
+  isAssessing: false,
 });
 
 // Model Configuration Section - Top section with model settings
@@ -581,6 +609,292 @@ const SystemPromptSection: React.FC<{
   },
 );
 
+// Assessment Prompt Section - Swapped in for assessment mode
+const AssessmentPromptSection: React.FC<{
+  config: ConfigurationState;
+  onConfigChange: (updates: Partial<ConfigurationState>) => void;
+  assessmentVersions: PromptVersion[];
+  onLoadVersion: (versionId: string) => void;
+  onSave: () => void;
+  label?: string;
+}> = React.memo(
+  ({
+    config,
+    onConfigChange,
+    assessmentVersions,
+    onLoadVersion,
+    onSave,
+    label,
+  }) => {
+    return (
+      <Box
+        sx={{
+          border: "1px solid var(--border)",
+          borderRadius: 2,
+          backgroundColor: "var(--paper)",
+          overflow: "hidden",
+        }}
+      >
+        <Box
+          sx={{
+            p: 2,
+            backgroundColor: "var(--header)",
+            borderBottom: "1px solid var(--border)",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: 2,
+          }}
+        >
+          <Typography
+            variant="subtitle2"
+            sx={{ fontWeight: "bold", color: "var(--text)", textAlign: "left" }}
+          >
+            {label ? `${label} - Assessment Prompt` : "Assessment Prompt"}
+          </Typography>
+
+          <Box
+            sx={{
+              display: "flex",
+              gap: 1,
+              alignItems: "center",
+              flexWrap: "wrap",
+            }}
+          >
+            {/* Block Type Selection - only assessable blocks */}
+            <FormControl size="small" sx={{ width: 160 }}>
+              <InputLabel sx={{ color: "var(--text-secondary)" }}>
+                Block Type
+              </InputLabel>
+              <Select
+                value={config.blockType}
+                label="Block Type"
+                onChange={(e) => onConfigChange({ blockType: e.target.value })}
+                sx={{
+                  color: "var(--text)",
+                  backgroundColor: "var(--background)",
+                  "& .MuiOutlinedInput-notchedOutline": {
+                    borderColor: "var(--border)",
+                  },
+                }}
+              >
+                {ASSESSABLE_BLOCK_TYPES.map((block) => (
+                  <MenuItem key={block.id} value={block.id}>
+                    {block.label}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            {/* Version Selector */}
+            <FormControl size="small" sx={{ width: 160 }}>
+              <InputLabel sx={{ color: "var(--text-secondary)" }}>
+                Version
+              </InputLabel>
+              <Select
+                value={config.assessmentVersionId || ""}
+                label="Version"
+                onChange={(e) => {
+                  if (e.target.value) {
+                    onLoadVersion(e.target.value);
+                  }
+                }}
+                sx={{
+                  color: "var(--text)",
+                  backgroundColor: "var(--background)",
+                  "& .MuiOutlinedInput-notchedOutline": {
+                    borderColor: "var(--border)",
+                  },
+                }}
+              >
+                <MenuItem value="" disabled>
+                  <em>None</em>
+                </MenuItem>
+                {assessmentVersions.map((v) => (
+                  <MenuItem
+                    key={v.prompt_version_id}
+                    value={v.prompt_version_id}
+                  >
+                    v{v.version_number}{" "}
+                    {v.version_name ? `- ${v.version_name}` : ""}{" "}
+                    {v.is_active ? "(Active)" : ""}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            {/* Save Button */}
+            {config.assessmentVersionId && (
+              <Tooltip title="Save Version">
+                <IconButton
+                  size="small"
+                  onClick={onSave}
+                  sx={{
+                    color: "var(--primary)",
+                    "&:hover": { backgroundColor: "var(--header-hover)" },
+                  }}
+                >
+                  <SaveIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            )}
+          </Box>
+        </Box>
+
+        <Box sx={{ p: 2 }}>
+          <TextField
+            multiline
+            rows={5}
+            fullWidth
+            value={config.assessmentPrompt}
+            onChange={(e) =>
+              onConfigChange({ assessmentPrompt: e.target.value })
+            }
+            placeholder="Enter your assessment prompt criteria..."
+            sx={{
+              "& .MuiOutlinedInput-root": {
+                color: "var(--text)",
+                backgroundColor: "var(--background)",
+                fontFamily: "monospace",
+                fontSize: "0.9rem",
+                "& fieldset": { borderColor: "var(--border)" },
+                "&:hover fieldset": { borderColor: "var(--primary)" },
+                "& textarea": {
+                  resize: "vertical",
+                },
+                "& textarea::-webkit-resizer": {
+                  backgroundColor: "var(--background)",
+                  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath d='M10 0 L0 10 M10 4 L4 10 M10 8 L8 10' stroke='%23888' stroke-width='1'/%3E%3C/svg%3E")`,
+                  backgroundRepeat: "no-repeat",
+                  backgroundPosition: "bottom right",
+                },
+              },
+            }}
+          />
+        </Box>
+      </Box>
+    );
+  },
+);
+
+// Assessment Score Panel - Shows live grading results
+const AssessmentScorePanel: React.FC<{
+  result: AssessmentResult | null;
+  isAssessing: boolean;
+  label?: string;
+}> = React.memo(({ result, isAssessing, label }) => {
+  const progressPercent = result ? (result.progress / 5) * 100 : 0;
+
+  const getProgressColor = (score: number) => {
+    if (score <= 1) return "#ef5350"; // red
+    if (score <= 2) return "#ff9800"; // orange
+    if (score <= 3) return "#ffc107"; // amber
+    if (score <= 4) return "#66bb6a"; // light green
+    return "#4caf50"; // green
+  };
+
+  return (
+    <Box
+      sx={{
+        border: "1px solid var(--border)",
+        borderRadius: 2,
+        backgroundColor: "var(--paper)",
+        overflow: "hidden",
+      }}
+    >
+      <Box
+        sx={{
+          p: 2,
+          backgroundColor: "var(--header)",
+          borderBottom: "1px solid var(--border)",
+        }}
+      >
+        <Typography
+          variant="subtitle2"
+          sx={{ fontWeight: "bold", color: "var(--text)", textAlign: "left" }}
+        >
+          {label ? `${label} - Assessment Score` : "Assessment Score"}
+        </Typography>
+      </Box>
+
+      <Box sx={{ p: 2 }}>
+        {isAssessing ? (
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              gap: 2,
+              py: 1,
+            }}
+          >
+            <CircularProgress size={20} />
+            <Typography
+              variant="body2"
+              sx={{ color: "var(--text-secondary)", fontStyle: "italic" }}
+            >
+              Evaluating conversation...
+            </Typography>
+          </Box>
+        ) : result ? (
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+              <Box sx={{ flex: 1 }}>
+                <LinearProgress
+                  variant="determinate"
+                  value={progressPercent}
+                  sx={{
+                    height: 10,
+                    borderRadius: 5,
+                    backgroundColor: "var(--border)",
+                    "& .MuiLinearProgress-bar": {
+                      borderRadius: 5,
+                      backgroundColor: getProgressColor(result.progress),
+                    },
+                  }}
+                />
+              </Box>
+              <Typography
+                variant="body2"
+                sx={{
+                  fontWeight: "bold",
+                  color: getProgressColor(result.progress),
+                  minWidth: 32,
+                }}
+              >
+                {result.progress}/5
+              </Typography>
+            </Box>
+            <Typography
+              variant="body2"
+              sx={{
+                color: "var(--text)",
+                fontStyle: "italic",
+                lineHeight: 1.6,
+                textAlign: "left",
+              }}
+            >
+              {result.reasoning}
+            </Typography>
+          </Box>
+        ) : (
+          <Typography
+            variant="body2"
+            sx={{
+              color: "var(--text-secondary)",
+              fontStyle: "italic",
+              textAlign: "center",
+              py: 1,
+            }}
+          >
+            Start chatting to see assessment scores...
+          </Typography>
+        )}
+      </Box>
+    </Box>
+  );
+});
+
 // Chat panel component
 const ChatPanel: React.FC<{
   messages: Message[];
@@ -699,6 +1013,8 @@ const ChatPanel: React.FC<{
 
 // Main PromptPlayground component
 const PromptPlayground: React.FC = () => {
+  const [playgroundMode, setPlaygroundMode] =
+    useState<PlaygroundMode>("reasoning");
   const [compareMode, setCompareMode] = useState(false);
   const [configA, setConfigA] = useState<ConfigurationState>(
     createDefaultConfig("intake"),
@@ -708,6 +1024,9 @@ const PromptPlayground: React.FC = () => {
   );
   const [inputMessage, setInputMessage] = useState("");
   const [promptVersions, setPromptVersions] = useState<PromptVersion[]>([]);
+  const [assessmentVersions, setAssessmentVersions] = useState<PromptVersion[]>(
+    [],
+  );
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
     message: string;
@@ -741,7 +1060,7 @@ const PromptPlayground: React.FC = () => {
 
   const { sendStreamingRequest, isConnected } = useWebSocket(wsUrl);
 
-  // Fetch prompt versions when block type changes
+  // Fetch reasoning prompt versions when block type changes
   const fetchPromptVersions = useCallback(async (blockType: string) => {
     try {
       const session = await fetchAuthSession();
@@ -762,11 +1081,41 @@ const PromptPlayground: React.FC = () => {
     }
   }, []);
 
+  // Fetch assessment prompt versions when block type changes
+  const fetchAssessmentVersions = useCallback(async (blockType: string) => {
+    try {
+      const session = await fetchAuthSession();
+      const token = session.tokens?.idToken?.toString();
+      if (!token) return;
+      const response = await fetch(
+        `${import.meta.env.VITE_API_ENDPOINT}admin/prompt?category=assessment&block_type=${blockType}`,
+        {
+          headers: { Authorization: token },
+        },
+      );
+      if (response.ok) {
+        const data = await response.json();
+        setAssessmentVersions(data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch assessment versions:", error);
+    }
+  }, []);
+
+  // Fetch versions based on current mode and block type
   useEffect(() => {
     fetchPromptVersions(configA.blockType);
-  }, [configA.blockType, fetchPromptVersions]);
+    if (playgroundMode === "assessment") {
+      fetchAssessmentVersions(configA.blockType);
+    }
+  }, [
+    configA.blockType,
+    playgroundMode,
+    fetchPromptVersions,
+    fetchAssessmentVersions,
+  ]);
 
-  // Load a specific prompt version
+  // Load a specific reasoning prompt version
   const loadPromptVersion = useCallback(
     (
       versionId: string,
@@ -786,13 +1135,32 @@ const PromptPlayground: React.FC = () => {
     [promptVersions],
   );
 
-  // Auto-load active version when versions are fetched
+  // Load a specific assessment prompt version
+  const loadAssessmentVersion = useCallback(
+    (
+      versionId: string,
+      setConfig: React.Dispatch<React.SetStateAction<ConfigurationState>>,
+    ) => {
+      const version = assessmentVersions.find(
+        (v) => v.prompt_version_id === versionId,
+      );
+      if (version) {
+        setConfig((prev) => ({
+          ...prev,
+          assessmentVersionId: versionId,
+          assessmentPrompt: version.prompt_text,
+        }));
+      }
+    },
+    [assessmentVersions],
+  );
+
+  // Auto-load active reasoning version when versions are fetched
   useEffect(() => {
     if (promptVersions.length > 0) {
       const activeVersion =
         promptVersions.find((v) => v.is_active) || promptVersions[0];
 
-      // Auto-load for Panel A if nothing selected or current selected ID is invalid for this block
       if (
         !configA.selectedVersionId ||
         !promptVersions.some(
@@ -802,7 +1170,6 @@ const PromptPlayground: React.FC = () => {
         loadPromptVersion(activeVersion.prompt_version_id, setConfigA);
       }
 
-      // Auto-load for Panel B if nothing selected or current selected ID is invalid for this block
       if (
         compareMode &&
         (!configB.selectedVersionId ||
@@ -819,6 +1186,40 @@ const PromptPlayground: React.FC = () => {
     compareMode,
     configA.selectedVersionId,
     configB.selectedVersionId,
+  ]);
+
+  // Auto-load active assessment version when assessment versions are fetched
+  useEffect(() => {
+    if (playgroundMode === "assessment" && assessmentVersions.length > 0) {
+      const activeVersion =
+        assessmentVersions.find((v) => v.is_active) || assessmentVersions[0];
+
+      if (
+        !configA.assessmentVersionId ||
+        !assessmentVersions.some(
+          (v) => v.prompt_version_id === configA.assessmentVersionId,
+        )
+      ) {
+        loadAssessmentVersion(activeVersion.prompt_version_id, setConfigA);
+      }
+
+      if (
+        compareMode &&
+        (!configB.assessmentVersionId ||
+          !assessmentVersions.some(
+            (v) => v.prompt_version_id === configB.assessmentVersionId,
+          ))
+      ) {
+        loadAssessmentVersion(activeVersion.prompt_version_id, setConfigB);
+      }
+    }
+  }, [
+    playgroundMode,
+    assessmentVersions,
+    loadAssessmentVersion,
+    compareMode,
+    configA.assessmentVersionId,
+    configB.assessmentVersionId,
   ]);
 
   // Save current prompt version
@@ -871,6 +1272,112 @@ const PromptPlayground: React.FC = () => {
       }
     },
     [fetchPromptVersions],
+  );
+
+  // Save assessment prompt version
+  const saveAssessmentVersion = useCallback(
+    async (config: ConfigurationState) => {
+      if (!config.assessmentVersionId) return;
+
+      try {
+        const session = await fetchAuthSession();
+        const token = session.tokens?.idToken?.toString();
+        if (!token) {
+          setSnackbar({
+            open: true,
+            message: "Not authenticated",
+            severity: "error",
+          });
+          return;
+        }
+
+        const response = await fetch(
+          `${import.meta.env.VITE_API_ENDPOINT}admin/prompt`,
+          {
+            method: "PUT",
+            headers: {
+              Authorization: token,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              prompt_version_id: config.assessmentVersionId,
+              prompt_text: config.assessmentPrompt,
+            }),
+          },
+        );
+        if (response.ok) {
+          setSnackbar({
+            open: true,
+            message: "Assessment version updated!",
+            severity: "success",
+          });
+          fetchAssessmentVersions(config.blockType);
+        } else {
+          throw new Error("Failed to save");
+        }
+      } catch {
+        setSnackbar({
+          open: true,
+          message: "Failed to save assessment version",
+          severity: "error",
+        });
+      }
+    },
+    [fetchAssessmentVersions],
+  );
+
+  // Serialize conversation messages into a string for assessment
+  const serializeConversation = useCallback((messages: Message[]) => {
+    return messages
+      .map((msg) => `${msg.role.toUpperCase()}: ${msg.content}`)
+      .join("\n\n");
+  }, []);
+
+  // Run assessment on a config's conversation
+  const runAssessment = useCallback(
+    (
+      config: ConfigurationState,
+      setConfig: React.Dispatch<React.SetStateAction<ConfigurationState>>,
+    ) => {
+      if (!config.assessmentPrompt || config.messages.length === 0) return;
+
+      const history = serializeConversation(config.messages);
+      setConfig((prev) => ({ ...prev, isAssessing: true }));
+
+      sendStreamingRequest(
+        "playground_assess",
+        {
+          block_type: config.blockType,
+          custom_prompt: config.assessmentPrompt,
+          mock_history: history,
+        },
+        {
+          onComplete: (data) => {
+            const result = data as unknown as AssessmentResult;
+            setConfig((prev) => ({
+              ...prev,
+              isAssessing: false,
+              assessmentResult: {
+                progress:
+                  typeof result.progress === "number" ? result.progress : 0,
+                reasoning: result.reasoning || "No reasoning provided.",
+                unlocked: result.unlocked || false,
+              },
+            }));
+          },
+          onError: (errorMsg) => {
+            console.error("Assessment error:", errorMsg);
+            setConfig((prev) => ({ ...prev, isAssessing: false }));
+            setSnackbar({
+              open: true,
+              message: `Assessment error: ${errorMsg}`,
+              severity: "error",
+            });
+          },
+        },
+      );
+    },
+    [serializeConversation, sendStreamingRequest],
   );
 
   // Send message handler
@@ -951,7 +1458,15 @@ const PromptPlayground: React.FC = () => {
             if (lastMsg && lastMsg.role === "assistant") {
               msgs[msgs.length - 1] = { ...lastMsg, isStreaming: false };
             }
-            return { ...prev, messages: msgs, isLoading: false };
+            const updated = { ...prev, messages: msgs, isLoading: false };
+
+            // Auto-run assessment after AI response completes
+            if (playgroundMode === "assessment") {
+              // Use setTimeout to ensure state is committed before assessment
+              setTimeout(() => runAssessment(updated, setConfigA), 100);
+            }
+
+            return updated;
           });
         },
         onError: (errorMsg) => {
@@ -1021,12 +1536,17 @@ const PromptPlayground: React.FC = () => {
               if (lastMsg && lastMsg.role === "assistant") {
                 msgs[msgs.length - 1] = { ...lastMsg, isStreaming: false };
               }
-              return { ...prev, messages: msgs, isLoading: false };
+              const updated = { ...prev, messages: msgs, isLoading: false };
+
+              // Auto-run assessment after AI response completes
+              if (playgroundMode === "assessment") {
+                setTimeout(() => runAssessment(updated, setConfigB), 100);
+              }
+
+              return updated;
             });
           },
           onError: (errorMsg) => {
-            // Only show error for B if it's different/additional?
-            // For now, simple error handling
             console.error("Error in Config B stream:", errorMsg);
             setConfigB((prev) => ({ ...prev, isLoading: false }));
           },
@@ -1040,16 +1560,19 @@ const PromptPlayground: React.FC = () => {
     configB,
     compareMode,
     sendStreamingRequest,
+    playgroundMode,
+    runAssessment,
   ]);
 
   // Handle config changes with session rotation for block type
   const handleConfigAChange = (updates: Partial<ConfigurationState>) => {
     setConfigA((prev) => {
       const newConfig = { ...prev, ...updates };
-      // If blockType changed, rotate test ID and clear messages
+      // If blockType changed, rotate test ID and clear messages/assessment
       if (updates.blockType && updates.blockType !== prev.blockType) {
         newConfig.sessionId = generateTestId();
         newConfig.messages = [];
+        newConfig.assessmentResult = null;
 
         // If in compare mode, synchronize Config B's block category
         if (compareMode) {
@@ -1058,6 +1581,7 @@ const PromptPlayground: React.FC = () => {
             blockType: updates.blockType!,
             sessionId: generateTestId(),
             messages: [],
+            assessmentResult: null,
           }));
         }
       }
@@ -1068,10 +1592,11 @@ const PromptPlayground: React.FC = () => {
   const handleConfigBChange = (updates: Partial<ConfigurationState>) => {
     setConfigB((prev) => {
       const newConfig = { ...prev, ...updates };
-      // If blockType changed, rotate test ID and clear messages
+      // If blockType changed, rotate test ID and clear messages/assessment
       if (updates.blockType && updates.blockType !== prev.blockType) {
         newConfig.sessionId = generateTestId();
         newConfig.messages = [];
+        newConfig.assessmentResult = null;
 
         // If in compare mode, synchronize Config A's block category
         if (compareMode) {
@@ -1080,6 +1605,7 @@ const PromptPlayground: React.FC = () => {
             blockType: updates.blockType!,
             sessionId: generateTestId(),
             messages: [],
+            assessmentResult: null,
           }));
         }
       }
@@ -1093,6 +1619,7 @@ const PromptPlayground: React.FC = () => {
       ...prev,
       messages: [],
       sessionId: generateTestId(),
+      assessmentResult: null,
     }));
   }, []);
 
@@ -1101,8 +1628,34 @@ const PromptPlayground: React.FC = () => {
       ...prev,
       messages: [],
       sessionId: generateTestId(),
+      assessmentResult: null,
     }));
   }, []);
+
+  // Handle mode change
+  const handleModeChange = (
+    _: React.MouseEvent<HTMLElement>,
+    newMode: PlaygroundMode | null,
+  ) => {
+    if (newMode && newMode !== playgroundMode) {
+      setPlaygroundMode(newMode);
+      // Reset conversations and assessment state on mode change
+      setConfigA((prev) => ({
+        ...prev,
+        messages: [],
+        sessionId: generateTestId(),
+        assessmentResult: null,
+        isAssessing: false,
+      }));
+      setConfigB((prev) => ({
+        ...prev,
+        messages: [],
+        sessionId: generateTestId(),
+        assessmentResult: null,
+        isAssessing: false,
+      }));
+    }
+  };
 
   // Toggle compare mode
   const toggleCompareMode = () => {
@@ -1130,12 +1683,42 @@ const PromptPlayground: React.FC = () => {
           alignItems: "center",
         }}
       >
-        <Typography
-          variant="h5"
-          sx={{ fontWeight: "bold", color: "var(--text)" }}
-        >
-          Prompt Playground
-        </Typography>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+          <Typography
+            variant="h5"
+            sx={{ fontWeight: "bold", color: "var(--text)" }}
+          >
+            Prompt Playground
+          </Typography>
+          <ToggleButtonGroup
+            value={playgroundMode}
+            exclusive
+            onChange={handleModeChange}
+            size="small"
+            sx={{
+              "& .MuiToggleButton-root": {
+                textTransform: "none",
+                color: "var(--text-secondary)",
+                borderColor: "var(--border)",
+                px: 2,
+                py: 0.5,
+                "&.Mui-selected": {
+                  color: "var(--primary)",
+                  backgroundColor:
+                    "color-mix(in srgb, var(--primary) 12%, transparent)",
+                  borderColor: "var(--primary)",
+                  "&:hover": {
+                    backgroundColor:
+                      "color-mix(in srgb, var(--primary) 18%, transparent)",
+                  },
+                },
+              },
+            }}
+          >
+            <ToggleButton value="reasoning">Reasoning</ToggleButton>
+            <ToggleButton value="assessment">Assessment</ToggleButton>
+          </ToggleButtonGroup>
+        </Box>
         <Button
           variant={compareMode ? "outlined" : "contained"}
           startIcon={compareMode ? <CloseIcon /> : <AddIcon />}
@@ -1175,19 +1758,37 @@ const PromptPlayground: React.FC = () => {
             onConfigChange={handleConfigAChange}
             label={compareMode ? "Config A" : undefined}
           />
-          <SystemPromptSection
-            config={configA}
-            onConfigChange={handleConfigAChange}
-            promptVersions={promptVersions}
-            onLoadVersion={(id) => loadPromptVersion(id, setConfigA)}
-            onSave={() => savePromptVersion(configA)}
-            label={compareMode ? "Config A" : undefined}
-          />
+          {playgroundMode === "reasoning" ? (
+            <SystemPromptSection
+              config={configA}
+              onConfigChange={handleConfigAChange}
+              promptVersions={promptVersions}
+              onLoadVersion={(id) => loadPromptVersion(id, setConfigA)}
+              onSave={() => savePromptVersion(configA)}
+              label={compareMode ? "Config A" : undefined}
+            />
+          ) : (
+            <AssessmentPromptSection
+              config={configA}
+              onConfigChange={handleConfigAChange}
+              assessmentVersions={assessmentVersions}
+              onLoadVersion={(id) => loadAssessmentVersion(id, setConfigA)}
+              onSave={() => saveAssessmentVersion(configA)}
+              label={compareMode ? "Config A" : undefined}
+            />
+          )}
           <MockCaseContextSection
             config={configA}
             onConfigChange={handleConfigAChange}
             label={compareMode ? "Context A" : undefined}
           />
+          {playgroundMode === "assessment" && (
+            <AssessmentScorePanel
+              result={configA.assessmentResult}
+              isAssessing={configA.isAssessing}
+              label={compareMode ? "Score A" : undefined}
+            />
+          )}
           <ChatPanel
             messages={configA.messages}
             isLoading={configA.isLoading}
@@ -1215,19 +1816,37 @@ const PromptPlayground: React.FC = () => {
               onConfigChange={handleConfigBChange}
               label="Config B"
             />
-            <SystemPromptSection
-              config={configB}
-              onConfigChange={handleConfigBChange}
-              promptVersions={promptVersions}
-              onLoadVersion={(id) => loadPromptVersion(id, setConfigB)}
-              onSave={() => savePromptVersion(configB)}
-              label="Prompt B"
-            />
+            {playgroundMode === "reasoning" ? (
+              <SystemPromptSection
+                config={configB}
+                onConfigChange={handleConfigBChange}
+                promptVersions={promptVersions}
+                onLoadVersion={(id) => loadPromptVersion(id, setConfigB)}
+                onSave={() => savePromptVersion(configB)}
+                label="Prompt B"
+              />
+            ) : (
+              <AssessmentPromptSection
+                config={configB}
+                onConfigChange={handleConfigBChange}
+                assessmentVersions={assessmentVersions}
+                onLoadVersion={(id) => loadAssessmentVersion(id, setConfigB)}
+                onSave={() => saveAssessmentVersion(configB)}
+                label="Prompt B"
+              />
+            )}
             <MockCaseContextSection
               config={configB}
               onConfigChange={handleConfigBChange}
               label="Context B"
             />
+            {playgroundMode === "assessment" && (
+              <AssessmentScorePanel
+                result={configB.assessmentResult}
+                isAssessing={configB.isAssessing}
+                label="Score B"
+              />
+            )}
             <ChatPanel
               messages={configB.messages}
               isLoading={configB.isLoading}
