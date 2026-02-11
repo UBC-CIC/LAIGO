@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Box, Typography, Stack, Menu, MenuItem } from "@mui/material";
 import CreateNewFolderIcon from "@mui/icons-material/CreateNewFolder";
 import FolderOpenOutlinedIcon from "@mui/icons-material/FolderOpenOutlined";
+import LibraryBooksOutlinedIcon from "@mui/icons-material/LibraryBooksOutlined";
 import NotificationButton from "./Notifications/NotificationButton";
 import AccountCircleOutlinedIcon from "@mui/icons-material/AccountCircleOutlined";
 import { signOut } from "aws-amplify/auth";
@@ -92,6 +93,11 @@ const InstructorHeader: React.FC = () => {
           icon={<FolderOpenOutlinedIcon sx={iconStyle} />}
           label="All Cases"
           onClick={() => navigate("/")}
+        />
+        <HeaderItem
+          icon={<LibraryBooksOutlinedIcon sx={iconStyle} />}
+          label="Prompts"
+          onClick={() => navigate("/prompts")}
         />
         <NotificationButton />
         <Stack

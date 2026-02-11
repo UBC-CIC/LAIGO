@@ -377,6 +377,51 @@ exports.handler = async (event) => {
         }
         break;
 
+      case "GET /instructor/prompts":
+        // SECURITY: Use trusted cognito_id from authorizer
+        try {
+          // 1. Verify instructor exists (optional based on strictness, but good practice)
+          // const userIdResult = await sqlConnection`SELECT user_id FROM "users" WHERE cognito_id = ${cognito_id}`;
+          // if (userIdResult.length === 0) { ... }
+
+          const { category, block_type } = event.queryStringParameters || {};
+
+          // Base query for active prompts
+          let query = `
+            SELECT 
+              prompt_version_id,
+              category,
+              block_type,
+              version_number,
+              version_name,
+              prompt_text,
+              time_created
+            FROM prompt_versions
+            WHERE is_active = true
+          `;
+
+          const params = [];
+          if (category) {
+            query += ` AND category = $${params.length + 1}`;
+            params.push(category);
+          }
+          if (block_type) {
+            query += ` AND block_type = $${params.length + 1}`;
+            params.push(block_type);
+          }
+
+          query += ` ORDER BY category, block_type`;
+
+          // Using 'unsafe' for dynamic query construction appropriately with parameters
+          const prompts = await sqlConnection.unsafe(query, params);
+
+          response = buildResponse(200, prompts);
+        } catch (err) {
+          console.error("/instructor/prompts error:", err);
+          response = buildResponse(500, { error: "Internal server error" });
+        }
+        break;
+
       case "DELETE /instructor/delete_case":
         if (!event.queryStringParameters?.case_id) {
           response = buildResponse(400, {

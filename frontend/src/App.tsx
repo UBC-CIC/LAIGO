@@ -4,6 +4,7 @@ import { getCurrentUser, fetchAuthSession } from "aws-amplify/auth";
 import { Routes, Route, Navigate } from "react-router-dom";
 import Login from "./pages/Login";
 import InstructorDashboard from "./pages/Instructor/InstructorDashboard";
+import InstructorPrompts from "./pages/Instructor/InstructorPrompts";
 import AdminDashboard from "./pages/Admin/AdminDashboard";
 import AIConfiguration from "./pages/Admin/AIConfiguration";
 import AdminDisclaimer from "./pages/Admin/AdminDisclaimer";
@@ -119,6 +120,7 @@ function App() {
               element={<InstructorDashboard userInfo={userInfo} />}
             />
             <Route path="/create-case" element={<CreateCase />} />
+            <Route path="/prompts/*" element={<InstructorPrompts />} />
             <Route
               path="*"
               element={<InstructorDashboard userInfo={userInfo} />}
