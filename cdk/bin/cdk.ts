@@ -6,6 +6,7 @@ import { DBFlowStack } from "../lib/dbFlow-stack";
 import { CICDStack } from "../lib/cicd-stack";
 import { ApiGatewayStack } from "../lib/api-stack";
 import { AmplifyStack } from "../lib/amplify-stack";
+import { WafStack } from "../lib/waf-stack";
 
 const app = new cdk.App();
 
@@ -19,6 +20,12 @@ const githubRepo = app.node.tryGetContext("GithubRepo");
 const env: cdk.Environment = {
   account: process.env.CDK_DEFAULT_ACCOUNT,
   region: process.env.CDK_DEFAULT_REGION,
+};
+
+// CloudFront WAF must be in us-east-1
+const usEast1Env: cdk.Environment = {
+  account: process.env.CDK_DEFAULT_ACCOUNT,
+  region: "us-east-1",
 };
 
 const vpc = new VpcStack(app, `${StackPrefix}-VpcStack`, {
@@ -91,3 +98,11 @@ const amplify = new AmplifyStack(app, `${StackPrefix}-AmplifyStack`, api, {
 });
 // Ensure Amplify waits for API
 amplify.addDependency(api);
+
+// Create WAF stack in us-east-1 (required for CloudFront)
+// Pass Amplify app ARN for WAF association
+new WafStack(app, `${StackPrefix}-WafStack`, {
+  env: usEast1Env,
+  crossRegionReferences: true,
+  amplifyAppArn: amplify.getAppArn(),
+});

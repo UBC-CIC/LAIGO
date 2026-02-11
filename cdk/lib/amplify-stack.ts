@@ -14,6 +14,8 @@ interface AmplifyStackProps extends cdk.StackProps {
 }
 
 export class AmplifyStack extends cdk.Stack {
+  public readonly appArn: string;
+
   constructor(
     scope: Construct,
     id: string,
@@ -80,10 +82,17 @@ export class AmplifyStack extends cdk.Stack {
 
     amplifyApp.addCustomRule({
       source: "/<*>",
-      target: "	/index.html",
+      target: "\t/index.html",
       status: RedirectStatus.NOT_FOUND_REWRITE,
     });
 
     amplifyApp.addBranch("main");
+
+    // Export Amplify app ARN for WAF association
+    this.appArn = amplifyApp.arn;
+  }
+
+  public getAppArn(): string {
+    return this.appArn;
   }
 }
