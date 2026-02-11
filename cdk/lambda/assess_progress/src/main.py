@@ -193,7 +193,7 @@ def check_authorization(cognito_id, case_id):
     Returns:
         bool: True if authorized, False otherwise
     """
-    try:
+    try: 
         conn = connect_to_db()
         cursor = conn.cursor()
         
