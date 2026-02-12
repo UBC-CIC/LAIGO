@@ -818,7 +818,15 @@ const AssessmentScorePanel: React.FC<{
         </Typography>
       </Box>
 
-      <Box sx={{ p: 2 }}>
+      <Box
+        sx={{
+          p: 2,
+          height: 180,
+          minHeight: 100,
+          overflow: "auto",
+          resize: "vertical",
+        }}
+      >
         {isAssessing ? (
           <Box
             sx={{
@@ -911,14 +919,15 @@ const ChatPanel: React.FC<{
   return (
     <Box
       sx={{
-        flex: 1,
         display: "flex",
         flexDirection: "column",
         border: "1px solid var(--border)",
         borderRadius: 2,
         backgroundColor: "var(--paper)",
         overflow: "hidden",
-        minHeight: 400,
+        resize: "vertical",
+        height: 350,
+        minHeight: 200,
       }}
     >
       {/* Header */}
@@ -1400,7 +1409,7 @@ const PromptPlayground: React.FC = () => {
       {
         message_content: message,
         block_type: configA.blockType,
-        test_id: configA.sessionId,
+        session_id: configA.sessionId,
         custom_prompt: configA.systemPrompt,
         model_id: configA.modelId,
         temperature: configA.temperature,
@@ -1478,7 +1487,7 @@ const PromptPlayground: React.FC = () => {
         {
           message_content: message,
           block_type: configB.blockType,
-          test_id: configB.sessionId,
+          session_id: configB.sessionId,
           custom_prompt: configB.systemPrompt,
           model_id: configB.modelId,
           temperature: configB.temperature,
@@ -1823,7 +1832,7 @@ const PromptPlayground: React.FC = () => {
                 promptVersions={promptVersions}
                 onLoadVersion={(id) => loadPromptVersion(id, setConfigB)}
                 onSave={() => savePromptVersion(configB)}
-                label="Prompt B"
+                label="Config B"
               />
             ) : (
               <AssessmentPromptSection
@@ -1832,7 +1841,7 @@ const PromptPlayground: React.FC = () => {
                 assessmentVersions={assessmentVersions}
                 onLoadVersion={(id) => loadAssessmentVersion(id, setConfigB)}
                 onSave={() => saveAssessmentVersion(configB)}
-                label="Prompt B"
+                label="Config B"
               />
             )}
             <MockCaseContextSection

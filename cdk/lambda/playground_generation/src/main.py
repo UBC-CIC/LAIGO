@@ -122,9 +122,9 @@ def handler(event, context):
     
     playground_block_type = body.get("block_type", "intake") # Default
     
-    # Construct unique session ID based on playground marker, test_id and block_type
-    test_id = body.get("test_id", str(uuid.uuid4())[:8])
-    playground_session_id = f"playground-{test_id}-{playground_block_type}"
+    # Construct unique session ID based on playground marker, session_id and block_type
+    session_id = body.get("session_id", str(uuid.uuid4())[:8])
+    playground_session_id = f"playground-{session_id}-{playground_block_type}"
     
     # Custom model configuration (override defaults)
     custom_model_id = body.get("model_id", BEDROCK_LLM_ID)

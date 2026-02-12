@@ -89,7 +89,7 @@ exports.handler = async (event) => {
       const {
         message_content,
         block_type,
-        test_id,
+        session_id,
         custom_prompt,
         model_id,
         temperature,
@@ -100,7 +100,7 @@ exports.handler = async (event) => {
 
       console.log("Invoking playground test:", {
         block_type,
-        test_id,
+        session_id,
         cognitoId,
         requestId,
         model_id,
@@ -117,7 +117,7 @@ exports.handler = async (event) => {
         body: JSON.stringify({
           message_content: message_content || "",
           block_type: block_type,
-          test_id: test_id,
+          session_id: session_id,
           custom_prompt: custom_prompt,
           model_id: model_id,
           temperature: temperature,
