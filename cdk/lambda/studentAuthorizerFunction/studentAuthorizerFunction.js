@@ -1,11 +1,11 @@
 /**
  * Student Authorizer Lambda Function
- * 
+ *
  * This Lambda authorizer validates JWT tokens from Cognito and ensures the user
  * belongs to 'student', 'instructor', or 'admin' group before allowing access to
  * student endpoints. This implements a hierarchical access model where higher
  * roles (instructor, admin) can access student resources.
- * 
+ *
  * Flow:
  * 1. API Gateway receives request with Authorization header
  * 2. Invokes this Lambda with the token
@@ -62,9 +62,14 @@ async function initializeConnection() {
     });
 
     // Log verifier initialization (no secrets)
-    console.log('Student JWT verifier initialized', { userPoolId: credentials.VITE_COGNITO_USER_POOL_ID });
+    console.log("Student JWT verifier initialized", {
+      userPoolId: credentials.VITE_COGNITO_USER_POOL_ID,
+    });
   } catch (error) {
-    console.error("Error initializing JWT verifier:", { name: error?.name, message: error?.message });
+    console.error("Error initializing JWT verifier:", {
+      name: error?.name,
+      message: error?.message,
+    });
     throw new Error("Failed to initialize JWT verifier");
   }
 }
@@ -80,18 +85,18 @@ exports.handler = async (event) => {
 
   // Extract JWT token from Authorization header
   const accessToken = event.authorizationToken.toString();
-  console.log('Student authorizer invoked', { methodArn: event.methodArn, tokenLength: accessToken ? accessToken.length : 0 });
+  console.log("Student authorizer invoked", { methodArn: event.methodArn });
   let payload;
 
   try {
     // Verify token signature, expiration, and student/instructor/admin group membership
     payload = await jwtVerifier.verify(accessToken);
 
-    // Extract API Gateway resource ARN and create wildcard policy
-    // Example: arn:aws:execute-api:region:account:api-id/stage/method/resource
+    // Use a scoped wildcard to allow caching across all endpoints within this role's scope
+    // This allows the authorizer to be cached while ensuring the policy doesn't leak access to other roles.
     const parts = event.methodArn.split("/");
-    const resource = parts.slice(0, 2).join("/") + "*"; // Allow all resources under this stage
-    
+    const resource = parts.slice(0, 2).join("/") + "/*/student/*";
+
     // Build IAM policy allowing access
     responseStruct["principalId"] = payload.sub; // Cognito user ID
     responseStruct["policyDocument"]["Statement"].push({
@@ -106,7 +111,11 @@ exports.handler = async (event) => {
 
     return responseStruct;
   } catch (error) {
-    console.error("Authorization error:", { name: error?.name, message: error?.message, stack: error?.stack });
+    console.error("Authorization error:", {
+      name: error?.name,
+      message: error?.message,
+      stack: error?.stack,
+    });
     // API Gateway requires exact "Unauthorized" message for 401 response
     throw new Error("Unauthorized");
   }
