@@ -910,10 +910,15 @@ const ChatPanel: React.FC<{
   onClear: () => void;
   label?: string;
 }> = React.memo(({ messages, isLoading, onClear, label }) => {
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
+  // Auto-scroll only when content is loading (streaming response)
+  // This prevents scrolling when clearing chat or switching block types
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (isLoading && scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop =
+        scrollContainerRef.current.scrollHeight;
+    }
   }, [messages, isLoading]);
 
   return (
@@ -961,6 +966,7 @@ const ChatPanel: React.FC<{
 
       {/* Messages */}
       <Box
+        ref={scrollContainerRef}
         sx={{
           flex: 1,
           overflowY: "auto",
@@ -1013,8 +1019,6 @@ const ChatPanel: React.FC<{
             <ThinkingIndicator />
           </Box>
         )}
-
-        <div ref={messagesEndRef} />
       </Box>
     </Box>
   );
@@ -1759,7 +1763,6 @@ const PromptPlayground: React.FC = () => {
             flexDirection: "column",
             gap: 2,
             overflowY: "auto",
-            pr: 1,
           }}
         >
           <ModelConfigSection
@@ -1815,7 +1818,6 @@ const PromptPlayground: React.FC = () => {
               flexDirection: "column",
               gap: 2,
               overflowY: "auto",
-              pr: 1,
               borderLeft: "1px dashed var(--border)",
               pl: 2,
             }}
