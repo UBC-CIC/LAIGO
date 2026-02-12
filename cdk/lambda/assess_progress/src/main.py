@@ -41,6 +41,7 @@ TABLE_NAME = None
 BEDROCK_TEMP = 0.0
 BEDROCK_TOP_P = 0.9
 BEDROCK_MAX_TOKENS = 512
+PLAYGROUND_TABLE_NAME = os.environ.get("PLAYGROUND_TABLE_NAME")
 
 def get_secret(secret_name, expect_json=True):
     global db_secret
@@ -153,15 +154,16 @@ def get_assessment_prompt_template(block_type):
         return None
 
 
-def fetch_chat_history(session_id):
-    if not TABLE_NAME:
-        logger.error("TABLE_NAME not initialized, cannot fetch chat history")
+def fetch_chat_history(session_id, table_name=None):
+    target_table = table_name or TABLE_NAME
+    if not target_table:
+        logger.error("No table name provided and TABLE_NAME not initialized, cannot fetch chat history")
         return ""
         
     try:
-        logger.info(f"Fetching chat history for session_id: {session_id}")
+        logger.info(f"Fetching chat history for session_id: {session_id} from table: {target_table}")
         history = DynamoDBChatMessageHistory(
-            table_name=TABLE_NAME,
+            table_name=target_table,
             session_id=session_id
         )
         
@@ -380,8 +382,8 @@ def handler(event, context):
                 return {"statusCode": 400}
             return _response(400, error_msg)
         
-        # Fetch chat history from DynamoDB using the constructed playground session ID
-        chat_history = fetch_chat_history(playground_session_id)
+        # Fetch chat history from Playground DynamoDB table
+        chat_history = fetch_chat_history(playground_session_id, table_name=PLAYGROUND_TABLE_NAME)
         
         if not chat_history:
             error_msg = "No chat history found for this session. Send some messages first."
