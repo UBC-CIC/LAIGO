@@ -468,8 +468,6 @@ def handler(event, context):
     
     block_type = subroute_map.get(sub_route, "intake") # Default to intake if invalid sub_route
 
-    block_type = subroute_map.get(sub_route, "intake") # Default to intake if invalid sub_route
-    # block_type is already determined at the top
     
     if not case_id:
         return {
@@ -632,9 +630,7 @@ def handler(event, context):
 
     try:
         logger.info("Generating response from the LLM.")
-        
-        #Unified Identity Extraction
-        
+                
         # Unified Identity Extraction
         cognito_id = event.get("cognitoId")
         if not cognito_id:

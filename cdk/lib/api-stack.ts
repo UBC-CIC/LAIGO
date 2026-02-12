@@ -1825,11 +1825,7 @@ export class ApiGatewayStack extends cdk.Stack {
     const playgroundTable = new dynamodb.Table(this, `${id}-PlaygroundTable`, {
       tableName: "DynamoDB-Playground-Table",
       partitionKey: {
-        name: "PK",
-        type: dynamodb.AttributeType.STRING,
-      },
-      sortKey: {
-        name: "SK",
+        name: "SessionId",
         type: dynamodb.AttributeType.STRING,
       },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
