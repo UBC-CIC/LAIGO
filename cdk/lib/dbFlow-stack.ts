@@ -3,6 +3,7 @@ import { Construct } from "constructs";
 import { Duration } from "aws-cdk-lib";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as iam from "aws-cdk-lib/aws-iam";
+import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
 import { VpcStack } from "./vpc-stack";
 import { DatabaseStack } from "./database-stack";
 
@@ -12,7 +13,7 @@ export class DBFlowStack extends Stack {
     id: string,
     vpcStack: VpcStack,
     db: DatabaseStack,
-    props?: StackProps
+    props?: StackProps,
   ) {
     super(scope, id, props);
 
@@ -22,20 +23,12 @@ export class DBFlowStack extends Stack {
       description: "Role for all Lambda functions inside VPC",
     });
 
-    // Add necessary policies to the Lambda role
-    lambdaRole.addToPolicy(
-      new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: [
-          // Secrets Manager
-          "secretsmanager:GetSecretValue",
-          "secretsmanager:PutSecretValue",
-        ],
-        resources: [
-          `arn:aws:secretsmanager:${this.region}:${this.account}:secret:*`,
-        ],
-      })
-    );
+    // Grant permissions on specific database secrets
+    db.secretPathAdmin.grantRead(lambdaRole);
+    db.secretPathUser.grantRead(lambdaRole);
+    db.secretPathUser.grantWrite(lambdaRole);
+    db.secretPathTableCreator.grantRead(lambdaRole);
+    db.secretPathTableCreator.grantWrite(lambdaRole);
 
     lambdaRole.addToPolicy(
       new iam.PolicyStatement({
@@ -47,7 +40,7 @@ export class DBFlowStack extends Stack {
           "logs:PutLogEvents",
         ],
         resources: ["arn:aws:logs:*:*:*"],
-      })
+      }),
     );
 
     lambdaRole.addToPolicy(
@@ -59,16 +52,16 @@ export class DBFlowStack extends Stack {
           "ec2:DescribeNetworkInterfaces",
         ],
         resources: ["*"],
-      })
+      }),
     );
 
     // Add additional managed policies
     lambdaRole.addManagedPolicy(
-      iam.ManagedPolicy.fromAwsManagedPolicyName("AmazonSSMReadOnlyAccess")
+      iam.ManagedPolicy.fromAwsManagedPolicyName("AmazonSSMReadOnlyAccess"),
     );
 
     lambdaRole.addManagedPolicy(
-      iam.ManagedPolicy.fromAwsManagedPolicyName("AmazonS3FullAccess")
+      iam.ManagedPolicy.fromAwsManagedPolicyName("AmazonS3FullAccess"),
     );
 
     // Create a Lambda layer for node-pg-migrate
@@ -79,7 +72,7 @@ export class DBFlowStack extends Stack {
         code: lambda.Code.fromAsset("./layers/node-pg-migrate.zip"),
         compatibleRuntimes: [lambda.Runtime.NODEJS_22_X],
         description: "Lambda layer with node-pg-migrate and pg",
-      }
+      },
     );
 
     new triggers.TriggerFunction(this, `${id}-triggerLambda`, {
@@ -90,7 +83,7 @@ export class DBFlowStack extends Stack {
       timeout: Duration.seconds(300),
       memorySize: 512,
       environment: {
-        DB_SECRET_NAME: db.secretPathAdminName,
+        DB_SECRET_NAME: db.secretPathAdmin.secretName,
         DB_USER_SECRET_NAME: db.secretPathUser.secretName,
         DB_TABLE_CREATOR_SECRET_NAME: db.secretPathTableCreator.secretName,
       },

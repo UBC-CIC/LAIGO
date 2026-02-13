@@ -540,18 +540,12 @@ export class ApiGatewayStack extends cdk.Stack {
       assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
     });
 
-    // Grant Lambda permission to read database credentials from Secrets Manager
-    lambdaRole.addToPolicy(
-      new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: [
-          "secretsmanager:GetSecretValue", // Read secret values
-        ],
-        resources: [
-          `arn:aws:secretsmanager:${this.region}:${this.account}:secret:*`,
-        ],
-      }),
-    );
+    // Grant Lambda permission to read specific Cognito secrets from Secrets Manager
+    this.secret.grantRead(lambdaRole);
+
+    // Grant Lambda permissions to read database secrets
+    db.secretPathUser.grantRead(lambdaRole);
+    db.secretPathTableCreator.grantRead(lambdaRole);
 
     // Grant Lambda VPC networking permissions
     lambdaRole.addToPolicy(
@@ -716,20 +710,8 @@ export class ApiGatewayStack extends cdk.Stack {
       assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
     });
 
-    // Grant access to Secrets Manager
-    cognitoRole.addToPolicy(
-      new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: [
-          //Secrets Manager
-          "secretsmanager:GetSecretValue",
-          "secretsmanager:PutSecretValue",
-        ],
-        resources: [
-          `arn:aws:secretsmanager:${this.region}:${this.account}:secret:*`,
-        ],
-      }),
-    );
+    // Grant access to specific database secret (Application User)
+    db.secretPathUser.grantRead(cognitoRole);
 
     // Grant permission to add users to an IAM group
     cognitoRole.addToPolicy(
@@ -834,7 +816,7 @@ export class ApiGatewayStack extends cdk.Stack {
         timeout: Duration.seconds(300),
         vpc: vpcStack.vpc, // VPC access for database connectivity
         environment: {
-          SM_DB_CREDENTIALS: db.secretPathAdminName, // Database admin credentials
+          SM_DB_CREDENTIALS: db.secretPathUser.secretName, // Database user credentials
           RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint, // RDS Proxy for connection pooling
         },
         functionName: `${id}-addStudentOnSignUp`,
@@ -856,7 +838,7 @@ export class ApiGatewayStack extends cdk.Stack {
         code: lambda.Code.fromAsset("lambda/authorization"),
         vpc: vpcStack.vpc, // VPC access for database connectivity
         environment: {
-          SM_DB_CREDENTIALS: db.secretPathAdminName, // Database admin credentials
+          SM_DB_CREDENTIALS: db.secretPathUser.secretName, // Database user credentials
           RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint, // RDS Proxy for connection pooling
         },
         functionName: `${id}-adjustUserRoles`,
@@ -1061,7 +1043,7 @@ export class ApiGatewayStack extends cdk.Stack {
         timeout: Duration.seconds(30),
         vpc: vpcStack.vpc,
         environment: {
-          SM_DB_CREDENTIALS: db.secretPathAdminName,
+          SM_DB_CREDENTIALS: db.secretPathUser.secretName,
           RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint,
           USER_POOL: this.userPool.userPoolId,
           MESSAGE_LIMIT: messageLimitParameter.parameterName,
@@ -1173,7 +1155,7 @@ export class ApiGatewayStack extends cdk.Stack {
         timeout: Duration.seconds(300),
         vpc: vpcStack.vpc,
         environment: {
-          SM_DB_CREDENTIALS: db.secretPathAdminName,
+          SM_DB_CREDENTIALS: db.secretPathUser.secretName,
           RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint,
           USER_POOL: this.userPool.userPoolId,
           MESSAGE_LIMIT: messageLimitParameter.parameterName,
@@ -1242,7 +1224,7 @@ export class ApiGatewayStack extends cdk.Stack {
         vpc: vpcStack.vpc,
         functionName: `${id}-CaseLambdaDockerFunction`,
         environment: {
-          SM_DB_CREDENTIALS: db.secretPathAdminName,
+          SM_DB_CREDENTIALS: db.secretPathUser.secretName,
           RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint,
           REGION: this.region,
           BEDROCK_LLM_PARAM: bedrockLLMParameter.parameterName,
@@ -1286,19 +1268,9 @@ export class ApiGatewayStack extends cdk.Stack {
       }),
     );
 
-    // Grant access to Secret Manager
-    caseGenLambdaDockerFunc.addToRolePolicy(
-      new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: [
-          //Secrets Manager
-          "secretsmanager:GetSecretValue",
-        ],
-        resources: [
-          `arn:aws:secretsmanager:${this.region}:${this.account}:secret:*`,
-        ],
-      }),
-    );
+    // Grant access to specific database secret
+    // Grant access to specific database secret
+    db.secretPathUser.grantRead(caseGenLambdaDockerFunc);
 
     // Grant access to SSM Parameter Store for specific parameters
     caseGenLambdaDockerFunc.addToRolePolicy(
@@ -1331,7 +1303,7 @@ export class ApiGatewayStack extends cdk.Stack {
         vpc: vpcStack.vpc,
         functionName: `${id}-TextGenLambdaDockerFunction`,
         environment: {
-          SM_DB_CREDENTIALS: db.secretPathAdminName,
+          SM_DB_CREDENTIALS: db.secretPathUser.secretName,
           RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint,
           REGION: this.region,
           BEDROCK_LLM_PARAM: bedrockLLMParameter.parameterName,
@@ -1378,19 +1350,9 @@ export class ApiGatewayStack extends cdk.Stack {
     // Attach shared DynamoDB policy to text generation lambda
     textGenLambdaDockerFunc.addToRolePolicy(dynamoDBPolicyStatement);
 
-    // Grant access to Secret Manager
-    textGenLambdaDockerFunc.addToRolePolicy(
-      new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: [
-          //Secrets Manager
-          "secretsmanager:GetSecretValue",
-        ],
-        resources: [
-          `arn:aws:secretsmanager:${this.region}:${this.account}:secret:*`,
-        ],
-      }),
-    );
+    // Grant access to specific database secret
+    // Grant access to specific database secret
+    db.secretPathUser.grantRead(textGenLambdaDockerFunc);
 
     // Grant access to DynamoDB actions
     textGenLambdaDockerFunc.addToRolePolicy(
@@ -1442,7 +1404,7 @@ export class ApiGatewayStack extends cdk.Stack {
         vpc: vpcStack.vpc,
         functionName: `${id}-PlaygroundTextGenLambdaDockerFunction`,
         environment: {
-          SM_DB_CREDENTIALS: db.secretPathAdminName,
+          SM_DB_CREDENTIALS: db.secretPathUser.secretName,
           RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint,
           REGION: this.region,
           BEDROCK_LLM_PARAM: bedrockLLMParameter.parameterName,
@@ -1473,16 +1435,9 @@ export class ApiGatewayStack extends cdk.Stack {
     playgroundGenLambdaDockerFunc.addToRolePolicy(bedrockPolicyStatement);
     playgroundGenLambdaDockerFunc.addToRolePolicy(dynamoDBPolicyStatement);
 
-    // Grant access to Secret Manager
-    playgroundGenLambdaDockerFunc.addToRolePolicy(
-      new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: ["secretsmanager:GetSecretValue"],
-        resources: [
-          `arn:aws:secretsmanager:${this.region}:${this.account}:secret:*`,
-        ],
-      }),
-    );
+    // Grant access to specific database secret
+    // Grant access to specific database secret
+    db.secretPathUser.grantRead(playgroundGenLambdaDockerFunc);
 
     // Grant access to SSM Parameter Store
     playgroundGenLambdaDockerFunc.addToRolePolicy(
@@ -1697,19 +1652,8 @@ export class ApiGatewayStack extends cdk.Stack {
       }),
     );
 
-    // Grant access to Secret Manager
-    audioToTextFunction.addToRolePolicy(
-      new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: [
-          //Secrets Manager
-          "secretsmanager:GetSecretValue",
-        ],
-        resources: [
-          `arn:aws:secretsmanager:${this.region}:${this.account}:secret:*`,
-        ],
-      }),
-    );
+    // Grant access to specific student database secret
+    db.secretPathUser.grantRead(audioToTextFunction);
 
     audioToTextFunction.addPermission("AllowApiGatewayInvoke", {
       principal: new iam.ServicePrincipal("apigateway.amazonaws.com"),
@@ -1762,7 +1706,7 @@ export class ApiGatewayStack extends cdk.Stack {
         memorySize: 512,
         vpc: vpcStack.vpc,
         environment: {
-          SM_DB_CREDENTIALS: db.secretPathAdminName,
+          SM_DB_CREDENTIALS: db.secretPathUser.secretName,
           REGION: this.region,
           RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint,
           BEDROCK_LLM_PARAM: bedrockLLMParameter.parameterName,
@@ -1787,19 +1731,8 @@ export class ApiGatewayStack extends cdk.Stack {
       sourceArn: `arn:aws:execute-api:${this.region}:${this.account}:${this.api.restApiId}/*/*/student*`,
     });
 
-    // Grant access to Secret Manager
-    summaryGenerationFunction.addToRolePolicy(
-      new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: [
-          //Secrets Manager
-          "secretsmanager:GetSecretValue",
-        ],
-        resources: [
-          `arn:aws:secretsmanager:${this.region}:${this.account}:secret:*`,
-        ],
-      }),
-    );
+    // Grant access to specific database secret
+    db.secretPathUser.grantRead(summaryGenerationFunction);
 
     summaryGenerationFunction.addToRolePolicy(
       new iam.PolicyStatement({

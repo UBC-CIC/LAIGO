@@ -22,8 +22,8 @@ import { VpcStack } from "./vpc-stack";
 export class DatabaseStack extends Stack {
   // Database instance for the LAIGO application
   public readonly dbInstance: rds.DatabaseInstance;
-  // Secret name for admin database credentials
-  public readonly secretPathAdminName: string;
+  // Secret for admin database credentials
+  public readonly secretPathAdmin: secretsmanager.ISecret;
   // Secret for application user credentials
   public readonly secretPathUser: secretsmanager.Secret;
   // Secret for table creator user credentials
@@ -35,7 +35,7 @@ export class DatabaseStack extends Stack {
     scope: Construct,
     id: string,
     vpcStack: VpcStack, // VPC stack dependency for network configuration
-    props?: StackProps
+    props?: StackProps,
   ) {
     super(scope, id, props);
 
@@ -59,12 +59,16 @@ export class DatabaseStack extends Stack {
     const secret = secretmanager.Secret.fromSecretNameV2(
       this,
       "ImportedSecrets",
-      "LAIGOSecrets"
+      "LAIGOSecrets",
     );
 
     // Create secrets for different database users with appropriate access levels
-    this.secretPathAdminName = `${id}-LAIGO/credentials/rdsDbCredential`;
-    
+    this.secretPathAdmin = secretsmanager.Secret.fromSecretNameV2(
+      this,
+      "AdminSecret",
+      `${id}-LAIGO/credentials/rdsDbCredential`,
+    );
+
     // Secret for application user - used by client applications
     const secretPathUserName = `${id}-LAIGO/userCredentials/rdsDbCredential`;
     this.secretPathUser = new secretsmanager.Secret(this, secretPathUserName, {
@@ -90,7 +94,7 @@ export class DatabaseStack extends Stack {
           username: SecretValue.unsafePlainText("applicationUsername"), // Placeholder - updated at runtime
           password: SecretValue.unsafePlainText("applicationPassword"), // Placeholder - updated at runtime
         },
-      }
+      },
     );
 
     // Custom parameter group for PostgreSQL configuration
@@ -106,7 +110,7 @@ export class DatabaseStack extends Stack {
         parameters: {
           "rds.force_ssl": "0", // Disable SSL requirement
         },
-      }
+      },
     );
 
     // Create the main RDS PostgreSQL database instance
@@ -120,13 +124,13 @@ export class DatabaseStack extends Stack {
       }),
       instanceType: ec2.InstanceType.of(
         ec2.InstanceClass.BURSTABLE4_GRAVITON, // ARM-based instance for cost efficiency
-        ec2.InstanceSize.MEDIUM
+        ec2.InstanceSize.MEDIUM,
       ),
       credentials: rds.Credentials.fromUsername(
         secret.secretValueFromJson("DB_Username").unsafeUnwrap(), // Admin username from imported secret
         {
-          secretName: this.secretPathAdminName, // Store admin password in new secret
-        }
+          secretName: this.secretPathAdmin.secretName, // Store admin password in new secret
+        },
       ),
       multiAz: false, // Single AZ deployment for cost savings
       allocatedStorage: 100, // Initial storage in GB
@@ -146,7 +150,7 @@ export class DatabaseStack extends Stack {
 
     // Configure security group rules for database access
     const dbSecurityGroup = this.dbInstance.connections.securityGroups[0];
-    
+
     // Allow access from existing private subnets if VPC is being reused
     if (
       vpcStack.privateSubnetsCidrStrings &&
@@ -156,25 +160,25 @@ export class DatabaseStack extends Stack {
         dbSecurityGroup.addIngressRule(
           ec2.Peer.ipv4(cidr),
           ec2.Port.tcp(5432), // PostgreSQL default port
-          `Allow PostgreSQL traffic from private subnet CIDR range ${cidr}`
+          `Allow PostgreSQL traffic from private subnet CIDR range ${cidr}`,
         );
       });
     } else {
       console.log(
-        "Deploying with new VPC. No need to add private subnet CIDR ranges to inbound rules of RDS."
+        "Deploying with new VPC. No need to add private subnet CIDR ranges to inbound rules of RDS.",
       );
     }
 
     // Allow database access from anywhere within the VPC
-    this.dbInstance.connections.securityGroups.forEach(function (
-      securityGroup
-    ) {
-      securityGroup.addIngressRule(
-        ec2.Peer.ipv4(vpcStack.vpcCidrString), // Allow from entire VPC CIDR range
-        ec2.Port.tcp(5432),
-        "Allow PostgreSQL traffic from VPC"
-      );
-    });
+    this.dbInstance.connections.securityGroups.forEach(
+      function (securityGroup) {
+        securityGroup.addIngressRule(
+          ec2.Peer.ipv4(vpcStack.vpcCidrString), // Allow from entire VPC CIDR range
+          ec2.Port.tcp(5432),
+          "Allow PostgreSQL traffic from VPC",
+        );
+      },
+    );
 
     // Create IAM role for RDS Proxy to manage database connections
     const rdsProxyRole = new iam.Role(this, `${id}-DBProxyRole`, {
@@ -186,21 +190,16 @@ export class DatabaseStack extends Stack {
       new iam.PolicyStatement({
         resources: ["*"],
         actions: ["rds-db:connect"], // Allow database connections
-      })
+      }),
     );
 
     // Create RDS Proxy for connection pooling and credential management
-    const secretPathAdmin = secretmanager.Secret.fromSecretNameV2(
-      this,
-      "AdminSecret",
-      this.secretPathAdminName
-    );
 
     const rdsProxy = this.dbInstance.addProxy(id + "-proxy", {
       secrets: [
         this.secretPathUser!, // Application user credentials
         this.secretPathTableCreator!, // Table creator credentials
-        secretPathAdmin, // Admin credentials
+        this.secretPathAdmin, // Admin credentials
       ],
       vpc: vpcStack.vpc,
       role: rdsProxyRole,
