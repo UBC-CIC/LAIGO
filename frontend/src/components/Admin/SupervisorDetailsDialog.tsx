@@ -17,7 +17,7 @@ import {
 } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
 
-interface Student {
+interface Advocate {
   user_id: string;
   first_name: string;
   last_name: string;
@@ -42,7 +42,7 @@ const SupervisorDetailsDialog: React.FC<SupervisorDetailsDialogProps> = ({
   onClose,
   supervisor,
 }) => {
-  const [assignedStudents, setAssignedStudents] = useState<Student[]>([]);
+  const [assignedAdvocates, setAssignedAdvocates] = useState<Advocate[]>([]);
   const [loading, setLoading] = useState(false);
   const [emailInput, setEmailInput] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
@@ -51,7 +51,7 @@ const SupervisorDetailsDialog: React.FC<SupervisorDetailsDialogProps> = ({
 
   useEffect(() => {
     if (open && supervisor) {
-      fetchAssignedStudents();
+      fetchAssignedAdvocates();
       setEmailInput("");
       setError(null);
       setSuccessMessage(null);
@@ -59,7 +59,7 @@ const SupervisorDetailsDialog: React.FC<SupervisorDetailsDialogProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, supervisor]);
 
-  const fetchAssignedStudents = async () => {
+  const fetchAssignedAdvocates = async () => {
     if (!supervisor) return;
     setLoading(true);
     try {
@@ -79,21 +79,21 @@ const SupervisorDetailsDialog: React.FC<SupervisorDetailsDialogProps> = ({
       );
 
       if (!response.ok) {
-        throw new Error("Failed to fetch assigned students");
+        throw new Error("Failed to fetch assigned advocates");
       }
 
       const data = await response.json();
-      setAssignedStudents(data);
+      setAssignedAdvocates(data);
     } catch (err) {
       console.error("Error fetching students:", err);
       // If list is empty or fails, we assume empty or show error
-      setAssignedStudents([]);
+      setAssignedAdvocates([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleAddStudent = async () => {
+  const handleAddAdvocate = async () => {
     if (!supervisor || !emailInput.trim()) return;
 
     setActionLoading(true);
@@ -123,25 +123,25 @@ const SupervisorDetailsDialog: React.FC<SupervisorDetailsDialogProps> = ({
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || "Failed to assign student");
+        throw new Error(data.error || "Failed to assign advocate");
       }
 
-      setSuccessMessage("Student assigned successfully.");
+      setSuccessMessage("Advocate assigned successfully.");
       setEmailInput("");
-      fetchAssignedStudents(); // Refresh list
+      fetchAssignedAdvocates(); // Refresh list
     } catch (err) {
       console.error("Error adding student:", err);
-      setError(err instanceof Error ? err.message : "Failed to add student.");
+      setError(err instanceof Error ? err.message : "Failed to add advocate.");
     } finally {
       setActionLoading(false);
     }
   };
 
-  const handleRemoveStudent = async (studentId: string) => {
+  const handleRemoveAdvocate = async (studentId: string) => {
     if (!supervisor) return;
 
     const confirm = window.confirm(
-      "Are you sure you want to remove this student?",
+      "Are you sure you want to remove this advocate?",
     );
     if (!confirm) return;
 
@@ -165,15 +165,15 @@ const SupervisorDetailsDialog: React.FC<SupervisorDetailsDialogProps> = ({
 
       if (!response.ok) {
         const data = await response.json();
-        throw new Error(data.error || "Failed to remove student");
+        throw new Error(data.error || "Failed to remove advocate");
       }
 
-      setSuccessMessage("Student removed successfully.");
-      fetchAssignedStudents();
+      setSuccessMessage("Advocate removed successfully.");
+      fetchAssignedAdvocates();
     } catch (err) {
       console.error("Error removing student:", err);
       setError(
-        err instanceof Error ? err.message : "Failed to remove student.",
+        err instanceof Error ? err.message : "Failed to remove advocate.",
       );
     } finally {
       setActionLoading(false);
@@ -221,7 +221,7 @@ const SupervisorDetailsDialog: React.FC<SupervisorDetailsDialogProps> = ({
           gutterBottom
           sx={{ color: "var(--text)" }}
         >
-          Assigned Students:
+          Assigned Advocates:
         </Typography>
 
         {loading ? (
@@ -240,22 +240,22 @@ const SupervisorDetailsDialog: React.FC<SupervisorDetailsDialogProps> = ({
               mb: 3,
             }}
           >
-            {assignedStudents.length === 0 ? (
+            {assignedAdvocates.length === 0 ? (
               <ListItem>
                 <ListItemText
-                  primary="No students assigned."
+                  primary="No advocates assigned."
                   sx={{ color: "var(--text-secondary)" }}
                 />
               </ListItem>
             ) : (
-              assignedStudents.map((student) => (
+              assignedAdvocates.map((advocate) => (
                 <ListItem
-                  key={student.user_id}
+                  key={advocate.user_id}
                   secondaryAction={
                     <IconButton
                       edge="end"
                       aria-label="delete"
-                      onClick={() => handleRemoveStudent(student.user_id)}
+                      onClick={() => handleRemoveAdvocate(advocate.user_id)}
                       disabled={actionLoading}
                       sx={{
                         color: "var(--text-secondary)",
@@ -268,8 +268,8 @@ const SupervisorDetailsDialog: React.FC<SupervisorDetailsDialogProps> = ({
                   sx={{ borderBottom: "1px solid var(--border)" }}
                 >
                   <ListItemText
-                    primary={`${student.first_name} ${student.last_name}`}
-                    secondary={student.user_email}
+                    primary={`${advocate.first_name} ${advocate.last_name}`}
+                    secondary={advocate.user_email}
                     slotProps={{
                       primary: { color: "var(--text)" },
                       secondary: { color: "var(--text-secondary)" },
@@ -285,7 +285,7 @@ const SupervisorDetailsDialog: React.FC<SupervisorDetailsDialogProps> = ({
           <TextField
             fullWidth
             size="small"
-            placeholder="Add Student (Enter Email)"
+            placeholder="Add Advocate (Enter Email)"
             value={emailInput}
             onChange={(e) => setEmailInput(e.target.value)}
             disabled={actionLoading}
@@ -306,7 +306,7 @@ const SupervisorDetailsDialog: React.FC<SupervisorDetailsDialogProps> = ({
           Cancel
         </Button>
         <Button
-          onClick={handleAddStudent}
+          onClick={handleAddAdvocate}
           disabled={!emailInput.trim() || actionLoading}
           variant="contained"
           sx={{
@@ -322,7 +322,7 @@ const SupervisorDetailsDialog: React.FC<SupervisorDetailsDialogProps> = ({
           {actionLoading ? (
             <CircularProgress size={20} color="inherit" />
           ) : (
-            "Assign Student"
+            "Assign Advocate"
           )}
         </Button>
       </DialogActions>

@@ -315,7 +315,7 @@ const SupervisorDashboard = ({ userInfo }: SupervisorDashboardProps) => {
                   aria-controls="tabpanel-0"
                 />
                 <Tab
-                  label={`All Student Cases (${visibleAllStudentCases.length})`}
+                  label={`All Advocate Cases (${visibleAllStudentCases.length})`}
                   id="tab-1"
                   aria-controls="tabpanel-1"
                 />
@@ -470,7 +470,7 @@ const SupervisorDashboard = ({ userInfo }: SupervisorDashboardProps) => {
                       >
                         {stats.associatesAssigned}
                       </Box>{" "}
-                      Associates Assigned
+                      Advocates Assigned
                     </Typography>
                   </Box>
                 </Box>
@@ -479,7 +479,7 @@ const SupervisorDashboard = ({ userInfo }: SupervisorDashboardProps) => {
                   {visibleAllStudentCases.length === 0 ? (
                     <Grid size={{ xs: 12 }}>
                       <Typography sx={{ color: "var(--text-secondary)" }}>
-                        No student cases found matching current filters.
+                        No advocate cases found matching current filters.
                       </Typography>
                     </Grid>
                   ) : (
@@ -497,7 +497,7 @@ const SupervisorDashboard = ({ userInfo }: SupervisorDashboardProps) => {
                           dateAdded={new Date(
                             caseItem.last_updated,
                           ).toLocaleDateString()}
-                          studentName={`${caseItem.first_name || ""} ${
+                          advocateName={`${caseItem.first_name || ""} ${
                             caseItem.last_name || ""
                           }`}
                           onDelete={handleDeleteCase}

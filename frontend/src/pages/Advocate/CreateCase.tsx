@@ -14,7 +14,7 @@ import {
   MenuItem,
   Alert,
 } from "@mui/material";
-import StudentHeader from "../../components/StudentHeader";
+import AdvocateHeader from "../../components/AdvocateHeader";
 import { fetchAuthSession } from "aws-amplify/auth";
 import { useNavigate } from "react-router-dom";
 
@@ -206,7 +206,7 @@ const CreateCase: React.FC = () => {
         flexDirection: "column",
       }}
     >
-      {isSupervisor ? <SupervisorHeader /> : <StudentHeader />}
+      {isSupervisor ? <SupervisorHeader /> : <AdvocateHeader />}
 
       <Container
         maxWidth="xl"

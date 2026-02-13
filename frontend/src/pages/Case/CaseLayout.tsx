@@ -3,7 +3,7 @@ import { Box, CssBaseline } from "@mui/material";
 import { Outlet, useParams } from "react-router-dom";
 import { fetchAuthSession } from "aws-amplify/auth";
 
-import StudentHeader from "../../components/StudentHeader";
+import AdvocateHeader from "../../components/AdvocateHeader";
 import SideMenu from "./SideMenu";
 import Notepad from "../../components/Case/Notepad";
 
@@ -177,7 +177,7 @@ const CaseLayout: React.FC = () => {
         zIndex={1201}
         bgcolor="var(--header)"
       >
-        <StudentHeader />
+        <AdvocateHeader />
       </Box>
 
       {/* Side Menu */}

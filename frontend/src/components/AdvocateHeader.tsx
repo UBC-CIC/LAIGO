@@ -46,7 +46,7 @@ const HeaderItem: React.FC<HeaderItemProps> = ({ icon, label, onClick }) => (
   </Stack>
 );
 
-const StudentHeader: React.FC = () => {
+const AdvocateHeader: React.FC = () => {
   const navigate = useNavigate();
   const { userInfo } = useUser();
   const [profileMenuAnchor, setProfileMenuAnchor] =
@@ -157,4 +157,4 @@ const StudentHeader: React.FC = () => {
   );
 };
 
-export default StudentHeader;
+export default AdvocateHeader;

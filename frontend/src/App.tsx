@@ -10,8 +10,8 @@ import AIConfiguration from "./pages/Admin/AIConfiguration";
 import AdminDisclaimer from "./pages/Admin/AdminDisclaimer";
 import { CircularProgress, Box } from "@mui/material";
 import "./App.css";
-import StudentDashboard from "./pages/Student/StudentDashboard";
-import CreateCase from "./pages/Student/CreateCase";
+import AdvocateDashboard from "./pages/Advocate/AdvocateDashboard";
+import CreateCase from "./pages/Advocate/CreateCase";
 import CaseLayout from "./pages/Case/CaseLayout";
 import CaseOverview from "./pages/Case/CaseOverview";
 import CaseSummaries from "./pages/Case/CaseSummaries";
@@ -94,7 +94,7 @@ function App() {
   const getUserRole = (groups: string[]): string => {
     if (groups.includes("admin")) return "admin";
     if (groups.includes("instructor")) return "supervisor";
-    return "student";
+    return "advocate";
   };
 
   const RoleBasedRoutes = () => {
@@ -127,13 +127,13 @@ function App() {
             />
           </Routes>
         );
-      case "student":
+      case "advocate":
       default:
         return (
           <Routes>
-            <Route path="/" element={<StudentDashboard />} />
+            <Route path="/" element={<AdvocateDashboard />} />
             <Route path="/create-case" element={<CreateCase />} />
-            <Route path="*" element={<StudentDashboard />} />
+            <Route path="*" element={<AdvocateDashboard />} />
           </Routes>
         );
     }

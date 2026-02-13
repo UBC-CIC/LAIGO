@@ -17,7 +17,7 @@ import {
 } from "@mui/material";
 import { fetchAuthSession, fetchUserAttributes } from "aws-amplify/auth";
 import SearchIcon from "@mui/icons-material/Search";
-import StudentHeader from "../../components/StudentHeader";
+import AdvocateHeader from "../../components/AdvocateHeader";
 import CaseCard from "../../components/CaseCard";
 
 // Define types
@@ -40,7 +40,7 @@ interface RawCase {
   [key: string]: unknown;
 }
 
-const StudentDashboard: React.FC = () => {
+const AdvocateDashboard: React.FC = () => {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -228,7 +228,7 @@ const StudentDashboard: React.FC = () => {
         flexDirection: "column",
       }}
     >
-      <StudentHeader />
+      <AdvocateHeader />
 
       <Container maxWidth="lg" sx={{ mt: 8, mb: 4, flexGrow: 1 }}>
         <Typography
@@ -374,4 +374,4 @@ const StudentDashboard: React.FC = () => {
   );
 };
 
-export default StudentDashboard;
+export default AdvocateDashboard;
