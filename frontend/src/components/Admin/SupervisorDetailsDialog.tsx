@@ -24,23 +24,23 @@ interface Student {
   user_email: string;
 }
 
-interface Instructor {
+interface Supervisor {
   user_id: string;
   first_name: string;
   last_name: string;
   user_email: string;
 }
 
-interface InstructorDetailsDialogProps {
+interface SupervisorDetailsDialogProps {
   open: boolean;
   onClose: () => void;
-  instructor: Instructor | null;
+  supervisor: Supervisor | null;
 }
 
-const InstructorDetailsDialog: React.FC<InstructorDetailsDialogProps> = ({
+const SupervisorDetailsDialog: React.FC<SupervisorDetailsDialogProps> = ({
   open,
   onClose,
-  instructor,
+  supervisor,
 }) => {
   const [assignedStudents, setAssignedStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(false);
@@ -50,17 +50,17 @@ const InstructorDetailsDialog: React.FC<InstructorDetailsDialogProps> = ({
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    if (open && instructor) {
+    if (open && supervisor) {
       fetchAssignedStudents();
       setEmailInput("");
       setError(null);
       setSuccessMessage(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, instructor]);
+  }, [open, supervisor]);
 
   const fetchAssignedStudents = async () => {
-    if (!instructor) return;
+    if (!supervisor) return;
     setLoading(true);
     try {
       const { fetchAuthSession } = await import("aws-amplify/auth");
@@ -70,7 +70,7 @@ const InstructorDetailsDialog: React.FC<InstructorDetailsDialogProps> = ({
       if (!token) throw new Error("No auth token");
 
       const response = await fetch(
-        `${import.meta.env.VITE_API_ENDPOINT}/admin/instructorStudents?instructor_id=${instructor.user_id}`,
+        `${import.meta.env.VITE_API_ENDPOINT}/admin/instructorStudents?instructor_id=${supervisor.user_id}`,
         {
           headers: {
             Authorization: token,
@@ -94,7 +94,7 @@ const InstructorDetailsDialog: React.FC<InstructorDetailsDialogProps> = ({
   };
 
   const handleAddStudent = async () => {
-    if (!instructor || !emailInput.trim()) return;
+    if (!supervisor || !emailInput.trim()) return;
 
     setActionLoading(true);
     setError(null);
@@ -114,7 +114,7 @@ const InstructorDetailsDialog: React.FC<InstructorDetailsDialogProps> = ({
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            instructor_id: instructor.user_id,
+            instructor_id: supervisor.user_id,
             student_email: emailInput.trim(),
           }),
         },
@@ -138,7 +138,7 @@ const InstructorDetailsDialog: React.FC<InstructorDetailsDialogProps> = ({
   };
 
   const handleRemoveStudent = async (studentId: string) => {
-    if (!instructor) return;
+    if (!supervisor) return;
 
     const confirm = window.confirm(
       "Are you sure you want to remove this student?",
@@ -154,7 +154,7 @@ const InstructorDetailsDialog: React.FC<InstructorDetailsDialogProps> = ({
       const token = session.tokens?.idToken?.toString();
 
       const response = await fetch(
-        `${import.meta.env.VITE_API_ENDPOINT}/admin/assign_instructor_to_student?instructor_id=${instructor.user_id}&student_id=${studentId}`,
+        `${import.meta.env.VITE_API_ENDPOINT}/admin/assign_instructor_to_student?instructor_id=${supervisor.user_id}&student_id=${studentId}`,
         {
           method: "DELETE",
           headers: {
@@ -180,7 +180,7 @@ const InstructorDetailsDialog: React.FC<InstructorDetailsDialogProps> = ({
     }
   };
 
-  if (!instructor) return null;
+  if (!supervisor) return null;
 
   return (
     <Dialog
@@ -198,10 +198,10 @@ const InstructorDetailsDialog: React.FC<InstructorDetailsDialogProps> = ({
     >
       <DialogTitle sx={{ borderBottom: "1px solid var(--border)", pb: 2 }}>
         <Typography variant="h6" component="div">
-          {instructor.first_name} {instructor.last_name}
+          {supervisor.first_name} {supervisor.last_name}
         </Typography>
         <Typography variant="caption" sx={{ color: "var(--text-secondary)" }}>
-          {instructor.user_email}
+          {supervisor.user_email}
         </Typography>
       </DialogTitle>
       <DialogContent sx={{ mt: 2 }}>
@@ -330,4 +330,4 @@ const InstructorDetailsDialog: React.FC<InstructorDetailsDialogProps> = ({
   );
 };
 
-export default InstructorDetailsDialog;
+export default SupervisorDetailsDialog;

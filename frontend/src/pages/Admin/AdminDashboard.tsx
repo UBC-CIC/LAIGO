@@ -18,8 +18,8 @@ import {
 } from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
 import AdminHeader from "../../components/AdminHeader";
-import AddInstructorDialog from "../../components/Admin/AddInstructorDialog";
-import InstructorDetailsDialog from "../../components/Admin/InstructorDetailsDialog";
+import AddSupervisorDialog from "../../components/Admin/AddSupervisorDialog";
+import SupervisorDetailsDialog from "../../components/Admin/SupervisorDetailsDialog";
 import { fetchAuthSession } from "aws-amplify/auth";
 
 interface UserInfo {
@@ -34,7 +34,7 @@ interface AdminDashboardProps {
   userInfo: UserInfo;
 }
 
-interface Instructor {
+interface Supervisor {
   user_id: string;
   user_email: string;
   first_name: string;
@@ -42,21 +42,21 @@ interface Instructor {
 }
 
 const AdminDashboard: React.FC<AdminDashboardProps> = () => {
-  const [instructors, setInstructors] = useState<Instructor[]>([]);
+  const [supervisors, setSupervisors] = useState<Supervisor[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
-  const [selectedInstructor, setSelectedInstructor] =
-    useState<Instructor | null>(null);
+  const [selectedSupervisor, setSelectedSupervisor] =
+    useState<Supervisor | null>(null);
 
   useEffect(() => {
-    fetchInstructors();
+    fetchSupervisors();
   }, []);
 
-  const fetchInstructors = async () => {
+  const fetchSupervisors = async () => {
     setLoading(true);
     try {
       const session = await fetchAuthSession();
@@ -74,27 +74,27 @@ const AdminDashboard: React.FC<AdminDashboardProps> = () => {
       );
 
       if (!response.ok) {
-        throw new Error("Failed to fetch instructors");
+        throw new Error("Failed to fetch supervisors");
       }
 
       const data = await response.json();
-      setInstructors(data);
+      setSupervisors(data);
     } catch (error) {
-      console.error("Error fetching instructors:", error);
+      console.error("Error fetching supervisors:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  const filteredInstructors = useMemo(() => {
+  const filteredSupervisors = useMemo(() => {
     const query = searchQuery.toLowerCase();
-    return instructors.filter(
-      (instructor) =>
-        instructor.first_name.toLowerCase().includes(query) ||
-        instructor.last_name.toLowerCase().includes(query) ||
-        instructor.user_email.toLowerCase().includes(query),
+    return supervisors.filter(
+      (supervisor) =>
+        supervisor.first_name.toLowerCase().includes(query) ||
+        supervisor.last_name.toLowerCase().includes(query) ||
+        supervisor.user_email.toLowerCase().includes(query),
     );
-  }, [instructors, searchQuery]);
+  }, [supervisors, searchQuery]);
 
   const handleChangePage = (
     _event: React.MouseEvent<HTMLButtonElement> | null,
@@ -128,7 +128,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = () => {
           alignItems="center"
           mb={3}
         >
-          <Typography variant="h5">Manage Instructors</Typography>
+          <Typography variant="h5">Manage Supervisors</Typography>
           <Button
             variant="contained"
             onClick={() => setAddDialogOpen(true)}
@@ -138,7 +138,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = () => {
               "&:hover": { backgroundColor: "var(--primary)", opacity: 0.9 },
             }}
           >
-            ADD INSTRUCTOR
+            ADD SUPERVISOR
           </Button>
         </Box>
 
@@ -210,14 +210,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {filteredInstructors
+                  {filteredSupervisors
                     .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                    .map((instructor) => (
+                    .map((supervisor) => (
                       <TableRow
-                        key={instructor.user_id}
+                        key={supervisor.user_id}
                         hover
                         onClick={() => {
-                          setSelectedInstructor(instructor);
+                          setSelectedSupervisor(supervisor);
                           setDetailsDialogOpen(true);
                         }}
                         sx={{ cursor: "pointer" }}
@@ -228,7 +228,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                             borderBottom: "1px solid var(--border)",
                           }}
                         >
-                          {instructor.first_name}
+                          {supervisor.first_name}
                         </TableCell>
                         <TableCell
                           sx={{
@@ -236,7 +236,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                             borderBottom: "1px solid var(--border)",
                           }}
                         >
-                          {instructor.last_name}
+                          {supervisor.last_name}
                         </TableCell>
                         <TableCell
                           sx={{
@@ -244,11 +244,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                             borderBottom: "1px solid var(--border)",
                           }}
                         >
-                          {instructor.user_email}
+                          {supervisor.user_email}
                         </TableCell>
                       </TableRow>
                     ))}
-                  {filteredInstructors.length === 0 && (
+                  {filteredSupervisors.length === 0 && (
                     <TableRow>
                       <TableCell
                         colSpan={3}
@@ -258,7 +258,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                           borderBottom: "none",
                         }}
                       >
-                        No instructors found
+                        No supervisors found
                       </TableCell>
                     </TableRow>
                   )}
@@ -268,7 +268,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = () => {
             <TablePagination
               rowsPerPageOptions={[10, 25, 50]}
               component="div"
-              count={filteredInstructors.length}
+              count={filteredSupervisors.length}
               rowsPerPage={rowsPerPage}
               page={page}
               onPageChange={handleChangePage}
@@ -289,18 +289,18 @@ const AdminDashboard: React.FC<AdminDashboardProps> = () => {
         )}
       </Container>
 
-      <AddInstructorDialog
+      <AddSupervisorDialog
         open={addDialogOpen}
         onClose={() => setAddDialogOpen(false)}
         onSuccess={() => {
-          fetchInstructors();
+          fetchSupervisors();
         }}
       />
 
-      <InstructorDetailsDialog
+      <SupervisorDetailsDialog
         open={detailsDialogOpen}
         onClose={() => setDetailsDialogOpen(false)}
-        instructor={selectedInstructor}
+        supervisor={selectedSupervisor}
       />
     </Box>
   );

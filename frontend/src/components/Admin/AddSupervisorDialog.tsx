@@ -11,13 +11,13 @@ import {
   Alert,
 } from "@mui/material";
 
-interface AddInstructorDialogProps {
+interface AddSupervisorDialogProps {
   open: boolean;
   onClose: () => void;
   onSuccess: () => void;
 }
 
-const AddInstructorDialog: React.FC<AddInstructorDialogProps> = ({
+const AddSupervisorDialog: React.FC<AddSupervisorDialogProps> = ({
   open,
   onClose,
   onSuccess,
@@ -71,11 +71,11 @@ const AddInstructorDialog: React.FC<AddInstructorDialogProps> = ({
       } else if (response.ok) {
         if (data.alreadyInstructor) {
           setSuccessMessage(
-            data.message || "This user already has instructor permissions.",
+            data.message || "This user already has supervisor permissions.",
           );
         } else if (data.success) {
           setSuccessMessage(
-            data.message || "User successfully elevated to instructor.",
+            data.message || "User successfully elevated to supervisor.",
           );
           onSuccess();
         } else {
@@ -105,10 +105,10 @@ const AddInstructorDialog: React.FC<AddInstructorDialogProps> = ({
         },
       }}
     >
-      <DialogTitle sx={{ fontWeight: "bold" }}>Add Instructor</DialogTitle>
+      <DialogTitle sx={{ fontWeight: "bold" }}>Add Supervisor</DialogTitle>
       <DialogContent>
         <DialogContentText sx={{ color: "var(--text-secondary)", mb: 2 }}>
-          Enter the email address of an existing user to grant them instructor
+          Enter the email address of an existing user to grant them supervisor
           permissions.
         </DialogContentText>
 
@@ -175,4 +175,4 @@ const AddInstructorDialog: React.FC<AddInstructorDialogProps> = ({
   );
 };
 
-export default AddInstructorDialog;
+export default AddSupervisorDialog;

@@ -41,7 +41,7 @@ interface CaseData {
   [key: string]: string | string[] | undefined;
 }
 
-interface Instructor {
+interface Supervisor {
   instructor_id: string;
   instructor_name: string;
 }
@@ -62,8 +62,8 @@ const CaseOverview: React.FC = () => {
   const [caseData, setCaseData] = useState<CaseData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [editMode, setEditMode] = useState<boolean>(false);
-  const [instructors, setInstructors] = useState<Instructor[]>([]);
-  const [selectedInstructors, setSelectedInstructors] = useState<string[]>([]);
+  const [supervisors, setSupervisors] = useState<Supervisor[]>([]);
+  const [selectedSupervisors, setSelectedSupervisors] = useState<string[]>([]);
   const [editedCase, setEditedCase] = useState<EditedCase>({
     case_title: "",
     case_description: "",
@@ -88,8 +88,8 @@ const CaseOverview: React.FC = () => {
     setSnackbar((prev) => ({ ...prev, open: false }));
   };
 
-  const toggleInstructor = (id: string) => {
-    setSelectedInstructors((prev) =>
+  const toggleSupervisor = (id: string) => {
+    setSelectedSupervisors((prev) =>
       prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
     );
   };
@@ -110,7 +110,7 @@ const CaseOverview: React.FC = () => {
             Authorization: token,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ reviewer_ids: selectedInstructors }),
+          body: JSON.stringify({ reviewer_ids: selectedSupervisors }),
         },
       );
 
@@ -267,7 +267,7 @@ const CaseOverview: React.FC = () => {
   }, [caseId]);
 
   useEffect(() => {
-    const fetchInstructors = async () => {
+    const fetchSupervisors = async () => {
       const session = await fetchAuthSession();
       const token = session.tokens?.idToken?.toString() ?? null;
       const cognitoId = session.tokens?.idToken?.payload?.sub ?? null;
@@ -283,15 +283,15 @@ const CaseOverview: React.FC = () => {
         },
       );
       if (!res.ok) {
-        console.error("Failed to fetch instructors:", res.statusText);
+        console.error("Failed to fetch supervisors:", res.statusText);
         return;
       }
 
       const data = await res.json();
-      setInstructors(data || []);
+      setSupervisors(data || []);
     };
 
-    fetchInstructors();
+    fetchSupervisors();
   }, [caseId]);
 
   const handleSaveEdit = async () => {
@@ -653,17 +653,17 @@ const CaseOverview: React.FC = () => {
                   }}
                 >
                   <Grid container>
-                    {instructors.map((instructor, index) => {
-                      const isSelected = selectedInstructors.includes(
-                        instructor.instructor_id,
+                    {supervisors.map((supervisor, index) => {
+                      const isSelected = selectedSupervisors.includes(
+                        supervisor.instructor_id,
                       );
                       return (
                         <Grid
                           size={{ xs: 12, md: 6 }}
-                          key={instructor.instructor_id || index}
+                          key={supervisor.instructor_id || index}
                           onClick={() => {
-                            if (instructor.instructor_id) {
-                              toggleInstructor(instructor.instructor_id);
+                            if (supervisor.instructor_id) {
+                              toggleSupervisor(supervisor.instructor_id);
                             }
                           }}
                           sx={{
@@ -705,16 +705,16 @@ const CaseOverview: React.FC = () => {
                                 fontSize: "1rem",
                               }}
                             >
-                              {instructor.instructor_name}
+                              {supervisor.instructor_name}
                             </Typography>
                           </Box>
                         </Grid>
                       );
                     })}
-                    {instructors.length === 0 && (
+                    {supervisors.length === 0 && (
                       <Box sx={{ p: 3, width: "100%", textAlign: "center" }}>
                         <Typography color="textSecondary">
-                          No instructors available.
+                          No supervisors available.
                         </Typography>
                       </Box>
                     )}
@@ -734,7 +734,7 @@ const CaseOverview: React.FC = () => {
                     onClick={handleSendForReview}
                     disabled={
                       caseData.status === "Sent to Review" ||
-                      selectedInstructors.length === 0 ||
+                      selectedSupervisors.length === 0 ||
                       caseData.status === "archived"
                     }
                     sx={{

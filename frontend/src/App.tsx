@@ -3,8 +3,8 @@ import { Amplify } from "aws-amplify";
 import { getCurrentUser, fetchAuthSession } from "aws-amplify/auth";
 import { Routes, Route, Navigate } from "react-router-dom";
 import Login from "./pages/Login";
-import InstructorDashboard from "./pages/Instructor/InstructorDashboard";
-import InstructorPrompts from "./pages/Instructor/InstructorPrompts";
+import SupervisorDashboard from "./pages/Supervisor/SupervisorDashboard";
+import SupervisorPrompts from "./pages/Supervisor/SupervisorPrompts";
 import AdminDashboard from "./pages/Admin/AdminDashboard";
 import AIConfiguration from "./pages/Admin/AIConfiguration";
 import AdminDisclaimer from "./pages/Admin/AdminDisclaimer";
@@ -93,7 +93,7 @@ function App() {
 
   const getUserRole = (groups: string[]): string => {
     if (groups.includes("admin")) return "admin";
-    if (groups.includes("instructor")) return "instructor";
+    if (groups.includes("instructor")) return "supervisor";
     return "student";
   };
 
@@ -112,18 +112,18 @@ function App() {
             <Route path="*" element={<AdminDashboard userInfo={userInfo} />} />
           </Routes>
         );
-      case "instructor":
+      case "supervisor":
         return (
           <Routes>
             <Route
               path="/"
-              element={<InstructorDashboard userInfo={userInfo} />}
+              element={<SupervisorDashboard userInfo={userInfo} />}
             />
             <Route path="/create-case" element={<CreateCase />} />
-            <Route path="/prompts/*" element={<InstructorPrompts />} />
+            <Route path="/prompts/*" element={<SupervisorPrompts />} />
             <Route
               path="*"
-              element={<InstructorDashboard userInfo={userInfo} />}
+              element={<SupervisorDashboard userInfo={userInfo} />}
             />
           </Routes>
         );

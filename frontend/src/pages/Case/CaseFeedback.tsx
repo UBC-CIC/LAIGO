@@ -48,7 +48,7 @@ const CaseFeedback: React.FC = () => {
     "success",
   );
 
-  const isInstructor = userInfo?.groups?.includes("instructor");
+  const isSupervisor = userInfo?.groups?.includes("instructor");
 
   const loadFeedback = React.useCallback(async () => {
     try {
@@ -79,7 +79,7 @@ const CaseFeedback: React.FC = () => {
       const normalizedMessages: FeedbackMessageData[] = data.map((msg) => ({
         id: msg.message_id,
         sender:
-          `${msg.first_name || "Instructor"} ${msg.last_name || ""}`.trim(),
+          `${msg.first_name || "Supervisor"} ${msg.last_name || ""}`.trim(),
         timestamp: new Date(msg.time_sent).toLocaleString(),
         content: msg.message_content,
       }));
@@ -215,8 +215,8 @@ const CaseFeedback: React.FC = () => {
             p: 3,
           }}
         >
-          {/* Instructor Input Section */}
-          {isInstructor && (
+          {/* Supervisor Input Section */}
+          {isSupervisor && (
             <Box sx={{ mb: 4 }}>
               <Typography
                 variant="h6"
@@ -306,7 +306,7 @@ const CaseFeedback: React.FC = () => {
             textAlign="left"
             fontWeight="500"
             mb={2}
-            mt={isInstructor ? 4 : 0}
+            mt={isSupervisor ? 4 : 0}
           >
             Previous feedback
           </Typography>
@@ -335,7 +335,7 @@ const CaseFeedback: React.FC = () => {
                     timestamp={msg.timestamp}
                     content={msg.content}
                     onDelete={
-                      isInstructor && caseStatus !== "archived"
+                      isSupervisor && caseStatus !== "archived"
                         ? () => handleDeleteFeedback(msg.id)
                         : undefined
                     }

@@ -20,11 +20,11 @@ import { useNavigate } from "react-router-dom";
 
 // Import UserContext and InstructorHeader
 import { useUser } from "../../contexts/UserContext";
-import InstructorHeader from "../../components/InstructorHeader";
+import SupervisorHeader from "../../components/SupervisorHeader";
 
 const CreateCase: React.FC = () => {
   const { userInfo } = useUser();
-  const isInstructor = userInfo?.groups.includes("instructor");
+  const isSupervisor = userInfo?.groups.includes("instructor");
 
   // ... existing state ...
   const [isFederal, setIsFederal] = useState(false);
@@ -206,7 +206,7 @@ const CreateCase: React.FC = () => {
         flexDirection: "column",
       }}
     >
-      {isInstructor ? <InstructorHeader /> : <StudentHeader />}
+      {isSupervisor ? <SupervisorHeader /> : <StudentHeader />}
 
       <Container
         maxWidth="xl"

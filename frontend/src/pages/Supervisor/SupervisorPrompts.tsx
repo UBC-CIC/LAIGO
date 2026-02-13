@@ -8,8 +8,8 @@ import {
   ListItemText,
 } from "@mui/material";
 import { useNavigate, useParams } from "react-router-dom";
-import InstructorHeader from "../../components/InstructorHeader";
-import ReadOnlyPromptViewer from "../../components/Instructor/ReadOnlyPromptViewer";
+import SupervisorHeader from "../../components/SupervisorHeader";
+import ReadOnlyPromptViewer from "../../components/Supervisor/ReadOnlyPromptViewer";
 
 // --- Types based on DB Schema & Requirements ---
 
@@ -122,7 +122,7 @@ const SECTIONS: SidebarSection[] = [
   },
 ];
 
-const InstructorPrompts = () => {
+const SupervisorPrompts = () => {
   const navigate = useNavigate();
   const params = useParams();
 
@@ -130,7 +130,7 @@ const InstructorPrompts = () => {
   const subRoute = params["*"];
   const selectedBlockId = subRoute || "intake-facts";
 
-  // Redirect if exactly at root /instructor/prompts (empty *)
+  // Redirect if exactly at root /prompts (empty *)
   useEffect(() => {
     if (!subRoute) {
       navigate("/prompts/intake-facts", { replace: true });
@@ -152,7 +152,7 @@ const InstructorPrompts = () => {
         flexDirection: "column",
       }}
     >
-      <InstructorHeader />
+      <SupervisorHeader />
       <Box
         sx={{
           flex: 1,
@@ -284,4 +284,4 @@ const InstructorPrompts = () => {
   );
 };
 
-export default InstructorPrompts;
+export default SupervisorPrompts;

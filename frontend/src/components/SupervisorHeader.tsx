@@ -47,7 +47,7 @@ const HeaderItem: React.FC<HeaderItemProps> = ({ icon, label, onClick }) => (
   </Stack>
 );
 
-const InstructorHeader: React.FC = () => {
+const SupervisorHeader: React.FC = () => {
   const navigate = useNavigate();
   const { userInfo } = useUser();
   const [profileMenuAnchor, setProfileMenuAnchor] =
@@ -122,7 +122,7 @@ const InstructorHeader: React.FC = () => {
             className="header-label"
             sx={labelStyle}
           >
-            {userInfo?.firstName || "Instructor"}
+            {userInfo?.firstName || "Supervisor"}
           </Typography>
         </Stack>
       </Box>
@@ -162,4 +162,4 @@ const InstructorHeader: React.FC = () => {
   );
 };
 
-export default InstructorHeader;
+export default SupervisorHeader;

@@ -18,7 +18,7 @@ import {
   MenuItem,
 } from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
-import InstructorHeader from "../../components/InstructorHeader";
+import SupervisorHeader from "../../components/SupervisorHeader";
 import CaseCard from "../../components/CaseCard";
 import CaseDeleteConfirmationDialog from "../../components/Case/CaseDeleteConfirmationDialog";
 
@@ -30,7 +30,7 @@ interface UserInfo {
   groups: string[];
 }
 
-interface InstructorDashboardProps {
+interface SupervisorDashboardProps {
   userInfo: UserInfo;
 }
 
@@ -48,7 +48,7 @@ interface Case {
   last_name?: string;
 }
 
-const InstructorDashboard = ({ userInfo }: InstructorDashboardProps) => {
+const SupervisorDashboard = ({ userInfo }: SupervisorDashboardProps) => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState(0);
   const [query, setQuery] = useState("");
@@ -78,7 +78,7 @@ const InstructorDashboard = ({ userInfo }: InstructorDashboardProps) => {
 
   // Fetch data
   useEffect(() => {
-    const fetchInstructorData = async () => {
+    const fetchSupervisorData = async () => {
       setLoading(true);
       try {
         const session = await fetchAuthSession();
@@ -91,7 +91,7 @@ const InstructorDashboard = ({ userInfo }: InstructorDashboardProps) => {
           "Content-Type": "application/json",
         };
 
-        // 1. Fetch My Cases (created by instructor)
+        // 1. Fetch My Cases (created by supervisor)
         const myCasesResp = await fetch(
           `${import.meta.env.VITE_API_ENDPOINT}/student/get_cases`,
           { headers },
@@ -130,7 +130,7 @@ const InstructorDashboard = ({ userInfo }: InstructorDashboardProps) => {
       }
     };
 
-    fetchInstructorData();
+    fetchSupervisorData();
   }, [userInfo.userId]);
 
   // Handlers
@@ -188,7 +188,7 @@ const InstructorDashboard = ({ userInfo }: InstructorDashboardProps) => {
     // Stub
     console.log("Archive case", caseId);
     showSnackbar(
-      "Archive not implemented for instructor view yet (mock data)",
+      "Archive not implemented for supervisor view yet (mock data)",
       "info",
     );
   };
@@ -271,7 +271,7 @@ const InstructorDashboard = ({ userInfo }: InstructorDashboardProps) => {
         flexDirection: "column",
       }}
     >
-      <InstructorHeader />
+      <SupervisorHeader />
 
       <Container maxWidth="lg" sx={{ mt: 8, mb: 4, flexGrow: 1 }}>
         {loading ? (
@@ -539,4 +539,4 @@ const InstructorDashboard = ({ userInfo }: InstructorDashboardProps) => {
   );
 };
 
-export default InstructorDashboard;
+export default SupervisorDashboard;
