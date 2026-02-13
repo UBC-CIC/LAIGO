@@ -23,6 +23,7 @@ exports.handler = async (event) => {
         userPoolId: process.env.COGNITO_USER_POOL_ID,
         tokenUse: "id",
         clientId: process.env.COGNITO_CLIENT_ID,
+        groups: ["admin", "instructor", "student"], // Restrict access to specific groups
       });
     }
 
@@ -30,18 +31,21 @@ exports.handler = async (event) => {
     const cognitoId = decoded.sub;
     const email = decoded.email;
     const username = decoded["cognito:username"];
+    const groups = decoded["cognito:groups"] || [];
 
     console.log("WebSocket connection authorized", {
       timestamp,
       cognitoId,
       email,
       username,
+      groups,
     });
 
     // Return IAM Policy allowing the connection
     return generatePolicy(cognitoId, "Allow", methodArn, {
       email: email || "",
       username: username || "",
+      groups: groups.join(","), // Pass groups to downstream handlers
     });
   } catch (error) {
     console.error("WebSocket authorizer: token validation failed", {
