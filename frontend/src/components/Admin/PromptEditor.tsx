@@ -899,7 +899,7 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
         open={deleteConfirmOpen}
         onClose={handleCloseDeleteDialog}
         onConfirm={handleConfirmDelete}
-        itemName={itemToDelete?.version_name || ""}
+        itemName="delete prompt"
         title="Delete Prompt Version"
         description="Are you sure you want to delete this prompt version? This action cannot be undone."
       />

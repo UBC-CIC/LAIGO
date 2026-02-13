@@ -510,6 +510,7 @@ const SystemPromptSection: React.FC<{
               justifyContent: compareMode ? "space-between" : "flex-start",
               alignItems: "center",
               width: compareMode ? "100%" : "auto",
+              flexShrink: 0,
             }}
           >
             <Box
@@ -533,6 +534,7 @@ const SystemPromptSection: React.FC<{
                   fontWeight: "bold",
                   color: "var(--text)",
                   textAlign: "left",
+                  whiteSpace: "nowrap",
                 }}
               >
                 {label ? `${label} - System Prompt` : "System Prompt"}
@@ -564,9 +566,10 @@ const SystemPromptSection: React.FC<{
               display: "flex",
               gap: 1,
               alignItems: "center",
-              flexWrap: "wrap",
+              flexWrap: compareMode ? "wrap" : "nowrap",
               justifyContent: compareMode ? "flex-start" : "flex-end",
               flex: compareMode ? "none" : 1,
+              overflow: "hidden",
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -576,6 +579,7 @@ const SystemPromptSection: React.FC<{
               sx={{
                 width: compareMode ? "calc(50% - 4px)" : 160,
                 minWidth: compareMode ? 0 : 160,
+                flexShrink: 0,
               }}
             >
               <InputLabel sx={{ color: "var(--text-secondary)" }}>
@@ -607,6 +611,7 @@ const SystemPromptSection: React.FC<{
               sx={{
                 width: compareMode ? "calc(50% - 4px)" : 160,
                 minWidth: compareMode ? 0 : 160,
+                flexShrink: 0,
               }}
             >
               <InputLabel sx={{ color: "var(--text-secondary)" }}>
@@ -749,6 +754,7 @@ const AssessmentPromptSection: React.FC<{
               justifyContent: compareMode ? "space-between" : "flex-start",
               alignItems: "center",
               width: compareMode ? "100%" : "auto",
+              flexShrink: 0,
             }}
           >
             <Box
@@ -772,13 +778,14 @@ const AssessmentPromptSection: React.FC<{
                   fontWeight: "bold",
                   color: "var(--text)",
                   textAlign: "left",
+                  whiteSpace: "nowrap",
                 }}
               >
                 {label ? `${label} - Assessment Prompt` : "Assessment Prompt"}
               </Typography>
             </Box>
 
-            {/* Save Button - Top row in compare mode */}
+            {/* Save Button - Top row in compare mode, part of flex group otherwise */}
             {compareMode && config.assessmentVersionId && (
               <Tooltip title="Save Version">
                 <IconButton
@@ -803,9 +810,10 @@ const AssessmentPromptSection: React.FC<{
               display: "flex",
               gap: 1,
               alignItems: "center",
-              flexWrap: "wrap",
+              flexWrap: compareMode ? "wrap" : "nowrap",
               justifyContent: compareMode ? "flex-start" : "flex-end",
               flex: compareMode ? "none" : 1,
+              overflow: "hidden",
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -815,6 +823,7 @@ const AssessmentPromptSection: React.FC<{
               sx={{
                 width: compareMode ? "calc(50% - 4px)" : 160,
                 minWidth: compareMode ? 0 : 160,
+                flexShrink: 0,
               }}
             >
               <InputLabel sx={{ color: "var(--text-secondary)" }}>
@@ -846,6 +855,7 @@ const AssessmentPromptSection: React.FC<{
               sx={{
                 width: compareMode ? "calc(50% - 4px)" : 160,
                 minWidth: compareMode ? 0 : 160,
+                flexShrink: 0,
               }}
             >
               <InputLabel sx={{ color: "var(--text-secondary)" }}>
