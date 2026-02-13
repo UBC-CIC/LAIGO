@@ -240,7 +240,7 @@ export class ApiGatewayStack extends cdk.Stack {
       this,
       `${id}-identity-pool`,
       {
-        allowUnauthenticatedIdentities: true, // Allow unauthenticated access
+        allowUnauthenticatedIdentities: false, // Disallow unauthenticated access for security
         identityPoolName: `${id}IdentityPool`,
         cognitoIdentityProviders: [
           {
@@ -485,26 +485,6 @@ export class ApiGatewayStack extends cdk.Stack {
       }),
     );
 
-    // Create IAM role for unauthenticated users
-    const unauthenticatedRole = new iam.Role(
-      this,
-      `${id}-UnauthenticatedRole`,
-      {
-        assumedBy: new iam.FederatedPrincipal(
-          "cognito-identity.amazonaws.com",
-          {
-            StringEquals: {
-              "cognito-identity.amazonaws.com:aud": this.identityPool.ref,
-            },
-            "ForAnyValue:StringLike": {
-              "cognito-identity.amazonaws.com:amr": "unauthenticated", // Unauthenticated access
-            },
-          },
-          "sts:AssumeRoleWithWebIdentity",
-        ),
-      },
-    );
-
     // Create admin user group in Cognito
     const adminGroup = new cognito.CfnUserPoolGroup(this, `${id}-AdminGroup`, {
       groupName: "admin",
@@ -603,7 +583,6 @@ export class ApiGatewayStack extends cdk.Stack {
       identityPoolId: this.identityPool.ref,
       roles: {
         authenticated: studentRole.roleArn, // Default role for authenticated users
-        unauthenticated: unauthenticatedRole.roleArn, // Role for unauthenticated users
       },
     });
 
