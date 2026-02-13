@@ -641,7 +641,7 @@ const CaseOverview: React.FC = () => {
                     mb: 1,
                   }}
                 >
-                  Senior Lawyers Available for Review
+                  Supervisors Available for Review
                 </Typography>
 
                 <Box
