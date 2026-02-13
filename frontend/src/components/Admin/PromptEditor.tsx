@@ -111,21 +111,35 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
     fetchPrompts();
   }, [fetchPrompts]);
 
-  // Set initial selection
+  // Set initial selection or handle deletions
   useEffect(() => {
-    if (!isLoading && prompts.length > 0) {
+    if (isLoading) return;
+
+    if (prompts.length === 0) {
+      setSelectedVersionId("");
+      setEditorContent("");
+      setVersionName("");
+      return;
+    }
+
+    // Check if current selection is still valid
+    const currentStillExists = prompts.some(
+      (p) => p.prompt_version_id === selectedVersionId,
+    );
+
+    // If nothing selected OR the currently selected version was deleted (and it wasn't a draft)
+    if (
+      !selectedVersionId ||
+      (selectedVersionId !== DRAFT_ID && !currentStillExists)
+    ) {
       const active = prompts.find((p) => p.is_active);
       if (active) {
         setSelectedVersionId(active.prompt_version_id);
       } else {
         setSelectedVersionId(prompts[0].prompt_version_id);
       }
-    } else if (!isLoading && prompts.length === 0) {
-      setSelectedVersionId("");
-      setEditorContent("");
-      setVersionName("");
     }
-  }, [isLoading, prompts]);
+  }, [isLoading, prompts, selectedVersionId]);
 
   // Update editor content when selection changes
   useEffect(() => {
@@ -141,6 +155,9 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
     if (version) {
       setEditorContent(version.prompt_text);
       setVersionName(version.version_name);
+    } else {
+      setEditorContent("");
+      setVersionName("");
     }
   }, [selectedVersionId, prompts]);
 
