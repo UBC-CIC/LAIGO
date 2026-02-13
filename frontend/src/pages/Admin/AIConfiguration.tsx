@@ -75,7 +75,7 @@ const SECTIONS: SidebarSection[] = [
         id: "playground",
         label: "Prompt Playground",
         description:
-          "Test prompts with different configurations and multi-turn conversations before activating them.",
+          "Test and refine prompts in-place. Note: Create new versions in specific reasoning/assessment blocks first.",
       },
     ],
   },

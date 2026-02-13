@@ -405,10 +405,24 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
                 color: "var(--text-secondary)",
                 textAlign: "left",
                 display: "block",
+                mb: 1,
               }}
             >
               {description}
             </Typography>
+            <Alert
+              severity="info"
+              icon={false}
+              sx={{
+                backgroundColor: "transparent",
+                color: "var(--text-secondary)",
+                p: 0,
+                fontSize: "0.8rem",
+                "& .MuiAlert-message": { p: 0 },
+              }}
+            >
+              Note: Create a new version here to test in the Playground.
+            </Alert>
           </Box>
 
           <Box

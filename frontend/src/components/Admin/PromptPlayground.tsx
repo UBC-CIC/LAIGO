@@ -145,6 +145,8 @@ const ModelConfigSection: React.FC<{
   onConfigChange: (updates: Partial<ConfigurationState>) => void;
   label?: string;
 }> = React.memo(({ config, onConfigChange, label }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+
   return (
     <Box
       sx={{
@@ -158,9 +160,22 @@ const ModelConfigSection: React.FC<{
         sx={{
           p: 2,
           backgroundColor: "var(--header)",
-          borderBottom: "1px solid var(--border)",
+          borderBottom: isExpanded ? "1px solid var(--border)" : "none",
+          display: "flex",
+          alignItems: "center",
+          gap: 1,
+          cursor: "pointer",
         }}
+        onClick={() => setIsExpanded(!isExpanded)}
       >
+        <AddIcon
+          fontSize="small"
+          sx={{
+            transform: isExpanded ? "rotate(45deg)" : "rotate(0deg)",
+            transition: "transform 0.2s",
+            color: "var(--text-secondary)",
+          }}
+        />
         <Typography
           variant="subtitle2"
           sx={{ fontWeight: "bold", color: "var(--text)", textAlign: "left" }}
@@ -169,99 +184,103 @@ const ModelConfigSection: React.FC<{
         </Typography>
       </Box>
 
-      <Box
-        sx={{
-          p: 2,
-          display: "flex",
-          gap: 3,
-          flexWrap: "wrap",
-          alignItems: "flex-end",
-        }}
-      >
-        {/* Model Selection */}
-        <FormControl size="small" sx={{ minWidth: 220 }}>
-          <InputLabel sx={{ color: "var(--text-secondary)" }}>Model</InputLabel>
-          <Select
-            value={config.modelId}
-            label="Model"
-            onChange={(e) => onConfigChange({ modelId: e.target.value })}
+      {isExpanded && (
+        <Box
+          sx={{
+            p: 2,
+            display: "flex",
+            gap: 3,
+            flexWrap: "wrap",
+            alignItems: "flex-end",
+          }}
+        >
+          {/* Model Selection */}
+          <FormControl size="small" sx={{ minWidth: 220 }}>
+            <InputLabel sx={{ color: "var(--text-secondary)" }}>
+              Model
+            </InputLabel>
+            <Select
+              value={config.modelId}
+              label="Model"
+              onChange={(e) => onConfigChange({ modelId: e.target.value })}
+              sx={{
+                color: "var(--text)",
+                backgroundColor: "var(--background)",
+                "& .MuiOutlinedInput-notchedOutline": {
+                  borderColor: "var(--border)",
+                },
+                "&:hover .MuiOutlinedInput-notchedOutline": {
+                  borderColor: "var(--primary)",
+                },
+              }}
+            >
+              {AVAILABLE_MODELS.map((model) => (
+                <MenuItem key={model.id} value={model.id}>
+                  {model.name}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
+          {/* Temperature */}
+          <Box sx={{ width: 140 }}>
+            <Typography
+              variant="caption"
+              sx={{ color: "var(--text-secondary)", display: "block", mb: 0.5 }}
+            >
+              Temperature: {config.temperature.toFixed(2)}
+            </Typography>
+            <Slider
+              value={config.temperature}
+              onChange={(_, v) => onConfigChange({ temperature: v as number })}
+              min={0}
+              max={1}
+              step={0.01}
+              size="small"
+              sx={{ color: "var(--primary)", py: 1 }}
+            />
+          </Box>
+
+          {/* Top P */}
+          <Box sx={{ width: 140 }}>
+            <Typography
+              variant="caption"
+              sx={{ color: "var(--text-secondary)", display: "block", mb: 0.5 }}
+            >
+              Top P: {config.topP.toFixed(2)}
+            </Typography>
+            <Slider
+              value={config.topP}
+              onChange={(_, v) => onConfigChange({ topP: v as number })}
+              min={0}
+              max={1}
+              step={0.01}
+              size="small"
+              sx={{ color: "var(--primary)", py: 1 }}
+            />
+          </Box>
+
+          {/* Max Tokens */}
+          <TextField
+            label="Max Tokens"
+            type="number"
+            size="small"
+            value={config.maxTokens}
+            onChange={(e) =>
+              onConfigChange({ maxTokens: parseInt(e.target.value) || 2048 })
+            }
             sx={{
-              color: "var(--text)",
-              backgroundColor: "var(--background)",
-              "& .MuiOutlinedInput-notchedOutline": {
-                borderColor: "var(--border)",
-              },
-              "&:hover .MuiOutlinedInput-notchedOutline": {
-                borderColor: "var(--primary)",
+              width: 100,
+              "& .MuiInputLabel-root": { color: "var(--text-secondary)" },
+              "& .MuiOutlinedInput-root": {
+                color: "var(--text)",
+                backgroundColor: "var(--background)",
+                "& fieldset": { borderColor: "var(--border)" },
               },
             }}
-          >
-            {AVAILABLE_MODELS.map((model) => (
-              <MenuItem key={model.id} value={model.id}>
-                {model.name}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-
-        {/* Temperature */}
-        <Box sx={{ width: 140 }}>
-          <Typography
-            variant="caption"
-            sx={{ color: "var(--text-secondary)", display: "block", mb: 0.5 }}
-          >
-            Temperature: {config.temperature.toFixed(2)}
-          </Typography>
-          <Slider
-            value={config.temperature}
-            onChange={(_, v) => onConfigChange({ temperature: v as number })}
-            min={0}
-            max={1}
-            step={0.01}
-            size="small"
-            sx={{ color: "var(--primary)", py: 1 }}
           />
         </Box>
-
-        {/* Top P */}
-        <Box sx={{ width: 140 }}>
-          <Typography
-            variant="caption"
-            sx={{ color: "var(--text-secondary)", display: "block", mb: 0.5 }}
-          >
-            Top P: {config.topP.toFixed(2)}
-          </Typography>
-          <Slider
-            value={config.topP}
-            onChange={(_, v) => onConfigChange({ topP: v as number })}
-            min={0}
-            max={1}
-            step={0.01}
-            size="small"
-            sx={{ color: "var(--primary)", py: 1 }}
-          />
-        </Box>
-
-        {/* Max Tokens */}
-        <TextField
-          label="Max Tokens"
-          type="number"
-          size="small"
-          value={config.maxTokens}
-          onChange={(e) =>
-            onConfigChange({ maxTokens: parseInt(e.target.value) || 2048 })
-          }
-          sx={{
-            width: 100,
-            "& .MuiInputLabel-root": { color: "var(--text-secondary)" },
-            "& .MuiOutlinedInput-root": {
-              color: "var(--text)",
-              backgroundColor: "var(--background)",
-              "& fieldset": { borderColor: "var(--border)" },
-            },
-          }}
-        />
-      </Box>
+      )}
     </Box>
   );
 });
@@ -449,6 +468,7 @@ const SystemPromptSection: React.FC<{
   onLoadVersion: (versionId: string) => void;
   onSave: () => void;
   label?: string;
+  compareMode?: boolean;
 }> = React.memo(
   ({
     config,
@@ -457,7 +477,10 @@ const SystemPromptSection: React.FC<{
     onLoadVersion,
     onSave,
     label,
+    compareMode,
   }) => {
+    const [isExpanded, setIsExpanded] = useState(false);
+
     return (
       <Box
         sx={{
@@ -471,20 +494,70 @@ const SystemPromptSection: React.FC<{
           sx={{
             p: 2,
             backgroundColor: "var(--header)",
-            borderBottom: "1px solid var(--border)",
+            borderBottom: isExpanded ? "1px solid var(--border)" : "none",
             display: "flex",
+            flexDirection: compareMode ? "column" : "row",
             justifyContent: "space-between",
-            alignItems: "center",
-            flexWrap: "wrap",
-            gap: 2,
+            alignItems: compareMode ? "stretch" : "center",
+            gap: compareMode ? 1.5 : 2,
+            cursor: "pointer",
           }}
+          onClick={() => setIsExpanded(!isExpanded)}
         >
-          <Typography
-            variant="subtitle2"
-            sx={{ fontWeight: "bold", color: "var(--text)", textAlign: "left" }}
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: compareMode ? "space-between" : "flex-start",
+              alignItems: "center",
+              width: compareMode ? "100%" : "auto",
+            }}
           >
-            {label ? `${label} - System Prompt` : "System Prompt"}
-          </Typography>
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: 1,
+              }}
+            >
+              <AddIcon
+                fontSize="small"
+                sx={{
+                  transform: isExpanded ? "rotate(45deg)" : "rotate(0deg)",
+                  transition: "transform 0.2s",
+                  color: "var(--text-secondary)",
+                }}
+              />
+              <Typography
+                variant="subtitle2"
+                sx={{
+                  fontWeight: "bold",
+                  color: "var(--text)",
+                  textAlign: "left",
+                }}
+              >
+                {label ? `${label} - System Prompt` : "System Prompt"}
+              </Typography>
+            </Box>
+
+            {/* Save Button - Top row in compare mode, part of flex group otherwise */}
+            {compareMode && config.selectedVersionId && (
+              <Tooltip title="Save Version">
+                <IconButton
+                  size="small"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSave();
+                  }}
+                  sx={{
+                    color: "var(--primary)",
+                    "&:hover": { backgroundColor: "var(--header-hover)" },
+                  }}
+                >
+                  <SaveIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            )}
+          </Box>
 
           <Box
             sx={{
@@ -492,10 +565,19 @@ const SystemPromptSection: React.FC<{
               gap: 1,
               alignItems: "center",
               flexWrap: "wrap",
+              justifyContent: compareMode ? "flex-start" : "flex-end",
+              flex: compareMode ? "none" : 1,
             }}
+            onClick={(e) => e.stopPropagation()}
           >
             {/* Block Type Selection */}
-            <FormControl size="small" sx={{ width: 160 }}>
+            <FormControl
+              size="small"
+              sx={{
+                width: compareMode ? "calc(50% - 4px)" : 160,
+                minWidth: compareMode ? 0 : 160,
+              }}
+            >
               <InputLabel sx={{ color: "var(--text-secondary)" }}>
                 Block Type
               </InputLabel>
@@ -520,7 +602,13 @@ const SystemPromptSection: React.FC<{
             </FormControl>
 
             {/* Load Version */}
-            <FormControl size="small" sx={{ width: 160 }}>
+            <FormControl
+              size="small"
+              sx={{
+                width: compareMode ? "calc(50% - 4px)" : 160,
+                minWidth: compareMode ? 0 : 160,
+              }}
+            >
               <InputLabel sx={{ color: "var(--text-secondary)" }}>
                 Version
               </InputLabel>
@@ -556,8 +644,8 @@ const SystemPromptSection: React.FC<{
               </Select>
             </FormControl>
 
-            {/* Save Button */}
-            {config.selectedVersionId && (
+            {/* Save Button - Inline in regular mode */}
+            {!compareMode && config.selectedVersionId && (
               <Tooltip title="Save Version">
                 <IconButton
                   size="small"
@@ -574,36 +662,38 @@ const SystemPromptSection: React.FC<{
           </Box>
         </Box>
 
-        <Box sx={{ p: 2 }}>
-          {/* Prompt Text Area */}
-          <TextField
-            multiline
-            rows={5}
-            fullWidth
-            value={config.systemPrompt}
-            onChange={(e) => onConfigChange({ systemPrompt: e.target.value })}
-            placeholder="Enter your system prompt..."
-            sx={{
-              "& .MuiOutlinedInput-root": {
-                color: "var(--text)",
-                backgroundColor: "var(--background)",
-                fontFamily: "monospace",
-                fontSize: "0.9rem",
-                "& fieldset": { borderColor: "var(--border)" },
-                "&:hover fieldset": { borderColor: "var(--primary)" },
-                "& textarea": {
-                  resize: "vertical",
-                },
-                "& textarea::-webkit-resizer": {
+        {isExpanded && (
+          <Box sx={{ p: 2 }}>
+            {/* Prompt Text Area */}
+            <TextField
+              multiline
+              rows={5}
+              fullWidth
+              value={config.systemPrompt}
+              onChange={(e) => onConfigChange({ systemPrompt: e.target.value })}
+              placeholder="Enter your system prompt..."
+              sx={{
+                "& .MuiOutlinedInput-root": {
+                  color: "var(--text)",
                   backgroundColor: "var(--background)",
-                  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath d='M10 0 L0 10 M10 4 L4 10 M10 8 L8 10' stroke='%23888' stroke-width='1'/%3E%3C/svg%3E")`,
-                  backgroundRepeat: "no-repeat",
-                  backgroundPosition: "bottom right",
+                  fontFamily: "monospace",
+                  fontSize: "0.9rem",
+                  "& fieldset": { borderColor: "var(--border)" },
+                  "&:hover fieldset": { borderColor: "var(--primary)" },
+                  "& textarea": {
+                    resize: "vertical",
+                  },
+                  "& textarea::-webkit-resizer": {
+                    backgroundColor: "var(--background)",
+                    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath d='M10 0 L0 10 M10 4 L4 10 M10 8 L8 10' stroke='%23888' stroke-width='1'/%3E%3C/svg%3E")`,
+                    backgroundRepeat: "no-repeat",
+                    backgroundPosition: "bottom right",
+                  },
                 },
-              },
-            }}
-          />
-        </Box>
+              }}
+            />
+          </Box>
+        )}
       </Box>
     );
   },
@@ -617,6 +707,7 @@ const AssessmentPromptSection: React.FC<{
   onLoadVersion: (versionId: string) => void;
   onSave: () => void;
   label?: string;
+  compareMode?: boolean;
 }> = React.memo(
   ({
     config,
@@ -625,7 +716,10 @@ const AssessmentPromptSection: React.FC<{
     onLoadVersion,
     onSave,
     label,
+    compareMode,
   }) => {
+    const [isExpanded, setIsExpanded] = useState(false);
+
     return (
       <Box
         sx={{
@@ -639,20 +733,70 @@ const AssessmentPromptSection: React.FC<{
           sx={{
             p: 2,
             backgroundColor: "var(--header)",
-            borderBottom: "1px solid var(--border)",
+            borderBottom: isExpanded ? "1px solid var(--border)" : "none",
             display: "flex",
+            flexDirection: compareMode ? "column" : "row",
             justifyContent: "space-between",
-            alignItems: "center",
-            flexWrap: "wrap",
-            gap: 2,
+            alignItems: compareMode ? "stretch" : "center",
+            gap: compareMode ? 1.5 : 2,
+            cursor: "pointer",
           }}
+          onClick={() => setIsExpanded(!isExpanded)}
         >
-          <Typography
-            variant="subtitle2"
-            sx={{ fontWeight: "bold", color: "var(--text)", textAlign: "left" }}
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: compareMode ? "space-between" : "flex-start",
+              alignItems: "center",
+              width: compareMode ? "100%" : "auto",
+            }}
           >
-            {label ? `${label} - Assessment Prompt` : "Assessment Prompt"}
-          </Typography>
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: 1,
+              }}
+            >
+              <AddIcon
+                fontSize="small"
+                sx={{
+                  transform: isExpanded ? "rotate(45deg)" : "rotate(0deg)",
+                  transition: "transform 0.2s",
+                  color: "var(--text-secondary)",
+                }}
+              />
+              <Typography
+                variant="subtitle2"
+                sx={{
+                  fontWeight: "bold",
+                  color: "var(--text)",
+                  textAlign: "left",
+                }}
+              >
+                {label ? `${label} - Assessment Prompt` : "Assessment Prompt"}
+              </Typography>
+            </Box>
+
+            {/* Save Button - Top row in compare mode */}
+            {compareMode && config.assessmentVersionId && (
+              <Tooltip title="Save Version">
+                <IconButton
+                  size="small"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSave();
+                  }}
+                  sx={{
+                    color: "var(--primary)",
+                    "&:hover": { backgroundColor: "var(--header-hover)" },
+                  }}
+                >
+                  <SaveIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            )}
+          </Box>
 
           <Box
             sx={{
@@ -660,10 +804,19 @@ const AssessmentPromptSection: React.FC<{
               gap: 1,
               alignItems: "center",
               flexWrap: "wrap",
+              justifyContent: compareMode ? "flex-start" : "flex-end",
+              flex: compareMode ? "none" : 1,
             }}
+            onClick={(e) => e.stopPropagation()}
           >
             {/* Block Type Selection - only assessable blocks */}
-            <FormControl size="small" sx={{ width: 160 }}>
+            <FormControl
+              size="small"
+              sx={{
+                width: compareMode ? "calc(50% - 4px)" : 160,
+                minWidth: compareMode ? 0 : 160,
+              }}
+            >
               <InputLabel sx={{ color: "var(--text-secondary)" }}>
                 Block Type
               </InputLabel>
@@ -688,7 +841,13 @@ const AssessmentPromptSection: React.FC<{
             </FormControl>
 
             {/* Version Selector */}
-            <FormControl size="small" sx={{ width: 160 }}>
+            <FormControl
+              size="small"
+              sx={{
+                width: compareMode ? "calc(50% - 4px)" : 160,
+                minWidth: compareMode ? 0 : 160,
+              }}
+            >
               <InputLabel sx={{ color: "var(--text-secondary)" }}>
                 Version
               </InputLabel>
@@ -724,8 +883,8 @@ const AssessmentPromptSection: React.FC<{
               </Select>
             </FormControl>
 
-            {/* Save Button */}
-            {config.assessmentVersionId && (
+            {/* Save Button - Inline in regular mode */}
+            {!compareMode && config.assessmentVersionId && (
               <Tooltip title="Save Version">
                 <IconButton
                   size="small"
@@ -742,37 +901,39 @@ const AssessmentPromptSection: React.FC<{
           </Box>
         </Box>
 
-        <Box sx={{ p: 2 }}>
-          <TextField
-            multiline
-            rows={5}
-            fullWidth
-            value={config.assessmentPrompt}
-            onChange={(e) =>
-              onConfigChange({ assessmentPrompt: e.target.value })
-            }
-            placeholder="Enter your assessment prompt criteria..."
-            sx={{
-              "& .MuiOutlinedInput-root": {
-                color: "var(--text)",
-                backgroundColor: "var(--background)",
-                fontFamily: "monospace",
-                fontSize: "0.9rem",
-                "& fieldset": { borderColor: "var(--border)" },
-                "&:hover fieldset": { borderColor: "var(--primary)" },
-                "& textarea": {
-                  resize: "vertical",
-                },
-                "& textarea::-webkit-resizer": {
+        {isExpanded && (
+          <Box sx={{ p: 2 }}>
+            <TextField
+              multiline
+              rows={5}
+              fullWidth
+              value={config.assessmentPrompt}
+              onChange={(e) =>
+                onConfigChange({ assessmentPrompt: e.target.value })
+              }
+              placeholder="Enter your assessment prompt criteria..."
+              sx={{
+                "& .MuiOutlinedInput-root": {
+                  color: "var(--text)",
                   backgroundColor: "var(--background)",
-                  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath d='M10 0 L0 10 M10 4 L4 10 M10 8 L8 10' stroke='%23888' stroke-width='1'/%3E%3C/svg%3E")`,
-                  backgroundRepeat: "no-repeat",
-                  backgroundPosition: "bottom right",
+                  fontFamily: "monospace",
+                  fontSize: "0.9rem",
+                  "& fieldset": { borderColor: "var(--border)" },
+                  "&:hover fieldset": { borderColor: "var(--primary)" },
+                  "& textarea": {
+                    resize: "vertical",
+                  },
+                  "& textarea::-webkit-resizer": {
+                    backgroundColor: "var(--background)",
+                    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath d='M10 0 L0 10 M10 4 L4 10 M10 8 L8 10' stroke='%23888' stroke-width='1'/%3E%3C/svg%3E")`,
+                    backgroundRepeat: "no-repeat",
+                    backgroundPosition: "bottom right",
+                  },
                 },
-              },
-            }}
-          />
-        </Box>
+              }}
+            />
+          </Box>
+        )}
       </Box>
     );
   },
@@ -1269,7 +1430,7 @@ const PromptPlayground: React.FC = () => {
         if (response.ok) {
           setSnackbar({
             open: true,
-            message: "Version updated!",
+            message: "Updated in-place.",
             severity: "success",
           });
           fetchPromptVersions(config.blockType);
@@ -1321,7 +1482,7 @@ const PromptPlayground: React.FC = () => {
         if (response.ok) {
           setSnackbar({
             open: true,
-            message: "Assessment version updated!",
+            message: "Updated in-place.",
             severity: "success",
           });
           fetchAssessmentVersions(config.blockType);
@@ -1745,6 +1906,21 @@ const PromptPlayground: React.FC = () => {
         </Button>
       </Box>
 
+      {/* Instructions Note */}
+      <Alert
+        severity="info"
+        icon={false}
+        sx={{
+          backgroundColor: "transparent",
+          color: "var(--text-secondary)",
+          p: 0,
+          fontSize: "0.85rem",
+          "& .MuiAlert-message": { p: 0 },
+        }}
+      >
+        Note: Edits here are in-place. Create new versions in sidebar blocks.
+      </Alert>
+
       {/* Main Content Area - Split if compare mode */}
       <Box
         sx={{
@@ -1778,6 +1954,7 @@ const PromptPlayground: React.FC = () => {
               onLoadVersion={(id) => loadPromptVersion(id, setConfigA)}
               onSave={() => savePromptVersion(configA)}
               label={compareMode ? "Config A" : undefined}
+              compareMode={compareMode}
             />
           ) : (
             <AssessmentPromptSection
@@ -1787,6 +1964,7 @@ const PromptPlayground: React.FC = () => {
               onLoadVersion={(id) => loadAssessmentVersion(id, setConfigA)}
               onSave={() => saveAssessmentVersion(configA)}
               label={compareMode ? "Config A" : undefined}
+              compareMode={compareMode}
             />
           )}
           <MockCaseContextSection
@@ -1835,6 +2013,7 @@ const PromptPlayground: React.FC = () => {
                 onLoadVersion={(id) => loadPromptVersion(id, setConfigB)}
                 onSave={() => savePromptVersion(configB)}
                 label="Config B"
+                compareMode={compareMode}
               />
             ) : (
               <AssessmentPromptSection
@@ -1844,6 +2023,7 @@ const PromptPlayground: React.FC = () => {
                 onLoadVersion={(id) => loadAssessmentVersion(id, setConfigB)}
                 onSave={() => saveAssessmentVersion(configB)}
                 label="Config B"
+                compareMode={compareMode}
               />
             )}
             <MockCaseContextSection
