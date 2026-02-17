@@ -48,7 +48,7 @@ TABLE_NAME = None
 BEDROCK_TEMP = 0.5
 BEDROCK_TOP_P = 0.9
 BEDROCK_MAX_TOKENS = 2048
-MESSAGE_LIMIT = "Infinity"
+MESSAGE_LIMIT = None
 
 # Cached embeddings instance
 embeddings = None
@@ -105,6 +105,8 @@ def initialize_constants():
             BEDROCK_MAX_TOKENS = int(max_tokens_val)
     
     MESSAGE_LIMIT = get_parameter(MESSAGE_LIMIT_PARAM, MESSAGE_LIMIT)
+    if MESSAGE_LIMIT is None:
+        MESSAGE_LIMIT = "Infinity"
 
     if embeddings is None:
         embeddings = BedrockEmbeddings(
