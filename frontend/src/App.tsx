@@ -21,6 +21,8 @@ import InterviewAssistant from "./pages/Case/InterviewAssistant";
 import { UserProvider } from "./contexts/UserContext";
 import type { UserInfo } from "./contexts/UserContext";
 import { NotificationProvider } from "./contexts/NotificationContext";
+import DisclaimerModal from "./components/DisclaimerModal";
+import { signOut } from "aws-amplify/auth";
 
 // Amplify configuration
 const amplifyConfig = {
@@ -57,37 +59,103 @@ function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showDisclaimer, setShowDisclaimer] = useState(false);
+  const [disclaimerText, setDisclaimerText] = useState("");
 
   useEffect(() => {
+    const checkAuthState = async () => {
+      try {
+        const user = await getCurrentUser();
+        const session = await fetchAuthSession();
+
+        if (user && session.tokens?.idToken) {
+          const idToken = session.tokens.idToken;
+          const payload = idToken.payload;
+
+          const userInfo: UserInfo = {
+            userId: payload.sub as string,
+            email: payload.email as string,
+            firstName: (payload.given_name as string) || "",
+            lastName: (payload.family_name as string) || "",
+            groups: (payload["cognito:groups"] as string[]) || ["student"],
+          };
+
+          setUserInfo(userInfo);
+          setIsAuthenticated(true);
+
+          if (
+            userInfo.groups.includes("student") ||
+            userInfo.groups.includes("instructor")
+          ) {
+            checkDisclaimer();
+          }
+        }
+      } catch (error) {
+        console.log("User not authenticated:", error);
+        setIsAuthenticated(false);
+        setUserInfo(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
     checkAuthState();
   }, []);
 
-  const checkAuthState = async () => {
+  const checkDisclaimer = async () => {
     try {
-      const user = await getCurrentUser();
       const session = await fetchAuthSession();
+      const token = session.tokens?.idToken?.toString();
+      if (!token) return;
 
-      if (user && session.tokens?.idToken) {
-        const idToken = session.tokens.idToken;
-        const payload = idToken.payload;
+      const response = await fetch(
+        `${import.meta.env.VITE_API_ENDPOINT}/student/get_disclaimer`,
+        { headers: { Authorization: token } },
+      );
 
-        const userInfo: UserInfo = {
-          userId: payload.sub as string,
-          email: payload.email as string,
-          firstName: (payload.given_name as string) || "",
-          lastName: (payload.family_name as string) || "",
-          groups: (payload["cognito:groups"] as string[]) || ["student"],
-        };
-
-        setUserInfo(userInfo);
-        setIsAuthenticated(true);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.disclaimer_text && !data.has_accepted) {
+          setDisclaimerText(data.disclaimer_text);
+          setShowDisclaimer(true);
+        }
       }
     } catch (error) {
-      console.log("User not authenticated:", error);
+      console.error("Error checking disclaimer:", error);
+    }
+  };
+
+  const handleAcceptDisclaimer = async () => {
+    try {
+      const session = await fetchAuthSession();
+      const token = session.tokens?.idToken?.toString();
+      if (!token) return;
+
+      const response = await fetch(
+        `${import.meta.env.VITE_API_ENDPOINT}/student/accept_disclaimer`,
+        {
+          method: "POST",
+          headers: { Authorization: token },
+        },
+      );
+
+      if (response.ok) {
+        setShowDisclaimer(false);
+      }
+    } catch (error) {
+      console.error("Error accepting disclaimer:", error);
+    }
+  };
+
+  const handleDeclineDisclaimer = async () => {
+    try {
+      await signOut();
       setIsAuthenticated(false);
       setUserInfo(null);
-    } finally {
-      setLoading(false);
+      setShowDisclaimer(false);
+      window.location.reload();
+    } catch (error) {
+      console.error("Error signing out:", error);
     }
   };
 
@@ -181,6 +249,14 @@ function App() {
             {/* Dashboard Routes based on Role */}
             <Route path="/*" element={<RoleBasedRoutes />} />
           </Routes>
+
+          {/* Global Components */}
+          <DisclaimerModal
+            open={showDisclaimer}
+            disclaimerText={disclaimerText}
+            onAccept={handleAcceptDisclaimer}
+            onDecline={handleDeclineDisclaimer}
+          />
         </div>
       </NotificationProvider>
     </UserProvider>

@@ -311,12 +311,13 @@ exports.handler = async (event) => {
       case "GET /student/get_disclaimer":
         // SECURITY: Use trusted cognito_id from authorizer
         try {
-          // Step 1: Get internal user_id
+          // Step 1: Get internal user_id and current acceptance status
           const user = await sqlConnection`
-            SELECT user_id FROM "users" WHERE cognito_id = ${cognito_id};
+            SELECT user_id, accepted_disclaimer FROM "users" WHERE cognito_id = ${cognito_id};
           `;
 
           const user_id = user[0]?.user_id;
+          const has_accepted = user[0]?.accepted_disclaimer || false;
 
           if (!user_id) {
             response.statusCode = 404;
@@ -334,6 +335,8 @@ exports.handler = async (event) => {
           `;
 
           if (!disclaimer.length) {
+            // If no active disclaimer exists, we can consider it "accepted" or not applicable
+            // But let's return 404 as before, or handle gracefully on frontend
             response.statusCode = 404;
             response.body = JSON.stringify({
               message: "No disclaimer found",
@@ -342,9 +345,46 @@ exports.handler = async (event) => {
           }
 
           response.statusCode = 200;
-          response.body = JSON.stringify(disclaimer[0]);
+          response.body = JSON.stringify({
+            ...disclaimer[0],
+            has_accepted,
+          });
         } catch (err) {
           console.error("Error fetching disclaimer:", err);
+          response.statusCode = 500;
+          response.body = JSON.stringify({ error: "Internal server error" });
+        }
+        break;
+
+      case "POST /student/accept_disclaimer":
+        // SECURITY: Use trusted cognito_id from authorizer
+        try {
+          // Step 1: Get internal user_id
+          const user = await sqlConnection`
+            SELECT user_id FROM "users" WHERE cognito_id = ${cognito_id};
+          `;
+
+          const user_id = user[0]?.user_id;
+
+          if (!user_id) {
+            response.statusCode = 404;
+            response.body = JSON.stringify({ error: "User not found" });
+            break;
+          }
+
+          // Step 2: Update accepted_disclaimer to true
+          await sqlConnection`
+            UPDATE "users"
+            SET accepted_disclaimer = true
+            WHERE user_id = ${user_id};
+          `;
+
+          response.statusCode = 200;
+          response.body = JSON.stringify({
+            message: "Disclaimer accepted successfully",
+          });
+        } catch (err) {
+          console.error("Error accepting disclaimer:", err);
           response.statusCode = 500;
           response.body = JSON.stringify({ error: "Internal server error" });
         }
