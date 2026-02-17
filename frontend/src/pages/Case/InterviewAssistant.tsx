@@ -10,6 +10,11 @@ import {
   IconButton,
   Card,
   CardContent,
+  Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from "@mui/material";
 import KeyboardDoubleArrowLeftIcon from "@mui/icons-material/KeyboardDoubleArrowLeft";
 import KeyboardDoubleArrowRightIcon from "@mui/icons-material/KeyboardDoubleArrowRight";
@@ -77,6 +82,7 @@ const InterviewAssistant: React.FC = () => {
   const [rightOpen, setRightOpen] = useState(true);
   const [sidebarWidth, setSidebarWidth] = useState(320);
   const [isResizing, setIsResizing] = useState(false);
+  const [instructionsOpen, setInstructionsOpen] = useState(false);
 
   const startResizing = useCallback(() => {
     setIsResizing(true);
@@ -954,57 +960,214 @@ const InterviewAssistant: React.FC = () => {
           </Box>
 
           {rightOpen && (
-            <Box
-              sx={{
-                flexGrow: 1,
-                overflowY: "auto",
-                p: 1.5,
-                backgroundColor: "var(--background)",
-              }}
-            >
-              {feedback ? (
-                <Card
+            <>
+              <Box
+                sx={{
+                  flexGrow: 1,
+                  overflowY: "auto",
+                  p: 1.5,
+                  backgroundColor: "var(--background)",
+                }}
+              >
+                {feedback ? (
+                  <Card
+                    sx={{
+                      backgroundColor: "var(--background2)",
+                      border: "1px solid var(--border)",
+                      boxShadow: "none",
+                    }}
+                  >
+                    <CardContent sx={{ p: 1.25, "&:last-child": { pb: 1.25 } }}>
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          color: "var(--text)",
+                          fontSize: "0.875rem",
+                          lineHeight: 1.4,
+                          whiteSpace: "pre-wrap",
+                          textAlign: "left",
+                        }}
+                      >
+                        {feedback}
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: "var(--text-secondary)",
+                      textAlign: "center",
+                      mt: 4,
+                      fontSize: "0.875rem",
+                      whiteSpace: "normal",
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    No feedback available yet. Continue the conversation to
+                    receive assessment.
+                  </Typography>
+                )}
+              </Box>
+              <Box sx={{ p: 2, borderTop: "1px solid var(--border)" }}>
+                <Button
+                  fullWidth
+                  variant="outlined"
+                  size="small"
+                  onClick={() => setInstructionsOpen(true)}
                   sx={{
-                    backgroundColor: "var(--background2)",
-                    border: "1px solid var(--border)",
-                    boxShadow: "none",
-                  }}
-                >
-                  <CardContent sx={{ p: 1.25, "&:last-child": { pb: 1.25 } }}>
-                    <Typography
-                      variant="body2"
-                      sx={{
-                        color: "var(--text)",
-                        fontSize: "0.875rem",
-                        lineHeight: 1.4,
-                        whiteSpace: "pre-wrap",
-                        textAlign: "left",
-                      }}
-                    >
-                      {feedback}
-                    </Typography>
-                  </CardContent>
-                </Card>
-              ) : (
-                <Typography
-                  variant="body2"
-                  sx={{
+                    textTransform: "none",
+                    borderColor: "var(--border)",
                     color: "var(--text-secondary)",
-                    textAlign: "center",
-                    mt: 4,
-                    fontSize: "0.875rem",
-                    whiteSpace: "normal",
-                    lineHeight: 1.4,
+                    "&:hover": {
+                      borderColor: "var(--primary)",
+                      color: "var(--primary)",
+                      backgroundColor: "rgba(25, 118, 210, 0.04)", // Fallback if var not set
+                    },
                   }}
                 >
-                  No feedback available yet. Continue the conversation to
-                  receive assessment.
-                </Typography>
-              )}
-            </Box>
+                  How does this work?
+                </Button>
+              </Box>
+            </>
           )}
         </Box>
       </Box>
+
+      {/* Instructions Dialog */}
+      <Dialog
+        open={instructionsOpen}
+        onClose={() => setInstructionsOpen(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{
+          sx: {
+            backgroundColor: "var(--background)",
+            border: "1px solid var(--border)",
+            borderRadius: 2,
+            backgroundImage: "none",
+          },
+        }}
+      >
+        <DialogTitle
+          sx={{
+            fontWeight: "bold",
+            backgroundColor: "var(--header)",
+            color: "var(--text)",
+            borderBottom: "1px solid var(--border)",
+          }}
+        >
+          How to use the Assistant
+        </DialogTitle>
+        <DialogContent
+          sx={{
+            backgroundColor: "var(--background)",
+            p: 3,
+            paddingTop: "24px !important",
+            borderBottom: "none",
+          }}
+        >
+          <Box
+            component="ul"
+            sx={{
+              m: 0,
+              pl: 2,
+              display: "flex",
+              flexDirection: "column",
+              gap: 2,
+              "& li": {
+                pl: 1,
+                "&::marker": {
+                  color: "var(--text-secondary)",
+                },
+              },
+            }}
+          >
+            <li>
+              <Typography
+                variant="subtitle2"
+                sx={{ fontWeight: "bold", color: "var(--text)" }}
+              >
+                Locked Progression
+              </Typography>
+              <Typography
+                variant="body2"
+                sx={{ color: "var(--text-secondary)" }}
+              >
+                You must complete the current phase before moving to the next
+                block.
+              </Typography>
+            </li>
+            <li>
+              <Typography
+                variant="subtitle2"
+                sx={{ fontWeight: "bold", color: "var(--text)" }}
+              >
+                How to Unlock
+              </Typography>
+              <Typography
+                variant="body2"
+                sx={{ color: "var(--text-secondary)" }}
+              >
+                Engage in a conversation with the Assistant. Demonstrate your
+                understanding of the current topic to advance.
+              </Typography>
+            </li>
+            <li>
+              <Typography
+                variant="subtitle2"
+                sx={{ fontWeight: "bold", color: "var(--text)" }}
+              >
+                Track Progress
+              </Typography>
+              <Typography
+                variant="body2"
+                sx={{ color: "var(--text-secondary)" }}
+              >
+                The bar at the top of the chat shows how close you are to
+                unlocking the next stage.
+              </Typography>
+            </li>
+            <li>
+              <Typography
+                variant="subtitle2"
+                sx={{ fontWeight: "bold", color: "var(--text)" }}
+              >
+                Get Guidance
+              </Typography>
+              <Typography
+                variant="body2"
+                sx={{ color: "var(--text-secondary)" }}
+              >
+                Use the feedback panel on the right to see what specific details
+                or analysis you are missing.
+              </Typography>
+            </li>
+          </Box>
+        </DialogContent>
+        <DialogActions
+          sx={{
+            borderTop: "1px solid var(--border)",
+            backgroundColor: "var(--header)",
+            p: 2,
+          }}
+        >
+          <Button
+            onClick={() => setInstructionsOpen(false)}
+            variant="contained"
+            sx={{
+              backgroundColor: "var(--primary)",
+              color: "white",
+              fontWeight: "bold",
+              "&:hover": {
+                backgroundColor: "var(--primary-hover)",
+              },
+            }}
+          >
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Unlock Notification Snackbar */}
       <Snackbar
