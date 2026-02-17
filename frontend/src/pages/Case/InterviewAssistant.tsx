@@ -1092,10 +1092,12 @@ const InterviewAssistant: React.FC = () => {
               </Typography>
               <Typography
                 variant="body2"
-                sx={{ color: "var(--text-secondary)" }}
+                sx={{ color: "var(--text-secondary)", mt: 0.5 }}
               >
-                You must complete the current phase before moving to the next
-                block.
+                The case simulation is structured in sequential blocks. You are
+                currently restricted to this specific phase and must satisfy its
+                requirements before the next section of the case becomes
+                available.
               </Typography>
             </li>
             <li>
@@ -1107,10 +1109,12 @@ const InterviewAssistant: React.FC = () => {
               </Typography>
               <Typography
                 variant="body2"
-                sx={{ color: "var(--text-secondary)" }}
+                sx={{ color: "var(--text-secondary)", mt: 0.5 }}
               >
-                Engage in a conversation with the Assistant. Demonstrate your
-                understanding of the current topic to advance.
+                Engage naturally with the Assistant by asking questions and
+                analyzing the case facts. The system analyzes your conversation
+                depth and coverage of key legal concepts to determine when you
+                are ready to advance.
               </Typography>
             </li>
             <li>
@@ -1122,10 +1126,12 @@ const InterviewAssistant: React.FC = () => {
               </Typography>
               <Typography
                 variant="body2"
-                sx={{ color: "var(--text-secondary)" }}
+                sx={{ color: "var(--text-secondary)", mt: 0.5 }}
               >
-                The bar at the top of the chat shows how close you are to
-                unlocking the next stage.
+                A progress bar at the top of the chat visualizes your standing.
+                As you cover more ground in your conversation, this bar will
+                fill up. Reaching 100% will trigger a notification that the next
+                block is unlocked.
               </Typography>
             </li>
             <li>
@@ -1137,10 +1143,12 @@ const InterviewAssistant: React.FC = () => {
               </Typography>
               <Typography
                 variant="body2"
-                sx={{ color: "var(--text-secondary)" }}
+                sx={{ color: "var(--text-secondary)", mt: 0.5 }}
               >
-                Use the feedback panel on the right to see what specific details
-                or analysis you are missing.
+                The feedback panel on the right is your real-time coach. It
+                offers specific insights into what information you might be
+                missing or which topics require further exploration to complete
+                the current block.
               </Typography>
             </li>
           </Box>
