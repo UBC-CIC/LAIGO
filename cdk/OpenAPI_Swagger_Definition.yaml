@@ -885,6 +885,91 @@ paths:
         httpMethod: "POST"
         type: "aws_proxy"
 
+  /admin/message_limit:
+    options:
+      summary: CORS support
+      description: |
+        Enable CORS by returning correct headers
+      responses:
+        200:
+          $ref: "#/components/responses/Success"
+      x-amazon-apigateway-integration:
+        type: mock
+        requestTemplates:
+          application/json: |
+            {
+              "statusCode" : 200
+            }
+        responses:
+          default:
+            statusCode: "200"
+            responseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,PUT,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            responseTemplates:
+              application/json: |
+                {}
+    get:
+      tags:
+        - Admin
+      summary: Get AI Message Limit
+      operationId: admin_message_limit_GET
+      security:
+        - adminAuthorizer: []
+      responses:
+        "200":
+          description: AI Message Limit
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  value:
+                    type: string
+        "500":
+          description: Internal Server Error
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${adminFunction.Arn}/invocations"
+        passthroughBehavior: "when_no_match"
+        httpMethod: "POST"
+        type: "aws_proxy"
+    put:
+      tags:
+        - Admin
+      summary: Update AI Message Limit
+      operationId: admin_message_limit_PUT
+      security:
+        - adminAuthorizer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - limit
+              properties:
+                limit:
+                  type: string
+                  description: The message limit value (number or "Infinity")
+                  pattern: "^Infinity$|^[1-9][0-9]+$"
+                  example: "10"
+      responses:
+        "200":
+          description: Message limit updated successfully
+        "400":
+          description: Invalid value
+        "500":
+          description: Internal Server Error
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${adminFunction.Arn}/invocations"
+        passthroughBehavior: "when_no_match"
+        httpMethod: "POST"
+        type: "aws_proxy"
+
   /admin/disclaimer:
     options:
       summary: CORS support

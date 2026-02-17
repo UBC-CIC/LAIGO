@@ -662,13 +662,22 @@ const InterviewAssistant: React.FC = () => {
             }
           }
         } else {
-          console.error("API Error", response.statusText);
+          let errorMsg =
+            "Sorry, I encountered an error connecting to the server.";
+          if (response.status === 429) {
+            try {
+              const errorData = await response.json();
+              errorMsg = errorData.error || errorMsg;
+            } catch (e) {
+              console.error("Failed to parse error response", e);
+            }
+          }
+          console.error("API Error", response.status, response.statusText);
           setMessages((prev) => [
             ...prev,
             {
               type: "ai",
-              content:
-                "Sorry, I encountered an error connecting to the server.",
+              content: errorMsg,
             },
           ]);
         }
