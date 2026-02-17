@@ -1291,6 +1291,7 @@ export class ApiGatewayStack extends cdk.Stack {
           BEDROCK_TEMP_PARAM: bedrockTemperatureParameter.parameterName,
           BEDROCK_TOP_P_PARAM: bedrockTopPParameter.parameterName,
           BEDROCK_MAX_TOKENS_PARAM: bedrockMaxTokensParameter.parameterName,
+          MESSAGE_LIMIT_PARAM: messageLimitParameter.parameterName,
           TABLE_NAME: "DynamoDB-Conversation-Table",
         },
       },
@@ -1363,6 +1364,7 @@ export class ApiGatewayStack extends cdk.Stack {
           bedrockTemperatureParameter.parameterArn,
           bedrockTopPParameter.parameterArn,
           bedrockMaxTokensParameter.parameterArn,
+          messageLimitParameter.parameterArn,
         ],
       }),
     );

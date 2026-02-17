@@ -29,6 +29,7 @@ const ModelConfig = () => {
   const [temperature, setTemperature] = useState(0.5);
   const [topP, setTopP] = useState(0.9);
   const [maxTokens, setMaxTokens] = useState(2048);
+  const [messageLimit, setMessageLimit] = useState("Infinity");
   const [isAiConfigLoading, setIsAiConfigLoading] = useState(false);
   const [isSavingConfig, setIsSavingConfig] = useState(false);
   const [snackbar, setSnackbar] = useState<{
@@ -36,6 +37,7 @@ const ModelConfig = () => {
     message: string;
     severity: "success" | "error";
   }>({ open: false, message: "", severity: "success" });
+  const [fieldError, setFieldError] = useState<string | null>(null);
 
   const fetchAiConfig = useCallback(async () => {
     setIsAiConfigLoading(true);
@@ -54,6 +56,16 @@ const ModelConfig = () => {
       setTemperature(parseFloat(data.temperature) || 0.5);
       setTopP(parseFloat(data.top_p) || 0.9);
       setMaxTokens(parseInt(data.max_tokens) || 2048);
+
+      // Fetch Message Limit
+      const limitResponse = await fetch(
+        `${import.meta.env.VITE_API_ENDPOINT}/admin/message_limit`,
+        { headers: { Authorization: token } },
+      );
+      if (limitResponse.ok) {
+        const limitData = await limitResponse.json();
+        setMessageLimit(limitData.value || "Infinity");
+      }
     } catch (err) {
       console.error("Error fetching AI config:", err);
       setSnackbar({
@@ -88,11 +100,27 @@ const ModelConfig = () => {
       );
       if (!response.ok) throw new Error("Failed to save AI config");
 
+      // Save Message Limit
+
+      // Save Message Limit
+      const limitResponse = await fetch(
+        `${import.meta.env.VITE_API_ENDPOINT}/admin/message_limit`,
+        {
+          method: "PUT",
+          headers: { Authorization: token, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            limit: messageLimit,
+          }),
+        },
+      );
+      if (!limitResponse.ok) throw new Error("Failed to save message limit");
+
       setSnackbar({
         open: true,
         message: "AI Configuration saved!",
         severity: "success",
       });
+      setFieldError(null);
     } catch (err) {
       console.error("Error saving AI config:", err);
       setSnackbar({
@@ -108,6 +136,22 @@ const ModelConfig = () => {
   useEffect(() => {
     fetchAiConfig();
   }, [fetchAiConfig]);
+
+  // Real-time validation
+  useEffect(() => {
+    const isInfinity = messageLimit === "Infinity";
+    const numLimit = parseInt(messageLimit);
+
+    if (
+      !isInfinity &&
+      messageLimit.trim() !== "" &&
+      (isNaN(numLimit) || numLimit < 10)
+    ) {
+      setFieldError("Must be 'Infinity' or a number ≥ 10");
+    } else {
+      setFieldError(null);
+    }
+  }, [messageLimit]);
 
   return (
     <>
@@ -216,6 +260,7 @@ const ModelConfig = () => {
                   },
                 }}
               />
+
               <TextField
                 label="Max Tokens"
                 type="number"
@@ -236,6 +281,33 @@ const ModelConfig = () => {
               />
             </Box>
 
+            <TextField
+              label="Daily Message Limit (per user)"
+              type="text"
+              error={!!fieldError}
+              helperText={
+                fieldError ||
+                'Enter a number (min 10) or "Infinity" for no limit'
+              }
+              value={messageLimit}
+              onChange={(e) => setMessageLimit(e.target.value)}
+              fullWidth
+              variant="outlined"
+              sx={{
+                "& .MuiOutlinedInput-root": {
+                  color: "var(--text)",
+                  backgroundColor: "var(--background)",
+                  "& fieldset": { borderColor: "var(--border)" },
+                },
+                "& .MuiInputLabel-root": {
+                  color: "var(--text-secondary)",
+                },
+                "& .MuiFormHelperText-root:not(.Mui-error)": {
+                  color: "var(--text-secondary)",
+                },
+              }}
+            />
+
             <Button
               variant="contained"
               startIcon={
@@ -246,7 +318,7 @@ const ModelConfig = () => {
                 )
               }
               onClick={saveAiConfig}
-              disabled={isSavingConfig}
+              disabled={isSavingConfig || !!fieldError}
               sx={{
                 alignSelf: "flex-end",
                 backgroundColor: "var(--primary)",

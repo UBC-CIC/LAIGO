@@ -11,6 +11,7 @@ from langchain_aws import BedrockEmbeddings
 
 from helpers.vectorstore import get_vectorstore_retriever
 from helpers.chat import get_bedrock_llm, get_initial_student_query, create_dynamodb_history_table, get_response, get_streaming_response
+from helpers.usage import check_and_increment_usage
  
 # Set up logging - Force level to INFO to ensure CloudWatch capture
 logger = logging.getLogger()
@@ -32,6 +33,7 @@ TABLE_NAME_PARAM = os.environ["TABLE_NAME_PARAM"]
 BEDROCK_TEMP_PARAM = os.environ.get("BEDROCK_TEMP_PARAM")
 BEDROCK_TOP_P_PARAM = os.environ.get("BEDROCK_TOP_P_PARAM")
 BEDROCK_MAX_TOKENS_PARAM = os.environ.get("BEDROCK_MAX_TOKENS_PARAM")
+MESSAGE_LIMIT_PARAM = os.environ["MESSAGE_LIMIT_PARAM"]
 # AWS Clients
 secrets_manager_client = boto3.client("secretsmanager")
 ssm_client = boto3.client("ssm", region_name=REGION)
@@ -46,6 +48,7 @@ TABLE_NAME = None
 BEDROCK_TEMP = 0.5
 BEDROCK_TOP_P = 0.9
 BEDROCK_MAX_TOKENS = 2048
+MESSAGE_LIMIT = "Infinity"
 
 # Cached embeddings instance
 embeddings = None
@@ -100,6 +103,8 @@ def initialize_constants():
         max_tokens_val = get_parameter(BEDROCK_MAX_TOKENS_PARAM, None)
         if max_tokens_val:
             BEDROCK_MAX_TOKENS = int(max_tokens_val)
+    
+    MESSAGE_LIMIT = get_parameter(MESSAGE_LIMIT_PARAM, MESSAGE_LIMIT)
 
     if embeddings is None:
         embeddings = BedrockEmbeddings(
@@ -671,6 +676,51 @@ def handler(event, context):
                     },
                     "body": error_body
                  }
+
+
+        # Check Message Limit
+        if MESSAGE_LIMIT != "Infinity":
+            try:
+                limit = int(MESSAGE_LIMIT)
+                conn = connect_to_db()
+                cur = conn.cursor()
+                cur.execute('SELECT user_id FROM "users" WHERE cognito_id = %s', (cognito_id,))
+                user_row = cur.fetchone()
+                cur.close()
+                
+                if user_row:
+                    user_id = user_row[0]
+                    current_usage = check_and_increment_usage(conn, user_id)
+                    logging.info(f"User {user_id} usage: {current_usage}/{limit}")
+                    
+                    if current_usage > limit:
+                        error_message = "Daily message limit reached. Please contact your administrator."
+                        if is_websocket and connection_id:
+                            websocket_endpoint = os.environ.get("WEBSOCKET_API_ENDPOINT")
+                            if not websocket_endpoint:
+                                websocket_endpoint = f"https://{domain_name}/{stage}"
+                            
+                            apigw_client = boto3.client('apigatewaymanagementapi', endpoint_url=websocket_endpoint)
+                            apigw_client.post_to_connection(
+                                ConnectionId=connection_id,
+                                Data=json.dumps({"type": "error", "content": error_message}).encode('utf-8')
+                            )
+                            return {"statusCode": 200}
+                        else:
+                             return {
+                                'statusCode': 429,
+                                "headers": {
+                                    "Content-Type": "application/json",
+                                    "Access-Control-Allow-Headers": "*",
+                                    "Access-Control-Allow-Origin": "*",
+                                    "Access-Control-Allow-Methods": "*",
+                                },
+                                "body": json.dumps({"error": error_message})
+                             }
+            except Exception as e:
+                logger.error(f"Error checking message limit: {e}")
+                # Log error but allow request to proceed if usage check fails (fail open)
+                pass
 
         # Request Processing
         if is_websocket and connection_id:

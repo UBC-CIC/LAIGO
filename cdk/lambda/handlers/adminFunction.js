@@ -4,6 +4,11 @@ const {
   AdminAddUserToGroupCommand,
   AdminGetUserCommand,
 } = require("@aws-sdk/client-cognito-identity-provider");
+const {
+  SSMClient,
+  GetParameterCommand,
+  PutParameterCommand,
+} = require("@aws-sdk/client-ssm");
 
 let {
   SM_DB_CREDENTIALS,
@@ -1152,6 +1157,73 @@ exports.handler = async (event) => {
           response.body = JSON.stringify({
             error: "Instructor ID and Student ID query parameters are required",
           });
+        }
+        break;
+
+      case "GET /admin/message_limit":
+        console.log("Fetching message limit");
+        try {
+          const ssmClient = new SSMClient();
+          const command = new GetParameterCommand({
+            Name: MESSAGE_LIMIT,
+          });
+          const result = await ssmClient.send(command);
+          response.body = JSON.stringify({ value: result.Parameter.Value });
+        } catch (error) {
+          console.error("Error fetching message limit:", error);
+          response.statusCode = 500;
+          response.body = JSON.stringify({
+            error: "Failed to fetch message limit",
+          });
+        }
+        break;
+
+      case "PUT /admin/message_limit":
+        console.log("Updating message limit");
+        if (event.body) {
+          try {
+            const { limit } = JSON.parse(event.body);
+            if (limit === undefined) {
+              response.statusCode = 400;
+              response.body = JSON.stringify({
+                error: "Limit value is required",
+              });
+              break;
+            }
+
+            // Validation: Must be "Infinity" or a number >= 10
+            const isInfinity = limit === "Infinity";
+            const numLimit = parseInt(limit);
+            if (!isInfinity && (isNaN(numLimit) || numLimit < 10)) {
+              response.statusCode = 400;
+              response.body = JSON.stringify({
+                error:
+                  "Limit must be 'Infinity' or a number greater than or equal to 10",
+              });
+              break;
+            }
+
+            const ssmClient = new SSMClient();
+            const command = new PutParameterCommand({
+              Name: MESSAGE_LIMIT,
+              Value: String(limit),
+              Type: "String",
+              Overwrite: true,
+            });
+            await ssmClient.send(command);
+            response.body = JSON.stringify({
+              message: "Message limit updated successfully",
+            });
+          } catch (error) {
+            console.error("Error updating message limit:", error);
+            response.statusCode = 500;
+            response.body = JSON.stringify({
+              error: "Failed to update message limit",
+            });
+          }
+        } else {
+          response.statusCode = 400;
+          response.body = JSON.stringify({ error: "Request body is missing" });
         }
         break;
 
