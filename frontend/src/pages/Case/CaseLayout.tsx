@@ -13,6 +13,7 @@ export interface CaseOutletContext {
   refreshUnlockedBlocks: () => Promise<void>;
   caseStatus: string;
   refreshCaseData: () => Promise<void>;
+  caseTitle: string;
 }
 
 const CaseLayout: React.FC = () => {
@@ -209,6 +210,7 @@ const CaseLayout: React.FC = () => {
               refreshUnlockedBlocks,
               caseStatus,
               refreshCaseData: init,
+              caseTitle,
             } satisfies CaseOutletContext
           }
         />

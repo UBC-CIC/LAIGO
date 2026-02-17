@@ -16,6 +16,8 @@ import {
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeSanitize from "rehype-sanitize";
+import { marked } from "marked";
+import html2pdf from "html2pdf.js";
 import KeyboardDoubleArrowLeftIcon from "@mui/icons-material/KeyboardDoubleArrowLeft";
 import KeyboardDoubleArrowRightIcon from "@mui/icons-material/KeyboardDoubleArrowRight";
 import DownloadIcon from "@mui/icons-material/Download";
@@ -113,7 +115,7 @@ const formatTime = (dateString: string) => {
 
 const CaseSummaries: React.FC = () => {
   const { caseId } = useParams();
-  const { caseStatus } = useOutletContext<CaseOutletContext>();
+  const { caseStatus, caseTitle } = useOutletContext<CaseOutletContext>();
   const [summaries, setSummaries] = useState<Summary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedSummaryId, setSelectedSummaryId] = useState<number | null>(
@@ -275,6 +277,138 @@ const CaseSummaries: React.FC = () => {
       setIsGenerating(false);
     }
   };
+
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  const handleDownload = async (summary: Summary) => {
+    if (!caseId) return;
+
+    // Create a temporary container for the PDF content
+    const element = document.createElement("div");
+    element.style.padding = "40px";
+    element.style.fontFamily = "Outfit, sans-serif";
+    element.style.color = "#000000"; // Force black text for PDF
+    element.style.backgroundColor = "#ffffff";
+
+    // Create header with title and date
+    const headerHtml = `
+      <div style="margin-bottom: 20px; border-bottom: 2px solid #eaeaea; padding-bottom: 10px;">
+        <h1 style="font-size: 24px; font-weight: bold; margin: 0 0 10px 0; color: #000000;">Case Summary: ${summary.title || "Untitled"}</h1>
+        <p style="font-size: 12px; color: #666666; margin: 0;">Generated: ${new Date(summary.time_created).toLocaleString()}</p>
+      </div>
+    `;
+
+    // Convert markdown directly to HTML string
+    // We use marked.parse() to get the HTML string
+    const bodyHtml = await (marked.parse(
+      summary.content || "",
+    ) as Promise<string>);
+
+    // Combine and set innerHTML
+    element.innerHTML =
+      headerHtml +
+      `<div class="markdown-body" style="font-size: 12px; line-height: 1.6;">${bodyHtml}</div>`;
+
+    // Add custom styles for the PDF content - matching UI display
+    const style = document.createElement("style");
+    style.innerHTML = `
+      .markdown-body h1 { 
+        font-family: 'Outfit', sans-serif;
+        font-size: 1.5rem; 
+        font-weight: 700; 
+        margin-top: 24px; 
+        margin-bottom: 16px; 
+        color: #000000;
+      }
+      .markdown-body h2 { 
+        font-family: 'Outfit', sans-serif;
+        font-size: 1.25rem; 
+        font-weight: 600; 
+        margin-top: 24px; 
+        margin-bottom: 16px; 
+        color: #000000;
+      }
+      .markdown-body h3 { 
+        font-family: 'Outfit', sans-serif;
+        font-size: 1.1rem; 
+        font-weight: 600; 
+        margin-top: 16px; 
+        margin-bottom: 8px; 
+        color: #000000;
+      }
+      .markdown-body p { 
+        font-family: 'Inter', sans-serif;
+        margin-bottom: 16px; 
+        line-height: 1.7;
+        color: #000000;
+      }
+      .markdown-body ul, .markdown-body ol { 
+        font-family: 'Inter', sans-serif;
+        margin-bottom: 16px; 
+        padding-left: 0;
+        list-style: none;
+      }
+      .markdown-body li { 
+        margin-bottom: 4px; 
+        line-height: 1.7;
+        color: #000000;
+        display: flex;
+        align-items: flex-start;
+      }
+      .markdown-body ul li::before {
+        content: "•";
+        flex-shrink: 0;
+        width: 24px;
+        text-align: center;
+      }
+      .markdown-body ol {
+        counter-reset: item;
+      }
+      .markdown-body ol li::before {
+        content: counter(item) ". ";
+        counter-increment: item;
+        flex-shrink: 0;
+        width: 24px;
+        text-align: right;
+        margin-right: 8px;
+        font-weight: 500;
+      }
+      .markdown-body li > p {
+        margin-bottom: 0;
+      }
+    `;
+    element.appendChild(style);
+
+    let filenameStr = `${caseTitle || "Case"} - `;
+    if (summary.scope === "full_case") {
+      filenameStr += "Full Case Summary";
+    } else {
+      const blockName = summary.block_context
+        ? summary.block_context.charAt(0).toUpperCase() +
+          summary.block_context.slice(1)
+        : "Block";
+      filenameStr += `${blockName} Summary`;
+    }
+    filenameStr += ".pdf";
+
+    // Options for html2pdf
+    const opt = {
+      margin: 10,
+      filename: filenameStr,
+      image: { type: "jpeg", quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true },
+      jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+    };
+
+    console.log("Starting PDF generation...");
+    try {
+      // @ts-ignore
+      await html2pdf().set(opt).from(element).save();
+      console.log("PDF generated successfully.");
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+    }
+  };
+  /* eslint-enable @typescript-eslint/no-explicit-any */
 
   const selectedSummary = summaries.find(
     (s) => s.summary_id === selectedSummaryId,
@@ -610,7 +744,7 @@ const CaseSummaries: React.FC = () => {
                           sx={{ color: "var(--text-secondary)" }}
                           onClick={(e) => {
                             e.stopPropagation();
-                            // Handle download mock
+                            handleDownload(summary);
                           }}
                         >
                           <DownloadIcon fontSize="small" />
@@ -727,6 +861,10 @@ const CaseSummaries: React.FC = () => {
                         <IconButton
                           size="small"
                           sx={{ color: "var(--text-secondary)" }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDownload(summary);
+                          }}
                         >
                           <DownloadIcon fontSize="small" />
                         </IconButton>
@@ -780,9 +918,27 @@ const CaseSummaries: React.FC = () => {
                   color: "var(--text)",
                   fontFamily: "Inter",
                   textAlign: "left",
-                  "& h1, & h2, & h3": {
+                  "& h1": {
                     fontFamily: "Outfit",
                     color: "var(--text)",
+                    fontSize: "1.5rem",
+                    fontWeight: 700,
+                    mt: 3,
+                    mb: 2,
+                  },
+                  "& h2": {
+                    fontFamily: "Outfit",
+                    color: "var(--text)",
+                    fontSize: "1.25rem",
+                    fontWeight: 600,
+                    mt: 3,
+                    mb: 2,
+                  },
+                  "& h3": {
+                    fontFamily: "Outfit",
+                    color: "var(--text)",
+                    fontSize: "1.1rem",
+                    fontWeight: 600,
                     mt: 2,
                     mb: 1,
                   },
@@ -790,12 +946,22 @@ const CaseSummaries: React.FC = () => {
                     mb: 2,
                     lineHeight: 1.7,
                   },
-                  "& ul, & ol": {
-                    pl: 3,
+                  "& ul": {
+                    pl: 4,
                     mb: 2,
+                    listStyleType: "disc",
+                  },
+                  "& ol": {
+                    pl: 4,
+                    mb: 2,
+                    listStyleType: "decimal",
                   },
                   "& li": {
                     mb: 0.5,
+                    pl: 1,
+                  },
+                  "& li > p": {
+                    mb: 0,
                   },
                 }}
               >
