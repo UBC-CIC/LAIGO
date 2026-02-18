@@ -27,10 +27,8 @@ const DisclaimerModal: React.FC<DisclaimerModalProps> = ({
       open={open}
       disableEscapeKeyDown
       // Prevent closing by clicking outside
-      onClose={(event, reason) => {
-        if (reason !== "backdropClick") {
-          // onDecline(); // Optional: treat escape as decline?
-        }
+      onClose={() => {
+        // Prevent closing by clicking outside
       }}
       aria-labelledby="disclaimer-dialog-title"
       aria-describedby="disclaimer-dialog-description"

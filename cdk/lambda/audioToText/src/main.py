@@ -20,6 +20,7 @@ DB_SECRET_NAME = os.environ["SM_DB_CREDENTIALS"]    # Secrets Manager secret for
 REGION = os.environ["REGION"]                     # AWS region for SSM and other services
 RDS_PROXY_ENDPOINT = os.environ["RDS_PROXY_ENDPOINT"]  # RDS Proxy endpoint
 AUDIO_BUCKET = os.environ.get("AUDIO_BUCKET")         # S3 bucket where audio files are stored
+FILE_SIZE_LIMIT_PARAM = os.environ.get("FILE_SIZE_LIMIT_PARAM") # SSM parameter for file size limit
 
 # AWS clients for Secrets Manager and Parameter Store
 secrets_manager_client = boto3.client("secretsmanager")
@@ -127,6 +128,63 @@ def connect_to_db():
                 connection.close()
             raise
     return connection
+
+
+def validate_file_integrity(bucket, key, file_type):
+    """
+    Validates file size and magic numbers to ensure file integrity.
+    Uses structured byte signature checks for supported audio formats.
+    """
+    try:
+        # 1. Validate File Size
+        file_size_limit_str = get_parameter(FILE_SIZE_LIMIT_PARAM, None)
+        max_size_mb = int(file_size_limit_str) if file_size_limit_str else 500
+        max_size_bytes = max_size_mb * 1024 * 1024
+        
+        head = s3.head_object(Bucket=bucket, Key=key)
+        actual_size = head['ContentLength']
+        
+        if actual_size > max_size_bytes:
+             raise ValueError(f"File size ({actual_size / (1024*1024):.2f} MB) exceeds limit of {max_size_mb} MB")
+        
+        # 2. Validate File Signature (Magic Numbers)
+        # Read the first 32 bytes to identify the file format
+        response = s3.get_object(Bucket=bucket, Key=key, Range='bytes=0-31')
+        header = response['Body'].read()
+        
+        # Define signatures for supported formats
+        # MP3: Can start with ID3 tag or sync frame (0xFF + bits)
+        if file_type == 'mp3':
+            is_valid = (
+                header.startswith(b'ID3') or 
+                header.startswith(b'\xFF\xFB') or 
+                (len(header) > 1 and header[0] == 0xFF and (header[1] & 0xE0 == 0xE0))
+            )
+        # WAV: Standard RIFF container with WAVE format
+        elif file_type == 'wav':
+            is_valid = header.startswith(b'RIFF') and b'WAVE' in header
+        
+        # M4A: ISO Base Media File Format (QuickTime container)
+        elif file_type == 'm4a':
+             # Look for specific brand identifiers in the ftyp box
+             is_valid = any(brand in header for brand in [b'ftypM4A', b'ftypmp42', b'ftypisom', b'ftypM4B'])
+        else:
+            is_valid = False
+        
+        if not is_valid:
+             raise ValueError(f"Invalid file signature for type {file_type}. Supported types: mp3, wav, m4a")
+             
+    except Exception as e:
+        logger.error(f"Integrity validation failed for {key}: {e}")
+        # Clean up invalid/malicious files immediately
+        try:
+            s3.delete_object(Bucket=bucket, Key=key)
+            logger.info(f"Deleted invalid file from S3: {key}")
+        except Exception as del_e:
+            logger.error(f"Failed to delete invalid file {key}: {del_e}")
+        raise ValueError(f"File integrity check failed: {str(e)}")
+
+
 
 def format_diarized_transcript(data):
     speaker_segments = data["results"]["speaker_labels"]["segments"]
@@ -357,8 +415,12 @@ def handler(event, context):
                 publish_transcription_notification_event(audio_file_id, cognito_id, file_name, case_title, case_id, success=False, error_message=f"Missing parameters: {missing}")
             return _error_response(400, f"Missing parameters: {missing}", is_websocket, connection_id, ws_endpoint, request_id)
 
+        # 2a. Validate physical file integrity (Server-side validation)
+        object_key = f"{audio_file_id}/{file_name}.{file_type}"
+        validate_file_integrity(AUDIO_BUCKET, object_key, file_type)
+
         # Construct S3 file URI
-        media_file_uri = f"s3://{AUDIO_BUCKET}/{audio_file_id}/{file_name}.{file_type}"
+        media_file_uri = f"s3://{AUDIO_BUCKET}/{object_key}"
         logger.info(f"Starting transcription for: {media_file_uri}")
 
         # 3. Start Transcription job

@@ -1615,6 +1615,7 @@ export class ApiGatewayStack extends cdk.Stack {
           SM_DB_CREDENTIALS: db.secretPathUser.secretName,
           RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint,
           REGION: this.region,
+          FILE_SIZE_LIMIT_PARAM: fileSizeLimitParameter.parameterName,
         },
       },
     );
@@ -1623,6 +1624,14 @@ export class ApiGatewayStack extends cdk.Stack {
       .defaultChild as lambda.CfnFunction;
     cfnAudioToTextFunction.overrideLogicalId("audioToTextFunction");
     audioStorageBucket.grantRead(audioToTextFunction);
+
+    // Grant access to SSM Parameter Store for file size limit
+    audioToTextFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ["ssm:GetParameter"],
+        resources: [fileSizeLimitParameter.parameterArn],
+      }),
+    );
 
     audioToTextFunction.addToRolePolicy(
       new iam.PolicyStatement({

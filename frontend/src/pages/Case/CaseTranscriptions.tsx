@@ -363,8 +363,24 @@ const CaseTranscriptions: React.FC = () => {
       );
       return;
     }
+    const fileType = file.type;
+    // Allowed MIME types
+    const allowedTypes = [
+      "audio/wav",
+      "audio/x-wav",
+      "audio/mpeg",
+      "audio/mp4",
+      "audio/x-m4a",
+      "audio/m4a",
+    ];
+
+    if (!allowedTypes.includes(fileType)) {
+      setError("Invalid file type. Only WAV, MP3, and M4A are supported.");
+      return;
+    }
+
     const fileNameWithoutExtension = file.name.replace(/\.[^/.]+$/, "");
-    const fileTypeShort = file.type.split("/")[1];
+    const fileTypeShort = fileType.split("/")[1];
 
     // Normalize file type to match backend allowed types
     let normalizedType = fileTypeShort;
@@ -373,6 +389,14 @@ const CaseTranscriptions: React.FC = () => {
     } else if (fileTypeShort.startsWith("x-")) {
       // Handle types like "x-m4a" -> "m4a"
       normalizedType = fileTypeShort.substring(2);
+    } else if (fileType === "audio/mp4" || fileType === "audio/m4a") {
+      normalizedType = "m4a";
+    }
+
+    // Final check for normalized type
+    if (!["mp3", "wav", "m4a"].includes(normalizedType)) {
+      setError("Invalid file type. Only WAV, MP3, and M4A are supported.");
+      return;
     }
 
     setAudioFile({
@@ -854,7 +878,7 @@ const CaseTranscriptions: React.FC = () => {
                   <input
                     id="audio-file-input"
                     type="file"
-                    accept="audio/*"
+                    accept="audio/wav, audio/mpeg, audio/mp4, audio/x-m4a, audio/m4a"
                     onChange={handleFileUpload}
                     style={{ display: "none" }}
                   />
@@ -868,7 +892,7 @@ const CaseTranscriptions: React.FC = () => {
                     variant="caption"
                     sx={{ color: "var(--text-secondary)" }}
                   >
-                    Supported formats: MP3, WAV, M4A, etc.
+                    Supported formats: WAV, MP3, M4A
                   </Typography>
                 </Box>
               )}

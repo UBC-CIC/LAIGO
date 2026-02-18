@@ -67,9 +67,9 @@ const SECTIONS: SidebarSection[] = [
     items: [
       {
         id: "model-configs",
-        label: "Model Configs",
+        label: "General Configs",
         description:
-          "Configure the global settings for the AI models, including temperature and model selection, which affect the overall behavior of the system.",
+          "Configure global settings including AI models, usage limits, and file upload restrictions.",
       },
       {
         id: "playground",

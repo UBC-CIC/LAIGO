@@ -12,6 +12,7 @@ import {
   MenuItem,
   FormControl,
   InputLabel,
+  Divider,
 } from "@mui/material";
 import SaveIcon from "@mui/icons-material/Save";
 import { fetchAuthSession } from "aws-amplify/auth";
@@ -30,6 +31,7 @@ const ModelConfig = () => {
   const [topP, setTopP] = useState(0.9);
   const [maxTokens, setMaxTokens] = useState(2048);
   const [messageLimit, setMessageLimit] = useState("Infinity");
+  const [fileSizeLimit, setFileSizeLimit] = useState("500");
   const [isAiConfigLoading, setIsAiConfigLoading] = useState(false);
   const [isSavingConfig, setIsSavingConfig] = useState(false);
   const [snackbar, setSnackbar] = useState<{
@@ -38,6 +40,7 @@ const ModelConfig = () => {
     severity: "success" | "error";
   }>({ open: false, message: "", severity: "success" });
   const [fieldError, setFieldError] = useState<string | null>(null);
+  const [fileSizeError, setFileSizeError] = useState<string | null>(null);
 
   const fetchAiConfig = useCallback(async () => {
     setIsAiConfigLoading(true);
@@ -66,11 +69,21 @@ const ModelConfig = () => {
         const limitData = await limitResponse.json();
         setMessageLimit(limitData.value || "Infinity");
       }
+
+      // Fetch File Size Limit
+      const fileSizeResponse = await fetch(
+        `${import.meta.env.VITE_API_ENDPOINT}/admin/file_size_limit`,
+        { headers: { Authorization: token } },
+      );
+      if (fileSizeResponse.ok) {
+        const fileSizeData = await fileSizeResponse.json();
+        setFileSizeLimit(fileSizeData.value || "500");
+      }
     } catch (err) {
       console.error("Error fetching AI config:", err);
       setSnackbar({
         open: true,
-        message: "Failed to load AI config",
+        message: "Failed to load configuration",
         severity: "error",
       });
     } finally {
@@ -85,6 +98,7 @@ const ModelConfig = () => {
       const token = session.tokens?.idToken?.toString();
       if (!token) throw new Error("No auth token");
 
+      // Save AI Config
       const response = await fetch(
         `${import.meta.env.VITE_API_ENDPOINT}/admin/ai_config`,
         {
@@ -101,8 +115,6 @@ const ModelConfig = () => {
       if (!response.ok) throw new Error("Failed to save AI config");
 
       // Save Message Limit
-
-      // Save Message Limit
       const limitResponse = await fetch(
         `${import.meta.env.VITE_API_ENDPOINT}/admin/message_limit`,
         {
@@ -115,17 +127,32 @@ const ModelConfig = () => {
       );
       if (!limitResponse.ok) throw new Error("Failed to save message limit");
 
+      // Save File Size Limit
+      const fileSizeResponse = await fetch(
+        `${import.meta.env.VITE_API_ENDPOINT}/admin/file_size_limit`,
+        {
+          method: "POST",
+          headers: { Authorization: token, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            value: fileSizeLimit,
+          }),
+        },
+      );
+      if (!fileSizeResponse.ok)
+        throw new Error("Failed to save file size limit");
+
       setSnackbar({
         open: true,
-        message: "AI Configuration saved!",
+        message: "Configuration saved successfully!",
         severity: "success",
       });
       setFieldError(null);
+      setFileSizeError(null);
     } catch (err) {
-      console.error("Error saving AI config:", err);
+      console.error("Error saving config:", err);
       setSnackbar({
         open: true,
-        message: "Failed to save AI config",
+        message: "Failed to save configuration",
         severity: "error",
       });
     } finally {
@@ -137,7 +164,7 @@ const ModelConfig = () => {
     fetchAiConfig();
   }, [fetchAiConfig]);
 
-  // Real-time validation
+  // Real-time validation for Message Limit
   useEffect(() => {
     const isInfinity = messageLimit === "Infinity";
     const numLimit = parseInt(messageLimit);
@@ -152,6 +179,16 @@ const ModelConfig = () => {
       setFieldError(null);
     }
   }, [messageLimit]);
+
+  // Real-time validation for File Size Limit
+  useEffect(() => {
+    const numLimit = parseInt(fileSizeLimit);
+    if (fileSizeLimit.trim() !== "" && (isNaN(numLimit) || numLimit <= 0)) {
+      setFileSizeError("Must be a positive number");
+    } else {
+      setFileSizeError(null);
+    }
+  }, [fileSizeLimit]);
 
   return (
     <>
@@ -170,9 +207,9 @@ const ModelConfig = () => {
       >
         <Typography
           variant="h6"
-          sx={{ color: "var(--text)", fontWeight: "bold" }}
+          sx={{ color: "var(--text)", fontWeight: "bold", textAlign: "left" }}
         >
-          AI Model Configuration
+          General Settings
         </Typography>
 
         {isAiConfigLoading ? (
@@ -180,54 +217,146 @@ const ModelConfig = () => {
             <CircularProgress />
           </Box>
         ) : (
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
-            <FormControl fullWidth>
-              <InputLabel
-                id="model-select-label"
-                sx={{ color: "var(--text-secondary)" }}
-              >
-                Bedrock Model
-              </InputLabel>
-              <Select
-                labelId="model-select-label"
-                value={
-                  MODEL_OPTIONS.some((o) => o.value === bedrockLlmId)
-                    ? bedrockLlmId
-                    : ""
-                }
-                label="Bedrock Model"
-                onChange={(e) => setBedrockLlmId(e.target.value)}
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            {/* Section 1: AI Model Configuration */}
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              <Typography
+                variant="subtitle1"
                 sx={{
                   color: "var(--text)",
-                  backgroundColor: "var(--background)",
+                  fontWeight: 600,
                   textAlign: "left",
-                  "& .MuiOutlinedInput-notchedOutline": {
-                    borderColor: "var(--border)",
-                  },
-                  "&:hover .MuiOutlinedInput-notchedOutline": {
-                    borderColor: "var(--border)",
-                  },
-                  "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
-                    borderColor: "var(--primary)",
-                  },
-                  "& .MuiSvgIcon-root": { color: "var(--text)" },
                 }}
               >
-                {MODEL_OPTIONS.map((option) => (
-                  <MenuItem key={option.value} value={option.value}>
-                    {option.label}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+                AI Model Settings
+              </Typography>
+              <Divider />
 
-            <Box sx={{ display: "flex", gap: 2 }}>
+              <FormControl fullWidth>
+                <InputLabel
+                  id="model-select-label"
+                  sx={{ color: "var(--text-secondary)" }}
+                >
+                  Bedrock Model
+                </InputLabel>
+                <Select
+                  labelId="model-select-label"
+                  value={
+                    MODEL_OPTIONS.some((o) => o.value === bedrockLlmId)
+                      ? bedrockLlmId
+                      : ""
+                  }
+                  label="Bedrock Model"
+                  onChange={(e) => setBedrockLlmId(e.target.value)}
+                  sx={{
+                    color: "var(--text)",
+                    backgroundColor: "var(--background)",
+                    textAlign: "left",
+                    "& .MuiOutlinedInput-notchedOutline": {
+                      borderColor: "var(--border)",
+                    },
+                    "&:hover .MuiOutlinedInput-notchedOutline": {
+                      borderColor: "var(--border)",
+                    },
+                    "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
+                      borderColor: "var(--primary)",
+                    },
+                    "& .MuiSvgIcon-root": { color: "var(--text)" },
+                  }}
+                >
+                  {MODEL_OPTIONS.map((option) => (
+                    <MenuItem key={option.value} value={option.value}>
+                      {option.label}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+
+              <Box sx={{ display: "flex", gap: 2 }}>
+                <TextField
+                  label="Temperature"
+                  type="number"
+                  inputProps={{ step: 0.1, min: 0, max: 1 }}
+                  value={temperature}
+                  onChange={(e) => setTemperature(parseFloat(e.target.value))}
+                  fullWidth
+                  variant="outlined"
+                  sx={{
+                    "& .MuiOutlinedInput-root": {
+                      color: "var(--text)",
+                      backgroundColor: "var(--background)",
+                      "& fieldset": { borderColor: "var(--border)" },
+                    },
+                    "& .MuiInputLabel-root": {
+                      color: "var(--text-secondary)",
+                    },
+                  }}
+                />
+                <TextField
+                  label="Top P"
+                  type="number"
+                  inputProps={{ step: 0.1, min: 0, max: 1 }}
+                  value={topP}
+                  onChange={(e) => setTopP(parseFloat(e.target.value))}
+                  fullWidth
+                  variant="outlined"
+                  sx={{
+                    "& .MuiOutlinedInput-root": {
+                      color: "var(--text)",
+                      backgroundColor: "var(--background)",
+                      "& fieldset": { borderColor: "var(--border)" },
+                    },
+                    "& .MuiInputLabel-root": {
+                      color: "var(--text-secondary)",
+                    },
+                  }}
+                />
+
+                <TextField
+                  label="Max Tokens"
+                  type="number"
+                  value={maxTokens}
+                  onChange={(e) => setMaxTokens(parseInt(e.target.value))}
+                  fullWidth
+                  variant="outlined"
+                  sx={{
+                    "& .MuiOutlinedInput-root": {
+                      color: "var(--text)",
+                      backgroundColor: "var(--background)",
+                      "& fieldset": { borderColor: "var(--border)" },
+                    },
+                    "& .MuiInputLabel-root": {
+                      color: "var(--text-secondary)",
+                    },
+                  }}
+                />
+              </Box>
+            </Box>
+
+            {/* Section 2: Usage Limits */}
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              <Typography
+                variant="subtitle1"
+                sx={{
+                  color: "var(--text)",
+                  fontWeight: 600,
+                  textAlign: "left",
+                }}
+              >
+                Usage Limits
+              </Typography>
+              <Divider />
+
               <TextField
-                label="Temperature"
-                type="number"
-                inputProps={{ step: 0.1, min: 0, max: 1 }}
-                value={temperature}
-                onChange={(e) => setTemperature(parseFloat(e.target.value))}
+                label="Daily Message Limit (per user)"
+                type="text"
+                error={!!fieldError}
+                helperText={
+                  fieldError ||
+                  'Enter a number (min 10) or "Infinity" for no limit'
+                }
+                value={messageLimit}
+                onChange={(e) => setMessageLimit(e.target.value)}
                 fullWidth
                 variant="outlined"
                 sx={{
@@ -239,74 +368,53 @@ const ModelConfig = () => {
                   "& .MuiInputLabel-root": {
                     color: "var(--text-secondary)",
                   },
-                }}
-              />
-              <TextField
-                label="Top P"
-                type="number"
-                inputProps={{ step: 0.1, min: 0, max: 1 }}
-                value={topP}
-                onChange={(e) => setTopP(parseFloat(e.target.value))}
-                fullWidth
-                variant="outlined"
-                sx={{
-                  "& .MuiOutlinedInput-root": {
-                    color: "var(--text)",
-                    backgroundColor: "var(--background)",
-                    "& fieldset": { borderColor: "var(--border)" },
-                  },
-                  "& .MuiInputLabel-root": {
-                    color: "var(--text-secondary)",
-                  },
-                }}
-              />
-
-              <TextField
-                label="Max Tokens"
-                type="number"
-                value={maxTokens}
-                onChange={(e) => setMaxTokens(parseInt(e.target.value))}
-                fullWidth
-                variant="outlined"
-                sx={{
-                  "& .MuiOutlinedInput-root": {
-                    color: "var(--text)",
-                    backgroundColor: "var(--background)",
-                    "& fieldset": { borderColor: "var(--border)" },
-                  },
-                  "& .MuiInputLabel-root": {
+                  "& .MuiFormHelperText-root:not(.Mui-error)": {
                     color: "var(--text-secondary)",
                   },
                 }}
               />
             </Box>
 
-            <TextField
-              label="Daily Message Limit (per user)"
-              type="text"
-              error={!!fieldError}
-              helperText={
-                fieldError ||
-                'Enter a number (min 10) or "Infinity" for no limit'
-              }
-              value={messageLimit}
-              onChange={(e) => setMessageLimit(e.target.value)}
-              fullWidth
-              variant="outlined"
-              sx={{
-                "& .MuiOutlinedInput-root": {
+            {/* Section 3: File Upload Settings */}
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              <Typography
+                variant="subtitle1"
+                sx={{
                   color: "var(--text)",
-                  backgroundColor: "var(--background)",
-                  "& fieldset": { borderColor: "var(--border)" },
-                },
-                "& .MuiInputLabel-root": {
-                  color: "var(--text-secondary)",
-                },
-                "& .MuiFormHelperText-root:not(.Mui-error)": {
-                  color: "var(--text-secondary)",
-                },
-              }}
-            />
+                  fontWeight: 600,
+                  textAlign: "left",
+                }}
+              >
+                File Upload Settings
+              </Typography>
+              <Divider />
+
+              <TextField
+                label="Max Audio File Size (MB)"
+                type="number"
+                error={!!fileSizeError}
+                helperText={
+                  fileSizeError || "Maximum size for audio uploads in Megabytes"
+                }
+                value={fileSizeLimit}
+                onChange={(e) => setFileSizeLimit(e.target.value)}
+                fullWidth
+                variant="outlined"
+                sx={{
+                  "& .MuiOutlinedInput-root": {
+                    color: "var(--text)",
+                    backgroundColor: "var(--background)",
+                    "& fieldset": { borderColor: "var(--border)" },
+                  },
+                  "& .MuiInputLabel-root": {
+                    color: "var(--text-secondary)",
+                  },
+                  "& .MuiFormHelperText-root:not(.Mui-error)": {
+                    color: "var(--text-secondary)",
+                  },
+                }}
+              />
+            </Box>
 
             <Button
               variant="contained"
@@ -318,7 +426,7 @@ const ModelConfig = () => {
                 )
               }
               onClick={saveAiConfig}
-              disabled={isSavingConfig || !!fieldError}
+              disabled={isSavingConfig || !!fieldError || !!fileSizeError}
               sx={{
                 alignSelf: "flex-end",
                 backgroundColor: "var(--primary)",
