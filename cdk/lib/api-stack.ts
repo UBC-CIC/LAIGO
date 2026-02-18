@@ -961,6 +961,13 @@ export class ApiGatewayStack extends cdk.Stack {
     // DynamoDB Tables
     // ========================================
 
+    // Import existing conversation table
+    const conversationTable = dynamodb.Table.fromTableName(
+      this,
+      "ConversationTable",
+      "DynamoDB-Conversation-Table",
+    );
+
     // Create playground conversation table
     const playgroundTable = new dynamodb.Table(this, `${id}-PlaygroundTable`, {
       tableName: "DynamoDB-Playground-Table",
@@ -1070,15 +1077,7 @@ export class ApiGatewayStack extends cdk.Stack {
     );
 
     // Allow access to DynamoDB Table for reading chat history
-    lambdaStudentFunction.addToRolePolicy(
-      new iam.PolicyStatement({
-        actions: ["dynamodb:Query"],
-        resources: [
-          `arn:aws:dynamodb:${this.region}:${this.account}:table/DynamoDB-Conversation-Table`,
-        ],
-        effect: iam.Effect.ALLOW,
-      }),
-    );
+    conversationTable.grantReadData(lambdaStudentFunction);
 
     // Grant EventBridge permissions for notification publishing
     lambdaStudentFunction.addToRolePolicy(
@@ -1209,18 +1208,6 @@ export class ApiGatewayStack extends cdk.Stack {
       ],
     });
 
-    // Shared DynamoDB read/write policy statement for Lambdas that need it
-    const dynamoDBPolicyStatement = new iam.PolicyStatement({
-      effect: iam.Effect.ALLOW,
-      actions: [
-        "dynamodb:PutItem",
-        "dynamodb:GetItem",
-        "dynamodb:Query",
-        "dynamodb:UpdateItem",
-      ],
-      resources: [`arn:aws:dynamodb:${this.region}:${this.account}:table/*`],
-    });
-
     const caseGenLambdaDockerFunc = new lambda.DockerImageFunction(
       this,
       `${id}-CaseLambdaDockerFunction`,
@@ -1280,7 +1267,6 @@ export class ApiGatewayStack extends cdk.Stack {
       }),
     );
 
-    // Grant access to specific database secret
     // Grant access to specific database secret
     db.secretPathUser.grantRead(caseGenLambdaDockerFunc);
 
@@ -1342,6 +1328,7 @@ export class ApiGatewayStack extends cdk.Stack {
       sourceArn: `arn:aws:execute-api:${this.region}:${this.account}:${this.api.restApiId}/*/*/student*`,
     });
 
+    // Grant BedrockGuardrail access
     textGenLambdaDockerFunc.addToRolePolicy(
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
@@ -1360,28 +1347,19 @@ export class ApiGatewayStack extends cdk.Stack {
     // Attach the corrected Bedrock policy to Lambda
     textGenLambdaDockerFunc.addToRolePolicy(bedrockPolicyStatement);
 
-    // Attach shared DynamoDB policy to text generation lambda
-    textGenLambdaDockerFunc.addToRolePolicy(dynamoDBPolicyStatement);
+    // Grant access to conversation table
+    conversationTable.grantReadWriteData(textGenLambdaDockerFunc);
 
-    // Grant access to specific database secret
     // Grant access to specific database secret
     db.secretPathUser.grantRead(textGenLambdaDockerFunc);
 
     // Grant access to DynamoDB actions
+    // ListTables requires wildcard resource
     textGenLambdaDockerFunc.addToRolePolicy(
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
-        actions: [
-          "dynamodb:ListTables",
-          "dynamodb:CreateTable",
-          "dynamodb:DescribeTable",
-          "dynamodb:PutItem",
-          "dynamodb:GetItem",
-          "dynamodb:UpdateItem",
-          "dynamodb:DescribeTimeToLive",
-          "dynamodb:UpdateTimeToLive",
-        ],
-        resources: [`arn:aws:dynamodb:${this.region}:${this.account}:table/*`],
+        actions: ["dynamodb:ListTables"],
+        resources: ["*"],
       }),
     );
 
@@ -1447,9 +1425,10 @@ export class ApiGatewayStack extends cdk.Stack {
     });
 
     playgroundGenLambdaDockerFunc.addToRolePolicy(bedrockPolicyStatement);
-    playgroundGenLambdaDockerFunc.addToRolePolicy(dynamoDBPolicyStatement);
 
-    // Grant access to specific database secret
+    // Grant access to DynamoDB (Playground table access)
+    playgroundTable.grantReadWriteData(playgroundGenLambdaDockerFunc);
+
     // Grant access to specific database secret
     db.secretPathUser.grantRead(playgroundGenLambdaDockerFunc);
 
@@ -1548,7 +1527,7 @@ export class ApiGatewayStack extends cdk.Stack {
     );
 
     // Attach shared DynamoDB policy to assess progress lambda
-    assessProgressFunction.addToRolePolicy(dynamoDBPolicyStatement);
+    conversationTable.grantReadWriteData(assessProgressFunction);
 
     const audioStorageBucket = new s3.Bucket(
       this,
@@ -1762,7 +1741,7 @@ export class ApiGatewayStack extends cdk.Stack {
     );
 
     // Attach shared DynamoDB policy to summary generation lambda
-    summaryGenerationFunction.addToRolePolicy(dynamoDBPolicyStatement);
+    conversationTable.grantReadWriteData(summaryGenerationFunction);
 
     // Grant access to Bedrock (using shared policy with specific model ARNs)
     summaryGenerationFunction.addToRolePolicy(bedrockPolicyStatement);
@@ -1781,9 +1760,6 @@ export class ApiGatewayStack extends cdk.Stack {
       "NOTIFICATION_EVENT_BUS_NAME",
       notificationEventBus.eventBusName,
     );
-
-    // Grant access to DynamoDB (Playground table access)
-    playgroundTable.grantReadWriteData(playgroundGenLambdaDockerFunc);
 
     // Store table references for use by other constructs
     this.notificationTable = notificationTable;
