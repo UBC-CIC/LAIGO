@@ -53,7 +53,15 @@ const CaseLayout: React.FC = () => {
       if (res.ok) {
         const data = await res.json();
         const cData = data.caseData || data;
-        setUnlockedBlocks(cData.unlocked_blocks || ["intake"]);
+        // Forced unlock for testing/temporary requirement
+        setUnlockedBlocks([
+          "intake",
+          "issues",
+          "research",
+          "argument",
+          "contrarian",
+          "policy",
+        ]);
         // Also update status if it changed
         if (cData.status) setCaseStatus(cData.status);
       }
@@ -96,7 +104,15 @@ const CaseLayout: React.FC = () => {
         const cData = data.caseData || data;
         setCaseTitle(cData.case_title || "Untitled Case");
         setCaseStatus(cData.status || "");
-        setUnlockedBlocks(cData.unlocked_blocks || ["intake"]);
+        // Forced unlock for testing/temporary requirement
+        setUnlockedBlocks([
+          "intake",
+          "issues",
+          "research",
+          "argument",
+          "contrarian",
+          "policy",
+        ]);
         setNotepadContent(cData.student_notes || "");
       }
 
