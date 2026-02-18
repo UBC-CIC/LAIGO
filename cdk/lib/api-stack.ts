@@ -362,22 +362,55 @@ export class ApiGatewayStack extends cdk.Stack {
           },
         },
         {
-          // Rate limiting rule to prevent DDoS attacks
-          name: "LimitRequests1000",
+          // Rate limiting rule to prevent DDoS attacks from a single IP
+          // Set to 2000 to balance shared network access and security
+          name: "LimitRequests2000",
           priority: 2,
           action: {
-            block: {}, // Block requests exceeding limit
+            block: {},
           },
           statement: {
             rateBasedStatement: {
-              limit: 1000, // 1000 requests per 5 minutes per IP
+              limit: 2000,
               aggregateKeyType: "IP",
             },
           },
           visibilityConfig: {
             sampledRequestsEnabled: true,
             cloudWatchMetricsEnabled: true,
-            metricName: "LimitRequests1000",
+            metricName: "LimitRequests2000",
+          },
+        },
+        {
+          // Per-user rate limiting (strict limit per authenticated identity)
+          name: "PerUserRateLimit",
+          priority: 3,
+          action: {
+            block: {},
+          },
+          statement: {
+            rateBasedStatement: {
+              limit: 200, // 200 requests per 5 minutes per user
+              aggregateKeyType: "CUSTOM_KEYS",
+              customKeys: [
+                {
+                  header: {
+                    name: "Authorization",
+                    textTransformations: [
+                      {
+                        priority: 0,
+                        type: "MD5", // Use MD5 hash to handle long JWTs as unique keys
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          },
+          visibilityConfig: {
+            sampledRequestsEnabled: true,
+            cloudWatchMetricsEnabled: true,
+            metricName: "PerUserRateLimit",
           },
         },
       ],
