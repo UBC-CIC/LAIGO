@@ -1,6 +1,5 @@
 import boto3, re, time
-from langchain_aws import ChatBedrock
-from langchain_aws import BedrockLLM
+from langchain_aws import ChatBedrockConverse
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain.chains import create_retrieval_chain
@@ -64,7 +63,7 @@ def get_bedrock_llm(
     temperature: float = 0,
     max_tokens: int = 4096,
     top_p: float = 0.9,
-) -> ChatBedrock:
+) -> ChatBedrockConverse:
     """
     Retrieve a Bedrock LLM instance based on the provided model ID.
 
@@ -75,11 +74,13 @@ def get_bedrock_llm(
     top_p (float, optional): The top_p parameter for the LLM. Defaults to 0.9.
 
     Returns:
-    ChatBedrock: An instance of the Bedrock LLM corresponding to the provided model ID.
+    ChatBedrockConverse: An instance of the Bedrock LLM corresponding to the provided model ID.
     """
-    return ChatBedrock(
-        model_id=bedrock_llm_id,
-        model_kwargs=dict(temperature=temperature, max_tokens=max_tokens, top_p=top_p),
+    return ChatBedrockConverse(
+        model=bedrock_llm_id,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        top_p=top_p,
     )
 
 
@@ -145,7 +146,7 @@ def get_response(
     query: str,
     province: str,
     statute:  str,
-    llm: ChatBedrock,
+    llm: ChatBedrockConverse,
     history_aware_retriever,
     table_name: str,
     case_id: str,
@@ -251,7 +252,7 @@ def get_streaming_response(
     query: str,
     province: str,
     statute: str,
-    llm: ChatBedrock,
+    llm: ChatBedrockConverse,
     history_aware_retriever,
     table_name: str,
     case_id: str,

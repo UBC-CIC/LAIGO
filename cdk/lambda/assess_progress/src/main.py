@@ -5,7 +5,8 @@ import logging
 import psycopg
 import time
 import functools
-from langchain_aws import BedrockLLM
+from langchain_aws import ChatBedrockConverse
+from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_community.chat_message_histories import DynamoDBChatMessageHistory
 
 # Set up logging - Force level to INFO to ensure CloudWatch capture
@@ -394,15 +395,12 @@ def handler(event, context):
         
         logger.info(f"Fetched {len(chat_history)} chars of chat history for session {playground_session_id}")
         
-        # Construct system instruction using inline prompt and DB history
-        system_instruction = f"""
+        # Construct system instruction
+        system_instructions = f"""
         You are an expert legal instruction assistant. Your goal is to assess whether the student has sufficiently completed the objectives of the current '{block_type}' phase based on the conversation history.
         
         PROMPT CRITERIA:
         {custom_prompt}
-        
-        CONVERSATION HISTORY:
-        {chat_history}
         
         INSTRUCTIONS:
         - Analyze the detailed history against the criteria.
@@ -411,19 +409,27 @@ def handler(event, context):
         - "reasoning": 3-4 sentences explaining why they are ready or what is missing.
         - Output ONLY the JSON object.
         """
+
+        human_context = f"""
+        CONVERSATION HISTORY:
+        {chat_history}
+        """
         
         try:
-            llm = BedrockLLM(
-                model_id=BEDROCK_LLM_ID,
-                model_kwargs={
-                    "temperature": BEDROCK_TEMP, 
-                    "max_tokens": BEDROCK_MAX_TOKENS,
-                    "top_p": BEDROCK_TOP_P
-                }
+            llm = ChatBedrockConverse(
+                model=BEDROCK_LLM_ID,
+                temperature=BEDROCK_TEMP,
+                max_tokens=BEDROCK_MAX_TOKENS,
+                top_p=BEDROCK_TOP_P
             )
             
             start_time = time.time()
-            response_text = llm.invoke(system_instruction)
+            # Use SystemMessage for instructions and HumanMessage for context/history
+            response = llm.invoke([
+                SystemMessage(content=system_instructions),
+                HumanMessage(content=human_context)
+            ])
+            response_text = response.content
             duration = time.time() - start_time
             logger.info(f"Playground assessment took {duration:.2f}s")
             logger.info(f"Playground LLM Response: {response_text}")
@@ -524,14 +530,11 @@ def handler(event, context):
         return _response(500, 'Configuration error: No assessment prompt found.')
 
     # Construct complete prompt
-    system_instruction = f"""
+    system_instructions = f"""
     You are an expert legal instruction assistant. Your goal is to assess whether the student has sufficiently completed the objectives of the current '${block_type}' phase based on the conversation history.
     
     PROMPT CRITERIA:
     {prompt_template}
-    
-    CONVERSATION HISTORY:
-    {chat_history}
     
     INSTRUCTIONS:
     - Analyze the detailed history against the criteria.
@@ -540,22 +543,30 @@ def handler(event, context):
     - "reasoning": 3-4 sentences explaining why they are ready or what is missing.
     - Output ONLY the JSON object.
     """
+
+    human_context = f"""
+    CONVERSATION HISTORY:
+    {chat_history}
+    """
     
     try:
         logger.info(f"Invoking Bedrock model: {BEDROCK_LLM_ID}")
         start_time = time.time()
         
         # Invoke Bedrock
-        llm = BedrockLLM(
-            model_id=BEDROCK_LLM_ID,
-            model_kwargs={
-                "temperature": BEDROCK_TEMP, 
-                "max_tokens": BEDROCK_MAX_TOKENS,
-                "top_p": BEDROCK_TOP_P
-            }
+        llm = ChatBedrockConverse(
+            model=BEDROCK_LLM_ID,
+            temperature=BEDROCK_TEMP,
+            max_tokens=BEDROCK_MAX_TOKENS,
+            top_p=BEDROCK_TOP_P
         )
         
-        response_text = llm.invoke(system_instruction)
+        # Use SystemMessage for instructions and HumanMessage for context/history
+        response = llm.invoke([
+            SystemMessage(content=system_instructions),
+            HumanMessage(content=human_context)
+        ])
+        response_text = response.content
         duration = time.time() - start_time
         logger.info(f"Bedrock invocation took {duration:.2f}s")
         logger.info(f"LLM Assessment Response: {response_text}")
