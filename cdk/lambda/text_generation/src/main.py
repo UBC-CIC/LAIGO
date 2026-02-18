@@ -484,6 +484,10 @@ def handler(event, context):
                 "Access-Control-Allow-Headers": "*",
                 "Access-Control-Allow-Origin": "*",
                 "Access-Control-Allow-Methods": "*",
+                "X-Content-Type-Options": "nosniff",
+                "X-Frame-Options": "DENY",
+                "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none';",
+                "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
             },
             'body': json.dumps("Missing required parameters: case_id")
         }
@@ -498,6 +502,10 @@ def handler(event, context):
                 "Access-Control-Allow-Headers": "*",
                 "Access-Control-Allow-Origin": "*",
                 "Access-Control-Allow-Methods": "*",
+                "X-Content-Type-Options": "nosniff",
+                "X-Frame-Options": "DENY",
+                "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none';",
+                "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
             },
             'body': json.dumps('Error fetching system prompt')
         }
@@ -566,6 +574,10 @@ def handler(event, context):
                     "Access-Control-Allow-Headers": "*",
                     "Access-Control-Allow-Origin": "*",
                     "Access-Control-Allow-Methods": "*",
+                    "X-Content-Type-Options": "nosniff",
+                    "X-Frame-Options": "DENY",
+                    "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none';",
+                    "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
                 },
                 "body": json.dumps({"error": error_message})
             }
@@ -586,6 +598,10 @@ def handler(event, context):
                 "Access-Control-Allow-Headers": "*",
                 "Access-Control-Allow-Origin": "*",
                 "Access-Control-Allow-Methods": "*",
+                "X-Content-Type-Options": "nosniff",
+                "X-Frame-Options": "DENY",
+                "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none';",
+                "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
             },
             'body': json.dumps('Error getting LLM from Bedrock')
         }
@@ -610,6 +626,10 @@ def handler(event, context):
                 "Access-Control-Allow-Headers": "*",
                 "Access-Control-Allow-Origin": "*",
                 "Access-Control-Allow-Methods": "*",
+                "X-Content-Type-Options": "nosniff",
+                "X-Frame-Options": "DENY",
+                "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none';",
+                "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
             },
             'body': json.dumps('Error retrieving vectorstore config')
         }
@@ -631,6 +651,10 @@ def handler(event, context):
                 "Access-Control-Allow-Headers": "*",
                 "Access-Control-Allow-Origin": "*",
                 "Access-Control-Allow-Methods": "*",
+                "X-Content-Type-Options": "nosniff",
+                "X-Frame-Options": "DENY",
+                "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none';",
+                "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
             },
             'body': json.dumps('Error creating history-aware retriever')
         }
@@ -658,6 +682,10 @@ def handler(event, context):
                         "Access-Control-Allow-Headers": "*",
                         "Access-Control-Allow-Origin": "*",
                         "Access-Control-Allow-Methods": "*",
+                        "X-Content-Type-Options": "nosniff",
+                        "X-Frame-Options": "DENY",
+                        "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none';",
+                        "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
                     },
                     "body": error_body
                 }
@@ -675,6 +703,10 @@ def handler(event, context):
                         "Access-Control-Allow-Headers": "*",
                         "Access-Control-Allow-Origin": "*",
                         "Access-Control-Allow-Methods": "*",
+                        "X-Content-Type-Options": "nosniff",
+                        "X-Frame-Options": "DENY",
+                        "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none';",
+                        "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
                     },
                     "body": error_body
                  }
@@ -716,6 +748,10 @@ def handler(event, context):
                                     "Access-Control-Allow-Headers": "*",
                                     "Access-Control-Allow-Origin": "*",
                                     "Access-Control-Allow-Methods": "*",
+                                    "X-Content-Type-Options": "nosniff",
+                                    "X-Frame-Options": "DENY",
+                                    "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none';",
+                                    "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
                                 },
                                 "body": json.dumps({"error": error_message})
                              }
@@ -793,6 +829,10 @@ def handler(event, context):
                 "Access-Control-Allow-Headers": "*",
                 "Access-Control-Allow-Origin": "*",
                 "Access-Control-Allow-Methods": "*",
+                "X-Content-Type-Options": "nosniff",
+                "X-Frame-Options": "DENY",
+                "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none';",
+                "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
             },
             'body': json.dumps('Error getting response: '+str(e))
         }
@@ -806,6 +846,10 @@ def handler(event, context):
             "Access-Control-Allow-Headers": "*",
             "Access-Control-Allow-Origin": "*",
             "Access-Control-Allow-Methods": "*",
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "DENY",
+            "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none';",
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
         },
         "body": json.dumps(response)
     }

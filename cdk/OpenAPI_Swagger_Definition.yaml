@@ -25,9 +25,35 @@ x-amazon-apigateway-gateway-responses:
       gatewayresponse.header.Access-Control-Allow-Headers: "'*'"
       gatewayresponse.header.Access-Control-Allow-Methods: "'*'"
       gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+      gatewayresponse.header.X-Content-Type-Options: "'nosniff'"
+      gatewayresponse.header.X-Frame-Options: "'DENY'"
+      gatewayresponse.header.Content-Security-Policy: "'default-src 'none'; frame-ancestors 'none';'"
+      gatewayresponse.header.Strict-Transport-Security: "'max-age=31536000; includeSubDomains'"
     responseTemplates:
       application/json: |
         {"message":$context.error.messageString}
+  ACCESS_DENIED:
+    statusCode: "403"
+    responseParameters:
+      gatewayresponse.header.Access-Control-Allow-Headers: "'*'"
+      gatewayresponse.header.Access-Control-Allow-Methods: "'*'"
+      gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+      gatewayresponse.header.X-Content-Type-Options: "'nosniff'"
+      gatewayresponse.header.X-Frame-Options: "'DENY'"
+      gatewayresponse.header.Content-Security-Policy: "'default-src 'none'; frame-ancestors 'none';'"
+      gatewayresponse.header.Strict-Transport-Security: "'max-age=31536000; includeSubDomains'"
+  DEFAULT_4XX:
+    responseParameters:
+      gatewayresponse.header.X-Content-Type-Options: "'nosniff'"
+      gatewayresponse.header.X-Frame-Options: "'DENY'"
+      gatewayresponse.header.Content-Security-Policy: "'default-src 'none'; frame-ancestors 'none';'"
+      gatewayresponse.header.Strict-Transport-Security: "'max-age=31536000; includeSubDomains'"
+  DEFAULT_5XX:
+    responseParameters:
+      gatewayresponse.header.X-Content-Type-Options: "'nosniff'"
+      gatewayresponse.header.X-Frame-Options: "'DENY'"
+      gatewayresponse.header.Content-Security-Policy: "'default-src 'none'; frame-ancestors 'none';'"
+      gatewayresponse.header.Strict-Transport-Security: "'max-age=31536000; includeSubDomains'"
 x-common-options: &commonOptions
   options:
     summary: CORS support

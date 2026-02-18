@@ -12,16 +12,21 @@ const initConnection = async () => {
 const createResponse = () => ({
   statusCode: 200,
   headers: {
-    "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
+    "Access-Control-Allow-Headers":
+      "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "*",
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none';",
+    "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
   },
   body: "",
 });
 
 const parseBody = (body) => {
   try {
-    return JSON.parse(body || '{}');
+    return JSON.parse(body || "{}");
   } catch {
     throw new Error("Invalid JSON body");
   }
@@ -38,5 +43,5 @@ module.exports = {
   createResponse,
   parseBody,
   handleError,
-  getSqlConnection: () => global.sqlConnection
+  getSqlConnection: () => global.sqlConnection,
 };

@@ -112,7 +112,20 @@ def handler(event, context):
     
     if not is_websocket or not connection_id:
         # Fallback for HTTP/Test invoke - mostly simplified for now
-        return {'statusCode': 400, 'body': "Playground only supports WebSocket interactions currently."}
+        return {
+            'statusCode': 400,
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Headers': '*',
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': '*',
+                'X-Content-Type-Options': 'nosniff',
+                'X-Frame-Options': 'DENY',
+                'Content-Security-Policy': "default-src 'none'; frame-ancestors 'none';",
+                'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+            },
+            'body': "Playground only supports WebSocket interactions currently."
+        }
 
     logger.info("Playground mode processing...")
     
@@ -145,7 +158,20 @@ def handler(event, context):
     
     if not test_message:
         logger.error("Playground mode requires message_content")
-        return {'statusCode': 400, 'body': json.dumps("Missing message_content for playground")}
+        return {
+            'statusCode': 400,
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Headers': '*',
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': '*',
+                'X-Content-Type-Options': 'nosniff',
+                'X-Frame-Options': 'DENY',
+                'Content-Security-Policy': "default-src 'none'; frame-ancestors 'none';",
+                'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+            },
+            'body': json.dumps("Missing message_content for playground")
+        }
     
     try:
         # Create LLM with custom configuration

@@ -241,6 +241,10 @@ def _error_response(status_code, message, is_websocket=False, connection_id=None
             "Access-Control-Allow-Headers": "*",
             "Access-Control-Allow-Origin": "*",
             "Access-Control-Allow-Methods": "*",
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "DENY",
+            "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none';",
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
         },
         'body': json.dumps(message)
     }
@@ -637,6 +641,10 @@ def handler(event, context):
                 "Access-Control-Allow-Headers": "*",
                 "Access-Control-Allow-Origin": "*",
                 "Access-Control-Allow-Methods": "*",
+                "X-Content-Type-Options": "nosniff",
+                "X-Frame-Options": "DENY",
+                "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none';",
+                "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
             },
             "body": json.dumps({
                 "llm_output": response
@@ -722,6 +730,10 @@ def handler(event, context):
                 "Access-Control-Allow-Headers": "*",
                 "Access-Control-Allow-Origin": "*",
                 "Access-Control-Allow-Methods": "*",
+                "X-Content-Type-Options": "nosniff",
+                "X-Frame-Options": "DENY",
+                "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none';",
+                "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
             },
             "body": json.dumps({
                 "llm_output": response
