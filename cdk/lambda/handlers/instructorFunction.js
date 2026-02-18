@@ -1,5 +1,11 @@
-const { initializeConnection } = require("./initializeConnection.js");
-let { SM_DB_CREDENTIALS, RDS_PROXY_ENDPOINT, USER_POOL } = process.env;
+const {
+  initConnection,
+  createResponse,
+  parseBody,
+  handleError,
+  getSqlConnection,
+} = require("./utils/utils");
+
 const {
   CognitoIdentityProviderClient,
   AdminGetUserCommand,
@@ -8,6 +14,8 @@ const {
   EventBridgeClient,
   PutEventsCommand,
 } = require("@aws-sdk/client-eventbridge");
+
+let { USER_POOL } = process.env;
 
 const eventBridgeClient = new EventBridgeClient({});
 
@@ -68,9 +76,8 @@ async function publishFeedbackNotificationEvent(
   }
 }
 
-let sqlConnection = global.sqlConnection;
-
 exports.handler = async (event) => {
+  const response = createResponse();
   const cognito_id = event.requestContext.authorizer.userId;
   const client = new CognitoIdentityProviderClient();
   const userAttributesCommand = new AdminGetUserCommand({
@@ -95,53 +102,25 @@ exports.handler = async (event) => {
     (instructorEmail && instructorEmail !== userEmailAttribute);
 
   if (isUnauthorized) {
-    return {
-      statusCode: 401,
-      headers: {
-        "Access-Control-Allow-Headers":
-          "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "*",
-        "X-Content-Type-Options": "nosniff",
-        "X-Frame-Options": "DENY",
-        "Content-Security-Policy":
-          "default-src 'none'; frame-ancestors 'none';",
-        "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
-      },
-      body: JSON.stringify({ error: "Unauthorized" }),
-    };
+    response.statusCode = 401;
+    response.body = JSON.stringify({ error: "Unauthorized" });
+    return response;
   }
-
-  /* Helper to format responses */
-  const buildResponse = (statusCode, body) => ({
-    statusCode,
-    headers: {
-      "Access-Control-Allow-Headers":
-        "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "*",
-      "X-Content-Type-Options": "nosniff",
-      "X-Frame-Options": "DENY",
-      "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none';",
-      "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
-    },
-    body: JSON.stringify(body),
-  });
 
   // Initialize the database connection if not already initialized
-  if (!sqlConnection) {
-    try {
-      await initializeConnection(SM_DB_CREDENTIALS, RDS_PROXY_ENDPOINT);
-      sqlConnection = global.sqlConnection;
-    } catch (err) {
-      console.error("Database connection failed:", err);
-      return buildResponse(500, {
-        error: "Service unavailable (DB connection)",
-      });
-    }
+  try {
+    await initConnection();
+  } catch (err) {
+    console.error("Database connection failed:", err);
+    response.statusCode = 500;
+    response.body = JSON.stringify({
+      error: "Service unavailable (DB connection)",
+    });
+    return response;
   }
 
-  let response;
+  const sqlConnection = getSqlConnection();
+
   try {
     const pathData = event.httpMethod + " " + event.resource;
 
@@ -171,10 +150,10 @@ exports.handler = async (event) => {
             WHERE i.instructor_id = ${userId};
           `;
 
-          response = buildResponse(200, data);
+          response.body = JSON.stringify(data);
         } catch (err) {
           console.error("/instructor/students error:", err);
-          response = buildResponse(500, { error: "Internal server error" });
+          handleError(err, response);
         }
         break;
 
@@ -205,17 +184,17 @@ exports.handler = async (event) => {
             AND c.sent_to_review = true;
           `;
 
-          response = buildResponse(200, data);
+          response.body = JSON.stringify(data);
         } catch (err) {
           console.error("/instructor/cases_to_review error:", err);
-          response = buildResponse(500, { error: "Internal server error" });
+          handleError(err, response);
         }
         break;
 
       case "PUT /instructor/send_feedback":
-        // SECURITY: Use trusted cognito_id from authorizer
         if (!event.queryStringParameters?.case_id || !event.body) {
-          response = buildResponse(400, {
+          response.statusCode = 400;
+          response.body = JSON.stringify({
             error: "Missing required parameters: case_id or body",
           });
           break;
@@ -224,15 +203,17 @@ exports.handler = async (event) => {
         const { case_id } = event.queryStringParameters;
         let message_content;
         try {
-          const parsedBody = JSON.parse(event.body);
+          const parsedBody = parseBody(event.body);
           message_content = parsedBody.message_content;
         } catch (e) {
-          response = buildResponse(400, { error: "Invalid JSON body" });
+          response.statusCode = 400;
+          response.body = JSON.stringify({ error: "Invalid JSON body" });
           break;
         }
 
         if (!message_content) {
-          response = buildResponse(400, {
+          response.statusCode = 400;
+          response.body = JSON.stringify({
             error: "Missing message_content in body",
           });
           break;
@@ -245,7 +226,8 @@ exports.handler = async (event) => {
           `;
 
           if (user.length === 0) {
-            response = buildResponse(404, {
+            response.statusCode = 404;
+            response.body = JSON.stringify({
               error: "Instructor user not found",
             });
             break;
@@ -262,7 +244,8 @@ exports.handler = async (event) => {
           `;
 
           if (caseResult.length === 0) {
-            response = buildResponse(404, {
+            response.statusCode = 404;
+            response.body = JSON.stringify({
               error: "Case not found",
             });
             break;
@@ -307,18 +290,19 @@ exports.handler = async (event) => {
             instructorName,
           );
 
-          response = buildResponse(200, {
+          response.body = JSON.stringify({
             message: "Feedback sent successfully",
           });
         } catch (err) {
           console.error("/instructor/send_feedback error:", err);
-          response = buildResponse(500, { error: "Internal server error" });
+          handleError(err, response);
         }
         break;
 
       case "GET /instructor/name":
         if (!event.queryStringParameters?.user_email) {
-          response = buildResponse(400, {
+          response.statusCode = 400;
+          response.body = JSON.stringify({
             error: "Missing required parameter: user_email",
           });
           break;
@@ -330,13 +314,14 @@ exports.handler = async (event) => {
           `;
 
           if (userData.length > 0) {
-            response = buildResponse(200, { name: userData[0].first_name });
+            response.body = JSON.stringify({ name: userData[0].first_name });
           } else {
-            response = buildResponse(404, { error: "User not found" });
+            response.statusCode = 404;
+            response.body = JSON.stringify({ error: "User not found" });
           }
         } catch (err) {
           console.error("/instructor/name error:", err);
-          response = buildResponse(500, { error: "Internal server error" });
+          handleError(err, response);
         }
         break;
 
@@ -364,7 +349,7 @@ exports.handler = async (event) => {
           const studentIds = studentIdsResult.map((row) => row.student_id);
 
           if (studentIds.length === 0) {
-            response = buildResponse(200, []); // No students, return empty array
+            response.body = JSON.stringify([]); // No students, return empty array
             break;
           }
 
@@ -379,20 +364,16 @@ exports.handler = async (event) => {
             WHERE c.student_id = ANY(${studentIds});
           `;
 
-          response = buildResponse(200, cases);
+          response.body = JSON.stringify(cases);
         } catch (err) {
           console.error("/instructor/view_students error:", err);
-          response = buildResponse(500, { error: "Internal server error" });
+          handleError(err, response);
         }
         break;
 
       case "GET /instructor/prompts":
         // SECURITY: Use trusted cognito_id from authorizer
         try {
-          // 1. Verify instructor exists (optional based on strictness, but good practice)
-          // const userIdResult = await sqlConnection`SELECT user_id FROM "users" WHERE cognito_id = ${cognito_id}`;
-          // if (userIdResult.length === 0) { ... }
-
           const { category, block_type } = event.queryStringParameters || {};
 
           // Base query for active prompts
@@ -424,16 +405,17 @@ exports.handler = async (event) => {
           // Using 'unsafe' for dynamic query construction appropriately with parameters
           const prompts = await sqlConnection.unsafe(query, params);
 
-          response = buildResponse(200, prompts);
+          response.body = JSON.stringify(prompts);
         } catch (err) {
           console.error("/instructor/prompts error:", err);
-          response = buildResponse(500, { error: "Internal server error" });
+          handleError(err, response);
         }
         break;
 
       case "DELETE /instructor/delete_case":
         if (!event.queryStringParameters?.case_id) {
-          response = buildResponse(400, {
+          response.statusCode = 400;
+          response.body = JSON.stringify({
             error: "Missing required parameter: case_id",
           });
           break;
@@ -457,7 +439,8 @@ exports.handler = async (event) => {
             SELECT student_id FROM "cases" WHERE case_id = ${deleteCaseId};
           `;
           if (caseResult.length === 0) {
-            response = buildResponse(404, { error: "Case not found" });
+            response.statusCode = 404;
+            response.body = JSON.stringify({ error: "Case not found" });
             break;
           }
           const studentId = caseResult[0].student_id;
@@ -472,7 +455,8 @@ exports.handler = async (event) => {
             `;
 
             if (isAssigned.length === 0) {
-              response = buildResponse(403, {
+              response.statusCode = 403;
+              response.body = JSON.stringify({
                 error:
                   "Permission denied: Instructor is not assigned to this student and does not own this case.",
               });
@@ -485,18 +469,19 @@ exports.handler = async (event) => {
             DELETE FROM "cases" WHERE case_id = ${deleteCaseId};
           `;
 
-          response = buildResponse(200, {
+          response.body = JSON.stringify({
             message: "Case deleted successfully",
           });
         } catch (err) {
           console.error("/instructor/delete_case error:", err);
-          response = buildResponse(500, { error: "Internal server error" });
+          handleError(err, response);
         }
         break;
 
       case "DELETE /instructor/delete_feedback":
         if (!event.queryStringParameters?.message_id) {
-          response = buildResponse(400, {
+          response.statusCode = 400;
+          response.body = JSON.stringify({
             error: "Missing required parameter: message_id",
           });
           break;
@@ -520,14 +505,16 @@ exports.handler = async (event) => {
             SELECT instructor_id FROM "messages" WHERE message_id = ${deleteMessageId};
           `;
           if (messageResult.length === 0) {
-            response = buildResponse(404, { error: "Feedback not found" });
+            response.statusCode = 404;
+            response.body = JSON.stringify({ error: "Feedback not found" });
             break;
           }
           const messageAuthorId = messageResult[0].instructor_id;
 
           // Check permission: Instructor must be the author of the message
           if (instructorId !== messageAuthorId) {
-            response = buildResponse(403, {
+            response.statusCode = 403;
+            response.body = JSON.stringify({
               error:
                 "Permission denied: You can only delete your own feedback.",
             });
@@ -539,24 +526,25 @@ exports.handler = async (event) => {
             DELETE FROM "messages" WHERE message_id = ${deleteMessageId};
           `;
 
-          response = buildResponse(200, {
+          response.body = JSON.stringify({
             message: "Feedback deleted successfully",
           });
         } catch (err) {
           console.error("/instructor/delete_feedback error:", err);
-          response = buildResponse(500, { error: "Internal server error" });
+          handleError(err, response);
         }
         break;
 
       default:
-        response = buildResponse(404, {
+        response.statusCode = 404;
+        response.body = JSON.stringify({
           error: `Route not found: ${pathData}`,
         });
         break;
     }
   } catch (error) {
     console.error("Critical Handler Error:", error);
-    response = buildResponse(500, { error: "Critical internal server error" });
+    handleError(error, response);
   }
 
   return response;

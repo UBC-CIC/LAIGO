@@ -63,7 +63,7 @@ exports.handler = async (event) => {
   const response = createResponse();
 
   // Ensure DB initialized and obtain connection
-  await initConnection(SM_DB_CREDENTIALS, RDS_PROXY_ENDPOINT);
+  await initConnection();
   sqlConnection = getSqlConnection();
 
   // Function to format student full names (lowercase and spaces replaced with "_")
@@ -116,9 +116,7 @@ exports.handler = async (event) => {
               console.log(newUser);
             }
           } catch (err) {
-            response.statusCode = 500;
-            console.log(err);
-            response.body = JSON.stringify({ error: "Internal server error" });
+            handleError(err, response);
           }
         } else {
           response.statusCode = 400;
@@ -147,9 +145,7 @@ exports.handler = async (event) => {
               response.body = JSON.stringify({ error: "User not found" });
             }
           } catch (err) {
-            response.statusCode = 500;
-            console.log(err);
-            response.body = JSON.stringify({ error: "Internal server error" });
+            handleError(err, response);
           }
         } else {
           response.statusCode = 400;
@@ -179,9 +175,7 @@ exports.handler = async (event) => {
               response.body = JSON.stringify(data); // Ensure the data is always valid JSON
             }
           } catch (err) {
-            response.statusCode = 500;
-            console.log(err);
-            response.body = JSON.stringify({ error: "Internal server error" });
+            handleError(err, response);
           }
         } else {
           response.statusCode = 400;
@@ -208,9 +202,7 @@ exports.handler = async (event) => {
               message: "Summary deleted successfully",
             });
           } catch (err) {
-            response.statusCode = 500;
-            console.error(err);
-            response.body = JSON.stringify({ error: "Internal server error" });
+            handleError(err, response);
           }
         } else {
           response.statusCode = 400;
@@ -245,8 +237,7 @@ exports.handler = async (event) => {
             response.body = JSON.stringify({ value: result.Parameter.Value });
           } catch (err) {
             console.error("Failed to fetch message limit:", err);
-            response.statusCode = 500;
-            response.body = JSON.stringify({ error: "Internal server error" });
+            handleError(err, response);
           }
         } else {
           response.statusCode = 400;
@@ -268,8 +259,7 @@ exports.handler = async (event) => {
           response.body = JSON.stringify({ value: result.Parameter.Value });
         } catch (err) {
           console.error("Failed to fetch file size limit:", err);
-          response.statusCode = 500;
-          response.body = JSON.stringify({ error: "Internal server error" });
+          handleError(err, response);
         }
         break;
 
@@ -351,8 +341,7 @@ exports.handler = async (event) => {
           });
         } catch (err) {
           console.error("Error fetching disclaimer:", err);
-          response.statusCode = 500;
-          response.body = JSON.stringify({ error: "Internal server error" });
+          handleError(err, response);
         }
         break;
 
@@ -385,8 +374,7 @@ exports.handler = async (event) => {
           });
         } catch (err) {
           console.error("Error accepting disclaimer:", err);
-          response.statusCode = 500;
-          response.body = JSON.stringify({ error: "Internal server error" });
+          handleError(err, response);
         }
         break;
 
@@ -421,9 +409,7 @@ exports.handler = async (event) => {
             response.body = JSON.stringify({ error: "User not found" });
           }
         } catch (err) {
-          response.statusCode = 500;
-          console.error(err);
-          response.body = JSON.stringify({ error: "Internal server error" });
+          handleError(err, response);
         }
         break;
 
@@ -447,8 +433,7 @@ exports.handler = async (event) => {
             });
           } catch (err) {
             console.error(err);
-            response.statusCode = 500;
-            response.body = JSON.stringify({ error: "Internal server error" });
+            handleError(err, response);
           }
         } else {
           response.statusCode = 400;
@@ -524,9 +509,8 @@ exports.handler = async (event) => {
             response.body = JSON.stringify(transcriptions);
             break;
           } catch (err) {
-            response.statusCode = 500; // Internal server error
             console.error(err);
-            response.body = JSON.stringify({ error: "Internal server error" });
+            handleError(err, response);
           }
         } else {
           response.statusCode = 400; // Bad Request
@@ -607,9 +591,8 @@ exports.handler = async (event) => {
               response.body = JSON.stringify(data[0]);
             }
           } catch (err) {
-            response.statusCode = 500;
             console.error(err);
-            response.body = JSON.stringify({ error: "Internal server error" });
+            handleError(err, response);
           }
         } else {
           response.statusCode = 400;
@@ -693,8 +676,7 @@ exports.handler = async (event) => {
             response.body = JSON.stringify(combinedData);
           } catch (err) {
             console.error(err);
-            response.statusCode = 500;
-            response.body = JSON.stringify({ error: "Internal server error" });
+            handleError(err, response);
           }
         } else {
           response.statusCode = 400;
@@ -746,9 +728,7 @@ exports.handler = async (event) => {
             response.body = JSON.stringify({ error: "User not found" });
           }
         } catch (err) {
-          response.statusCode = 500;
-          console.error(err);
-          response.body = JSON.stringify({ error: "Internal server error" });
+          handleError(err, response);
         }
         break;
 
@@ -786,9 +766,7 @@ exports.handler = async (event) => {
             response.body = JSON.stringify({ error: "User not found" });
           }
         } catch (err) {
-          response.statusCode = 500;
-          console.error(err);
-          response.body = JSON.stringify({ error: "Internal server error" });
+          handleError(err, response);
         }
         break;
 
@@ -860,9 +838,7 @@ exports.handler = async (event) => {
             response.statusCode = 200;
             response.body = JSON.stringify(messages);
           } catch (err) {
-            console.error(err);
-            response.statusCode = 500;
-            response.body = JSON.stringify({ error: "Internal server error" });
+            handleError(err, response);
           }
         } else {
           response.statusCode = 400;
@@ -904,9 +880,7 @@ exports.handler = async (event) => {
             response.body = JSON.stringify({ error: "User not found" });
           }
         } catch (err) {
-          response.statusCode = 500;
-          console.error(err);
-          response.body = JSON.stringify({ error: "Internal server error" });
+          handleError(err, response);
         }
         break;
 
@@ -926,8 +900,7 @@ exports.handler = async (event) => {
             response.statusCode = 200;
             response.body = JSON.stringify(insertResult[0]);
           } catch (err) {
-            response.statusCode = 500;
-            console.error(err);
+            handleError(err, response);
           }
         }
         break;
@@ -967,9 +940,7 @@ exports.handler = async (event) => {
             response.body = JSON.stringify({ error: "User not found" });
           }
         } catch (err) {
-          response.statusCode = 500;
-          console.log(err);
-          response.body = JSON.stringify({ error: "Internal server error" });
+          handleError(err, response);
         }
         break;
 
@@ -1017,9 +988,7 @@ exports.handler = async (event) => {
             response.body = JSON.stringify({ error: "User not found" });
           }
         } catch (err) {
-          response.statusCode = 500;
-          console.log(err);
-          response.body = JSON.stringify({ error: "Internal server error" });
+          handleError(err, response);
         }
         break;
 
@@ -1047,9 +1016,7 @@ exports.handler = async (event) => {
 
             response.body = JSON.stringify({ success: true });
           } catch (err) {
-            response.statusCode = 500;
-            console.log(err);
-            response.body = JSON.stringify({ error: "Internal server error" });
+            handleError(err, response);
           }
         } else {
           response.statusCode = 400;
@@ -1067,9 +1034,7 @@ exports.handler = async (event) => {
 
           response.body = JSON.stringify({ success: true });
         } catch (err) {
-          response.statusCode = 500;
-          console.log(err);
-          response.body = JSON.stringify({ error: "Internal server error" });
+          handleError(err, response);
         }
         break;
 
@@ -1156,8 +1121,7 @@ exports.handler = async (event) => {
             }
           } catch (err) {
             console.log("Error occurred: ", err);
-            response.statusCode = 500;
-            response.body = JSON.stringify({ error: "Internal server error" });
+            handleError(err, response);
           }
         } else {
           console.log("Case ID missing");
@@ -1221,9 +1185,7 @@ exports.handler = async (event) => {
               student_notes: caseData[0].student_notes,
             });
           } catch (err) {
-            response.statusCode = 500;
-            console.log(err);
-            response.body = JSON.stringify({ error: "Internal server error" });
+            handleError(err, response);
           }
         } else {
           response.statusCode = 400;
@@ -1238,7 +1200,7 @@ exports.handler = async (event) => {
           event.queryStringParameters.case_id
         ) {
           const { case_id } = event.queryStringParameters;
-          const { notes } = JSON.parse(event.body || "{}");
+          const { notes } = parseBody(event.body);
 
           try {
             // Step 1: Get user ID using trusted cognito_id
@@ -1283,11 +1245,7 @@ exports.handler = async (event) => {
               message: "Notes Updated Successfully",
             });
           } catch (err) {
-            response.statusCode = 500;
-            console.error(err);
-            response.body = JSON.stringify({
-              error: "Internal server error",
-            });
+            handleError(err, response);
           }
         } else {
           response.statusCode = 400;
@@ -1311,7 +1269,7 @@ exports.handler = async (event) => {
             jurisdiction,
             province,
             statute,
-          } = JSON.parse(event.body || "{}");
+          } = parseBody(event.body);
           try {
             // Step 1: Get user ID using trusted cognito_id
             const userResult = await sqlConnection`
@@ -1360,11 +1318,7 @@ exports.handler = async (event) => {
               message: "Case Updated Successfully",
             });
           } catch (err) {
-            response.statusCode = 500;
-            console.error(err);
-            response.body = JSON.stringify({
-              error: "Internal server error",
-            });
+            handleError(err, response);
           }
         } else {
           response.statusCode = 400;
@@ -1426,9 +1380,7 @@ exports.handler = async (event) => {
               message: "Transcription deleted successfully",
             });
           } catch (err) {
-            response.statusCode = 500;
-            console.error(err);
-            response.body = JSON.stringify({ error: "Internal server error" });
+            handleError(err, response);
           }
         } else {
           response.statusCode = 400;
@@ -1449,7 +1401,7 @@ exports.handler = async (event) => {
           let reviewer_ids = [];
           try {
             if (event.body) {
-              const parsedBody = JSON.parse(event.body);
+              const parsedBody = parseBody(event.body);
               if (Array.isArray(parsedBody.reviewer_ids)) {
                 reviewer_ids = parsedBody.reviewer_ids;
               }
@@ -1766,9 +1718,7 @@ exports.handler = async (event) => {
               });
             }
           } catch (err) {
-            response.statusCode = 500;
-            console.error(err);
-            response.body = JSON.stringify({ error: "Internal server error" });
+            handleError(err, response);
           }
         } else {
           response.statusCode = 400;

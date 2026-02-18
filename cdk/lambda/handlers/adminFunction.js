@@ -1,4 +1,11 @@
-const { initializeConnection } = require("./initializeConnection.js");
+const {
+  initConnection,
+  createResponse,
+  parseBody,
+  handleError,
+  getSqlConnection,
+} = require("./utils/utils");
+
 const {
   CognitoIdentityProviderClient,
   AdminAddUserToGroupCommand,
@@ -22,30 +29,22 @@ let {
   BEDROCK_MAX_TOKENS_PARAM,
 } = process.env;
 
-// SQL conneciton from global variable at initializeConnection.js
-let sqlConnectionTableCreator = global.sqlConnection;
-
 exports.handler = async (event) => {
-  const response = {
-    statusCode: 200,
-    headers: {
-      "Access-Control-Allow-Headers":
-        "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "*",
-      "X-Content-Type-Options": "nosniff",
-      "X-Frame-Options": "DENY",
-      "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none';",
-      "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
-    },
-    body: "",
-  };
+  const response = createResponse();
 
   // Initialize the database connection if not already initialized
-  if (!sqlConnectionTableCreator) {
-    await initializeConnection(SM_DB_CREDENTIALS, RDS_PROXY_ENDPOINT);
-    sqlConnectionTableCreator = global.sqlConnection;
+  try {
+    await initConnection();
+  } catch (err) {
+    console.error("Database connection failed:", err);
+    response.statusCode = 500;
+    response.body = JSON.stringify({
+      error: "Service unavailable (DB connection)",
+    });
+    return response;
   }
+
+  const sqlConnectionTableCreator = getSqlConnection();
 
   // Function to format student full names (lowercase and spaces replaced with "_")
   const formatNames = (name) => {
@@ -69,17 +68,14 @@ exports.handler = async (event) => {
           response.body = JSON.stringify(instructors);
         } catch (err) {
           console.error("Database error:", err);
-          response.statusCode = 500;
-          response.body = JSON.stringify({
-            error: "Failed to fetch instructors",
-          });
+          handleError(err, response);
         }
         break;
       case "POST /admin/assign_instructor_to_student":
         // Check if the body contains the instructor and student IDs
         if (event.body) {
           try {
-            const { instructor_id, student_email } = JSON.parse(event.body); // Parse the request body to access the JSON data
+            const { instructor_id, student_email } = parseBody(event.body); // Parse the request body to access the JSON data
 
             if (!instructor_id || !student_email) {
               response.statusCode = 400;
@@ -103,10 +99,6 @@ exports.handler = async (event) => {
             }
 
             const student = studentLookup[0];
-            /* Optional: Verify user is a student? 
-               Usually good, but maybe an 'admin' or 'instructor' could be a student of another instructor?
-               For now, let's allow it, or strictly check roles. The Requirement implies 'assign students'.
-             */
 
             // Perform the database insertion
             const assignment = await sqlConnectionTableCreator`
@@ -114,9 +106,6 @@ exports.handler = async (event) => {
                 VALUES ( ${instructor_id}, ${student.user_id})
                 ON CONFLICT (instructor_id, student_id) DO NOTHING;
               `;
-
-            // Check if inserted? Postgres doesn't return count easily in all drivers with simple query unless returning.
-            // But 'DO NOTHING' prevents error.
 
             response.statusCode = 200;
             response.body = JSON.stringify({
@@ -178,8 +167,7 @@ exports.handler = async (event) => {
           response.body = JSON.stringify(students);
         } catch (err) {
           console.error("Database error:", err);
-          response.statusCode = 500;
-          response.body = JSON.stringify({ error: "Failed to fetch students" });
+          handleError(err, response);
         }
         break;
       case "POST /admin/prompt":
@@ -189,7 +177,7 @@ exports.handler = async (event) => {
           if (!event.body) throw new Error("Request body is missing");
 
           const { category, block_type, prompt_text, version_name, author_id } =
-            JSON.parse(event.body);
+            parseBody(event.body);
 
           if (!category || !block_type || !prompt_text)
             throw new Error(
@@ -216,11 +204,8 @@ exports.handler = async (event) => {
 
           response.body = JSON.stringify(insertPrompt[0]);
         } catch (err) {
-          response.statusCode = 500;
           console.error("Error inserting prompt version:", err);
-          response.body = JSON.stringify({
-            error: err.message || "Internal server error",
-          });
+          handleError(err, response);
         }
         break;
       case "PUT /admin/prompt":
@@ -229,7 +214,7 @@ exports.handler = async (event) => {
 
           if (!event.body) throw new Error("Request body is missing");
 
-          const { prompt_version_id, prompt_text, version_name } = JSON.parse(
+          const { prompt_version_id, prompt_text, version_name } = parseBody(
             event.body,
           );
 
@@ -264,13 +249,8 @@ exports.handler = async (event) => {
 
           response.body = JSON.stringify(updateResult[0]);
         } catch (err) {
-          if (response.statusCode === 200) {
-            response.statusCode = 500;
-          }
           console.error("Error updating prompt version:", err);
-          response.body = JSON.stringify({
-            error: err.message || "Internal server error",
-          });
+          handleError(err, response);
         }
         break;
       case "GET /admin/prompt":
@@ -319,11 +299,8 @@ exports.handler = async (event) => {
 
           response.body = JSON.stringify(prompts);
         } catch (err) {
-          response.statusCode = 500;
           console.error("Error fetching prompt versions:", err);
-          response.body = JSON.stringify({
-            error: err.message || "Internal server error",
-          });
+          handleError(err, response);
         }
         break;
       case "GET /admin/prompt/active":
@@ -345,18 +322,15 @@ exports.handler = async (event) => {
 
           response.body = JSON.stringify(activePrompts);
         } catch (err) {
-          response.statusCode = 500;
           console.error("Error fetching active prompts:", err);
-          response.body = JSON.stringify({
-            error: err.message || "Internal server error",
-          });
+          handleError(err, response);
         }
         break;
       case "POST /admin/prompt/activate":
         try {
           if (!event.body) throw new Error("Request body is missing");
 
-          const { prompt_version_id } = JSON.parse(event.body);
+          const { prompt_version_id } = parseBody(event.body);
 
           if (!prompt_version_id)
             throw new Error("Missing required field: prompt_version_id");
@@ -399,11 +373,8 @@ exports.handler = async (event) => {
             block_type,
           });
         } catch (err) {
-          response.statusCode = 500;
           console.error("Error activating prompt:", err);
-          response.body = JSON.stringify({
-            error: err.message || "Internal server error",
-          });
+          handleError(err, response);
         }
         break;
 
@@ -455,13 +426,8 @@ exports.handler = async (event) => {
             block_type,
           });
         } catch (err) {
-          if (response.statusCode === 200) {
-            response.statusCode = 500;
-          }
           console.error("Error deleting prompt:", err);
-          response.body = JSON.stringify({
-            error: err.message || "Internal server error",
-          });
+          handleError(err, response);
         }
         break;
 
@@ -489,8 +455,7 @@ exports.handler = async (event) => {
           });
         } catch (err) {
           console.error("Failed to fetch AI config:", err);
-          response.statusCode = 500;
-          response.body = JSON.stringify({ error: "Internal server error" });
+          handleError(err, response);
         }
         break;
 
@@ -499,7 +464,7 @@ exports.handler = async (event) => {
           const { SSMClient, PutParameterCommand } =
             await import("@aws-sdk/client-ssm");
           const ssm = new SSMClient();
-          const body = JSON.parse(event.body);
+          const body = parseBody(event.body);
 
           const promises = [];
           if (body.bedrock_llm_id) {
@@ -557,8 +522,7 @@ exports.handler = async (event) => {
           response.body = JSON.stringify({ success: true });
         } catch (err) {
           console.error("Failed to update AI config:", err);
-          response.statusCode = 500;
-          response.body = JSON.stringify({ error: "Internal server error" });
+          handleError(err, response);
         }
         break;
 
@@ -584,8 +548,7 @@ exports.handler = async (event) => {
           response.body = JSON.stringify({ value: result.Parameter.Value });
         } catch (err) {
           console.error("❌ Failed to fetch message limit:", err);
-          response.statusCode = 500;
-          response.body = JSON.stringify({ error: "Internal server error" });
+          handleError(err, response);
         }
         break;
 
@@ -595,7 +558,7 @@ exports.handler = async (event) => {
             await import("@aws-sdk/client-ssm");
           const ssm = new SSMClient();
 
-          const body = JSON.parse(event.body);
+          const body = parseBody(event.body);
           const newValue = body?.value;
 
           if (typeof newValue !== "string" && typeof newValue !== "number") {
@@ -621,8 +584,7 @@ exports.handler = async (event) => {
           response.body = JSON.stringify({ success: true, value: newValue });
         } catch (err) {
           console.error("❌ Failed to update message limit:", err);
-          response.statusCode = 500;
-          response.body = JSON.stringify({ error: "Internal server error" });
+          handleError(err, response);
         }
         break;
       case "GET /admin/file_size_limit":
@@ -650,7 +612,7 @@ exports.handler = async (event) => {
             await import("@aws-sdk/client-ssm");
           const ssm = new SSMClient();
 
-          const body = JSON.parse(event.body);
+          const body = parseBody(event.body);
           const newValue = body?.value;
 
           if (!newValue) {
@@ -674,8 +636,7 @@ exports.handler = async (event) => {
           response.body = JSON.stringify({ success: true, value: newValue });
         } catch (err) {
           console.error("Failed to update file size limit:", err);
-          response.statusCode = 500;
-          response.body = JSON.stringify({ error: "Internal server error" });
+          handleError(err, response);
         }
         break;
       case "GET /student/file_size_limit":
@@ -727,7 +688,7 @@ exports.handler = async (event) => {
 
           if (!event.body) throw new Error("Request body is missing");
 
-          const { disclaimer_text, version_name, author_id } = JSON.parse(
+          const { disclaimer_text, version_name, author_id } = parseBody(
             event.body,
           );
 
@@ -751,11 +712,8 @@ exports.handler = async (event) => {
 
           response.body = JSON.stringify(insertResult[0]);
         } catch (err) {
-          response.statusCode = 500;
           console.error("Error inserting disclaimer:", err);
-          response.body = JSON.stringify({
-            error: err.message || "Internal server error",
-          });
+          handleError(err, response);
         }
         break;
       case "GET /admin/disclaimer":
@@ -779,10 +737,7 @@ exports.handler = async (event) => {
           response.body = JSON.stringify(result);
         } catch (err) {
           console.error("Error fetching disclaimers:", err);
-          response.statusCode = 500;
-          response.body = JSON.stringify({
-            error: "Failed to fetch disclaimers",
-          });
+          handleError(err, response);
         }
         break;
 
@@ -792,7 +747,7 @@ exports.handler = async (event) => {
 
           if (!event.body) throw new Error("Request body is missing");
 
-          const { disclaimer_id, disclaimer_text, version_name } = JSON.parse(
+          const { disclaimer_id, disclaimer_text, version_name } = parseBody(
             event.body,
           );
 
@@ -828,13 +783,8 @@ exports.handler = async (event) => {
 
           response.body = JSON.stringify(updateResult[0]);
         } catch (err) {
-          if (response.statusCode === 200) {
-            response.statusCode = 500;
-          }
           console.error("Error updating disclaimer:", err);
-          response.body = JSON.stringify({
-            error: err.message || "Internal server error",
-          });
+          handleError(err, response);
         }
         break;
 
@@ -881,13 +831,8 @@ exports.handler = async (event) => {
             message: "Disclaimer deleted successfully",
           });
         } catch (err) {
-          if (response.statusCode === 200) {
-            response.statusCode = 500;
-          }
           console.error("Error deleting disclaimer:", err);
-          response.body = JSON.stringify({
-            error: err.message || "Internal server error",
-          });
+          handleError(err, response);
         }
         break;
 
@@ -895,7 +840,7 @@ exports.handler = async (event) => {
         try {
           if (!event.body) throw new Error("Request body is missing");
 
-          const { disclaimer_id } = JSON.parse(event.body);
+          const { disclaimer_id } = parseBody(event.body);
 
           if (!disclaimer_id)
             throw new Error("Missing required field: disclaimer_id");
@@ -932,11 +877,8 @@ exports.handler = async (event) => {
             message: "Disclaimer activated successfully",
           });
         } catch (err) {
-          response.statusCode = 500;
           console.error("Error activating disclaimer:", err);
-          response.body = JSON.stringify({
-            error: err.message || "Internal server error",
-          });
+          handleError(err, response);
         }
         break;
 
