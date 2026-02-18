@@ -437,13 +437,22 @@ exports.handler = async (event) => {
             await import("@aws-sdk/client-ssm");
           const ssm = new SSMClient();
 
-          const [llmRes, tempRes, topPRes, maxTokensRes] = await Promise.all([
+          const [
+            llmRes,
+            tempRes,
+            topPRes,
+            maxTokensRes,
+            msgLimitRes,
+            fileSizeRes,
+          ] = await Promise.all([
             ssm.send(new GetParameterCommand({ Name: BEDROCK_LLM_PARAM })),
             ssm.send(new GetParameterCommand({ Name: BEDROCK_TEMP_PARAM })),
             ssm.send(new GetParameterCommand({ Name: BEDROCK_TOP_P_PARAM })),
             ssm.send(
               new GetParameterCommand({ Name: BEDROCK_MAX_TOKENS_PARAM }),
             ),
+            ssm.send(new GetParameterCommand({ Name: MESSAGE_LIMIT })),
+            ssm.send(new GetParameterCommand({ Name: FILE_SIZE_LIMIT })),
           ]);
 
           response.statusCode = 200;
@@ -452,6 +461,8 @@ exports.handler = async (event) => {
             temperature: tempRes.Parameter.Value,
             top_p: topPRes.Parameter.Value,
             max_tokens: maxTokensRes.Parameter.Value,
+            message_limit: msgLimitRes.Parameter.Value,
+            file_size_limit: fileSizeRes.Parameter.Value,
           });
         } catch (err) {
           console.error("Failed to fetch AI config:", err);
@@ -509,6 +520,30 @@ exports.handler = async (event) => {
                 new PutParameterCommand({
                   Name: BEDROCK_MAX_TOKENS_PARAM,
                   Value: String(body.max_tokens),
+                  Overwrite: true,
+                  Type: "String",
+                }),
+              ),
+            );
+          }
+          if (body.message_limit) {
+            promises.push(
+              ssm.send(
+                new PutParameterCommand({
+                  Name: MESSAGE_LIMIT,
+                  Value: String(body.message_limit),
+                  Overwrite: true,
+                  Type: "String",
+                }),
+              ),
+            );
+          }
+          if (body.file_size_limit) {
+            promises.push(
+              ssm.send(
+                new PutParameterCommand({
+                  Name: FILE_SIZE_LIMIT,
+                  Value: String(body.file_size_limit),
                   Overwrite: true,
                   Type: "String",
                 }),

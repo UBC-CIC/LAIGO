@@ -869,6 +869,10 @@ paths:
                     type: string
                   max_tokens:
                     type: string
+                  message_limit:
+                    type: string
+                  file_size_limit:
+                    type: string
         "500":
           description: Internal Server Error
       x-amazon-apigateway-integration:
@@ -895,10 +899,26 @@ paths:
                   type: string
                 temperature:
                   type: number
+                  minimum: 0.0
+                  maximum: 1.0
+                  description: "Controls randomness (0.0 to 1.0)"
                 top_p:
                   type: number
+                  minimum: 0.0
+                  maximum: 1.0
+                  description: "Controls diversity (0.0 to 1.0)"
                 max_tokens:
                   type: integer
+                message_limit:
+                  type: string
+                  description: "Daily message limit per user. Must be >= 10 or 'Infinity'."
+                  pattern: "^Infinity$|^([1-9][0-9]+)$"
+                  example: "50"
+                file_size_limit:
+                  type: string
+                  description: "Max audio file size in MB. Must be a positive integer."
+                  pattern: "^[1-9][0-9]*$"
+                  example: "500"
       responses:
         "200":
           description: Configuration updated successfully

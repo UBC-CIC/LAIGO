@@ -59,26 +59,8 @@ const ModelConfig = () => {
       setTemperature(parseFloat(data.temperature) || 0.5);
       setTopP(parseFloat(data.top_p) || 0.9);
       setMaxTokens(parseInt(data.max_tokens) || 2048);
-
-      // Fetch Message Limit
-      const limitResponse = await fetch(
-        `${import.meta.env.VITE_API_ENDPOINT}/admin/message_limit`,
-        { headers: { Authorization: token } },
-      );
-      if (limitResponse.ok) {
-        const limitData = await limitResponse.json();
-        setMessageLimit(limitData.value || "Infinity");
-      }
-
-      // Fetch File Size Limit
-      const fileSizeResponse = await fetch(
-        `${import.meta.env.VITE_API_ENDPOINT}/admin/file_size_limit`,
-        { headers: { Authorization: token } },
-      );
-      if (fileSizeResponse.ok) {
-        const fileSizeData = await fileSizeResponse.json();
-        setFileSizeLimit(fileSizeData.value || "500");
-      }
+      setMessageLimit(data.message_limit || "Infinity");
+      setFileSizeLimit(data.file_size_limit || "500");
     } catch (err) {
       console.error("Error fetching AI config:", err);
       setSnackbar({
@@ -98,7 +80,7 @@ const ModelConfig = () => {
       const token = session.tokens?.idToken?.toString();
       if (!token) throw new Error("No auth token");
 
-      // Save AI Config
+      // Save AI Config (includes message limit and file size limit)
       const response = await fetch(
         `${import.meta.env.VITE_API_ENDPOINT}/admin/ai_config`,
         {
@@ -109,37 +91,12 @@ const ModelConfig = () => {
             temperature: temperature,
             top_p: topP,
             max_tokens: maxTokens,
+            message_limit: messageLimit,
+            file_size_limit: fileSizeLimit,
           }),
         },
       );
-      if (!response.ok) throw new Error("Failed to save AI config");
-
-      // Save Message Limit
-      const limitResponse = await fetch(
-        `${import.meta.env.VITE_API_ENDPOINT}/admin/message_limit`,
-        {
-          method: "PUT",
-          headers: { Authorization: token, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            limit: messageLimit,
-          }),
-        },
-      );
-      if (!limitResponse.ok) throw new Error("Failed to save message limit");
-
-      // Save File Size Limit
-      const fileSizeResponse = await fetch(
-        `${import.meta.env.VITE_API_ENDPOINT}/admin/file_size_limit`,
-        {
-          method: "POST",
-          headers: { Authorization: token, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            value: fileSizeLimit,
-          }),
-        },
-      );
-      if (!fileSizeResponse.ok)
-        throw new Error("Failed to save file size limit");
+      if (!response.ok) throw new Error("Failed to save configuration");
 
       setSnackbar({
         open: true,
