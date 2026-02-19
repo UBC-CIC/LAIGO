@@ -11,8 +11,8 @@ import {
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
-
 import SaveIcon from "@mui/icons-material/Save";
+import DOMPurify from "dompurify";
 
 interface NotepadProps {
   initialContent: string;
@@ -27,9 +27,12 @@ const Notepad: React.FC<NotepadProps> = ({
   onClose,
   readOnly = false,
 }) => {
-  const [content, setContent] = useState(initialContent);
+  // Sanitize potentially unsafe HTML before setting initial state
+  const [content, setContent] = useState(DOMPurify.sanitize(initialContent));
   const [isSaving, setIsSaving] = useState(false);
-  const [lastSavedContent, setLastSavedContent] = useState(initialContent);
+  const [lastSavedContent, setLastSavedContent] = useState(
+    DOMPurify.sanitize(initialContent),
+  );
   const [showSavedIcon, setShowSavedIcon] = useState(false);
   const [position, setPosition] = useState({ x: 100, y: 100 });
   const [size] = useState({ width: 320, height: 400 });
@@ -58,12 +61,21 @@ const Notepad: React.FC<NotepadProps> = ({
   const handleSave = useCallback(
     async (contentToSave: string) => {
       if (contentToSave === lastSavedContent || readOnly) return;
+
+      // Sanitize content before saving to backend
+      const sanitizedContent = DOMPurify.sanitize(contentToSave);
+
       setIsSaving(true);
       setShowSavedIcon(false);
       try {
-        await onSave(contentToSave);
+        await onSave(sanitizedContent);
         if (isMountedFn.current) {
-          setLastSavedContent(contentToSave);
+          setLastSavedContent(sanitizedContent);
+          // Also update current content to match sanitized version if different
+          if (contentToSave !== sanitizedContent) {
+            setContent(sanitizedContent);
+          }
+
           setShowSavedIcon(true);
           setTimeout(() => {
             if (isMountedFn.current) setShowSavedIcon(false);
@@ -92,7 +104,9 @@ const Notepad: React.FC<NotepadProps> = ({
   useEffect(() => {
     return () => {
       if (contentRef.current !== lastSavedContentRef.current && !readOnly) {
-        onSave(contentRef.current);
+        // Sanitize on unmount save as well
+        const sanitized = DOMPurify.sanitize(contentRef.current);
+        onSave(sanitized);
       }
     };
   }, [onSave, readOnly]);
