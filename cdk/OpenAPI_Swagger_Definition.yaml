@@ -2032,13 +2032,19 @@ paths:
                   description: Title of the case
                 case_type:
                   type: string
-                  description: Type of the case
+                  description: Broad Area of Law
+                  minLength: 1
                 jurisdiction:
-                  type: string
+                  type: array
+                  items:
+                    type: string
+                    enum: [Federal, Provincial, Unknown]
                   description: Jurisdiction for the case
                 case_description:
                   type: string
                   description: Detailed description of the case
+                  minLength: 1
+                  maxLength: 4000
                 province:
                   type: string
                   description: Province related to the case
@@ -2122,23 +2128,47 @@ paths:
           application/json:
             schema:
               type: object
+              required:
+                - case_title
+                - case_description
+                - case_type
+                - status
+                - jurisdiction
+                - province
+                - statute
               properties:
                 case_title:
                   type: string
+                  minLength: 1
+                  description: "Title of the case"
                 case_description:
                   type: string
+                  minLength: 1
+                  maxLength: 4000
+                  description: "Detailed description of the case"
                 case_type:
                   type: string
+                  minLength: 1
+                  description: "Broad Area of Law"
                 status:
                   type: string
+                  enum:
+                    - in_progress
+                    - completed
+                    - archived
+                  description: "Current status of the case"
                 jurisdiction:
                   type: array
                   items:
                     type: string
+                    enum: [Federal, Provincial, Unknown]
+                  description: "Jurisdiction list"
                 province:
                   type: string
+                  description: "Province/Territory"
                 statute:
                   type: string
+                  description: "Relevant statute details"
       responses:
         "200":
           description: Case updated successfully

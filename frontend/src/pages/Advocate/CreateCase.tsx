@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -13,6 +13,7 @@ import {
   FormGroup,
   MenuItem,
   Alert,
+  Snackbar,
 } from "@mui/material";
 import AdvocateHeader from "../../components/AdvocateHeader";
 import { fetchAuthSession } from "aws-amplify/auth";
@@ -37,7 +38,13 @@ const CreateCase: React.FC = () => {
   const [submitting, setSubmitting] = useState<boolean>(false);
 
   // Form alert state
-  const [error, setError] = useState<string | null>(null);
+  const [genericError, setGenericError] = useState<string | null>(null);
+  const [broadLawError, setBroadLawError] = useState<string | null>(null);
+  const [provinceError, setProvinceError] = useState<string | null>(null);
+  const [statuteError, setStatuteError] = useState<string | null>(null);
+  const [overviewError, setOverviewError] = useState<string | null>(null);
+
+  const MAX_OVERVIEW_LENGTH = 4000;
 
   const broadLawOptions = [
     "Criminal Law",
@@ -89,14 +96,94 @@ const CreateCase: React.FC = () => {
     "& .MuiInputLabel-root": {
       color: "var(--text)",
     },
+    "& .MuiInputLabel-root.Mui-error": {
+      color: "var(--text)",
+    },
+    "& .MuiFormHelperText-root:not(.Mui-error)": {
+      color: "var(--text-secondary)",
+    },
   };
 
   const navigate = useNavigate();
 
+  // Real-time validation effects
+  useEffect(() => {
+    if (broadLaw) setBroadLawError(null);
+  }, [broadLaw]);
+
+  useEffect(() => {
+    if (isProvincial && province) {
+      setProvinceError(null);
+    } else if (!isProvincial) {
+      setProvinceError(null);
+    }
+  }, [isProvincial, province]);
+
+  useEffect(() => {
+    if (statuteApplicable && statuteDetails.trim().length > 0) {
+      setStatuteError(null);
+    } else if (!statuteApplicable) {
+      setStatuteError(null);
+    }
+  }, [statuteApplicable, statuteDetails]);
+
+  useEffect(() => {
+    if (overview.length > MAX_OVERVIEW_LENGTH) {
+      setOverviewError(
+        `Overview is too long (max ${MAX_OVERVIEW_LENGTH} characters). Currently ${overview.length}`,
+      );
+    } else if (overview.trim().length > 0) {
+      setOverviewError(null);
+    }
+  }, [overview]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
-    setError(null);
+    setGenericError(null);
+    setBroadLawError(null);
+    setProvinceError(null);
+    setStatuteError(null);
+    setOverviewError(null);
+
+    let hasValidationErrors = false;
+
+    // Validation
+    if (!broadLaw) {
+      setBroadLawError("Please select a Broad Area of Law.");
+      hasValidationErrors = true;
+    }
+
+    if (isProvincial && !province) {
+      setProvinceError("Please select a Province/Territory.");
+      hasValidationErrors = true;
+    }
+
+    if (
+      statuteApplicable &&
+      (!statuteDetails || statuteDetails.trim().length === 0)
+    ) {
+      setStatuteError("Please provide statute details.");
+      hasValidationErrors = true;
+    }
+
+    if (!overview || overview.trim().length === 0) {
+      setOverviewError("Please provide a case overview.");
+      hasValidationErrors = true;
+    }
+
+    if (overview.length > MAX_OVERVIEW_LENGTH) {
+      setOverviewError(
+        `Overview is too long (max ${MAX_OVERVIEW_LENGTH} characters). Currently ${overview.length}`,
+      );
+      hasValidationErrors = true;
+    }
+
+    if (hasValidationErrors) {
+      setSubmitting(false);
+      return;
+    }
+
     try {
       const session = await fetchAuthSession();
       const token = session.tokens?.idToken?.toString() || null;
@@ -190,7 +277,7 @@ const CreateCase: React.FC = () => {
     } catch (err) {
       console.error("Failed to submit case", err);
       const msg = err instanceof Error ? err.message : "Failed to submit case";
-      setError(msg);
+      setGenericError(msg);
     } finally {
       setSubmitting(false);
     }
@@ -249,6 +336,8 @@ const CreateCase: React.FC = () => {
                 onChange={(e) => setBroadLaw(e.target.value as string)}
                 variant="outlined"
                 sx={{ ...inputStyles, textAlign: "left" }}
+                error={!!broadLawError}
+                helperText={broadLawError}
               >
                 {broadLawOptions.map((opt) => (
                   <MenuItem value={opt} key={opt} sx={{ textAlign: "left" }}>
@@ -315,6 +404,8 @@ const CreateCase: React.FC = () => {
                     onChange={(e) => setProvince(e.target.value as string)}
                     variant="outlined"
                     sx={{ ...inputStyles, textAlign: "left" }}
+                    error={!!provinceError}
+                    helperText={provinceError}
                   >
                     {canadianProvinces.map((p) => (
                       <MenuItem value={p} key={p} sx={{ textAlign: "left" }}>
@@ -353,6 +444,8 @@ const CreateCase: React.FC = () => {
                   sx={{ ...inputStyles }}
                   value={statuteDetails}
                   onChange={(e) => setStatuteDetails(e.target.value)}
+                  error={!!statuteError}
+                  helperText={statuteError}
                 />
               )}
 
@@ -366,22 +459,9 @@ const CreateCase: React.FC = () => {
                 sx={inputStyles}
                 value={overview}
                 onChange={(e) => setOverview(e.target.value)}
+                error={!!overviewError}
+                helperText={overviewError}
               />
-
-              {error && (
-                <Alert
-                  severity="error"
-                  onClose={() => setError(null)}
-                  sx={{
-                    backgroundColor: "rgba(211, 47, 47, 0.1)",
-                    color: "#f44336",
-                    border: "1px solid #d32f2f",
-                    "& .MuiAlert-icon": { color: "#f44336" },
-                  }}
-                >
-                  {error}
-                </Alert>
-              )}
 
               {/* Start Chat Button */}
               <Button
@@ -407,6 +487,20 @@ const CreateCase: React.FC = () => {
           </form>
         </Paper>
       </Container>
+      <Snackbar
+        open={!!genericError}
+        autoHideDuration={6000}
+        onClose={() => setGenericError(null)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+      >
+        <Alert
+          onClose={() => setGenericError(null)}
+          severity="error"
+          sx={{ width: "100%" }}
+        >
+          {genericError}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };
