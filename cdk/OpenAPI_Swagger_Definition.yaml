@@ -506,6 +506,7 @@ paths:
                 - category
                 - block_type
                 - prompt_text
+                - version_name
               properties:
                 category:
                   type: string
@@ -515,10 +516,12 @@ paths:
                   description: Block type for the prompt
                 prompt_text:
                   type: string
+                  minLength: 1
                   description: The prompt content
                 version_name:
                   type: string
-                  description: Optional human-friendly version name
+                  minLength: 1
+                  description: Human-friendly version name
                 author_id:
                   type: string
                   description: Optional author id
@@ -616,16 +619,20 @@ paths:
               type: object
               required:
                 - prompt_version_id
+                - prompt_text
+                - version_name
               properties:
                 prompt_version_id:
                   type: string
                   description: The ID of the prompt version to update
                 prompt_text:
                   type: string
-                  description: Updated prompt content
+                  minLength: 1
+                  description: Updated prompt content. Must not be empty.
                 version_name:
                   type: string
-                  description: Updated version name
+                  minLength: 1
+                  description: Updated version name. Must not be empty.
       responses:
         "200":
           description: Prompt version updated
@@ -909,6 +916,7 @@ paths:
                   description: "Controls diversity (0.0 to 1.0)"
                 max_tokens:
                   type: integer
+                  minimum: 1
                 message_limit:
                   type: string
                   description: "Daily message limit per user. Must be >= 10 or 'Infinity'."
@@ -916,8 +924,8 @@ paths:
                   example: "50"
                 file_size_limit:
                   type: string
-                  description: "Max audio file size in MB. Must be a positive integer."
-                  pattern: "^[1-9][0-9]*$"
+                  description: "Max audio file size in MB. Must be a positive integer up to 500."
+                  pattern: "^([1-9]|[1-9][0-9]|[1-4][0-9]{2}|500)$"
                   example: "500"
       responses:
         "200":

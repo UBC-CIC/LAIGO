@@ -34,13 +34,22 @@ const ModelConfig = () => {
   const [fileSizeLimit, setFileSizeLimit] = useState("500");
   const [isAiConfigLoading, setIsAiConfigLoading] = useState(false);
   const [isSavingConfig, setIsSavingConfig] = useState(false);
+
+  // Error States
+  const [genericError, setGenericError] = useState<string | null>(null);
+  const [messageLimitError, setMessageLimitError] = useState<string | null>(
+    null,
+  );
+  const [fileSizeError, setFileSizeError] = useState<string | null>(null);
+  const [temperatureError, setTemperatureError] = useState<string | null>(null);
+  const [topPError, setTopPError] = useState<string | null>(null);
+  const [maxTokensError, setMaxTokensError] = useState<string | null>(null);
+
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
     message: string;
     severity: "success" | "error";
   }>({ open: false, message: "", severity: "success" });
-  const [fieldError, setFieldError] = useState<string | null>(null);
-  const [fileSizeError, setFileSizeError] = useState<string | null>(null);
 
   const fetchAiConfig = useCallback(async () => {
     setIsAiConfigLoading(true);
@@ -63,24 +72,64 @@ const ModelConfig = () => {
       setFileSizeLimit(data.file_size_limit || "500");
     } catch (err) {
       console.error("Error fetching AI config:", err);
-      setSnackbar({
-        open: true,
-        message: "Failed to load configuration",
-        severity: "error",
-      });
+      setGenericError("Failed to load configuration");
     } finally {
       setIsAiConfigLoading(false);
     }
   }, []);
 
   const saveAiConfig = async () => {
+    // Clear previous errors
+    setGenericError(null);
+    setMessageLimitError(null);
+    setFileSizeError(null);
+    setTemperatureError(null);
+    setTopPError(null);
+    setMaxTokensError(null);
+
+    let hasValidationErrors = false;
+
+    // Validate Temperature
+    if (temperature < 0 || temperature > 1) {
+      setTemperatureError("Must be between 0 and 1");
+      hasValidationErrors = true;
+    }
+
+    // Validate Top P
+    if (topP < 0 || topP > 1) {
+      setTopPError("Must be between 0 and 1");
+      hasValidationErrors = true;
+    }
+
+    // Validate Max Tokens
+    if (maxTokens <= 0) {
+      setMaxTokensError("Must be a positive number");
+      hasValidationErrors = true;
+    }
+
+    // Validate Message Limit
+    const isInfinity = messageLimit === "Infinity";
+    const numMsgLimit = parseInt(messageLimit);
+    if (!isInfinity && (isNaN(numMsgLimit) || numMsgLimit < 10)) {
+      setMessageLimitError("Must be 'Infinity' or a number ≥ 10");
+      hasValidationErrors = true;
+    }
+
+    // Validate File Size Limit
+    const numFileLimit = parseInt(fileSizeLimit);
+    if (isNaN(numFileLimit) || numFileLimit <= 0 || numFileLimit > 500) {
+      setFileSizeError("Must be a positive number up to 500");
+      hasValidationErrors = true;
+    }
+
+    if (hasValidationErrors) return;
+
     setIsSavingConfig(true);
     try {
       const session = await fetchAuthSession();
       const token = session.tokens?.idToken?.toString();
       if (!token) throw new Error("No auth token");
 
-      // Save AI Config (includes message limit and file size limit)
       const response = await fetch(
         `${import.meta.env.VITE_API_ENDPOINT}/admin/ai_config`,
         {
@@ -103,15 +152,9 @@ const ModelConfig = () => {
         message: "Configuration saved successfully!",
         severity: "success",
       });
-      setFieldError(null);
-      setFileSizeError(null);
     } catch (err) {
       console.error("Error saving config:", err);
-      setSnackbar({
-        open: true,
-        message: "Failed to save configuration",
-        severity: "error",
-      });
+      setGenericError("Failed to save configuration");
     } finally {
       setIsSavingConfig(false);
     }
@@ -121,7 +164,31 @@ const ModelConfig = () => {
     fetchAiConfig();
   }, [fetchAiConfig]);
 
-  // Real-time validation for Message Limit
+  // Real-time validation effects
+  useEffect(() => {
+    if (isNaN(temperature) || temperature < 0 || temperature > 1) {
+      setTemperatureError("Must be between 0 and 1");
+    } else {
+      setTemperatureError(null);
+    }
+  }, [temperature]);
+
+  useEffect(() => {
+    if (isNaN(topP) || topP < 0 || topP > 1) {
+      setTopPError("Must be between 0 and 1");
+    } else {
+      setTopPError(null);
+    }
+  }, [topP]);
+
+  useEffect(() => {
+    if (isNaN(maxTokens) || maxTokens <= 0) {
+      setMaxTokensError("Must be a positive number");
+    } else {
+      setMaxTokensError(null);
+    }
+  }, [maxTokens]);
+
   useEffect(() => {
     const isInfinity = messageLimit === "Infinity";
     const numLimit = parseInt(messageLimit);
@@ -131,17 +198,19 @@ const ModelConfig = () => {
       messageLimit.trim() !== "" &&
       (isNaN(numLimit) || numLimit < 10)
     ) {
-      setFieldError("Must be 'Infinity' or a number ≥ 10");
+      setMessageLimitError("Must be 'Infinity' or a number ≥ 10");
     } else {
-      setFieldError(null);
+      setMessageLimitError(null);
     }
   }, [messageLimit]);
 
-  // Real-time validation for File Size Limit
   useEffect(() => {
     const numLimit = parseInt(fileSizeLimit);
-    if (fileSizeLimit.trim() !== "" && (isNaN(numLimit) || numLimit <= 0)) {
-      setFileSizeError("Must be a positive number");
+    if (
+      fileSizeLimit.trim() !== "" &&
+      (isNaN(numLimit) || numLimit <= 0 || numLimit > 500)
+    ) {
+      setFileSizeError("Must be a positive number up to 500");
     } else {
       setFileSizeError(null);
     }
@@ -236,6 +305,8 @@ const ModelConfig = () => {
                   inputProps={{ step: 0.1, min: 0, max: 1 }}
                   value={temperature}
                   onChange={(e) => setTemperature(parseFloat(e.target.value))}
+                  error={!!temperatureError}
+                  helperText={temperatureError}
                   fullWidth
                   variant="outlined"
                   sx={{
@@ -245,6 +316,12 @@ const ModelConfig = () => {
                       "& fieldset": { borderColor: "var(--border)" },
                     },
                     "& .MuiInputLabel-root": {
+                      color: "var(--text-secondary)",
+                    },
+                    "& .MuiInputLabel-root.Mui-error": {
+                      color: "var(--text-secondary)",
+                    },
+                    "& .MuiFormHelperText-root:not(.Mui-error)": {
                       color: "var(--text-secondary)",
                     },
                   }}
@@ -255,6 +332,8 @@ const ModelConfig = () => {
                   inputProps={{ step: 0.1, min: 0, max: 1 }}
                   value={topP}
                   onChange={(e) => setTopP(parseFloat(e.target.value))}
+                  error={!!topPError}
+                  helperText={topPError}
                   fullWidth
                   variant="outlined"
                   sx={{
@@ -266,6 +345,12 @@ const ModelConfig = () => {
                     "& .MuiInputLabel-root": {
                       color: "var(--text-secondary)",
                     },
+                    "& .MuiInputLabel-root.Mui-error": {
+                      color: "var(--text-secondary)",
+                    },
+                    "& .MuiFormHelperText-root:not(.Mui-error)": {
+                      color: "var(--text-secondary)",
+                    },
                   }}
                 />
 
@@ -274,6 +359,8 @@ const ModelConfig = () => {
                   type="number"
                   value={maxTokens}
                   onChange={(e) => setMaxTokens(parseInt(e.target.value))}
+                  error={!!maxTokensError}
+                  helperText={maxTokensError}
                   fullWidth
                   variant="outlined"
                   sx={{
@@ -283,6 +370,12 @@ const ModelConfig = () => {
                       "& fieldset": { borderColor: "var(--border)" },
                     },
                     "& .MuiInputLabel-root": {
+                      color: "var(--text-secondary)",
+                    },
+                    "& .MuiInputLabel-root.Mui-error": {
+                      color: "var(--text-secondary)",
+                    },
+                    "& .MuiFormHelperText-root:not(.Mui-error)": {
                       color: "var(--text-secondary)",
                     },
                   }}
@@ -307,11 +400,8 @@ const ModelConfig = () => {
               <TextField
                 label="Daily Message Limit (per user)"
                 type="text"
-                error={!!fieldError}
-                helperText={
-                  fieldError ||
-                  'Enter a number (min 10) or "Infinity" for no limit'
-                }
+                error={!!messageLimitError}
+                helperText={messageLimitError}
                 value={messageLimit}
                 onChange={(e) => setMessageLimit(e.target.value)}
                 fullWidth
@@ -323,6 +413,9 @@ const ModelConfig = () => {
                     "& fieldset": { borderColor: "var(--border)" },
                   },
                   "& .MuiInputLabel-root": {
+                    color: "var(--text-secondary)",
+                  },
+                  "& .MuiInputLabel-root.Mui-error": {
                     color: "var(--text-secondary)",
                   },
                   "& .MuiFormHelperText-root:not(.Mui-error)": {
@@ -351,7 +444,8 @@ const ModelConfig = () => {
                 type="number"
                 error={!!fileSizeError}
                 helperText={
-                  fileSizeError || "Maximum size for audio uploads in Megabytes"
+                  fileSizeError ||
+                  "Maximum size for audio uploads in Megabytes (Max 500)"
                 }
                 value={fileSizeLimit}
                 onChange={(e) => setFileSizeLimit(e.target.value)}
@@ -383,7 +477,14 @@ const ModelConfig = () => {
                 )
               }
               onClick={saveAiConfig}
-              disabled={isSavingConfig || !!fieldError || !!fileSizeError}
+              disabled={
+                isSavingConfig ||
+                !!messageLimitError ||
+                !!fileSizeError ||
+                !!temperatureError ||
+                !!topPError ||
+                !!maxTokensError
+              }
               sx={{
                 alignSelf: "flex-end",
                 backgroundColor: "var(--primary)",
@@ -412,6 +513,20 @@ const ModelConfig = () => {
           sx={{ width: "100%" }}
         >
           {snackbar.message}
+        </Alert>
+      </Snackbar>
+      <Snackbar
+        open={!!genericError}
+        autoHideDuration={6000}
+        onClose={() => setGenericError(null)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+      >
+        <Alert
+          onClose={() => setGenericError(null)}
+          severity="error"
+          sx={{ width: "100%" }}
+        >
+          {genericError}
         </Alert>
       </Snackbar>
     </>

@@ -79,6 +79,12 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
   const [editorContent, setEditorContent] = useState<string>("");
   const [versionName, setVersionName] = useState<string>("");
 
+  // Error States
+  const [versionNameError, setVersionNameError] = useState<string | null>(null);
+  const [editorContentError, setEditorContentError] = useState<string | null>(
+    null,
+  );
+
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<PromptVersion | null>(null);
 
@@ -106,64 +112,6 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
       setIsLoading(false);
     }
   }, [category, blockType]);
-
-  useEffect(() => {
-    fetchPrompts();
-  }, [fetchPrompts]);
-
-  // Set initial selection or handle deletions
-  useEffect(() => {
-    if (isLoading) return;
-
-    if (prompts.length === 0) {
-      setSelectedVersionId("");
-      setEditorContent("");
-      setVersionName("");
-      return;
-    }
-
-    // Check if current selection is still valid
-    const currentStillExists = prompts.some(
-      (p) => p.prompt_version_id === selectedVersionId,
-    );
-
-    // If nothing selected OR the currently selected version was deleted (and it wasn't a draft)
-    if (
-      !selectedVersionId ||
-      (selectedVersionId !== DRAFT_ID && !currentStillExists)
-    ) {
-      const active = prompts.find((p) => p.is_active);
-      if (active) {
-        setSelectedVersionId(active.prompt_version_id);
-      } else {
-        setSelectedVersionId(prompts[0].prompt_version_id);
-      }
-    }
-  }, [isLoading, prompts, selectedVersionId]);
-
-  // Update editor content when selection changes
-  useEffect(() => {
-    if (selectedVersionId === DRAFT_ID) {
-      setEditorContent("");
-      setVersionName("");
-      return;
-    }
-
-    const version = prompts.find(
-      (p) => p.prompt_version_id === selectedVersionId,
-    );
-    if (version) {
-      setEditorContent(version.prompt_text);
-      setVersionName(version.version_name);
-    } else {
-      setEditorContent("");
-      setVersionName("");
-    }
-  }, [selectedVersionId, prompts]);
-
-  const handleStartDraft = () => {
-    setSelectedVersionId(DRAFT_ID);
-  };
 
   const createPromptVersion = async (promptData: {
     category: string;
@@ -253,7 +201,26 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
     return response.json();
   };
 
+  const handleStartDraft = () => {
+    setSelectedVersionId(DRAFT_ID);
+  };
+
   const handleCreateNewVersion = async () => {
+    let hasError = false;
+    setVersionNameError(null);
+    setEditorContentError(null);
+
+    if (!editorContent || editorContent.trim().length === 0) {
+      setEditorContentError("Prompt content cannot be empty.");
+      hasError = true;
+    }
+    if (!versionName || versionName.trim().length === 0) {
+      setVersionNameError("Version name is required.");
+      hasError = true;
+    }
+
+    if (hasError) return;
+
     try {
       const newPrompt = await createPromptVersion({
         category: category,
@@ -286,6 +253,22 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
       });
       return;
     }
+
+    let hasError = false;
+    setVersionNameError(null);
+    setEditorContentError(null);
+
+    if (!editorContent || editorContent.trim().length === 0) {
+      setEditorContentError("Prompt content cannot be empty.");
+      hasError = true;
+    }
+    if (!versionName || versionName.trim().length === 0) {
+      setVersionNameError("Version name is required.");
+      hasError = true;
+    }
+
+    if (hasError) return;
+
     try {
       await updatePromptVersion({
         prompt_version_id: selectedVersionId,
@@ -375,6 +358,87 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
       ),
     );
   };
+
+  // ── Effects ─────────────────────────────────────────────────────────
+
+  // Initial data fetch
+  useEffect(() => {
+    fetchPrompts();
+  }, [fetchPrompts]);
+
+  // Set initial selection or handle deletions
+  useEffect(() => {
+    if (isLoading) return;
+
+    if (prompts.length === 0) {
+      setSelectedVersionId("");
+      setEditorContent("");
+      setVersionName("");
+      return;
+    }
+
+    // Check if current selection is still valid
+    const currentStillExists = prompts.some(
+      (p) => p.prompt_version_id === selectedVersionId,
+    );
+
+    // If nothing selected OR the currently selected version was deleted (and it wasn't a draft)
+    if (
+      !selectedVersionId ||
+      (selectedVersionId !== DRAFT_ID && !currentStillExists)
+    ) {
+      const active = prompts.find((p) => p.is_active);
+      if (active) {
+        setSelectedVersionId(active.prompt_version_id);
+      } else {
+        setSelectedVersionId(prompts[0].prompt_version_id);
+      }
+    }
+  }, [isLoading, prompts, selectedVersionId]);
+
+  // Update editor content when selection changes
+  useEffect(() => {
+    if (selectedVersionId === DRAFT_ID) {
+      setEditorContent("");
+      setVersionName("");
+      setVersionNameError(null);
+      setEditorContentError(null);
+      return;
+    }
+
+    const version = prompts.find(
+      (p) => p.prompt_version_id === selectedVersionId,
+    );
+    if (version) {
+      setEditorContent(version.prompt_text);
+      setVersionName(version.version_name);
+      // Clear errors on load as we assume stored versions are valid
+      setVersionNameError(null);
+      setEditorContentError(null);
+    } else {
+      setEditorContent("");
+      setVersionName("");
+    }
+  }, [selectedVersionId, prompts]);
+
+  // Real-time validation
+  useEffect(() => {
+    if (versionName.trim().length === 0) {
+      setVersionNameError("Version name is required.");
+    } else {
+      setVersionNameError(null);
+    }
+  }, [versionName]);
+
+  useEffect(() => {
+    if (editorContent.trim().length === 0) {
+      setEditorContentError("Prompt content cannot be empty.");
+    } else {
+      setEditorContentError(null);
+    }
+  }, [editorContent]);
+
+  // ── Derived Values ──────────────────────────────────────────────────
 
   const currentVersion = prompts.find(
     (p) => p.prompt_version_id === selectedVersionId,
@@ -510,6 +574,8 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
             variant="outlined"
             value={versionName}
             onChange={(e) => setVersionName(e.target.value)}
+            error={!!versionNameError}
+            helperText={versionNameError}
             sx={{
               "& .MuiOutlinedInput-root": {
                 color: "var(--text)",
@@ -521,6 +587,12 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
               "& .MuiInputLabel-root": {
                 color: "var(--text-secondary)",
                 "&.Mui-focused": { color: "var(--primary)" },
+              },
+              "& .MuiInputLabel-root.Mui-error": {
+                color: "var(--text-secondary)",
+              },
+              "& .MuiFormHelperText-root:not(.Mui-error)": {
+                color: "var(--text-secondary)",
               },
             }}
           />
@@ -534,6 +606,8 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
             onChange={(e) => setEditorContent(e.target.value)}
             placeholder="Enter prompt content here..."
             variant="outlined"
+            error={!!editorContentError}
+            helperText={editorContentError}
             sx={{
               flex: 1,
               "& .MuiOutlinedInput-root": {
@@ -550,6 +624,12 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
               "& .MuiInputLabel-root": {
                 color: "var(--text-secondary)",
                 "&.Mui-focused": { color: "var(--primary)" },
+              },
+              "& .MuiInputLabel-root.Mui-error": {
+                color: "var(--text-secondary)",
+              },
+              "& .MuiFormHelperText-root:not(.Mui-error)": {
+                color: "var(--text-secondary)",
               },
             }}
           />
@@ -601,6 +681,7 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
                 variant="outlined"
                 startIcon={<SaveIcon />}
                 onClick={handleSaveCurrent}
+                disabled={!!versionNameError || !!editorContentError}
                 sx={{
                   color: "var(--text)",
                   borderColor: "var(--border)",
@@ -617,6 +698,7 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
                 variant="contained"
                 startIcon={<AddIcon />}
                 onClick={handleCreateNewVersion}
+                disabled={!!versionNameError || !!editorContentError}
                 sx={{
                   backgroundColor: "var(--primary)",
                   color: "var(--text)",
