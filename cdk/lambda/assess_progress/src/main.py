@@ -410,7 +410,7 @@ def handler(event, context):
         - Analyze the detailed history against the criteria.
         - Result MUST be a JSON object: {{ "progress": int, "reasoning": string }}
         - "progress": A number between 0 and 5, returning 0 if they have not met the main goals and are not ready to move on. Returning 5 if they have met the main goals and are ready to move on.
-        - "reasoning": 3-4 sentences explaining what they have done well and what areas they specifically need to improve or focus on in order to move on.
+        - "reasoning": 3-4 sentences explaining what they have done well and what areas they specifically need to improve or focus on in order to move on. Address the user directly in the second person.
         - Output ONLY the JSON object.
         """
 
