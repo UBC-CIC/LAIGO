@@ -147,6 +147,8 @@ const InterviewAssistant: React.FC = () => {
 
   const assessProgressRef = useRef<(() => Promise<void>) | null>(null);
 
+  const [token, setToken] = useState<string | null>(null);
+
   // Handle incoming WebSocket messages
   const handleWebSocketMessage = useCallback(
     (message: WebSocketMessage) => {
@@ -251,6 +253,7 @@ const InterviewAssistant: React.FC = () => {
   // Initialize WebSocket connection
   const { sendStreamingRequest, isConnected } = useWebSocket(wsUrl, {
     onMessage: handleWebSocketMessage,
+    protocols: token ? [token] : undefined,
   });
 
   // Call assess_progress endpoint
@@ -343,7 +346,8 @@ const InterviewAssistant: React.FC = () => {
         const session = await fetchAuthSession();
         const token = session.tokens?.idToken?.toString();
         if (token && import.meta.env.VITE_WEBSOCKET_URL) {
-          setWsUrl(`${import.meta.env.VITE_WEBSOCKET_URL}?token=${token}`);
+          setToken(token);
+          setWsUrl(import.meta.env.VITE_WEBSOCKET_URL);
         }
       } catch (error) {
         console.error("Error setting up WebSocket:", error);

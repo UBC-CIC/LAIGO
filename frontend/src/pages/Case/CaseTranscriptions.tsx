@@ -82,9 +82,12 @@ const CaseTranscriptions: React.FC = () => {
   const [snackbarSeverity, setSnackbarSeverity] = useState<
     "success" | "info" | "error" | "warning"
   >("success");
+  const [token, setToken] = useState<string | null>(null);
 
   // Set up WebSocket connection (same hook as CaseSummaries, InterviewAssistant, etc.)
-  const { sendStreamingRequest, isConnected } = useWebSocket(wsUrl);
+  const { sendStreamingRequest, isConnected } = useWebSocket(wsUrl, {
+    protocols: token ? [token] : undefined,
+  });
 
   // Initialize WebSocket URL when auth is available
   useEffect(() => {
@@ -93,7 +96,8 @@ const CaseTranscriptions: React.FC = () => {
         const session = await fetchAuthSession();
         const token = session.tokens?.idToken?.toString();
         if (token && import.meta.env.VITE_WEBSOCKET_URL) {
-          setWsUrl(`${import.meta.env.VITE_WEBSOCKET_URL}?token=${token}`);
+          setToken(token);
+          setWsUrl(import.meta.env.VITE_WEBSOCKET_URL);
         }
       } catch (error) {
         console.error("Error setting up WebSocket:", error);

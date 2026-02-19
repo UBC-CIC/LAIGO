@@ -1872,7 +1872,7 @@ export class ApiGatewayStack extends cdk.Stack {
       `${id}-WsAuthorizer`,
       wsAuthorizerFunction,
       {
-        identitySource: ["route.request.querystring.token"],
+        identitySource: ["route.request.header.Sec-WebSocket-Protocol"],
       },
     );
 

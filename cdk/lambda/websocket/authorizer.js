@@ -65,6 +65,15 @@ function extractToken(event) {
     return authHeader.slice("Bearer ".length).trim();
   }
 
+  // Check Sec-WebSocket-Protocol header
+  const protocolHeader =
+    headers["Sec-WebSocket-Protocol"] || headers["sec-websocket-protocol"];
+  if (protocolHeader) {
+    const protocols = protocolHeader.split(",").map((p) => p.trim());
+    // Return the first protocol which we assume is the token
+    if (protocols.length > 0) return protocols[0];
+  }
+
   // Check query string parameter
   const queryParams = event.queryStringParameters || {};
   if (queryParams.token) {

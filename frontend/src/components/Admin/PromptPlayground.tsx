@@ -1223,6 +1223,7 @@ const PromptPlayground: React.FC = () => {
 
   // WebSocket state
   const [wsUrl, setWsUrl] = useState<string | null>(null);
+  const [token, setToken] = useState<string | null>(null);
 
   // Initialize WebSocket URL with auth token
   useEffect(() => {
@@ -1231,8 +1232,9 @@ const PromptPlayground: React.FC = () => {
         const session = await fetchAuthSession();
         const token = session.tokens?.idToken?.toString();
         if (token && import.meta.env.VITE_WEBSOCKET_URL) {
+          setToken(token);
           setWsUrl(
-            `${import.meta.env.VITE_WEBSOCKET_URL}?token=${token}&playground_mode=true`,
+            `${import.meta.env.VITE_WEBSOCKET_URL}?playground_mode=true`,
           );
         }
       } catch (error) {
@@ -1242,7 +1244,9 @@ const PromptPlayground: React.FC = () => {
     setupWebSocket();
   }, []);
 
-  const { sendStreamingRequest, isConnected } = useWebSocket(wsUrl);
+  const { sendStreamingRequest, isConnected } = useWebSocket(wsUrl, {
+    protocols: token ? [token] : undefined,
+  });
 
   // Fetch reasoning prompt versions when block type changes
   const fetchPromptVersions = useCallback(async (blockType: string) => {

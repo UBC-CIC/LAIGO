@@ -131,9 +131,12 @@ const CaseSummaries: React.FC = () => {
     block: true,
   });
   const [wsUrl, setWsUrl] = useState<string | null>(null);
+  const [token, setToken] = useState<string | null>(null);
 
   // Set up WebSocket connection
-  const { sendStreamingRequest, isConnected } = useWebSocket(wsUrl);
+  const { sendStreamingRequest, isConnected } = useWebSocket(wsUrl, {
+    protocols: token ? [token] : undefined,
+  });
 
   // Initialize WebSocket URL when auth is available
   useEffect(() => {
@@ -142,7 +145,8 @@ const CaseSummaries: React.FC = () => {
         const session = await fetchAuthSession();
         const token = session.tokens?.idToken?.toString();
         if (token && import.meta.env.VITE_WEBSOCKET_URL) {
-          setWsUrl(`${import.meta.env.VITE_WEBSOCKET_URL}?token=${token}`);
+          setToken(token);
+          setWsUrl(import.meta.env.VITE_WEBSOCKET_URL);
         }
       } catch (error) {
         console.error("Error setting up WebSocket:", error);
@@ -278,7 +282,6 @@ const CaseSummaries: React.FC = () => {
     }
   };
 
-  /* eslint-disable @typescript-eslint/no-explicit-any */
   const handleDownload = async (summary: Summary) => {
     if (!caseId) return;
 
@@ -401,14 +404,13 @@ const CaseSummaries: React.FC = () => {
 
     console.log("Starting PDF generation...");
     try {
-      // @ts-ignore
+      // @ts-expect-error html2pdf types are missing
       await html2pdf().set(opt).from(element).save();
       console.log("PDF generated successfully.");
     } catch (error) {
       console.error("Error generating PDF:", error);
     }
   };
-  /* eslint-enable @typescript-eslint/no-explicit-any */
 
   const selectedSummary = summaries.find(
     (s) => s.summary_id === selectedSummaryId,

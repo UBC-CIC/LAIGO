@@ -17,27 +17,29 @@ exports.handler = async (event) => {
   // Store connection-to-user mapping in DynamoDB for notification targeting
   if (cognitoId) {
     try {
-      const ttl = Math.floor(Date.now() / 1000) + (24 * 60 * 60); // 24 hours from now
+      const ttl = Math.floor(Date.now() / 1000) + 24 * 60 * 60; // 24 hours from now
       const connectedAt = new Date().toISOString();
 
-      await dynamodb.send(new PutItemCommand({
-        TableName: process.env.CONNECTION_TABLE_NAME,
-        Item: {
-          PK: { S: `CONNECTION#${connectionId}` },
-          SK: { S: `USER#${cognitoId}` },
-          GSI1PK: { S: `USER#${cognitoId}` },
-          GSI1SK: { S: `CONNECTION#${connectionId}` },
-          connectionId: { S: connectionId },
-          userId: { S: cognitoId },
-          connectedAt: { S: connectedAt },
-          lastActivity: { S: connectedAt },
-          ttl: { N: ttl.toString() }
-        }
-      }));
+      await dynamodb.send(
+        new PutItemCommand({
+          TableName: process.env.CONNECTION_TABLE_NAME,
+          Item: {
+            PK: { S: `CONNECTION#${connectionId}` },
+            SK: { S: `USER#${cognitoId}` },
+            GSI1PK: { S: `USER#${cognitoId}` },
+            GSI1SK: { S: `CONNECTION#${connectionId}` },
+            connectionId: { S: connectionId },
+            userId: { S: cognitoId },
+            connectedAt: { S: connectedAt },
+            lastActivity: { S: connectedAt },
+            ttl: { N: ttl.toString() },
+          },
+        }),
+      );
 
       console.log("Connection mapping stored successfully:", {
         connectionId,
-        cognitoId
+        cognitoId,
       });
     } catch (error) {
       console.error("Error storing connection mapping:", error);
@@ -46,5 +48,18 @@ exports.handler = async (event) => {
   }
 
   // Connection valid (authorized by Lambda Authorizer)
-  return { statusCode: 200, body: "Connected" };
+  const response = { statusCode: 200, body: "Connected" };
+
+  // If the client sent a Sec-WebSocket-Protocol header (e.g. for auth), we must echo it back
+  const headers = event.headers || {};
+  const protocolHeader =
+    headers["Sec-WebSocket-Protocol"] || headers["sec-websocket-protocol"];
+
+  if (protocolHeader) {
+    response.headers = {
+      "Sec-WebSocket-Protocol": protocolHeader,
+    };
+  }
+
+  return response;
 };

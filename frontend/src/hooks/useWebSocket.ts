@@ -23,6 +23,7 @@ interface UseWebSocketOptions {
   onConnect?: () => void;
   onDisconnect?: () => void;
   onError?: (error: Event) => void;
+  protocols?: string | string[];
 }
 
 export const useWebSocket = (
@@ -47,7 +48,9 @@ export const useWebSocket = (
 
   // Store callbacks in refs to avoid dependency issues
   const callbacksRef = useRef(options);
-  callbacksRef.current = options;
+  useEffect(() => {
+    callbacksRef.current = options;
+  }, [options]);
 
   const startHeartbeat = useCallback(() => {
     if (heartbeatIntervalRef.current) {
@@ -72,6 +75,9 @@ export const useWebSocket = (
       heartbeatIntervalRef.current = null;
     }
   }, []);
+
+  // Ref to store connect function to avoid circular dependencies
+  const connectRef = useRef<() => void>(() => {});
 
   const scheduleReconnect = useCallback(() => {
     if (isManualDisconnectRef.current) {
@@ -101,7 +107,9 @@ export const useWebSocket = (
 
     reconnectTimeoutRef.current = window.setTimeout(() => {
       reconnectAttemptsRef.current++;
-      connect();
+      if (connectRef.current) {
+        connectRef.current();
+      }
     }, delay);
   }, []);
 
@@ -122,7 +130,11 @@ export const useWebSocket = (
     setConnectionState("connecting");
 
     try {
-      wsRef.current = new WebSocket(url);
+      // Use protocols from the current options ref if available
+      const protocols = callbacksRef.current.protocols;
+      wsRef.current = protocols
+        ? new WebSocket(url, protocols)
+        : new WebSocket(url);
 
       wsRef.current.onopen = () => {
         console.log("[WebSocket] Connected successfully");
@@ -216,6 +228,11 @@ export const useWebSocket = (
     }
   }, [url, startHeartbeat, stopHeartbeat, scheduleReconnect]);
 
+  // Update connectRef whenever connect changes
+  useEffect(() => {
+    connectRef.current = connect;
+  }, [connect]);
+
   const disconnect = useCallback(() => {
     console.log("[WebSocket] Manual disconnect requested");
     isManualDisconnectRef.current = true;
@@ -237,7 +254,7 @@ export const useWebSocket = (
   }, [stopHeartbeat]);
 
   const sendMessage = useCallback(
-    (message: any) => {
+    (message: unknown) => {
       if (wsRef.current?.readyState === WebSocket.OPEN) {
         try {
           const messageStr = JSON.stringify(message);
@@ -271,18 +288,29 @@ export const useWebSocket = (
     }, 1000);
   }, [disconnect, connect]);
 
-  // Only depend on URL changes, not callback changes
+  // Only depend on URL and protocols changes
+  // We serialize protocols array to string for dependency checking if it's an array
+  const protocolsDeps = Array.isArray(options.protocols)
+    ? options.protocols.join(",")
+    : options.protocols;
+
   useEffect(() => {
+    let connectTimer: number | undefined;
+
     if (url) {
       isManualDisconnectRef.current = false;
-      connect();
+      // Avoid calling setState synchronously in effect
+      connectTimer = window.setTimeout(() => {
+        connect();
+      }, 0);
     }
 
     return () => {
+      if (connectTimer) window.clearTimeout(connectTimer);
       isManualDisconnectRef.current = true;
       disconnect();
     };
-  }, [url]); // Only URL dependency!
+  }, [url, protocolsDeps, connect, disconnect]); // Depend on protocols so token refresh triggers reconnect
 
   const sendStreamingRequest = useCallback(
     (
@@ -303,7 +331,7 @@ export const useWebSocket = (
     [sendMessage],
   );
 
-  const isConnected = wsRef.current?.readyState === WebSocket.OPEN;
+  const isConnected = connectionState === "connected";
 
   return {
     sendMessage,

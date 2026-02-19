@@ -248,10 +248,10 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
         wsRef.current.close();
       }
 
-      const wsUrl = `${import.meta.env.VITE_WEBSOCKET_URL}?token=${token}`;
+      const wsUrl = import.meta.env.VITE_WEBSOCKET_URL;
       console.log("[Notifications] Connecting to WebSocket...");
 
-      wsRef.current = new WebSocket(wsUrl);
+      wsRef.current = new WebSocket(wsUrl, [token]);
 
       wsRef.current.onopen = () => {
         console.log("[Notifications] WebSocket connected");
