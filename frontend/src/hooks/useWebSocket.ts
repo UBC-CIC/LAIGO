@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback, useState } from "react";
+import { fetchAuthSession } from "aws-amplify/auth";
 import {
   validateBasicStructure,
   validateMessageType,
@@ -102,8 +103,34 @@ export const useWebSocket = (
       }/10 in ${delay}ms`,
     );
 
-    reconnectTimeoutRef.current = window.setTimeout(() => {
+    reconnectTimeoutRef.current = window.setTimeout(async () => {
       reconnectAttemptsRef.current++;
+      
+      // Refresh token before reconnecting 
+      if (callbacksRef.current.protocols) {
+        try {
+          console.log("[WebSocket] Refreshing auth token before reconnect");
+          const session = await fetchAuthSession();
+          const freshToken = session.tokens?.idToken?.toString();
+          
+          if (freshToken) {
+            // Update protocols with fresh token
+            callbacksRef.current.protocols = Array.isArray(callbacksRef.current.protocols)
+              ? [freshToken, ...callbacksRef.current.protocols.slice(1)]
+              : [freshToken];
+            console.log("[WebSocket] Token refreshed successfully");
+          } else {
+            console.error("[WebSocket] No token available - cannot reconnect");
+            setConnectionState("error");
+            return; // Abort reconnection - user needs to re-authenticate
+          }
+        } catch (error) {
+          console.error("[WebSocket] Failed to refresh token:", error);
+          setConnectionState("error");
+          return; // Abort reconnection - auth is broken
+        }
+      }
+      
       if (connectRef.current) {
         connectRef.current();
       }
