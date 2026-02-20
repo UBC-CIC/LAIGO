@@ -359,8 +359,6 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
     );
   };
 
-  // ── Effects ─────────────────────────────────────────────────────────
-
   // Initial data fetch
   useEffect(() => {
     fetchPrompts();
@@ -371,7 +369,7 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
     if (isLoading) return;
 
     if (prompts.length === 0) {
-      setSelectedVersionId("");
+      setSelectedVersionId(DRAFT_ID);
       setEditorContent("");
       setVersionName("");
       return;
@@ -423,22 +421,28 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
 
   // Real-time validation
   useEffect(() => {
+    if (isLoading || !selectedVersionId) {
+      setVersionNameError(null);
+      return;
+    }
     if (versionName.trim().length === 0) {
       setVersionNameError("Version name is required.");
     } else {
       setVersionNameError(null);
     }
-  }, [versionName]);
+  }, [versionName, isLoading, selectedVersionId]);
 
   useEffect(() => {
+    if (isLoading || !selectedVersionId) {
+      setEditorContentError(null);
+      return;
+    }
     if (editorContent.trim().length === 0) {
       setEditorContentError("Prompt content cannot be empty.");
     } else {
       setEditorContentError(null);
     }
-  }, [editorContent]);
-
-  // ── Derived Values ──────────────────────────────────────────────────
+  }, [editorContent, isLoading, selectedVersionId]);
 
   const currentVersion = prompts.find(
     (p) => p.prompt_version_id === selectedVersionId,
@@ -446,254 +450,206 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
 
   return (
     <>
-      <Paper
-        elevation={0}
-        sx={{
-          width: "100%",
-          backgroundColor: "var(--paper)",
-          border: "1px solid var(--border)",
-          borderRadius: 2,
-          display: "flex",
-          flexDirection: "column",
-          minHeight: "400px",
-          overflow: "hidden",
-        }}
-      >
-        <Box
+      {!isLoading && selectedVersionId && (
+        <Paper
+          elevation={0}
           sx={{
-            p: 2,
-            borderBottom: "1px solid var(--border)",
-            backgroundColor: "var(--header)",
+            width: "100%",
+            backgroundColor: "var(--paper)",
+            border: "1px solid var(--border)",
+            borderRadius: 2,
             display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
+            flexDirection: "column",
+            minHeight: "400px",
+            overflow: "hidden",
           }}
         >
-          <Box>
-            <Typography
-              variant="h6"
+          <Box
+            sx={{
+              p: 2,
+              borderBottom: "1px solid var(--border)",
+              backgroundColor: "var(--header)",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <Box>
+              <Typography
+                variant="h6"
+                sx={{
+                  fontWeight: "bold",
+                  color: "var(--text)",
+                  textAlign: "left",
+                }}
+              >
+                {title} - Workspace
+              </Typography>
+              <Typography
+                variant="caption"
+                sx={{
+                  color: "var(--text-secondary)",
+                  textAlign: "left",
+                  display: "block",
+                  mb: 1,
+                }}
+              >
+                {description}
+              </Typography>
+              <Alert
+                severity="info"
+                icon={false}
+                sx={{
+                  backgroundColor: "transparent",
+                  color: "var(--text-secondary)",
+                  p: 0,
+                  fontSize: "0.8rem",
+                  "& .MuiAlert-message": { p: 0 },
+                }}
+              >
+                Note: Create a new version here to test in the Playground.
+              </Alert>
+            </Box>
+
+            <Box
               sx={{
-                fontWeight: "bold",
-                color: "var(--text)",
-                textAlign: "left",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 0.5,
               }}
             >
-              {title} - Workspace
-            </Typography>
-            <Typography
-              variant="caption"
-              sx={{
-                color: "var(--text-secondary)",
-                textAlign: "left",
-                display: "block",
-                mb: 1,
-              }}
-            >
-              {description}
-            </Typography>
-            <Alert
-              severity="info"
-              icon={false}
-              sx={{
-                backgroundColor: "transparent",
-                color: "var(--text-secondary)",
-                p: 0,
-                fontSize: "0.8rem",
-                "& .MuiAlert-message": { p: 0 },
-              }}
-            >
-              Note: Create a new version here to test in the Playground.
-            </Alert>
+              {selectedVersionId === DRAFT_ID ? (
+                <Chip
+                  label="New Draft"
+                  color="default"
+                  variant="outlined"
+                  size="small"
+                  sx={{
+                    borderColor: "var(--border)",
+                    fontStyle: "italic",
+                    color: "var(--text-secondary)",
+                  }}
+                />
+              ) : (
+                <>
+                  {currentVersion && (
+                    <Chip
+                      label={`Editing: ${currentVersion.version_name}`}
+                      color="primary"
+                      variant="outlined"
+                      size="small"
+                      sx={{ borderColor: "var(--border)" }}
+                    />
+                  )}
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    startIcon={<AddIcon />}
+                    onClick={handleStartDraft}
+                    sx={{
+                      color: "var(--text)",
+                      borderColor: "var(--border)",
+                      textTransform: "none",
+                      "&:hover": {
+                        borderColor: "var(--text)",
+                        backgroundColor: "var(--secondary)",
+                      },
+                    }}
+                  >
+                    Start New Draft
+                  </Button>
+                </>
+              )}
+            </Box>
           </Box>
 
           <Box
             sx={{
+              flex: 1,
+              p: 3,
               display: "flex",
               flexDirection: "column",
-              alignItems: "center",
-              gap: 0.5,
+              gap: 2,
+            }}
+          >
+            <TextField
+              label="Version Name"
+              fullWidth
+              variant="outlined"
+              value={versionName}
+              onChange={(e) => setVersionName(e.target.value)}
+              error={!!versionNameError}
+              helperText={versionNameError}
+              sx={{
+                "& .MuiOutlinedInput-root": {
+                  color: "var(--text)",
+                  backgroundColor: "var(--background)",
+                  "& fieldset": { borderColor: "var(--border)" },
+                  "&:hover fieldset": { borderColor: "var(--border)" },
+                  "&.Mui-focused fieldset": { borderColor: "var(--primary)" },
+                },
+                "& .MuiInputLabel-root": {
+                  color: "var(--text-secondary)",
+                  "&.Mui-focused": { color: "var(--primary)" },
+                },
+                "& .MuiInputLabel-root.Mui-error": {
+                  color: "var(--text-secondary)",
+                },
+                "& .MuiFormHelperText-root:not(.Mui-error)": {
+                  color: "var(--text-secondary)",
+                },
+              }}
+            />
+            <TextField
+              label="Prompt Content"
+              multiline
+              fullWidth
+              minRows={10}
+              maxRows={25}
+              value={editorContent}
+              onChange={(e) => setEditorContent(e.target.value)}
+              placeholder="Enter prompt content here..."
+              variant="outlined"
+              error={!!editorContentError}
+              helperText={editorContentError}
+              sx={{
+                flex: 1,
+                "& .MuiOutlinedInput-root": {
+                  height: "100%",
+                  alignItems: "flex-start",
+                  color: "var(--text)",
+                  backgroundColor: "var(--background)",
+                  fontFamily: "monospace",
+                  fontSize: "0.95rem",
+                  "& fieldset": { borderColor: "var(--border)" },
+                  "&:hover fieldset": { borderColor: "var(--border)" },
+                  "&.Mui-focused fieldset": { borderColor: "var(--primary)" },
+                },
+                "& .MuiInputLabel-root": {
+                  color: "var(--text-secondary)",
+                  "&.Mui-focused": { color: "var(--primary)" },
+                },
+                "& .MuiInputLabel-root.Mui-error": {
+                  color: "var(--text-secondary)",
+                },
+                "& .MuiFormHelperText-root:not(.Mui-error)": {
+                  color: "var(--text-secondary)",
+                },
+              }}
+            />
+          </Box>
+
+          <Box
+            sx={{
+              p: 2,
+              borderTop: "1px solid var(--border)",
+              display: "flex",
+              justifyContent: "flex-end",
+              gap: 2,
             }}
           >
             {selectedVersionId === DRAFT_ID ? (
-              <Chip
-                label="New Draft"
-                color="default"
-                variant="outlined"
-                size="small"
-                sx={{
-                  borderColor: "var(--border)",
-                  fontStyle: "italic",
-                  color: "var(--text-secondary)",
-                }}
-              />
-            ) : (
-              <>
-                {currentVersion && (
-                  <Chip
-                    label={`Editing: ${currentVersion.version_name}`}
-                    color="primary"
-                    variant="outlined"
-                    size="small"
-                    sx={{ borderColor: "var(--border)" }}
-                  />
-                )}
-                <Button
-                  variant="outlined"
-                  size="small"
-                  startIcon={<AddIcon />}
-                  onClick={handleStartDraft}
-                  sx={{
-                    color: "var(--text)",
-                    borderColor: "var(--border)",
-                    textTransform: "none",
-                    "&:hover": {
-                      borderColor: "var(--text)",
-                      backgroundColor: "var(--secondary)",
-                    },
-                  }}
-                >
-                  Start New Draft
-                </Button>
-              </>
-            )}
-          </Box>
-        </Box>
-
-        <Box
-          sx={{
-            flex: 1,
-            p: 3,
-            display: "flex",
-            flexDirection: "column",
-            gap: 2,
-          }}
-        >
-          <TextField
-            label="Version Name"
-            fullWidth
-            variant="outlined"
-            value={versionName}
-            onChange={(e) => setVersionName(e.target.value)}
-            error={!!versionNameError}
-            helperText={versionNameError}
-            sx={{
-              "& .MuiOutlinedInput-root": {
-                color: "var(--text)",
-                backgroundColor: "var(--background)",
-                "& fieldset": { borderColor: "var(--border)" },
-                "&:hover fieldset": { borderColor: "var(--border)" },
-                "&.Mui-focused fieldset": { borderColor: "var(--primary)" },
-              },
-              "& .MuiInputLabel-root": {
-                color: "var(--text-secondary)",
-                "&.Mui-focused": { color: "var(--primary)" },
-              },
-              "& .MuiInputLabel-root.Mui-error": {
-                color: "var(--text-secondary)",
-              },
-              "& .MuiFormHelperText-root:not(.Mui-error)": {
-                color: "var(--text-secondary)",
-              },
-            }}
-          />
-          <TextField
-            label="Prompt Content"
-            multiline
-            fullWidth
-            minRows={10}
-            maxRows={25}
-            value={editorContent}
-            onChange={(e) => setEditorContent(e.target.value)}
-            placeholder="Enter prompt content here..."
-            variant="outlined"
-            error={!!editorContentError}
-            helperText={editorContentError}
-            sx={{
-              flex: 1,
-              "& .MuiOutlinedInput-root": {
-                height: "100%",
-                alignItems: "flex-start",
-                color: "var(--text)",
-                backgroundColor: "var(--background)",
-                fontFamily: "monospace",
-                fontSize: "0.95rem",
-                "& fieldset": { borderColor: "var(--border)" },
-                "&:hover fieldset": { borderColor: "var(--border)" },
-                "&.Mui-focused fieldset": { borderColor: "var(--primary)" },
-              },
-              "& .MuiInputLabel-root": {
-                color: "var(--text-secondary)",
-                "&.Mui-focused": { color: "var(--primary)" },
-              },
-              "& .MuiInputLabel-root.Mui-error": {
-                color: "var(--text-secondary)",
-              },
-              "& .MuiFormHelperText-root:not(.Mui-error)": {
-                color: "var(--text-secondary)",
-              },
-            }}
-          />
-        </Box>
-
-        <Box
-          sx={{
-            p: 2,
-            borderTop: "1px solid var(--border)",
-            display: "flex",
-            justifyContent: "flex-end",
-            gap: 2,
-          }}
-        >
-          {selectedVersionId === DRAFT_ID ? (
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={handleCreateNewVersion}
-              sx={{
-                backgroundColor: "var(--primary)",
-                color: "var(--text)",
-                textTransform: "none",
-                fontWeight: "bold",
-                "&:hover": {
-                  backgroundColor: "var(--primary)",
-                  opacity: 0.9,
-                },
-              }}
-            >
-              Create New Version
-            </Button>
-          ) : (
-            <>
-              <Button
-                variant="text"
-                startIcon={<RefreshIcon />}
-                onClick={() =>
-                  setEditorContent(currentVersion?.prompt_text || "")
-                }
-                sx={{
-                  color: "var(--text-secondary)",
-                  textTransform: "none",
-                }}
-              >
-                Revert Changes
-              </Button>
-              <Button
-                variant="outlined"
-                startIcon={<SaveIcon />}
-                onClick={handleSaveCurrent}
-                disabled={!!versionNameError || !!editorContentError}
-                sx={{
-                  color: "var(--text)",
-                  borderColor: "var(--border)",
-                  textTransform: "none",
-                  "&:hover": {
-                    borderColor: "var(--text)",
-                    backgroundColor: "var(--secondary)",
-                  },
-                }}
-              >
-                Save
-              </Button>
               <Button
                 variant="contained"
                 startIcon={<AddIcon />}
@@ -710,12 +666,63 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
                   },
                 }}
               >
-                Save as New Version
+                Create New Version
               </Button>
-            </>
-          )}
-        </Box>
-      </Paper>
+            ) : (
+              <>
+                <Button
+                  variant="text"
+                  startIcon={<RefreshIcon />}
+                  onClick={() =>
+                    setEditorContent(currentVersion?.prompt_text || "")
+                  }
+                  sx={{
+                    color: "var(--text-secondary)",
+                    textTransform: "none",
+                  }}
+                >
+                  Revert Changes
+                </Button>
+                <Button
+                  variant="outlined"
+                  startIcon={<SaveIcon />}
+                  onClick={handleSaveCurrent}
+                  disabled={!!versionNameError || !!editorContentError}
+                  sx={{
+                    color: "var(--text)",
+                    borderColor: "var(--border)",
+                    textTransform: "none",
+                    "&:hover": {
+                      borderColor: "var(--text)",
+                      backgroundColor: "var(--secondary)",
+                    },
+                  }}
+                >
+                  Save
+                </Button>
+                <Button
+                  variant="contained"
+                  startIcon={<AddIcon />}
+                  onClick={handleCreateNewVersion}
+                  disabled={!!versionNameError || !!editorContentError}
+                  sx={{
+                    backgroundColor: "var(--primary)",
+                    color: "var(--text)",
+                    textTransform: "none",
+                    fontWeight: "bold",
+                    "&:hover": {
+                      backgroundColor: "var(--primary)",
+                      opacity: 0.9,
+                    },
+                  }}
+                >
+                  Save as New Version
+                </Button>
+              </>
+            )}
+          </Box>
+        </Paper>
+      )}
 
       <Paper
         elevation={0}
