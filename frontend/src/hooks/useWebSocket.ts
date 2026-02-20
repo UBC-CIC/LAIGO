@@ -153,16 +153,35 @@ export const useWebSocket = (
               "[WebSocket] Basic structure validation failed:",
               basicValidation.error
             );
+            // Try to extract requestId to provide error feedback
+            const requestId = 'requestId' in message ? (message as Record<string, unknown>).requestId : undefined;
+            
+            if (requestId && typeof requestId === 'string') {
+              const pending = pendingRequestsRef.current.get(requestId);
+              if (pending) {
+                pending.onError?.("An error occurred");
+                pendingRequestsRef.current.delete(requestId);
+              }
+            }
             return;
           }
 
           // Validation pipeline - Step 2: Message type validation
-          const typeValidation = validateMessageType(message.type);
+          const typeValidation = validateMessageType(message.type || "");
           if (!typeValidation.valid) {
             console.error(
               "[WebSocket] Message type validation failed:",
               typeValidation.error
             );
+            // Try to provide error feedback if requestId exists
+            const { requestId } = message;
+            if (requestId) {
+              const pending = pendingRequestsRef.current.get(requestId);
+              if (pending) {
+                pending.onError?.("An error occurred");
+                pendingRequestsRef.current.delete(requestId);
+              }
+            }
             return;
           }
 
@@ -178,9 +197,7 @@ export const useWebSocket = (
             if (requestId) {
               const pending = pendingRequestsRef.current.get(requestId);
               if (pending) {
-                pending.onError?.(
-                  `Validation error: ${fieldValidation.error}`
-                );
+                pending.onError?.("An error occurred");
                 pendingRequestsRef.current.delete(requestId);
               }
             }
@@ -216,9 +233,7 @@ export const useWebSocket = (
                         "[WebSocket] Action-specific data validation failed:",
                         dataValidation.error
                       );
-                      pending.onError?.(
-                        `Validation error: ${dataValidation.error}`
-                      );
+                      pending.onError?.("An error occurred");
                       pendingRequestsRef.current.delete(requestId);
                       return;
                     }
