@@ -147,15 +147,7 @@ export const useWebSocket = (
       wsRef.current.onmessage = (event) => {
         try {
           const message: WebSocketMessage = JSON.parse(event.data);
-          console.log("[WebSocket] Received message:", {
-            type: message.type,
-            requestId: message.requestId,
-            action: message.action,
-            content: message.content
-              ? `${message.content.substring(0, 100)}...`
-              : null,
-            data: message.data,
-          });
+          console.log("[WebSocket] Received message:", message);
 
           if (message.type === "pong") {
             console.log("[WebSocket] Received pong");
