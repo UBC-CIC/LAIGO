@@ -1,14 +1,11 @@
 import { useEffect, useRef, useCallback, useState } from "react";
-
-interface WebSocketMessage {
-  type: "start" | "chunk" | "complete" | "error" | "pong";
-  requestId?: string;
-  action?: string;
-  content?: string;
-  data?: Record<string, unknown>;
-  message?: string;
-  sources?: string[];
-}
+import {
+  validateBasicStructure,
+  validateMessageType,
+  validateTypeSpecificFields,
+  validateActionSpecificData,
+} from "./useWebSocket.validation";
+import type { WebSocketMessage } from "../types/websocket";
 
 interface PendingRequest {
   action: string;
@@ -149,13 +146,54 @@ export const useWebSocket = (
           const message: WebSocketMessage = JSON.parse(event.data);
           console.log("[WebSocket] Received message:", message);
 
+          // Validation pipeline - Step 1: Basic structure validation
+          const basicValidation = validateBasicStructure(message);
+          if (!basicValidation.valid) {
+            console.error(
+              "[WebSocket] Basic structure validation failed:",
+              basicValidation.error
+            );
+            return;
+          }
+
+          // Validation pipeline - Step 2: Message type validation
+          const typeValidation = validateMessageType(message.type);
+          if (!typeValidation.valid) {
+            console.error(
+              "[WebSocket] Message type validation failed:",
+              typeValidation.error
+            );
+            return;
+          }
+
+          // Validation pipeline - Step 3: Type-specific field validation
+          const fieldValidation = validateTypeSpecificFields(message as unknown as Record<string, unknown>);
+          if (!fieldValidation.valid) {
+            console.error(
+              "[WebSocket] Type-specific field validation failed:",
+              fieldValidation.error
+            );
+            // Call onError callback if requestId exists with pending request
+            const { requestId } = message;
+            if (requestId) {
+              const pending = pendingRequestsRef.current.get(requestId);
+              if (pending) {
+                pending.onError?.(
+                  `Validation error: ${fieldValidation.error}`
+                );
+                pendingRequestsRef.current.delete(requestId);
+              }
+            }
+            return;
+          }
+
           if (message.type === "pong") {
             console.log("[WebSocket] Received pong");
             return;
           }
 
           // Route by requestId if present
-          const { requestId, type, content, data } = message;
+          const { requestId, type, content, data, action } = message;
           if (requestId) {
             const pending = pendingRequestsRef.current.get(requestId);
             if (pending) {
@@ -167,6 +205,24 @@ export const useWebSocket = (
                   pending.onChunk?.(content || "");
                   break;
                 case "complete":
+                  // Validation pipeline - Step 4: Action-specific data validation
+                  if (action && data) {
+                    const dataValidation = validateActionSpecificData(
+                      action,
+                      data as Record<string, unknown>
+                    );
+                    if (!dataValidation.valid) {
+                      console.error(
+                        "[WebSocket] Action-specific data validation failed:",
+                        dataValidation.error
+                      );
+                      pending.onError?.(
+                        `Validation error: ${dataValidation.error}`
+                      );
+                      pendingRequestsRef.current.delete(requestId);
+                      return;
+                    }
+                  }
                   pending.onComplete?.(data || {});
                   pendingRequestsRef.current.delete(requestId);
                   break;

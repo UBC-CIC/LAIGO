@@ -25,18 +25,13 @@ import AiResponse from "../../components/Chat/AIResponse";
 import ChatBar from "../../components/Chat/ChatBar";
 import type { CaseOutletContext } from "./CaseLayout";
 import { useWebSocket } from "../../hooks/useWebSocket";
+import type { WebSocketMessage } from "../../types/websocket";
 import ThinkingIndicator from "../../components/Chat/ThinkingIndicator";
 
 interface Message {
   type: "human" | "ai";
   content: string;
   isStreaming?: boolean;
-}
-
-interface WebSocketMessage {
-  type: "start" | "chunk" | "complete" | "error" | "pong";
-  content?: string;
-  metadata?: { llm_output?: string };
 }
 
 interface AssessmentResponse {
