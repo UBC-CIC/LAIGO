@@ -126,19 +126,13 @@ const InterviewAssistant: React.FC = () => {
   const currentBlock = section ? SUB_ROUTE_TO_BLOCK[section] : null;
 
   // Determine if we should show the progress bar
-  // Hide if terminal block OR next block(s) are already unlocked
+  // Always show for non-terminal blocks (blocks that have a next step)
   const showProgressBar = React.useMemo(() => {
     if (!currentBlock) return false;
     const nextStep = PROGRESSION_MAP[currentBlock];
-    if (!nextStep) return false;
-
-    const nextBlocks = Array.isArray(nextStep) ? nextStep : [nextStep];
-    const allNextUnlocked = nextBlocks.every((block) =>
-      unlockedBlocks.includes(block),
-    );
-
-    return !allNextUnlocked;
-  }, [currentBlock, unlockedBlocks]);
+    // Show progress bar if there's a next step defined (not a terminal block)
+    return !!nextStep;
+  }, [currentBlock]);
 
   const assessProgressRef = useRef<(() => Promise<void>) | null>(null);
 
@@ -205,16 +199,9 @@ const InterviewAssistant: React.FC = () => {
         streamingIndexRef.current = null;
         setIsLoading(false);
 
-        // Check if we should trigger assessment
+        // Always trigger assessment for progress tracking (even though blocks are unlocked)
         if (currentBlock && PROGRESSION_MAP[currentBlock]) {
-          const nextStep = PROGRESSION_MAP[currentBlock];
-          const nextBlocks = Array.isArray(nextStep) ? nextStep : [nextStep];
-          const allNextUnlocked = nextBlocks.every((block) =>
-            unlockedBlocks.includes(block),
-          );
-          if (!allNextUnlocked) {
-            assessProgressRef.current?.();
-          }
+          assessProgressRef.current?.();
         }
       } else if (message.type === "error") {
         // Handle error
@@ -271,8 +258,9 @@ const InterviewAssistant: React.FC = () => {
               setFeedback(assessment.reasoning);
             }
 
+            // Don't show unlock notification since all blocks are already unlocked
+            // Just refresh to keep data in sync
             if (assessment.unlocked) {
-              setShowSnackbar(true);
               await refreshUnlockedBlocks();
             }
           },
@@ -314,8 +302,9 @@ const InterviewAssistant: React.FC = () => {
           setFeedback(data.reasoning);
         }
 
+        // Don't show unlock notification since all blocks are already unlocked
+        // Just refresh to keep data in sync
         if (data.unlocked) {
-          setShowSnackbar(true);
           await refreshUnlockedBlocks();
         }
       }
@@ -561,22 +550,13 @@ const InterviewAssistant: React.FC = () => {
             streamingIndexRef.current = null;
             setIsLoading(false);
 
-            // Check if we should trigger assessment
+            // Always trigger assessment for progress tracking (even though blocks are unlocked)
             if (
               newMessageCount % 2 === 1 &&
               currentBlock &&
               PROGRESSION_MAP[currentBlock]
             ) {
-              const nextStep = PROGRESSION_MAP[currentBlock];
-              const nextBlocks = Array.isArray(nextStep)
-                ? nextStep
-                : [nextStep];
-              const allNextUnlocked = nextBlocks.every((block) =>
-                unlockedBlocks.includes(block),
-              );
-              if (!allNextUnlocked) {
-                assessProgress();
-              }
+              assessProgress();
             }
           },
           onError: (errorMsg) => {
@@ -650,19 +630,10 @@ const InterviewAssistant: React.FC = () => {
               { type: "ai", content: data.llm_output },
             ]);
 
-            // Check if we should trigger assessment after AI responds
+            // Always trigger assessment for progress tracking (even though blocks are unlocked)
             if (newMessageCount % 2 === 1) {
               if (currentBlock && PROGRESSION_MAP[currentBlock]) {
-                const nextStep = PROGRESSION_MAP[currentBlock];
-                const nextBlocks = Array.isArray(nextStep)
-                  ? nextStep
-                  : [nextStep];
-                const allNextUnlocked = nextBlocks.every((block) =>
-                  unlockedBlocks.includes(block),
-                );
-                if (!allNextUnlocked) {
-                  assessProgress();
-                }
+                assessProgress();
               }
             }
           }
