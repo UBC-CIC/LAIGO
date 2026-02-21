@@ -46,6 +46,19 @@ export class AmplifyStack extends cdk.Stack {
             cache:
               paths:
                 - 'node_modules/**/*'
+            customHeaders:
+              - pattern: '**/*'
+                headers:
+                  - key: Content-Security-Policy
+                    value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' wss: https:; frame-ancestors 'none';"
+                  - key: X-Frame-Options
+                    value: DENY
+                  - key: X-Content-Type-Options
+                    value: nosniff
+                  - key: Strict-Transport-Security
+                    value: max-age=31536000; includeSubDomains
+                  - key: Referrer-Policy
+                    value: strict-origin-when-cross-origin
             redirects:
               - source: </^[^.]+$|.(?!(css|gif|ico|jpg|js|png|txt|svg|woff|woff2|ttf|map|json|webp)$)([^.]+$)/>
                 target: /
