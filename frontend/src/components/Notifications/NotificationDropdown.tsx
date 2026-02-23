@@ -51,6 +51,7 @@ const NotificationItem: React.FC<{
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
 
   const handleMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+    event.preventDefault();
     event.stopPropagation();
     setMenuAnchor(event.currentTarget);
   };
@@ -59,7 +60,9 @@ const NotificationItem: React.FC<{
     setMenuAnchor(null);
   };
 
-  const handleMarkToggle = () => {
+  const handleMarkToggle = (event: React.MouseEvent<HTMLElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
     if (notification.isRead) {
       onMarkAsUnread();
     } else {
@@ -68,7 +71,9 @@ const NotificationItem: React.FC<{
     handleMenuClose();
   };
 
-  const handleDelete = () => {
+  const handleDelete = (event: React.MouseEvent<HTMLElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
     onDelete();
     handleMenuClose();
   };
@@ -149,6 +154,10 @@ const NotificationItem: React.FC<{
       </Box>
       <IconButton
         size="small"
+        onMouseDown={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+        }}
         onClick={handleMenuOpen}
         sx={{
           position: "absolute",
@@ -172,6 +181,9 @@ const NotificationItem: React.FC<{
         anchorEl={menuAnchor}
         open={Boolean(menuAnchor)}
         onClose={handleMenuClose}
+        onClick={(event) => {
+          event.stopPropagation();
+        }}
         anchorOrigin={{ vertical: "top", horizontal: "right" }}
         transformOrigin={{ vertical: "top", horizontal: "left" }}
         PaperProps={{

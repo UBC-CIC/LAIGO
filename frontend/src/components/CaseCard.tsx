@@ -22,6 +22,7 @@ interface CaseCardProps {
   advocateName?: string;
   onDelete?: (caseId: string) => void;
   onArchive?: (caseId: string) => void;
+  archiveLabel?: string;
   onClick?: (caseId: string) => void;
 }
 
@@ -35,11 +36,13 @@ const CaseCard: React.FC<CaseCardProps> = ({
   advocateName,
   onDelete,
   onArchive,
+  archiveLabel = "Archive",
   onClick,
 }) => {
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
   const open = Boolean(anchorEl);
   const handleEllipsisClick = (e: React.MouseEvent<HTMLElement>) => {
+    e.preventDefault();
     e.stopPropagation();
     setAnchorEl(e.currentTarget);
   };
@@ -55,7 +58,11 @@ const CaseCard: React.FC<CaseCardProps> = ({
 
   return (
     <Card
-      onClick={() => {
+      onClick={(event) => {
+        const target = event.target as HTMLElement;
+        if (target.closest("[data-case-action='true']")) {
+          return;
+        }
         // Navigate to case
         if (onClick) onClick(caseId);
       }}
@@ -154,9 +161,14 @@ const CaseCard: React.FC<CaseCardProps> = ({
 
       {/* Ellipsis button for menu */}
       <IconButton
+        data-case-action="true"
         aria-label="more"
         aria-controls={open ? `case-menu-${caseId}` : undefined}
         aria-haspopup="true"
+        onMouseDown={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+        }}
         onClick={handleEllipsisClick}
         size="small"
         sx={{
@@ -174,6 +186,7 @@ const CaseCard: React.FC<CaseCardProps> = ({
       </IconButton>
 
       <Menu
+        data-case-action="true"
         id={`case-menu-${caseId}`}
         anchorEl={anchorEl}
         open={open}
@@ -195,7 +208,13 @@ const CaseCard: React.FC<CaseCardProps> = ({
       >
         {onDelete && (
           <MenuItem
+            data-case-action="true"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
             onClick={(e) => {
+              e.preventDefault();
               e.stopPropagation();
               handleDelete();
             }}
@@ -206,14 +225,20 @@ const CaseCard: React.FC<CaseCardProps> = ({
           </MenuItem>
         )}
         <MenuItem
+          data-case-action="true"
+          onMouseDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
           onClick={(e) => {
+            e.preventDefault();
             e.stopPropagation();
             handleArchive();
           }}
           sx={{ color: "var(--text)", gap: 1 }}
         >
           <ArchiveIcon sx={{ mr: 1, color: "var(--text)" }} />
-          Archive
+          {archiveLabel}
         </MenuItem>
       </Menu>
     </Card>

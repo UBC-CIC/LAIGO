@@ -478,6 +478,144 @@ exports.handler = async (event) => {
         }
         break;
 
+      case "PUT /instructor/archive_case":
+        if (!event.queryStringParameters?.case_id) {
+          response.statusCode = 400;
+          response.body = JSON.stringify({
+            error: "Missing required parameter: case_id",
+          });
+          break;
+        }
+        const archiveCaseId = event.queryStringParameters.case_id;
+        try {
+          // Get instructor user_id from cognito_id
+          const userResult = await sqlConnection`
+            SELECT user_id FROM "users" WHERE cognito_id = ${cognito_id};
+          `;
+          if (userResult.length === 0) {
+            response.statusCode = 404;
+            response.body = JSON.stringify({
+              error: "Instructor user not found",
+            });
+            break;
+          }
+          const instructorId = userResult[0].user_id;
+
+          // Get case owner
+          const caseResult = await sqlConnection`
+            SELECT student_id FROM "cases" WHERE case_id = ${archiveCaseId};
+          `;
+          if (caseResult.length === 0) {
+            response.statusCode = 404;
+            response.body = JSON.stringify({ error: "Case not found" });
+            break;
+          }
+          const studentId = caseResult[0].student_id;
+
+          // Check permission:
+          // 1. Instructor is the owner (studentId === instructorId)
+          // 2. Instructor is assigned to the student
+          if (studentId !== instructorId) {
+            const isAssigned = await sqlConnection`
+              SELECT 1 FROM "instructor_students"
+              WHERE instructor_id = ${instructorId} AND student_id = ${studentId};
+            `;
+
+            if (isAssigned.length === 0) {
+              response.statusCode = 403;
+              response.body = JSON.stringify({
+                error:
+                  "Permission denied: Instructor is not assigned to this student and does not own this case.",
+              });
+              break;
+            }
+          }
+
+          // Archive case
+          await sqlConnection`
+            UPDATE "cases"
+            SET status = 'archived'
+            WHERE case_id = ${archiveCaseId};
+          `;
+
+          response.body = JSON.stringify({
+            message: "Case archived successfully",
+          });
+        } catch (err) {
+          console.error("/instructor/archive_case error:", err);
+          handleError(err, response);
+        }
+        break;
+
+      case "PUT /instructor/unarchive_case":
+        if (!event.queryStringParameters?.case_id) {
+          response.statusCode = 400;
+          response.body = JSON.stringify({
+            error: "Missing required parameter: case_id",
+          });
+          break;
+        }
+        const unarchiveCaseId = event.queryStringParameters.case_id;
+        try {
+          // Get instructor user_id from cognito_id
+          const userResult = await sqlConnection`
+            SELECT user_id FROM "users" WHERE cognito_id = ${cognito_id};
+          `;
+          if (userResult.length === 0) {
+            response.statusCode = 404;
+            response.body = JSON.stringify({
+              error: "Instructor user not found",
+            });
+            break;
+          }
+          const instructorId = userResult[0].user_id;
+
+          // Get case owner
+          const caseResult = await sqlConnection`
+            SELECT student_id FROM "cases" WHERE case_id = ${unarchiveCaseId};
+          `;
+          if (caseResult.length === 0) {
+            response.statusCode = 404;
+            response.body = JSON.stringify({ error: "Case not found" });
+            break;
+          }
+          const studentId = caseResult[0].student_id;
+
+          // Check permission:
+          // 1. Instructor is the owner (studentId === instructorId)
+          // 2. Instructor is assigned to the student
+          if (studentId !== instructorId) {
+            const isAssigned = await sqlConnection`
+              SELECT 1 FROM "instructor_students"
+              WHERE instructor_id = ${instructorId} AND student_id = ${studentId};
+            `;
+
+            if (isAssigned.length === 0) {
+              response.statusCode = 403;
+              response.body = JSON.stringify({
+                error:
+                  "Permission denied: Instructor is not assigned to this student and does not own this case.",
+              });
+              break;
+            }
+          }
+
+          // Unarchive case
+          await sqlConnection`
+            UPDATE "cases"
+            SET status = 'in_progress'
+            WHERE case_id = ${unarchiveCaseId};
+          `;
+
+          response.body = JSON.stringify({
+            message: "Case unarchived successfully",
+          });
+        } catch (err) {
+          console.error("/instructor/unarchive_case error:", err);
+          handleError(err, response);
+        }
+        break;
+
       case "DELETE /instructor/delete_feedback":
         if (!event.queryStringParameters?.message_id) {
           response.statusCode = 400;

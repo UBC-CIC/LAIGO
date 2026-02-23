@@ -145,18 +145,28 @@ const AdvocateDashboard: React.FC = () => {
     fetchCases();
   }, []);
 
-  // Archive handler (only wiring archive button)
+  // Archive/unarchive handler
   const handleArchiveCase = async (caseId: string) => {
     try {
       setLoading(true);
+
+      const targetCase = (cases || []).find((c) => c.id === caseId);
+      if (!targetCase) {
+        throw new Error("Case not found");
+      }
+
+      const isArchived = (targetCase.status || "").toLowerCase() === "archived";
+      const endpoint = isArchived
+        ? "student/unarchive_case"
+        : "student/archive_case";
+      const nextStatus = isArchived ? "in_progress" : "archived";
+
       const session = await fetchAuthSession();
       const token = session.tokens?.idToken?.toString();
       if (!token) throw new Error("No auth token");
 
       const resp = await fetch(
-        `${
-          import.meta.env.VITE_API_ENDPOINT
-        }/student/archive_case?case_id=${caseId}`,
+        `${import.meta.env.VITE_API_ENDPOINT}/${endpoint}?case_id=${caseId}`,
         {
           method: "PUT",
           headers: { Authorization: token, "Content-Type": "application/json" },
@@ -165,21 +175,25 @@ const AdvocateDashboard: React.FC = () => {
 
       if (!resp.ok) {
         const text = await resp.text();
-        throw new Error(`Failed to archive case: ${resp.status} ${text}`);
+        throw new Error(`Failed to update case status: ${resp.status} ${text}`);
       }
 
-      // update UI: set status to Archived for the case
+      // Update UI: toggle case status
       setCases((prev) =>
         prev
           ? prev.map((c) =>
-              c.id === caseId ? { ...c, status: "archived" } : c,
+              c.id === caseId ? { ...c, status: nextStatus } : c,
             )
           : prev,
       );
-      showSnackbar("Case archived", "success");
+      showSnackbar(
+        isArchived ? "Case unarchived successfully" : "Case archived successfully",
+        "success",
+      );
     } catch (err) {
       console.error("Archive failed", err);
-      const msg = err instanceof Error ? err.message : "Failed to archive case";
+      const msg =
+        err instanceof Error ? err.message : "Failed to update case archive status";
       showSnackbar(msg, "error");
     } finally {
       setLoading(false);
@@ -347,6 +361,11 @@ const AdvocateDashboard: React.FC = () => {
                     jurisdiction={caseItem.jurisdiction}
                     dateAdded={caseItem.dateAdded}
                     onArchive={handleArchiveCase}
+                    archiveLabel={
+                      caseItem.status?.toLowerCase() === "archived"
+                        ? "Unarchive"
+                        : "Archive"
+                    }
                     onClick={(id) => navigate(`/case/${id}/overview`)}
                   />
                 </Grid>

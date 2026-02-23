@@ -185,12 +185,63 @@ const SupervisorDashboard = ({ userInfo }: SupervisorDashboardProps) => {
   };
 
   const handleArchiveCase = async (caseId: string) => {
-    // Stub
-    console.log("Archive case", caseId);
-    showSnackbar(
-      "Archive not implemented for supervisor view yet (mock data)",
-      "info",
-    );
+    try {
+      const targetCase =
+        myCases.find((c) => c.case_id === caseId) ||
+        allStudentCases.find((c) => c.case_id === caseId);
+
+      if (!targetCase) {
+        showSnackbar("Case not found", "error");
+        return;
+      }
+
+      const isArchived = (targetCase.status || "").toLowerCase() === "archived";
+      const endpoint = isArchived
+        ? "instructor/unarchive_case"
+        : "instructor/archive_case";
+      const nextStatus = isArchived ? "in_progress" : "archived";
+
+      const session = await fetchAuthSession();
+      const token = session.tokens?.idToken?.toString();
+
+      if (!token) throw new Error("No auth token");
+
+      const response = await fetch(
+        `${import.meta.env.VITE_API_ENDPOINT}/${endpoint}?case_id=${caseId}`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: token,
+            "Content-Type": "application/json",
+          },
+        },
+      );
+
+      if (response.ok) {
+        showSnackbar(
+          isArchived ? "Case unarchived successfully" : "Case archived successfully",
+          "success",
+        );
+
+        // Update both lists in-place
+        setMyCases((prev) =>
+          prev.map((c) =>
+            c.case_id === caseId ? { ...c, status: nextStatus } : c,
+          ),
+        );
+        setAllStudentCases((prev) =>
+          prev.map((c) =>
+            c.case_id === caseId ? { ...c, status: nextStatus } : c,
+          ),
+        );
+      } else {
+        const data = await response.json();
+        showSnackbar(data.error || "Failed to update case archive status", "error");
+      }
+    } catch (err) {
+      console.error("Error archiving case", err);
+      showSnackbar("Failed to update case archive status", "error");
+    }
   };
 
   // Search Filtering
@@ -432,6 +483,11 @@ const SupervisorDashboard = ({ userInfo }: SupervisorDashboardProps) => {
                           ).toLocaleDateString()}
                           onDelete={handleDeleteCase}
                           onArchive={handleArchiveCase}
+                          archiveLabel={
+                            caseItem.status?.toLowerCase() === "archived"
+                              ? "Unarchive"
+                              : "Archive"
+                          }
                           onClick={(id) => navigate(`/case/${id}/overview`)}
                         />
                       </Grid>
@@ -502,6 +558,11 @@ const SupervisorDashboard = ({ userInfo }: SupervisorDashboardProps) => {
                           }`}
                           onDelete={handleDeleteCase}
                           onArchive={handleArchiveCase}
+                          archiveLabel={
+                            caseItem.status?.toLowerCase() === "archived"
+                              ? "Unarchive"
+                              : "Archive"
+                          }
                           onClick={(id) => navigate(`/case/${id}/overview`)}
                         />
                       </Grid>
