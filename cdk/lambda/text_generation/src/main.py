@@ -88,6 +88,7 @@ def initialize_constants():
     BEDROCK_LLM_ID = get_parameter(BEDROCK_LLM_PARAM, BEDROCK_LLM_ID)
     EMBEDDING_MODEL_ID = get_parameter(EMBEDDING_MODEL_PARAM, EMBEDDING_MODEL_ID)
     TABLE_NAME = get_parameter(TABLE_NAME_PARAM, TABLE_NAME)
+    logger.info(f"Using DynamoDB conversation history table: {TABLE_NAME}")
     
     if BEDROCK_TEMP_PARAM:
         temp_val = get_parameter(BEDROCK_TEMP_PARAM, None)
