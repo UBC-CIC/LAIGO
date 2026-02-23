@@ -2037,8 +2037,28 @@ export class ApiGatewayStack extends cdk.Stack {
     );
 
     // Grant notification service permissions
-    notificationTable.grantReadWriteData(notificationServiceFunction);
-    connectionTable.grantReadData(notificationServiceFunction);
+    notificationServiceFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: [
+          "dynamodb:PutItem",
+          "dynamodb:Query",
+          "dynamodb:UpdateItem",
+          "dynamodb:DeleteItem",
+        ],
+        resources: [
+          notificationTable.tableArn,
+          `${notificationTable.tableArn}/index/*`,
+        ],
+      }),
+    );
+    notificationServiceFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["dynamodb:Query", "dynamodb:DeleteItem"],
+        resources: [connectionTable.tableArn, `${connectionTable.tableArn}/index/*`],
+      }),
+    );
 
     // Grant WebSocket API permissions for notification delivery
     notificationServiceFunction.addToRolePolicy(
