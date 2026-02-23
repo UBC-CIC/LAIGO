@@ -6,10 +6,7 @@ import hashlib
 import uuid
 from datetime import datetime
 
-import boto3
 from botocore.exceptions import ClientError
-from langchain_aws import ChatBedrockConverse
-from langchain_core.prompts import ChatPromptTemplate
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -19,14 +16,102 @@ logger = logging.getLogger(__name__)
 dynamodb = boto3.client('dynamodb')
 bedrock_runtime = boto3.client('bedrock-runtime')
 
+
+def _build_invoke_request(llm: dict, system_prompt: str, user_prompt: str) -> dict:
+    model_id = llm["model_id"]
+
+    if model_id.startswith("anthropic."):
+        return {
+            "anthropic_version": "bedrock-2023-05-31",
+            "system": system_prompt,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [{"type": "text", "text": user_prompt}],
+                }
+            ],
+            "max_tokens": llm["max_tokens"],
+            "temperature": llm["temperature"],
+            "top_p": llm["top_p"],
+        }
+
+    if model_id.startswith("meta."):
+        return {
+            "prompt": f"{system_prompt}\n\n{user_prompt}",
+            "max_gen_len": llm["max_tokens"],
+            "temperature": llm["temperature"],
+            "top_p": llm["top_p"],
+        }
+
+    raise ValueError(f"Unsupported Bedrock model for InvokeModel: {model_id}")
+
+
+def _extract_response_text(model_id: str, response_payload: dict) -> str:
+    if model_id.startswith("anthropic."):
+        content_blocks = response_payload.get("content", [])
+        return "".join(block.get("text", "") for block in content_blocks if block.get("type") == "text")
+
+    if model_id.startswith("meta."):
+        return response_payload.get("generation") or response_payload.get("output_text") or ""
+
+    return response_payload.get("outputText") or ""
+
+
+def _invoke_model_text(llm: dict, system_prompt: str, user_prompt: str) -> str:
+    request_body = _build_invoke_request(llm, system_prompt, user_prompt)
+    response = bedrock_runtime.invoke_model(
+        modelId=llm["model_id"],
+        contentType="application/json",
+        accept="application/json",
+        body=json.dumps(request_body),
+    )
+    payload = json.loads(response["body"].read())
+    return _extract_response_text(llm["model_id"], payload)
+
+
+def _stream_invoke_model_text(llm: dict, system_prompt: str, user_prompt: str, send_chunk_callback=None) -> str:
+    request_body = _build_invoke_request(llm, system_prompt, user_prompt)
+    stream = bedrock_runtime.invoke_model_with_response_stream(
+        modelId=llm["model_id"],
+        contentType="application/json",
+        accept="application/json",
+        body=json.dumps(request_body),
+    )
+
+    full_response = ""
+    for event in stream.get("body", []):
+        chunk = event.get("chunk")
+        if not chunk:
+            continue
+
+        try:
+            event_payload = json.loads(chunk["bytes"].decode("utf-8"))
+        except Exception:
+            continue
+
+        chunk_text = ""
+        if llm["model_id"].startswith("anthropic."):
+            event_type = event_payload.get("type")
+            if event_type == "content_block_delta":
+                chunk_text = event_payload.get("delta", {}).get("text", "")
+        elif llm["model_id"].startswith("meta."):
+            chunk_text = event_payload.get("generation") or event_payload.get("output_text") or ""
+
+        if chunk_text:
+            full_response += chunk_text
+            if send_chunk_callback:
+                send_chunk_callback(chunk_text)
+
+    return full_response
+
 def get_bedrock_llm(
     bedrock_llm_id: str,
     temperature: float = 0.3,
     max_tokens: int = 2048,
     top_p: float = 0.9,
-) -> ChatBedrockConverse:
+) -> dict:
     """
-    Initialize a Bedrock LLM with specified parameters.
+    Build a Bedrock InvokeModel configuration with specified parameters.
     
     Args:
         bedrock_llm_id (str): The model ID for the Bedrock LLM.
@@ -35,14 +120,14 @@ def get_bedrock_llm(
         top_p (float, optional): The top_p parameter for the LLM. Defaults to 0.9.
     
     Returns:
-        ChatBedrockConverse: Configured Bedrock LLM instance.
+        dict: Configured Bedrock invoke settings.
     """
-    return ChatBedrockConverse(
-        model=bedrock_llm_id,
-        temperature=temperature,
-        max_tokens=max_tokens,
-        top_p=top_p
-    )
+    return {
+        "model_id": bedrock_llm_id,
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+        "top_p": top_p,
+    }
 
 def retrieve_dynamodb_history(table_name: str, session_id: str) -> list:
     """
@@ -94,7 +179,7 @@ def retrieve_dynamodb_history(table_name: str, session_id: str) -> list:
 
 def generate_lawyer_summary(
     messages: list, 
-    llm: ChatBedrockConverse, 
+    llm: dict, 
     case_type: str = None, 
     case_description: str = None, 
     jurisdiction: str = None,
@@ -105,7 +190,7 @@ def generate_lawyer_summary(
     
     Args:
         messages (list): List of conversation messages.
-        llm (ChatBedrockConverse): Bedrock LLM for generating summary.
+        llm (dict): Bedrock InvokeModel configuration.
         case_type (str, optional): Type of legal case.
         case_description (str, optional): Brief description of the case.
         jurisdiction (str, optional): Legal jurisdiction for the case.
@@ -295,38 +380,25 @@ Use markdown formatting. Only include sections where content was discussed.
 
     selected_prompt_instruction = prompts.get(block_type, default_prompt)
 
-    # Create a prompt for summarization
-    summary_prompt = ChatPromptTemplate.from_messages([
-        ("system", f"""
-        {{selected_prompt_instruction}}
-        
-        Respond in a proper, readable, markdown format.
-        Use a clear, professional tone. Organize the summary with clear headings.
-        Avoid personal opinions and stick to the observable facts from the conversation.
-        
-        Case Metadata:
-        - Case Type: {{case_type}}
-        - Case Description: {{case_description}}
-        - Jurisdiction: {{jurisdiction}}
-        """),
-        ("human", "Here is the conversation to summarize:\n{{conversation}}")
-    ])
-    
-    # Generate summary
-    summary_chain = summary_prompt | llm
-    summary = summary_chain.invoke({
-        "selected_prompt_instruction": selected_prompt_instruction,
-        "conversation": conversation_text,
-        "case_type": case_type or "Not Specified",
-        "case_description": case_description or "No additional description provided",
-        "jurisdiction": jurisdiction or "Not Specified"
-    }).content
-    
-    return summary
+    system_prompt = f"""
+{selected_prompt_instruction}
+
+Respond in a proper, readable, markdown format.
+Use a clear, professional tone. Organize the summary with clear headings.
+Avoid personal opinions and stick to the observable facts from the conversation.
+
+Case Metadata:
+- Case Type: {case_type or 'Not Specified'}
+- Case Description: {case_description or 'No additional description provided'}
+- Jurisdiction: {jurisdiction or 'Not Specified'}
+    """.strip()
+
+    user_prompt = f"Here is the conversation to summarize:\n{conversation_text}"
+    return _invoke_model_text(llm, system_prompt, user_prompt)
 
 def generate_lawyer_summary_streaming(
     messages: list, 
-    llm: ChatBedrockConverse, 
+    llm: dict, 
     case_type: str = None, 
     case_description: str = None, 
     jurisdiction: str = None,
@@ -338,7 +410,7 @@ def generate_lawyer_summary_streaming(
     
     Args:
         messages (list): List of conversation messages.
-        llm (ChatBedrockConverse): Bedrock LLM for generating summary.
+        llm (dict): Bedrock InvokeModel configuration.
         case_type (str, optional): Type of legal case.
         case_description (str, optional): Brief description of the case.
         jurisdiction (str, optional): Legal jurisdiction for the case.
@@ -529,60 +601,30 @@ Use markdown formatting. Only include sections where content was discussed.
 
     selected_prompt_instruction = prompts.get(block_type, default_prompt)
 
-    # Create a prompt for summarization
-    summary_prompt = ChatPromptTemplate.from_messages([
-        ("system", f"""
-        {{selected_prompt_instruction}}
-        
-        Respond in a proper, readable, markdown format.
-        Use a clear, professional tone. Organize the summary with clear headings.
-        Avoid personal opinions and stick to the observable facts from the conversation.
-        
-        Case Metadata:
-        - Case Type: {{case_type}}
-        - Case Description: {{case_description}}
-        - Jurisdiction: {{jurisdiction}}
-        """),
-        ("human", "Here is the conversation to summarize:\n{{conversation}}")
-    ])
-    
-    # Generate streaming summary
-    summary_chain = summary_prompt | llm
-    full_response = ""
-    
+    system_prompt = f"""
+{selected_prompt_instruction}
+
+Respond in a proper, readable, markdown format.
+Use a clear, professional tone. Organize the summary with clear headings.
+Avoid personal opinions and stick to the observable facts from the conversation.
+
+Case Metadata:
+- Case Type: {case_type or 'Not Specified'}
+- Case Description: {case_description or 'No additional description provided'}
+- Jurisdiction: {jurisdiction or 'Not Specified'}
+    """.strip()
+
+    user_prompt = f"Here is the conversation to summarize:\n{conversation_text}"
+
     try:
-        for chunk in summary_chain.stream({
-            "selected_prompt_instruction": selected_prompt_instruction,
-            "conversation": conversation_text,
-            "case_type": case_type or "Not Specified",
-            "case_description": case_description or "No additional description provided",
-            "jurisdiction": jurisdiction or "Not Specified"
-        }):
-            # Extract content from the chunk
-            # chunk.content may be a string or a list of content blocks
-            raw_content = chunk.content if hasattr(chunk, 'content') else chunk
-            if isinstance(raw_content, list):
-                # Extract text from content blocks
-                chunk_content = ''.join(
-                    item.get('text', '') if isinstance(item, dict) else str(item)
-                    for item in raw_content
-                )
-            else:
-                chunk_content = str(raw_content) if raw_content else ''
-            
-            if chunk_content:
-                full_response += chunk_content
-                if send_chunk_callback:
-                    send_chunk_callback(chunk_content)
+        return _stream_invoke_model_text(llm, system_prompt, user_prompt, send_chunk_callback)
     except Exception as e:
         logger.error(f"Error during streaming summary generation: {e}")
         raise
-    
-    return full_response
 
 def generate_full_case_summary(
     block_summaries: list,  # [{block_type, content, title}, ...]
-    llm: ChatBedrockConverse,
+    llm: dict,
     case_type: str = None,
     case_description: str = None,
     jurisdiction: str = None
@@ -592,7 +634,7 @@ def generate_full_case_summary(
     
     Args:
         block_summaries (list): List of dictionaries containing block summaries.
-        llm (ChatBedrockConverse): Bedrock LLM instance.
+        llm (dict): Bedrock InvokeModel configuration.
         case_type (str, optional): Type of legal case.
         case_description (str, optional): Brief description of the case.
         jurisdiction (str, optional): Legal jurisdiction.
@@ -630,29 +672,19 @@ STRUCTURE:
 OUTPUT: Respond with ONLY the case summary in markdown format. No preamble.
     """
 
-    summary_prompt = ChatPromptTemplate.from_messages([
-        ("system", """
-        {instruction}
-        
-        IMPORTANT: Respond with ONLY the synthesized summary content in markdown format.
-        Do not include any preamble, explanation, or meta-commentary.
-        Start directly with the summary content.
-        """),
-        ("human", "Here are the summaries from different stages of the case:\n{summaries}")
-    ])
-    
-    # Generate summary
-    summary_chain = summary_prompt | llm
-    summary = summary_chain.invoke({
-        "instruction": prompt_instruction,
-        "summaries": summaries_text
-    }).content
-    
-    return summary
+    system_prompt = f"""
+{prompt_instruction}
+
+IMPORTANT: Respond with ONLY the synthesized summary content in markdown format.
+Do not include any preamble, explanation, or meta-commentary.
+Start directly with the summary content.
+    """.strip()
+    user_prompt = f"Here are the summaries from different stages of the case:\n{summaries_text}"
+    return _invoke_model_text(llm, system_prompt, user_prompt)
 
 def generate_full_case_summary_streaming(
     block_summaries: list,  # [{block_type, content, title}, ...]
-    llm: ChatBedrockConverse,
+    llm: dict,
     case_type: str = None,
     case_description: str = None,
     jurisdiction: str = None,
@@ -663,7 +695,7 @@ def generate_full_case_summary_streaming(
     
     Args:
         block_summaries (list): List of dictionaries containing block summaries.
-        llm (ChatBedrockConverse): Bedrock LLM instance.
+        llm (dict): Bedrock InvokeModel configuration.
         case_type (str, optional): Type of legal case.
         case_description (str, optional): Brief description of the case.
         jurisdiction (str, optional): Legal jurisdiction.
@@ -702,45 +734,18 @@ STRUCTURE:
 OUTPUT: Respond with ONLY the case summary in markdown format. No preamble.
     """
 
-    summary_prompt = ChatPromptTemplate.from_messages([
-        ("system", """
-        {instruction}
-        
-        IMPORTANT: Respond with ONLY the synthesized summary content in markdown format.
-        Do not include any preamble, explanation, or meta-commentary.
-        Start directly with the summary content.
-        """),
-        ("human", "Here are the summaries from different stages of the case:\n{summaries}")
-    ])
-    
-    # Generate streaming summary
-    summary_chain = summary_prompt | llm
-    full_response = ""
-    
+    system_prompt = f"""
+{prompt_instruction}
+
+IMPORTANT: Respond with ONLY the synthesized summary content in markdown format.
+Do not include any preamble, explanation, or meta-commentary.
+Start directly with the summary content.
+    """.strip()
+    user_prompt = f"Here are the summaries from different stages of the case:\n{summaries_text}"
+
     try:
-        for chunk in summary_chain.stream({
-            "instruction": prompt_instruction,
-            "summaries": summaries_text
-        }):
-            # Extract content from the chunk
-            # chunk.content may be a string or a list of content blocks
-            raw_content = chunk.content if hasattr(chunk, 'content') else chunk
-            if isinstance(raw_content, list):
-                # Extract text from content blocks
-                chunk_content = ''.join(
-                    item.get('text', '') if isinstance(item, dict) else str(item)
-                    for item in raw_content
-                )
-            else:
-                chunk_content = str(raw_content) if raw_content else ''
-            
-            if chunk_content:
-                full_response += chunk_content
-                if send_chunk_callback:
-                    send_chunk_callback(chunk_content)
+        return _stream_invoke_model_text(llm, system_prompt, user_prompt, send_chunk_callback)
     except Exception as e:
         logger.error(f"Error during streaming full-case summary generation: {e}")
         raise
-    
-    return full_response
 

@@ -5,8 +5,6 @@ import logging
 import psycopg
 import time
 import functools
-from langchain_aws import ChatBedrockConverse
-from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_community.chat_message_histories import DynamoDBChatMessageHistory
 
 # Set up logging - Force level to INFO to ensure CloudWatch capture
@@ -33,6 +31,7 @@ BEDROCK_MAX_TOKENS_PARAM = os.environ.get("BEDROCK_MAX_TOKENS_PARAM")
 secrets_manager_client = boto3.client("secretsmanager")
 ssm_client = boto3.client("ssm", region_name=REGION)
 dynamodb_client = boto3.client("dynamodb")
+bedrock_runtime = boto3.client("bedrock-runtime", region_name=REGION)
 
 # Cached resources
 connection = None
@@ -43,6 +42,63 @@ BEDROCK_TEMP = 0.0
 BEDROCK_TOP_P = 0.9
 BEDROCK_MAX_TOKENS = 512
 PLAYGROUND_TABLE_NAME = os.environ.get("PLAYGROUND_TABLE_NAME")
+
+
+def _build_invoke_body(model_id, system_instructions, human_context):
+    if model_id.startswith("anthropic."):
+        return {
+            "anthropic_version": "bedrock-2023-05-31",
+            "system": system_instructions,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": human_context,
+                        }
+                    ],
+                }
+            ],
+            "max_tokens": BEDROCK_MAX_TOKENS,
+            "temperature": BEDROCK_TEMP,
+            "top_p": BEDROCK_TOP_P,
+        }
+
+    if model_id.startswith("meta."):
+        return {
+            "prompt": f"{system_instructions}\n\n{human_context}",
+            "max_gen_len": BEDROCK_MAX_TOKENS,
+            "temperature": BEDROCK_TEMP,
+            "top_p": BEDROCK_TOP_P,
+        }
+
+    raise ValueError(f"Unsupported Bedrock model for InvokeModel: {model_id}")
+
+
+def _extract_text_from_invoke_response(model_id, response):
+    body = json.loads(response["body"].read())
+
+    if model_id.startswith("anthropic."):
+        parts = body.get("content", [])
+        text_parts = [part.get("text", "") for part in parts if part.get("type") == "text"]
+        return "".join(text_parts)
+
+    if model_id.startswith("meta."):
+        return body.get("generation") or body.get("output_text") or ""
+
+    return body.get("outputText") or ""
+
+
+def invoke_model_text(system_instructions, human_context):
+    request_body = _build_invoke_body(BEDROCK_LLM_ID, system_instructions, human_context)
+    response = bedrock_runtime.invoke_model(
+        modelId=BEDROCK_LLM_ID,
+        body=json.dumps(request_body),
+        contentType="application/json",
+        accept="application/json",
+    )
+    return _extract_text_from_invoke_response(BEDROCK_LLM_ID, response)
 
 def get_secret(secret_name, expect_json=True):
     global db_secret
@@ -420,20 +476,8 @@ def handler(event, context):
         """
         
         try:
-            llm = ChatBedrockConverse(
-                model=BEDROCK_LLM_ID,
-                temperature=BEDROCK_TEMP,
-                max_tokens=BEDROCK_MAX_TOKENS,
-                top_p=BEDROCK_TOP_P
-            )
-            
             start_time = time.time()
-            # Use SystemMessage for instructions and HumanMessage for context/history
-            response = llm.invoke([
-                SystemMessage(content=system_instructions),
-                HumanMessage(content=human_context)
-            ])
-            response_text = response.content
+            response_text = invoke_model_text(system_instructions, human_context)
             duration = time.time() - start_time
             logger.info(f"Playground assessment took {duration:.2f}s")
             logger.info(f"Playground LLM Response: {response_text}")
@@ -558,19 +602,7 @@ def handler(event, context):
         start_time = time.time()
         
         # Invoke Bedrock
-        llm = ChatBedrockConverse(
-            model=BEDROCK_LLM_ID,
-            temperature=BEDROCK_TEMP,
-            max_tokens=BEDROCK_MAX_TOKENS,
-            top_p=BEDROCK_TOP_P
-        )
-        
-        # Use SystemMessage for instructions and HumanMessage for context/history
-        response = llm.invoke([
-            SystemMessage(content=system_instructions),
-            HumanMessage(content=human_context)
-        ])
-        response_text = response.content
+        response_text = invoke_model_text(system_instructions, human_context)
         duration = time.time() - start_time
         logger.info(f"Bedrock invocation took {duration:.2f}s")
         logger.info(f"LLM Assessment Response: {response_text}")

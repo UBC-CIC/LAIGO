@@ -16,15 +16,50 @@ from typing import Dict, Any, Optional, Tuple
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+bedrock_runtime = boto3.client("bedrock-runtime")
+
+
+def _build_request_payload(model_id: str, prompt: str, temperature: float, max_tokens: int, top_p: Optional[float]) -> dict:
+    if model_id.startswith("anthropic."):
+        return {
+            "anthropic_version": "bedrock-2023-05-31",
+            "messages": [{"role": "user", "content": [{"type": "text", "text": prompt}]}],
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            "top_p": top_p,
+        }
+
+    if model_id.startswith("meta."):
+        return {
+            "prompt": prompt,
+            "max_gen_len": max_tokens,
+            "temperature": temperature,
+            "top_p": top_p,
+        }
+
+    raise ValueError(f"Unsupported Bedrock model for InvokeModel: {model_id}")
+
+
+def _extract_response_text(model_id: str, invoke_response: dict) -> str:
+    body = json.loads(invoke_response["body"].read())
+
+    if model_id.startswith("anthropic."):
+        content_blocks = body.get("content", [])
+        return "".join(block.get("text", "") for block in content_blocks if block.get("type") == "text")
+
+    if model_id.startswith("meta."):
+        return body.get("generation") or body.get("output_text") or ""
+
+    return body.get("outputText") or ""
 
 def get_bedrock_llm(
     bedrock_llm_id: str,
     temperature: Optional[float] = 0.7,
     max_tokens: Optional[int] = 150,
     top_p : Optional[float] = None
-) -> ChatBedrockConverse:
+) -> dict:
     """
-    Retrieve a Bedrock LLM instance configured with the given model ID and temperature.
+    Create a Bedrock InvokeModel configuration dictionary.
 
     Args:
         bedrock_llm_id (str): The unique identifier for the Bedrock LLM model.
@@ -34,28 +69,27 @@ def get_bedrock_llm(
         top_p (float, optional): Indicates the percentage of most-likely candidates that are considered for the next token (default is None).
 
     Returns:
-        ChatBedrockConverse: An instance of the Bedrock LLM corresponding to the provided model ID.
+        dict: InvokeModel configuration for the selected model.
     """
     logger.info(
-        "Initializing ChatBedrockConverse with model_id '%s', temperature '%s', max_tokens '%s', top_p '%s'.",
+        "Initializing Bedrock InvokeModel config with model_id '%s', temperature '%s', max_tokens '%s', top_p '%s'.",
         bedrock_llm_id, 
         temperature,
         max_tokens, 
         top_p
     )
     
-    return ChatBedrockConverse(
-        model=bedrock_llm_id,
-        temperature=temperature,
-        # Additional kwargs: https://api.python.langchain.com/en/latest/aws/chat_models/langchain_aws.chat_models.bedrock_converse.ChatBedrockConverse.html
-        max_tokens=max_tokens,
-        top_p=top_p
-    )
+    return {
+        "model_id": bedrock_llm_id,
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+        "top_p": top_p,
+    }
 
 
 def get_response(
     case_type: str, 
-    llm: ChatBedrockConverse,
+    llm: dict,
     jurisdiction: Optional[str] = None, 
     case_description: Optional[str] = None,
     province: Optional[str] = None
@@ -65,7 +99,7 @@ def get_response(
 
     Args:
         case_type (str): The type of legal case
-        llm (ChatBedrockConverse): The language model to generate the title
+        llm (dict): Bedrock InvokeModel configuration.
         jurisdiction (str, optional): The legal jurisdiction of the case
         case_description (str, optional): A brief description of the case
 
@@ -108,10 +142,25 @@ def get_response(
     
     # Use the LLM to generate the title
     logger.info("Invoking LLM to generate case title")
-    response = llm.invoke(prompt).content
+    request_payload = _build_request_payload(
+        model_id=llm["model_id"],
+        prompt=prompt,
+        temperature=llm["temperature"],
+        max_tokens=llm["max_tokens"],
+        top_p=llm["top_p"],
+    )
+
+    response = bedrock_runtime.invoke_model(
+        modelId=llm["model_id"],
+        contentType="application/json",
+        accept="application/json",
+        body=json.dumps(request_payload),
+    )
+
+    response_text = _extract_response_text(llm["model_id"], response)
     
     # Trim the response to ensure it's not too long
-    title = response.strip()[:100]
+    title = response_text.strip()[:100]
     
     logger.info(f"Generated case title: {title}")
     return title

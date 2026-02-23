@@ -7,10 +7,7 @@ import uuid
 import functools
 from datetime import datetime
 import psycopg
-import boto3
 from botocore.exceptions import ClientError
-from langchain_aws import ChatBedrockConverse
-from langchain_core.prompts import ChatPromptTemplate
 from helpers.chat import (
     get_bedrock_llm, 
     generate_lawyer_summary, 
