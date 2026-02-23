@@ -8,6 +8,7 @@ import NotificationButton from "./Notifications/NotificationButton";
 import AccountCircleOutlinedIcon from "@mui/icons-material/AccountCircleOutlined";
 import { signOut } from "aws-amplify/auth";
 import { useUser } from "../contexts/UserContext";
+import HelpButton from "./Help/HelpButton";
 
 const iconStyle = { color: "var(--text-secondary)", fontSize: "1.5rem" };
 const labelStyle = {
@@ -100,6 +101,7 @@ const SupervisorHeader: React.FC = () => {
           onClick={() => navigate("/prompts")}
         />
         <NotificationButton />
+        <HelpButton />
         <Stack
           alignItems="center"
           sx={{

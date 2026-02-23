@@ -7,6 +7,7 @@ import AccountCircleOutlinedIcon from "@mui/icons-material/AccountCircleOutlined
 import { signOut } from "aws-amplify/auth";
 import { useUser } from "../contexts/UserContext";
 import NotificationButton from "./Notifications/NotificationButton";
+import HelpButton from "./Help/HelpButton";
 
 const iconStyle = { color: "var(--text-secondary)", fontSize: "1.5rem" };
 const labelStyle = {
@@ -95,6 +96,7 @@ const AdvocateHeader: React.FC = () => {
           onClick={() => navigate("/")}
         />
         <NotificationButton />
+        <HelpButton />
         <Stack
           alignItems="center"
           sx={{

@@ -10,11 +10,6 @@ import {
   IconButton,
   Card,
   CardContent,
-  Button,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
 } from "@mui/material";
 import KeyboardDoubleArrowLeftIcon from "@mui/icons-material/KeyboardDoubleArrowLeft";
 import KeyboardDoubleArrowRightIcon from "@mui/icons-material/KeyboardDoubleArrowRight";
@@ -59,7 +54,7 @@ const PROGRESSION_MAP: Record<string, string | string[]> = {
 
 const InterviewAssistant: React.FC = () => {
   const { caseId, section } = useParams();
-  const { unlockedBlocks, refreshUnlockedBlocks, caseStatus } =
+  const { refreshUnlockedBlocks, caseStatus } =
     useOutletContext<CaseOutletContext>();
 
   const [messages, setMessages] = useState<Message[]>([]);
@@ -77,7 +72,6 @@ const InterviewAssistant: React.FC = () => {
   const [rightOpen, setRightOpen] = useState(true);
   const [sidebarWidth, setSidebarWidth] = useState(320);
   const [isResizing, setIsResizing] = useState(false);
-  const [instructionsOpen, setInstructionsOpen] = useState(false);
 
   const startResizing = useCallback(() => {
     setIsResizing(true);
@@ -230,7 +224,7 @@ const InterviewAssistant: React.FC = () => {
         setIsLoading(false);
       }
     },
-    [currentBlock, unlockedBlocks],
+    [currentBlock],
   );
   // Initialize WebSocket connection
   const { sendStreamingRequest, isConnected } = useWebSocket(wsUrl, {
@@ -979,173 +973,10 @@ const InterviewAssistant: React.FC = () => {
                   </Typography>
                 )}
               </Box>
-              <Box sx={{ p: 2, borderTop: "1px solid var(--border)" }}>
-                <Button
-                  fullWidth
-                  variant="outlined"
-                  size="small"
-                  onClick={() => setInstructionsOpen(true)}
-                  sx={{
-                    textTransform: "none",
-                    borderColor: "var(--border)",
-                    color: "var(--text-secondary)",
-                    "&:hover": {
-                      borderColor: "var(--primary)",
-                      color: "var(--primary)",
-                      backgroundColor: "rgba(25, 118, 210, 0.04)", // Fallback if var not set
-                    },
-                  }}
-                >
-                  How does this work?
-                </Button>
-              </Box>
             </>
           )}
         </Box>
       </Box>
-
-      {/* Instructions Dialog */}
-      <Dialog
-        open={instructionsOpen}
-        onClose={() => setInstructionsOpen(false)}
-        maxWidth="sm"
-        fullWidth
-        PaperProps={{
-          sx: {
-            backgroundColor: "var(--background)",
-            border: "1px solid var(--border)",
-            borderRadius: 2,
-            backgroundImage: "none",
-          },
-        }}
-      >
-        <DialogTitle
-          sx={{
-            fontWeight: "bold",
-            backgroundColor: "var(--header)",
-            color: "var(--text)",
-            borderBottom: "1px solid var(--border)",
-          }}
-        >
-          How to use the Assistant
-        </DialogTitle>
-        <DialogContent
-          sx={{
-            backgroundColor: "var(--background)",
-            p: 3,
-            paddingTop: "24px !important",
-            borderBottom: "none",
-          }}
-        >
-          <Box
-            component="ul"
-            sx={{
-              m: 0,
-              pl: 2,
-              display: "flex",
-              flexDirection: "column",
-              gap: 2,
-              "& li": {
-                pl: 1,
-                "&::marker": {
-                  color: "var(--text-secondary)",
-                },
-              },
-            }}
-          >
-            <li>
-              <Typography
-                variant="subtitle2"
-                sx={{ fontWeight: "bold", color: "var(--text)" }}
-              >
-                Locked Progression
-              </Typography>
-              <Typography
-                variant="body2"
-                sx={{ color: "var(--text-secondary)", mt: 0.5 }}
-              >
-                The case simulation is structured in sequential blocks. You are
-                currently restricted to this specific phase and must satisfy its
-                requirements before the next section of the case becomes
-                available.
-              </Typography>
-            </li>
-            <li>
-              <Typography
-                variant="subtitle2"
-                sx={{ fontWeight: "bold", color: "var(--text)" }}
-              >
-                How to Unlock
-              </Typography>
-              <Typography
-                variant="body2"
-                sx={{ color: "var(--text-secondary)", mt: 0.5 }}
-              >
-                Engage naturally with the Assistant by asking questions and
-                analyzing the case facts. The system analyzes your conversation
-                depth and coverage of key legal concepts to determine when you
-                are ready to advance.
-              </Typography>
-            </li>
-            <li>
-              <Typography
-                variant="subtitle2"
-                sx={{ fontWeight: "bold", color: "var(--text)" }}
-              >
-                Track Progress
-              </Typography>
-              <Typography
-                variant="body2"
-                sx={{ color: "var(--text-secondary)", mt: 0.5 }}
-              >
-                A progress bar at the top of the chat visualizes your standing.
-                As you cover more ground in your conversation, this bar will
-                fill up. Reaching 100% will trigger a notification that the next
-                block is unlocked.
-              </Typography>
-            </li>
-            <li>
-              <Typography
-                variant="subtitle2"
-                sx={{ fontWeight: "bold", color: "var(--text)" }}
-              >
-                Get Guidance
-              </Typography>
-              <Typography
-                variant="body2"
-                sx={{ color: "var(--text-secondary)", mt: 0.5 }}
-              >
-                The feedback panel on the right is your real-time coach. It
-                offers specific insights into what information you might be
-                missing or which topics require further exploration to complete
-                the current block.
-              </Typography>
-            </li>
-          </Box>
-        </DialogContent>
-        <DialogActions
-          sx={{
-            borderTop: "1px solid var(--border)",
-            backgroundColor: "var(--header)",
-            p: 2,
-          }}
-        >
-          <Button
-            onClick={() => setInstructionsOpen(false)}
-            variant="contained"
-            sx={{
-              backgroundColor: "var(--primary)",
-              color: "white",
-              fontWeight: "bold",
-              "&:hover": {
-                backgroundColor: "var(--primary-hover)",
-              },
-            }}
-          >
-            Close
-          </Button>
-        </DialogActions>
-      </Dialog>
 
       {/* Unlock Notification Snackbar */}
       <Snackbar
