@@ -22,6 +22,10 @@ interface UseWebSocketOptions {
   onDisconnect?: () => void;
   onError?: (error: Event) => void;
   protocols?: string | string[];
+  rateLimit?: {
+    maxMessages?: number;
+    windowMs?: number;
+  };
 }
 
 export const useWebSocket = (
@@ -36,6 +40,13 @@ export const useWebSocket = (
   const [connectionState, setConnectionState] = useState<
     "connecting" | "connected" | "disconnected" | "error"
   >("disconnected");
+
+  // Rate limiting state
+  const messageCountRef = useRef(0);
+  const windowStartRef = useRef(Date.now());
+
+  // Destructure with defaults to avoid dependency on the whole options object
+  const { maxMessages = 10, windowMs = 1000 } = options.rateLimit || {};
 
   // Request tracking for streaming responses - must be after useState to maintain hook order
   const pendingRequestsRef = useRef<Map<string, PendingRequest>>(new Map());
@@ -105,17 +116,19 @@ export const useWebSocket = (
 
     reconnectTimeoutRef.current = window.setTimeout(async () => {
       reconnectAttemptsRef.current++;
-      
-      // Refresh token before reconnecting 
+
+      // Refresh token before reconnecting
       if (callbacksRef.current.protocols) {
         try {
           console.log("[WebSocket] Refreshing auth token before reconnect");
           const session = await fetchAuthSession();
           const freshToken = session.tokens?.idToken?.toString();
-          
+
           if (freshToken) {
             // Update protocols with fresh token
-            callbacksRef.current.protocols = Array.isArray(callbacksRef.current.protocols)
+            callbacksRef.current.protocols = Array.isArray(
+              callbacksRef.current.protocols,
+            )
               ? [freshToken, ...callbacksRef.current.protocols.slice(1)]
               : [freshToken];
             console.log("[WebSocket] Token refreshed successfully");
@@ -130,7 +143,7 @@ export const useWebSocket = (
           return; // Abort reconnection - auth is broken
         }
       }
-      
+
       if (connectRef.current) {
         connectRef.current();
       }
@@ -164,6 +177,11 @@ export const useWebSocket = (
         console.log("[WebSocket] Connected successfully");
         setConnectionState("connected");
         reconnectAttemptsRef.current = 0;
+
+        // Reset rate limiting on new connection
+        messageCountRef.current = 0;
+        windowStartRef.current = Date.now();
+
         startHeartbeat();
         callbacksRef.current.onConnect?.();
       };
@@ -178,12 +196,15 @@ export const useWebSocket = (
           if (!basicValidation.valid) {
             console.error(
               "[WebSocket] Basic structure validation failed:",
-              basicValidation.error
+              basicValidation.error,
             );
             // Try to extract requestId to provide error feedback
-            const requestId = 'requestId' in message ? (message as Record<string, unknown>).requestId : undefined;
-            
-            if (requestId && typeof requestId === 'string') {
+            const requestId =
+              "requestId" in message
+                ? (message as Record<string, unknown>).requestId
+                : undefined;
+
+            if (requestId && typeof requestId === "string") {
               const pending = pendingRequestsRef.current.get(requestId);
               if (pending) {
                 pending.onError?.("An error occurred");
@@ -198,7 +219,7 @@ export const useWebSocket = (
           if (!typeValidation.valid) {
             console.error(
               "[WebSocket] Message type validation failed:",
-              typeValidation.error
+              typeValidation.error,
             );
             // Try to provide error feedback if requestId exists
             const { requestId } = message;
@@ -213,11 +234,13 @@ export const useWebSocket = (
           }
 
           // Validation pipeline - Step 3: Type-specific field validation
-          const fieldValidation = validateTypeSpecificFields(message as unknown as Record<string, unknown>);
+          const fieldValidation = validateTypeSpecificFields(
+            message as unknown as Record<string, unknown>,
+          );
           if (!fieldValidation.valid) {
             console.error(
               "[WebSocket] Type-specific field validation failed:",
-              fieldValidation.error
+              fieldValidation.error,
             );
             // Call onError callback if requestId exists with pending request
             const { requestId } = message;
@@ -253,12 +276,12 @@ export const useWebSocket = (
                   if (action && data) {
                     const dataValidation = validateActionSpecificData(
                       action,
-                      data as Record<string, unknown>
+                      data as Record<string, unknown>,
                     );
                     if (!dataValidation.valid) {
                       console.error(
                         "[WebSocket] Action-specific data validation failed:",
-                        dataValidation.error
+                        dataValidation.error,
                       );
                       pending.onError?.("An error occurred");
                       pendingRequestsRef.current.delete(requestId);
@@ -346,10 +369,26 @@ export const useWebSocket = (
   const sendMessage = useCallback(
     (message: unknown) => {
       if (wsRef.current?.readyState === WebSocket.OPEN) {
+        // Rate limiting check
+        const now = Date.now();
+        if (now - windowStartRef.current > windowMs) {
+          // Reset window
+          windowStartRef.current = now;
+          messageCountRef.current = 0;
+        }
+
+        if (messageCountRef.current >= maxMessages) {
+          console.warn(
+            `[WebSocket] Rate limit exceeded (${maxMessages} msgs / ${windowMs}ms). Message dropped.`,
+          );
+          return false;
+        }
+
         try {
           const messageStr = JSON.stringify(message);
           console.log("[WebSocket] Sending message:", message);
           wsRef.current.send(messageStr);
+          messageCountRef.current++;
           return true;
         } catch (error) {
           console.error("[WebSocket] Error sending message:", error);
@@ -362,7 +401,7 @@ export const useWebSocket = (
       );
       return false;
     },
-    [connectionState],
+    [connectionState, maxMessages, windowMs],
   );
 
   const forceReconnect = useCallback(() => {
