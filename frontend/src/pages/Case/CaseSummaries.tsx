@@ -12,6 +12,8 @@ import {
   Card,
   CardContent,
   CircularProgress,
+  Snackbar,
+  Alert,
 } from "@mui/material";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -122,6 +124,7 @@ const CaseSummaries: React.FC = () => {
     null,
   );
   const [isGenerating, setIsGenerating] = useState(false);
+  const [showGenerateSnackbar, setShowGenerateSnackbar] = useState(false);
   const [leftOpen, setLeftOpen] = useState(true);
   // const [rightOpen, setRightOpen] = useState(true);
   const [openCategories, setOpenCategories] = useState<{
@@ -212,6 +215,7 @@ const CaseSummaries: React.FC = () => {
     if (!caseId) return;
 
     setIsGenerating(true);
+    setShowGenerateSnackbar(true);
 
     // Try WebSocket first if connected
     if (isConnected) {
@@ -1142,6 +1146,21 @@ const CaseSummaries: React.FC = () => {
         )}
       </Box>
       */}
+
+      <Snackbar
+        open={showGenerateSnackbar}
+        autoHideDuration={7000}
+        onClose={() => setShowGenerateSnackbar(false)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+      >
+        <Alert
+          onClose={() => setShowGenerateSnackbar(false)}
+          severity="info"
+          sx={{ width: "100%" }}
+        >
+          Summary generation started. Check back in a moment for the completed summary.
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

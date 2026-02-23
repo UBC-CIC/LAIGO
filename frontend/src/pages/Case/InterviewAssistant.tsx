@@ -68,6 +68,12 @@ const InterviewAssistant: React.FC = () => {
   // Progress & Notification State
   const [progress, setProgress] = useState(0);
   const [showSnackbar, setShowSnackbar] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState(
+    "Success! You have unlocked the next block. Feel free to proceed or continue asking questions.",
+  );
+  const [snackbarSeverity, setSnackbarSeverity] = useState<
+    "success" | "info" | "warning" | "error"
+  >("success");
   const [feedback, setFeedback] = useState<string | null>(null);
   const [rightOpen, setRightOpen] = useState(true);
   const [sidebarWidth, setSidebarWidth] = useState(320);
@@ -339,6 +345,11 @@ const InterviewAssistant: React.FC = () => {
     if (!caseId || !section) return;
 
     setIsGeneratingSummary(true);
+    setSnackbarMessage(
+      "Summary generation started. It may take a bit—check back in Case Summaries shortly.",
+    );
+    setSnackbarSeverity("info");
+    setShowSnackbar(true);
 
     // Try WebSocket first if connected
     if (isConnected) {
@@ -987,11 +998,10 @@ const InterviewAssistant: React.FC = () => {
       >
         <Alert
           onClose={() => setShowSnackbar(false)}
-          severity="success"
+          severity={snackbarSeverity}
           sx={{ width: "100%" }}
         >
-          Success! You have unlocked the next block. Feel free to proceed or
-          continue asking questions.
+          {snackbarMessage}
         </Alert>
       </Snackbar>
     </Box>
