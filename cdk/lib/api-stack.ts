@@ -1869,8 +1869,8 @@ export class ApiGatewayStack extends cdk.Stack {
           "transcribe:ListTranscriptionJobs",
         ],
         resources: [
-          `arn:aws:transcribe:${this.region}:${this.account}:transcription-job/*`,
-        ], // You can restrict this to specific resources if needed
+          `arn:aws:transcribe:${this.region}:${this.account}:transcription-job/transcription-*`,
+        ], // Scoped to jobs starting with 'transcription-' prefix
       }),
     );
 
