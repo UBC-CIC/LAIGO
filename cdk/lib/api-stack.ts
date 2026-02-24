@@ -968,6 +968,21 @@ export class ApiGatewayStack extends cdk.Stack {
       "DynamoDB-Conversation-Table",
     );
 
+    // Create new conversation table for manual migration (identical schema)
+    const chatHistoryTable = new dynamodb.Table(
+      this,
+      `${id}-ConversationTable`,
+      {
+        tableName: `${id}-Conversation-Table`,
+        partitionKey: {
+          name: "SessionId",
+          type: dynamodb.AttributeType.STRING,
+        },
+        billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+        removalPolicy: cdk.RemovalPolicy.DESTROY,
+      },
+    );
+
     // Create playground conversation table
     const playgroundTable = new dynamodb.Table(this, `${id}-PlaygroundTable`, {
       tableName: "DynamoDB-Playground-Table",
