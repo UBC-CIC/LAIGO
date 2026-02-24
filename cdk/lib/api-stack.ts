@@ -986,7 +986,7 @@ export class ApiGatewayStack extends cdk.Stack {
 
     // Create playground conversation table
     const playgroundTable = new dynamodb.Table(this, `${id}-PlaygroundTable`, {
-      tableName: "DynamoDB-Playground-Table",
+      tableName: `${id}-Playground-Table`,
       partitionKey: {
         name: "SessionId",
         type: dynamodb.AttributeType.STRING,
@@ -1439,7 +1439,7 @@ export class ApiGatewayStack extends cdk.Stack {
           BEDROCK_TEMP_PARAM: bedrockTemperatureParameter.parameterName,
           BEDROCK_TOP_P_PARAM: bedrockTopPParameter.parameterName,
           BEDROCK_MAX_TOKENS_PARAM: bedrockMaxTokensParameter.parameterName,
-          TABLE_NAME: "DynamoDB-Playground-Table",
+          TABLE_NAME: `${id}-Playground-Table`,
         },
       },
     );
