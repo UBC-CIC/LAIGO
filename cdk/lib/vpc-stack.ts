@@ -29,7 +29,8 @@ export class VpcStack extends Stack {
 
       const latPrefix = props.stackPrefix;
 
-      this.vpcCidrString = "172.31.94.0/20";
+      // Allow users to specify custom CIDR via CDK context, otherwise use default
+      this.vpcCidrString = this.node.tryGetContext('publicSubnetCidr') || "172.31.94.0/20";
 
       // VPC for application
       this.vpc = ec2.Vpc.fromVpcAttributes(this, `${id}-Vpc`, {
@@ -169,7 +170,8 @@ export class VpcStack extends Stack {
         this.vpc.vpcDefaultSecurityGroup
       );
     } else {
-      this.vpcCidrString = "10.0.0.0/16";
+      // Allow users to specify custom CIDR via CDK context, otherwise use default
+      this.vpcCidrString = this.node.tryGetContext('vpcCidr') || "10.0.0.0/16";
 
       const natGatewayProvider = ec2.NatProvider.gateway();
 
