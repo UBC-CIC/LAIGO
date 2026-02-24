@@ -566,12 +566,28 @@ export class ApiGatewayStack extends cdk.Stack {
         effect: iam.Effect.ALLOW,
         actions: [
           "ec2:CreateNetworkInterface", // Create ENI for VPC access
-          "ec2:DescribeNetworkInterfaces", // Query ENI status
           "ec2:DeleteNetworkInterface", // Clean up ENI
           "ec2:AssignPrivateIpAddresses", // Assign private IPs
           "ec2:UnassignPrivateIpAddresses", // Release private IPs
         ],
-        resources: ["*"], // EC2 network actions require wildcard
+        resources: [
+          `arn:aws:ec2:${this.region}:${this.account}:network-interface/*`,
+          ...vpcStack.vpc.privateSubnets.map((subnet) => 
+            `arn:aws:ec2:${this.region}:${this.account}:subnet/${subnet.subnetId}`
+          ),
+          ...vpcStack.vpc.isolatedSubnets.map((subnet) => 
+            `arn:aws:ec2:${this.region}:${this.account}:subnet/${subnet.subnetId}`
+          ),
+          `arn:aws:ec2:${this.region}:${this.account}:security-group/${vpcStack.vpc.vpcDefaultSecurityGroup}`,
+        ],
+      }),
+    );
+
+    lambdaRole.addToPolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["ec2:DescribeNetworkInterfaces"], // Query ENI status
+        resources: ["*"], // Describe* does not support resource-level scoping
       }),
     );
 
@@ -737,18 +753,34 @@ export class ApiGatewayStack extends cdk.Stack {
       }),
     );
 
-    // Grant access to EC2
+    // Grant access to EC2 for Cognito Lambda triggers
     cognitoRole.addToPolicy(
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
         actions: [
           "ec2:CreateNetworkInterface",
-          "ec2:DescribeNetworkInterfaces",
           "ec2:DeleteNetworkInterface",
           "ec2:AssignPrivateIpAddresses",
           "ec2:UnassignPrivateIpAddresses",
         ],
-        resources: ["*"], // must be *
+        resources: [
+          `arn:aws:ec2:${this.region}:${this.account}:network-interface/*`,
+          ...vpcStack.vpc.privateSubnets.map((subnet) => 
+            `arn:aws:ec2:${this.region}:${this.account}:subnet/${subnet.subnetId}`
+          ),
+          ...vpcStack.vpc.isolatedSubnets.map((subnet) => 
+            `arn:aws:ec2:${this.region}:${this.account}:subnet/${subnet.subnetId}`
+          ),
+          `arn:aws:ec2:${this.region}:${this.account}:security-group/${vpcStack.vpc.vpcDefaultSecurityGroup}`,
+        ],
+      }),
+    );
+
+    cognitoRole.addToPolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["ec2:DescribeNetworkInterfaces"],
+        resources: ["*"],
       }),
     );
 
@@ -1290,13 +1322,21 @@ export class ApiGatewayStack extends cdk.Stack {
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
         actions: [
-          "bedrock:CreateGuardrail",
           "bedrock:CreateGuardrailVersion",
           "bedrock:DeleteGuardrail",
-          "bedrock:ListGuardrails",
           "bedrock:InvokeGuardrail",
           "bedrock:ApplyGuardrail",
         ],
+        resources: [
+          `arn:aws:bedrock:${this.region}:${this.account}:guardrail/*`,
+        ],
+      }),
+    );
+
+    caseGenLambdaDockerFunc.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["bedrock:CreateGuardrail", "bedrock:ListGuardrails"],
         resources: ["*"],
       }),
     );
@@ -1367,13 +1407,21 @@ export class ApiGatewayStack extends cdk.Stack {
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
         actions: [
-          "bedrock:CreateGuardrail",
           "bedrock:CreateGuardrailVersion",
           "bedrock:DeleteGuardrail",
-          "bedrock:ListGuardrails",
           "bedrock:InvokeGuardrail",
           "bedrock:ApplyGuardrail",
         ],
+        resources: [
+          `arn:aws:bedrock:${this.region}:${this.account}:guardrail/*`,
+        ],
+      }),
+    );
+
+    textGenLambdaDockerFunc.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["bedrock:CreateGuardrail", "bedrock:ListGuardrails"],
         resources: ["*"],
       }),
     );
@@ -1487,13 +1535,21 @@ export class ApiGatewayStack extends cdk.Stack {
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
         actions: [
-          "bedrock:CreateGuardrail",
           "bedrock:CreateGuardrailVersion",
           "bedrock:DeleteGuardrail",
-          "bedrock:ListGuardrails",
           "bedrock:InvokeGuardrail",
           "bedrock:ApplyGuardrail",
         ],
+        resources: [
+          `arn:aws:bedrock:${this.region}:${this.account}:guardrail/*`,
+        ],
+      }),
+    );
+
+    playgroundGenLambdaDockerFunc.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["bedrock:CreateGuardrail", "bedrock:ListGuardrails"],
         resources: ["*"],
       }),
     );

@@ -46,22 +46,31 @@ export class DBFlowStack extends Stack {
     lambdaRole.addToPolicy(
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
-        actions: [
-          "ec2:CreateNetworkInterface",
-          "ec2:DeleteNetworkInterface",
-          "ec2:DescribeNetworkInterfaces",
+        actions: ["ec2:CreateNetworkInterface", "ec2:DeleteNetworkInterface"],
+        resources: [
+          `arn:aws:ec2:${this.region}:${this.account}:network-interface/*`,
+          ...vpcStack.vpc.privateSubnets.map((subnet) => 
+            `arn:aws:ec2:${this.region}:${this.account}:subnet/${subnet.subnetId}`
+          ),
+          ...vpcStack.vpc.isolatedSubnets.map((subnet) => 
+            `arn:aws:ec2:${this.region}:${this.account}:subnet/${subnet.subnetId}`
+          ),
+          `arn:aws:ec2:${this.region}:${this.account}:security-group/${vpcStack.vpc.vpcDefaultSecurityGroup}`,
         ],
-        resources: ["*"],
+      }),
+    );
+
+    lambdaRole.addToPolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["ec2:DescribeNetworkInterfaces"],
+        resources: ["*"], // DescribeNetworkInterfaces does not support resource-level permissions
       }),
     );
 
     // Add additional managed policies
     lambdaRole.addManagedPolicy(
       iam.ManagedPolicy.fromAwsManagedPolicyName("AmazonSSMReadOnlyAccess"),
-    );
-
-    lambdaRole.addManagedPolicy(
-      iam.ManagedPolicy.fromAwsManagedPolicyName("AmazonS3FullAccess"),
     );
 
     // Create a Lambda layer for node-pg-migrate
