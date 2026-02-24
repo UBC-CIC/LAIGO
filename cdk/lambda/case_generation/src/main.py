@@ -24,6 +24,8 @@ TABLE_NAME_PARAM = os.environ["TABLE_NAME_PARAM"]
 BEDROCK_TEMP_PARAM = os.environ.get("BEDROCK_TEMP_PARAM")
 BEDROCK_TOP_P_PARAM = os.environ.get("BEDROCK_TOP_P_PARAM")
 BEDROCK_MAX_TOKENS_PARAM = os.environ.get("BEDROCK_MAX_TOKENS_PARAM")
+GUARDRAIL_ID = os.environ["GUARDRAIL_ID"]
+GUARDRAIL_VERSION = os.environ["GUARDRAIL_VERSION"]
 
 # AWS clients
 secrets_manager_client = boto3.client("secretsmanager")
@@ -142,51 +144,6 @@ def update_title(case_id, title):
         conn.rollback()
 
 
-def setup_guardrail(guardrail_name):
-    bedrock_client = boto3.client("bedrock", region_name=REGION)
-    paginator = bedrock_client.get_paginator('list_guardrails')
-    guardrail_id = guardrail_version = None
-
-    for page in paginator.paginate():
-        for gr in page.get('guardrails', []):
-            if gr['name'] == guardrail_name:
-                guardrail_id = gr['id']
-                guardrail_version = gr.get('version')
-                break
-        if guardrail_id:
-            break
-
-    if not guardrail_id:
-        resp = bedrock_client.create_guardrail(
-            name=guardrail_name,
-            description='Block financial advice',
-            topicPolicyConfig={
-                'topicsConfig': [
-                    {'name': 'FinancialAdvice', 'definition': '...', 'examples': ['...'], 'type': 'DENY'},
-                ]
-            },
-            sensitiveInformationPolicyConfig={
-                'piiEntitiesConfig': [
-                    {'type': 'EMAIL', 'action': 'BLOCK'},
-                    {'type': 'PHONE', 'action': 'BLOCK'},
-                    {'type': 'NAME', 'action': 'BLOCK'}
-                ]
-            },
-            blockedInputMessaging='Sorry, I cannot process that content.',
-            blockedOutputsMessaging='Sorry, I cannot process that content.'
-        )
-        guardrail_id = resp['guardrailId']
-        time.sleep(5)
-        ver_resp = bedrock_client.create_guardrail_version(
-            guardrailIdentifier=guardrail_id,
-            description='Initial version',
-            clientRequestToken=str(uuid.uuid4())
-        )
-        guardrail_version = ver_resp['version']
-
-    return guardrail_id, guardrail_version
-
-
 def _response(status, body):
     return {
         'statusCode': status,
@@ -240,7 +197,12 @@ def handler(event, context):
         statute = body.get('statute')
 
         combined = f"{case_title} {case_type} {jurisdiction} {case_desc}"
-        guardrail_id, guardrail_version = setup_guardrail('comprehensive-guardrails')
+        
+        # Use guardrail from CDK environment variables
+        guardrail_id = GUARDRAIL_ID
+        guardrail_version = GUARDRAIL_VERSION
+        logger.info(f"Using guardrail ID: {guardrail_id}, version: {guardrail_version}")
+        
         guard_resp = bedrock_runtime.apply_guardrail(
             guardrailIdentifier=guardrail_id,
             guardrailVersion=guardrail_version,
