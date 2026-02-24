@@ -900,7 +900,7 @@ export class ApiGatewayStack extends cdk.Stack {
       {
         parameterName: `/${id}/LAIGO/TableName`,
         description: "Parameter containing the DynamoDB table name",
-        stringValue: "DynamoDB-Conversation-Table",
+        stringValue: `${id}-Conversation-Table`,
       },
     );
 
@@ -1247,7 +1247,7 @@ export class ApiGatewayStack extends cdk.Stack {
           BEDROCK_TEMP_PARAM: bedrockTemperatureParameter.parameterName,
           BEDROCK_TOP_P_PARAM: bedrockTopPParameter.parameterName,
           BEDROCK_MAX_TOKENS_PARAM: bedrockMaxTokensParameter.parameterName,
-          TABLE_NAME: "DynamoDB-Conversation-Table",
+          TABLE_NAME: `${id}-Conversation-Table`,
         },
       },
     );
@@ -1326,7 +1326,7 @@ export class ApiGatewayStack extends cdk.Stack {
           BEDROCK_TOP_P_PARAM: bedrockTopPParameter.parameterName,
           BEDROCK_MAX_TOKENS_PARAM: bedrockMaxTokensParameter.parameterName,
           MESSAGE_LIMIT_PARAM: messageLimitParameter.parameterName,
-          TABLE_NAME: "DynamoDB-Conversation-Table",
+          TABLE_NAME: `${id}-Conversation-Table`,
         },
       },
     );
@@ -1362,8 +1362,8 @@ export class ApiGatewayStack extends cdk.Stack {
     // Attach the corrected Bedrock policy to Lambda
     textGenLambdaDockerFunc.addToRolePolicy(bedrockPolicyStatement);
 
-    // Grant access to conversation table
-    conversationTable.grantReadWriteData(textGenLambdaDockerFunc);
+    // Grant access to chat history table
+    chatHistoryTable.grantReadWriteData(textGenLambdaDockerFunc);
 
     // Grant access to specific database secret
     db.secretPathUser.grantRead(textGenLambdaDockerFunc);
@@ -1504,7 +1504,7 @@ export class ApiGatewayStack extends cdk.Stack {
           BEDROCK_TEMP_PARAM: bedrockTemperatureParameter.parameterName,
           BEDROCK_TOP_P_PARAM: bedrockTopPParameter.parameterName,
           BEDROCK_MAX_TOKENS_PARAM: bedrockMaxTokensParameter.parameterName,
-          TABLE_NAME: "DynamoDB-Conversation-Table",
+          TABLE_NAME: `${id}-Conversation-Table`,
           PLAYGROUND_TABLE_NAME: playgroundTable.tableName,
         },
       },
@@ -1542,7 +1542,7 @@ export class ApiGatewayStack extends cdk.Stack {
     );
 
     // Attach shared DynamoDB policy to assess progress lambda
-    conversationTable.grantReadWriteData(assessProgressFunction);
+    chatHistoryTable.grantReadWriteData(assessProgressFunction);
 
     const audioStorageBucket = new s3.Bucket(
       this,
@@ -1731,7 +1731,7 @@ export class ApiGatewayStack extends cdk.Stack {
           BEDROCK_TEMP_PARAM: bedrockTemperatureParameter.parameterName,
           BEDROCK_TOP_P_PARAM: bedrockTopPParameter.parameterName,
           BEDROCK_MAX_TOKENS_PARAM: bedrockMaxTokensParameter.parameterName,
-          TABLE_NAME: "DynamoDB-Conversation-Table",
+          TABLE_NAME: `${id}-Conversation-Table`,
         },
       },
     );
@@ -1765,7 +1765,7 @@ export class ApiGatewayStack extends cdk.Stack {
     );
 
     // Attach shared DynamoDB policy to summary generation lambda
-    conversationTable.grantReadWriteData(summaryGenerationFunction);
+    chatHistoryTable.grantReadWriteData(summaryGenerationFunction);
 
     // Grant access to Bedrock (using shared policy with specific model ARNs)
     summaryGenerationFunction.addToRolePolicy(bedrockPolicyStatement);
