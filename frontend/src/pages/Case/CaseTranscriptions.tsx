@@ -36,6 +36,7 @@ import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import { v4 as uuidv4 } from "uuid";
 import { useWebSocket } from "../../hooks/useWebSocket";
 import type { CaseOutletContext } from "./CaseLayout";
+import DeleteConfirmationDialog from "../../components/Admin/DeleteConfirmationDialog";
 
 interface Transcription {
   audio_file_id: string;
@@ -955,34 +956,45 @@ const CaseTranscriptions: React.FC = () => {
         </Dialog>
 
         {/* Menu */}
-        <Menu anchorEl={anchorEl} open={openMenu} onClose={handleMenuClose}>
+        <Menu
+          anchorEl={anchorEl}
+          open={openMenu}
+          onClose={handleMenuClose}
+          PaperProps={{
+            sx: {
+              backgroundColor: "var(--background)",
+              color: "var(--text)",
+              border: "1px solid var(--border-color)",
+            },
+          }}
+        >
           <MenuItem
             onClick={() => {
               setConfirmDeleteOpen(true);
+              handleMenuClose();
             }}
             disabled={caseStatus === "archived"}
+            sx={{
+              color: "var(--text)",
+              "&.Mui-disabled": {
+                color: "var(--text-secondary)",
+                opacity: 0.6,
+              },
+            }}
           >
             Delete
           </MenuItem>
         </Menu>
 
         {/* Delete Confirmation */}
-        <Dialog
+        <DeleteConfirmationDialog
           open={confirmDeleteOpen}
           onClose={() => setConfirmDeleteOpen(false)}
-        >
-          <DialogTitle>Are you sure?</DialogTitle>
-          <DialogContent>
-            <Stack spacing={2} direction="row" justifyContent="flex-end" mt={2}>
-              <Button onClick={() => setConfirmDeleteOpen(false)}>
-                Cancel
-              </Button>
-              <Button color="error" onClick={handleDelete}>
-                Delete
-              </Button>
-            </Stack>
-          </DialogContent>
-        </Dialog>
+          onConfirm={handleDelete}
+          itemName="delete transcription"
+          title="Delete Transcription"
+          description="Are you sure you want to delete this transcription? This action cannot be undone."
+        />
 
         {/* View Dialog */}
         <Dialog
