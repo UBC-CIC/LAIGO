@@ -12,6 +12,7 @@ let {
   USER_POOL,
   MESSAGE_LIMIT,
   FILE_SIZE_LIMIT,
+  TABLE_NAME,
 } = process.env;
 const {
   CognitoIdentityProviderClient,
@@ -1081,7 +1082,7 @@ exports.handler = async (event) => {
 
             // Query DynamoDB for messages with the constructed session_id
             const params = {
-              TableName: "DynamoDB-Conversation-Table",
+              TableName: TABLE_NAME,
               KeyConditionExpression: "SessionId = :session_id",
               ExpressionAttributeValues: {
                 ":session_id": { S: session_id },

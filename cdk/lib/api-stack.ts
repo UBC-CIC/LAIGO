@@ -961,12 +961,12 @@ export class ApiGatewayStack extends cdk.Stack {
     // DynamoDB Tables
     // ========================================
 
-    // Import existing conversation table
-    const conversationTable = dynamodb.Table.fromTableName(
-      this,
-      "ConversationTable",
-      "DynamoDB-Conversation-Table",
-    );
+    // Import existing conversation table (no longer used - migration complete)
+    // const conversationTable = dynamodb.Table.fromTableName(
+    //   this,
+    //   "ConversationTable",
+    //   "DynamoDB-Conversation-Table",
+    // );
 
     // Create new conversation table for manual migration (identical schema)
     const chatHistoryTable = new dynamodb.Table(
@@ -1083,6 +1083,7 @@ export class ApiGatewayStack extends cdk.Stack {
           MESSAGE_LIMIT: messageLimitParameter.parameterName,
           FILE_SIZE_LIMIT: fileSizeLimitParameter.parameterName,
           NOTIFICATION_EVENT_BUS_NAME: notificationEventBus.eventBusName,
+          TABLE_NAME: `${id}-Conversation-Table`,
         },
         functionName: `${id}-studentFunction`,
         memorySize: 512,
@@ -1092,7 +1093,7 @@ export class ApiGatewayStack extends cdk.Stack {
     );
 
     // Allow access to DynamoDB Table for reading chat history
-    conversationTable.grantReadData(lambdaStudentFunction);
+    chatHistoryTable.grantReadData(lambdaStudentFunction);
 
     // Grant EventBridge permissions for notification publishing
     lambdaStudentFunction.addToRolePolicy(
