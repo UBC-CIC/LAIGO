@@ -11,66 +11,6 @@ from langchain_core.pydantic_v1 import BaseModel, Field
 class LLM_evaluation(BaseModel):
     response: str = Field(description="Assessment of the student's answer with a follow-up question.")
 
-def create_dynamodb_history_table(table_name: str) -> bool:
-    """
-    Create a DynamoDB table to store the session history if it doesn't already exist.
-
-    Args:
-    table_name (str): The name of the DynamoDB table to create.
-
-    Returns:
-    None
-    
-    If the table already exists, this function does nothing. Otherwise, it creates a 
-    new table with a key schema based on 'SessionId'.
-    """
-    # Get the service resource and client.
-    dynamodb_resource = boto3.resource("dynamodb")
-    dynamodb_client = boto3.client("dynamodb")
-    
-    # Retrieve the list of tables that currently exist.
-    existing_tables = []
-    exclusive_start_table_name = None
-    
-    while True:
-        if exclusive_start_table_name:
-            response = dynamodb_client.list_tables(ExclusiveStartTableName=exclusive_start_table_name)
-        else:
-            response = dynamodb_client.list_tables()
-        
-        existing_tables.extend(response.get('TableNames', []))
-        
-        if 'LastEvaluatedTableName' in response:
-            exclusive_start_table_name = response['LastEvaluatedTableName']
-        else:
-            break
-    
-    if table_name not in existing_tables:  # Create a new table if it doesn't exist.
-        # Create the DynamoDB table.
-        table = dynamodb_resource.create_table(
-            TableName=table_name,
-            KeySchema=[{"AttributeName": "SessionId", "KeyType": "HASH"}],
-            AttributeDefinitions=[{"AttributeName": "SessionId", "AttributeType": "S"}],
-            BillingMode="PAY_PER_REQUEST",
-        )
-        
-        # Wait until the table exists.
-        table.meta.client.get_waiter("table_exists").wait(TableName=table_name)
-        
-    # Enable TTL if not already enabled
-    try:
-        ttl_description = dynamodb_client.describe_time_to_live(TableName=table_name)
-        if ttl_description['TimeToLiveDescription']['TimeToLiveStatus'] == 'DISABLED':
-            dynamodb_client.update_time_to_live(
-                TableName=table_name,
-                TimeToLiveSpecification={
-                    'Enabled': True,
-                    'AttributeName': 'ttl'
-                }
-            )
-    except Exception as e:
-        print(f"Error checking/enabling TTL: {e}")
-
 def get_bedrock_llm(
     bedrock_llm_id: str,
     temperature: float = 0,

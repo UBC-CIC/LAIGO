@@ -10,7 +10,7 @@ import functools
 from langchain_aws import BedrockEmbeddings
 
 from helpers.vectorstore import get_vectorstore_retriever
-from helpers.chat import get_bedrock_llm, get_initial_student_query, create_dynamodb_history_table, get_response, get_streaming_response
+from helpers.chat import get_bedrock_llm, get_initial_student_query, get_response, get_streaming_response
 from helpers.usage import check_and_increment_usage
  
 # Set up logging - Force level to INFO to ensure CloudWatch capture
@@ -116,7 +116,7 @@ def initialize_constants():
             region_name=REGION,
         )
     
-    create_dynamodb_history_table(TABLE_NAME)
+    # Table is managed by CDK; Lambda should only read/write existing table.
 
 def connect_to_db():
     global connection
