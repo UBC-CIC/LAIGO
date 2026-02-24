@@ -1028,6 +1028,20 @@ export class ApiGatewayStack extends cdk.Stack {
       },
     });
 
+    // Add GSI for efficient unread notification queries
+    notificationTable.addGlobalSecondaryIndex({
+      indexName: "ReadStatusIndex",
+      partitionKey: {
+        name: "PK",
+        type: dynamodb.AttributeType.STRING,
+      },
+      sortKey: {
+        name: "readStatus",
+        type: dynamodb.AttributeType.STRING,
+      },
+      projectionType: dynamodb.ProjectionType.KEYS_ONLY,
+    });
+
     // Create connection tracking table for WebSocket connections
     const connectionTable = new dynamodb.Table(this, `${id}-ConnectionTable`, {
       tableName: `${id}-connections`,

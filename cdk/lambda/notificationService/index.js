@@ -152,6 +152,7 @@ async function createNotification(eventDetail) {
     message,
     metadata,
     isRead: false,
+    readStatus: "UNREAD",
     createdAt: timestamp,
     ttl,
     ...(createdBy && { createdBy }),
@@ -384,9 +385,10 @@ async function markNotificationAsRead(userId, notificationId) {
           PK: notification.PK,
           SK: notification.SK,
         }),
-        UpdateExpression: "SET isRead = :isRead, readAt = :readAt",
+        UpdateExpression: "SET isRead = :isRead, readStatus = :status, readAt = :readAt",
         ExpressionAttributeValues: marshall({
           ":isRead": true,
+          ":status": "READ",
           ":readAt": new Date().toISOString(),
         }),
       }),
@@ -443,9 +445,10 @@ async function markNotificationAsUnread(userId, notificationId) {
           PK: notification.PK,
           SK: notification.SK,
         }),
-        UpdateExpression: "SET isRead = :isRead REMOVE readAt",
+        UpdateExpression: "SET isRead = :isRead, readStatus = :status REMOVE readAt",
         ExpressionAttributeValues: marshall({
           ":isRead": false,
+          ":status": "UNREAD",
         }),
       }),
     );
@@ -555,9 +558,10 @@ async function markAllNotificationsAsRead(userId) {
             PK: notification.PK,
             SK: notification.SK,
           }),
-          UpdateExpression: "SET isRead = :isRead, readAt = :readAt",
+          UpdateExpression: "SET isRead = :isRead, readStatus = :status, readAt = :readAt",
           ExpressionAttributeValues: marshall({
             ":isRead": true,
+            ":status": "READ",
             ":readAt": new Date().toISOString(),
           }),
         }),
@@ -589,11 +593,11 @@ async function getUnreadCount(userId) {
     const result = await dynamodb.send(
       new QueryCommand({
         TableName: process.env.NOTIFICATION_TABLE_NAME,
-        KeyConditionExpression: "PK = :pk",
-        FilterExpression: "isRead = :isRead",
+        IndexName: "ReadStatusIndex",
+        KeyConditionExpression: "PK = :pk AND readStatus = :status",
         ExpressionAttributeValues: {
           ":pk": { S: `USER#${userId}` },
-          ":isRead": { BOOL: false },
+          ":status": { S: "UNREAD" },
         },
         Select: "COUNT",
       }),
