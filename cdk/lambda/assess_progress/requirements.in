@@ -1,3 +1,2 @@
 boto3
-langchain_community
-psycopg[binary]
+psycopg[binary,pool]

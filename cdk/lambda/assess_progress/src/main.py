@@ -5,7 +5,7 @@ import logging
 import psycopg
 import time
 import functools
-from langchain_community.chat_message_histories import DynamoDBChatMessageHistory
+from botocore.exceptions import ClientError
 
 # Set up logging - Force level to INFO to ensure CloudWatch capture
 logger = logging.getLogger()
@@ -211,6 +211,51 @@ def get_assessment_prompt_template(block_type):
         return None
 
 
+def retrieve_dynamodb_history(table_name: str, session_id: str) -> str:
+    """
+    Retrieve conversation history from DynamoDB for a specific session.
+    
+    Args:
+        table_name (str): Name of the DynamoDB table storing chat history.
+        session_id (str): Unique identifier for the conversation session.
+    
+    Returns:
+        str: Formatted conversation history as "HUMAN: ...\n\nAI: ..." string.
+    """
+    try:
+        response = dynamodb_client.get_item(
+            TableName=table_name,
+            Key={
+                'SessionId': {'S': session_id}
+            }
+        )
+        
+        # Extract history from the item if it exists
+        if 'Item' in response and 'History' in response['Item']:
+            history_list = response['Item']['History']['L']
+            formatted_messages = []
+            
+            # Process each message in the history
+            for msg_wrapper in history_list:
+                msg = msg_wrapper.get('M', {})
+                data = msg.get('data', {}).get('M', {})
+                msg_type = data.get('type', {}).get('S', '')
+                content = data.get('content', {}).get('S', '')
+                
+                # Format as "HUMAN: ..." or "AI: ..."
+                if msg_type and content:
+                    formatted_messages.append(f"{msg_type.upper()}: {content}")
+            
+            return "\n\n".join(formatted_messages)
+        else:
+            logger.warning(f"No history found for session_id {session_id}")
+            return ""
+    
+    except ClientError as e:
+        logger.error(f"Error retrieving conversation history: {e}")
+        raise
+
+
 def fetch_chat_history(session_id, table_name=None):
     target_table = table_name or TABLE_NAME
     if not target_table:
@@ -219,22 +264,7 @@ def fetch_chat_history(session_id, table_name=None):
         
     try:
         logger.info(f"Fetching chat history for session_id: {session_id} from table: {target_table}")
-        history = DynamoDBChatMessageHistory(
-            table_name=target_table,
-            session_id=session_id
-        )
-        
-        # Get messages
-        messages = history.messages
-        logger.info(f"Retrieved {len(messages)} messages from history")
-        
-        formatted_messages = []
-        for msg in messages:
-            msg_type = msg.type.upper()
-            content = msg.content
-            formatted_messages.append(f"{msg_type}: {content}")
-            
-        return "\n\n".join(formatted_messages)
+        return retrieve_dynamodb_history(target_table, session_id)
     except Exception as e:
         logger.exception(f"Error fetching chat history from DynamoDB for session '{session_id}': {e}")
         return ""
