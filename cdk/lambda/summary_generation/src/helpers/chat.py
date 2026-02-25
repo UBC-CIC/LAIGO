@@ -2,9 +2,6 @@ import os
 import json
 import boto3
 import logging
-import hashlib
-import uuid
-from datetime import datetime
 
 from botocore.exceptions import ClientError
 
@@ -129,7 +126,7 @@ def get_bedrock_llm(
         "top_p": top_p,
     }
 
-def retrieve_dynamodb_history(table_name: str, session_id: str) -> list:
+def retrieve_dynamodb_history(table_name: str, session_id: str) -> str:
     """
     Retrieve conversation history from DynamoDB for a specific session.
     
@@ -138,7 +135,7 @@ def retrieve_dynamodb_history(table_name: str, session_id: str) -> list:
         session_id (str): Unique identifier for the conversation session.
     
     Returns:
-        list: List of message dictionaries from the conversation history.
+        str: Formatted conversation history as a string.
     """
     try:
         response = dynamodb.get_item(
@@ -151,7 +148,7 @@ def retrieve_dynamodb_history(table_name: str, session_id: str) -> list:
         # Extract history from the item if it exists
         if 'Item' in response and 'History' in response['Item']:
             history_list = response['Item']['History']['L']
-            readable_messages = []
+            formatted_messages = []
             
             # Process each message in the history
             for msg_wrapper in history_list:
@@ -160,25 +157,21 @@ def retrieve_dynamodb_history(table_name: str, session_id: str) -> list:
                 msg_type = data.get('type', {}).get('S', '')
                 content = data.get('content', {}).get('S', '')
                 
-                # Convert to the format expected by the summarization function
+                # Format as "HUMAN: ..." or "AI: ..."
                 if msg_type and content:
-                    readable_messages.append({
-                        'role': 'user' if msg_type == 'human' else 'assistant',
-                        'content': content,
-                        'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')  # Using current time as timestamp
-                    })
+                    formatted_messages.append(f"{msg_type.upper()}: {content}")
             
-            return readable_messages
+            return "\n\n".join(formatted_messages)
         else:
             logger.warning(f"No history found for session_id {session_id}")
-            return []
+            return ""
     
     except ClientError as e:
         logger.error(f"Error retrieving conversation history: {e}")
         raise
 
 def generate_lawyer_summary(
-    messages: list, 
+    conversation_history: str, 
     llm: dict, 
     case_type: str = None, 
     case_description: str = None, 
@@ -189,7 +182,7 @@ def generate_lawyer_summary(
     Generate a concise, professional summary of the conversation for lawyers.
     
     Args:
-        messages (list): List of conversation messages.
+        conversation_history (str): Formatted conversation history string.
         llm (dict): Bedrock InvokeModel configuration.
         case_type (str, optional): Type of legal case.
         case_description (str, optional): Brief description of the case.
@@ -199,11 +192,6 @@ def generate_lawyer_summary(
     Returns:
         str: Formatted lawyer-friendly summary.
     """
-    # Construct conversation text
-    conversation_text = "\n".join([
-        f"{msg['timestamp']} - {msg['role'].upper()}: {msg['content']}"
-        for msg in messages
-    ])
 
     prompts = {
         "intake": """
@@ -400,11 +388,11 @@ Case Metadata:
 - Jurisdiction: {jurisdiction or 'Not Specified'}
     """.strip()
 
-    user_prompt = f"Here is the conversation to summarize:\n{conversation_text}"
+    user_prompt = f"Here is the conversation to summarize:\n{conversation_history}"
     return _invoke_model_text(llm, system_prompt, user_prompt)
 
 def generate_lawyer_summary_streaming(
-    messages: list, 
+    conversation_history: str, 
     llm: dict, 
     case_type: str = None, 
     case_description: str = None, 
@@ -416,7 +404,7 @@ def generate_lawyer_summary_streaming(
     Generate a streaming summary of the conversation for lawyers.
     
     Args:
-        messages (list): List of conversation messages.
+        conversation_history (str): Formatted conversation history string.
         llm (dict): Bedrock InvokeModel configuration.
         case_type (str, optional): Type of legal case.
         case_description (str, optional): Brief description of the case.
@@ -427,11 +415,6 @@ def generate_lawyer_summary_streaming(
     Returns:
         str: Formatted lawyer-friendly summary.
     """
-    # Construct conversation text
-    conversation_text = "\n".join([
-        f"{msg['timestamp']} - {msg['role'].upper()}: {msg['content']}"
-        for msg in messages
-    ])
 
     prompts = {
         "intake": """
@@ -628,7 +611,7 @@ Case Metadata:
 - Jurisdiction: {jurisdiction or 'Not Specified'}
     """.strip()
 
-    user_prompt = f"Here is the conversation to summarize:\n{conversation_text}"
+    user_prompt = f"Here is the conversation to summarize:\n{conversation_history}"
 
     try:
         return _stream_invoke_model_text(llm, system_prompt, user_prompt, send_chunk_callback)

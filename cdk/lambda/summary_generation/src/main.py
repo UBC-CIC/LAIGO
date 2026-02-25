@@ -667,7 +667,7 @@ def handler(event, context):
         
         try:
             logger.info(f"Retrieving dynamo history for session_id: {session_id}")
-            messages = retrieve_dynamodb_history(TABLE_NAME, session_id)
+            conversation_history = retrieve_dynamodb_history(TABLE_NAME, session_id)
         except Exception as e:
             logger.error(f"Error retrieving dynamo history: {e}")
             return _error_response(500, 'Error retrieving dynamo history', is_websocket, connection_id, ws_endpoint, request_id)
@@ -680,7 +680,7 @@ def handler(event, context):
                     send_to_websocket(connection_id, ws_endpoint, request_id, "chunk", content=chunk_content)
                 
                 response = generate_lawyer_summary_streaming(
-                    messages=messages,
+                    conversation_history=conversation_history,
                     llm=llm,
                     case_type=case_type,
                     case_description=case_description,
@@ -691,7 +691,7 @@ def handler(event, context):
             else:
                 # Non-streaming mode (HTTP)
                 response = generate_lawyer_summary(
-                    messages=messages,
+                    conversation_history=conversation_history,
                     llm=llm,
                     case_type=case_type,
                     case_description=case_description,
