@@ -383,6 +383,13 @@ Use markdown formatting. Only include sections where content was discussed.
     system_prompt = f"""
 {selected_prompt_instruction}
 
+CRITICAL OUTPUT INSTRUCTIONS:
+- Respond with ONLY the summary content in markdown format
+- Do NOT include any preamble like "Here's your summary..." or "Based on the conversation..."
+- Do NOT include any outro like "Let me know if this is correct..." or "Please review..."
+- Start directly with the first section heading
+- End with the last content point
+
 Respond in a proper, readable, markdown format.
 Use a clear, professional tone. Organize the summary with clear headings.
 Avoid personal opinions and stick to the observable facts from the conversation.
@@ -603,6 +610,13 @@ Use markdown formatting. Only include sections where content was discussed.
 
     system_prompt = f"""
 {selected_prompt_instruction}
+
+CRITICAL OUTPUT INSTRUCTIONS:
+- Respond with ONLY the summary content in markdown format
+- Do NOT include any preamble like "Here's your summary..." or "Based on the conversation..."
+- Do NOT include any outro like "Let me know if this is correct..." or "Please review..."
+- Start directly with the first section heading
+- End with the last content point
 
 Respond in a proper, readable, markdown format.
 Use a clear, professional tone. Organize the summary with clear headings.
