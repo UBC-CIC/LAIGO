@@ -1,18 +1,7 @@
 import logging
 import boto3
-import re
 import json
-from datetime import datetime
-from langchain_aws.chat_models.bedrock import ChatBedrockConverse
-from langchain_core.prompts import PromptTemplate, ChatPromptTemplate, MessagesPlaceholder
-from langchain.chains.combine_documents import create_stuff_documents_chain
-from langchain_core.output_parsers import StrOutputParser
-from langchain.chains import create_retrieval_chain
-from langchain_core.runnables import RunnablePassthrough
-from langchain_core.runnables.history import RunnableWithMessageHistory
-from langchain_community.chat_message_histories import DynamoDBChatMessageHistory
-from pydantic import BaseModel, Field
-from typing import Dict, Any, Optional, Tuple
+from typing import Optional
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
