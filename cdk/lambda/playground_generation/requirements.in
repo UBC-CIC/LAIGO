@@ -2,8 +2,9 @@ boto3
 langchain
 langchain-aws
 langchain-postgres
+langchain_community
+langchain-classic
 psycopg[binary]
 python-dotenv
-langchain_community
 numpy==1.26.4
 
