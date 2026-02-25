@@ -529,8 +529,13 @@ const CaseTranscriptions: React.FC = () => {
   };
 
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [deleteTranscriptionId, setDeleteTranscriptionId] = useState<
+    string | null
+  >(null);
 
   const handleDelete = async () => {
+    if (!deleteTranscriptionId) return;
+
     try {
       const session = await fetchAuthSession();
       const token = session.tokens?.idToken?.toString();
@@ -539,7 +544,7 @@ const CaseTranscriptions: React.FC = () => {
       const response = await fetch(
         `${
           import.meta.env.VITE_API_ENDPOINT
-        }student/delete_transcription?audio_file_id=${selectedTranscriptionId}`,
+        }student/delete_transcription?audio_file_id=${deleteTranscriptionId}`,
         {
           method: "DELETE",
           headers: {
@@ -550,13 +555,13 @@ const CaseTranscriptions: React.FC = () => {
       );
       if (!response.ok) throw new Error("Failed to delete transcription");
       setTranscriptions((prev) =>
-        prev.filter((t) => t.audio_file_id !== selectedTranscriptionId),
+        prev.filter((t) => t.audio_file_id !== deleteTranscriptionId),
       );
     } catch (error) {
       console.error("Error deleting transcription:", error);
     } finally {
       setConfirmDeleteOpen(false);
-      handleMenuClose();
+      setDeleteTranscriptionId(null);
     }
   };
 
@@ -970,6 +975,7 @@ const CaseTranscriptions: React.FC = () => {
         >
           <MenuItem
             onClick={() => {
+              setDeleteTranscriptionId(selectedTranscriptionId);
               setConfirmDeleteOpen(true);
               handleMenuClose();
             }}
@@ -989,7 +995,10 @@ const CaseTranscriptions: React.FC = () => {
         {/* Delete Confirmation */}
         <DeleteConfirmationDialog
           open={confirmDeleteOpen}
-          onClose={() => setConfirmDeleteOpen(false)}
+          onClose={() => {
+            setConfirmDeleteOpen(false);
+            setDeleteTranscriptionId(null);
+          }}
           onConfirm={handleDelete}
           itemName="delete transcription"
           title="Delete Transcription"

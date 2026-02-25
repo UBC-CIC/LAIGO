@@ -1748,6 +1748,7 @@ export class ApiGatewayStack extends cdk.Stack {
         removalPolicy: cdk.RemovalPolicy.DESTROY,
         autoDeleteObjects: true,
         enforceSSL: true,
+        encryption: s3.BucketEncryption.S3_MANAGED, // Explicit encryption at rest with AWS-managed keys
       },
     );
 
