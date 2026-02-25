@@ -23,12 +23,12 @@ const FAQ_ITEMS = [
   {
     question: "How does the progression work?",
     answer:
-      "The case simulation is structured in sequential blocks. You are currently restricted to a specific phase and must satisfy its requirements before the next section of the case becomes available.",
+      "You begin restricted to the Intake & Facts block. Complete each block sequentially to unlock the next one. After completing the Research Strategy block, all remaining blocks (Argument Construction, Contrarian Analysis, and Policy Context) will unlock simultaneously.",
   },
   {
     question: "How do I unlock the next block?",
     answer:
-      "Engage naturally with the Assistant by asking questions and analyzing the case facts. The system analyzes your conversation depth and coverage of key legal concepts to determine when you are ready to advance.",
+      "Engage naturally with the Assistant by asking questions and exploring the topics relevant to the specific block. The system analyzes your conversation depth and coverage of key legal concepts to determine when you are ready to advance.",
   },
   {
     question: "How can I track my progress?",
@@ -38,7 +38,7 @@ const FAQ_ITEMS = [
   {
     question: "What is the feedback panel for?",
     answer:
-      "The feedback panel on the right is your real-time coach. It offers specific insights into what information you might be missing or which topics require further exploration to complete the current block.",
+      "The feedback panel on the right is your real-time coach. It offers specific insights into what information you might be missing or which topics require further exploration. You will only receive feedback while the next block is locked.",
   },
 ];
 
