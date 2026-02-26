@@ -639,7 +639,18 @@ const CaseSummaries: React.FC = () => {
 
         {/* List Content */}
         {leftOpen && (
-          <Box sx={{ flexGrow: 1, overflowY: "auto" }}>
+          <Box 
+            sx={{ 
+              flexGrow: 1, 
+              overflowY: "auto",
+              // Hide scrollbar while keeping scroll functionality
+              "&::-webkit-scrollbar": {
+                display: "none",
+              },
+              scrollbarWidth: "none", // Firefox
+              msOverflowStyle: "none", // IE and Edge
+            }}
+          >
             {/* Loading State */}
             {isLoading && (
               <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
