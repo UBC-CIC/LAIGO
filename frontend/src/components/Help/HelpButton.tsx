@@ -34,7 +34,7 @@ const HelpButton: React.FC = () => {
       >
         <InfoOutlinedIcon sx={iconStyle} />
         <Typography variant="caption" className="header-label" sx={labelStyle}>
-          How it works
+          Guide
         </Typography>
       </Stack>
 

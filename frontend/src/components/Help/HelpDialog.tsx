@@ -73,7 +73,7 @@ const HelpDialog: React.FC<HelpDialogProps> = ({ open, onClose }) => {
         }}
       >
         <InfoOutlinedIcon sx={{ color: "var(--primary)" }} />
-        How it Works
+        Guide
       </DialogTitle>
       <DialogContent
         sx={{
