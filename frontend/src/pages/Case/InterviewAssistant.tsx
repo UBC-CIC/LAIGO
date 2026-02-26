@@ -424,9 +424,30 @@ const InterviewAssistant: React.FC = () => {
     setMessageCount(0);
     setProgress(0); // Reset progress on new section
 
+    // Block-specific greetings that explain the purpose and suggest starting points
+    const BLOCK_GREETINGS: Record<string, string> = {
+      "intake-facts": 
+        "Hi! I'm here to help you assess the facts of your case, including further evidence you may need to consider, how to analyze the strengths and weaknesses of the evidence you have identified, and further areas which may be relevant to the facts of the case.\n\nTo get started, you can ask me to \"please analyze the facts of the case\" but you can also ask more specific questions, such as asking about specific potential areas for further inquiry, asking about other areas of evidence you might think are relevant, and getting assistance with strategies for analyzing the strengths and weaknesses of the evidence. You can also ask follow up questions to any response you receive.",
+      
+      "issue-identification": 
+        "Hi! I'm here to help you identify and analyze the legal issues arising from the facts of your case.\n\nTo get started, you can ask \"what are the potential legal issues in this case?\" or you can be more specific by asking about particular causes of action, defenses, or legal theories you're considering. You can also ask about how specific facts relate to potential legal issues, request analysis of the elements required to establish certain claims, or explore jurisdictional considerations. You can ask follow up questions to dive deeper into any issues raised in our discussion.",
+      
+      "research-strategy": 
+        "Hi! I'm here to help you develop a comprehensive legal research strategy based on the issues you've identified.\n\nTo get started, you can ask me to \"help me develop a research strategy for this case\" or ask more targeted questions about specific areas of law, relevant statutes, case law precedents, or secondary sources you should consult. You can also ask about how to prioritize your research, what search terms might be most effective, or how to approach research in unfamiliar areas of law. You can ask follow up questions to refine your research approach or explore specific research paths in more detail.",
+      
+      "argument-construction": 
+        "Hi! I'm here to help you construct persuasive legal arguments based on the facts, issues, and research you've developed.\n\nTo get started, you can ask me to \"help me construct arguments for this case\" or present specific arguments you're developing and ask for feedback on their structure and persuasiveness. You can also ask about how to connect specific facts to legal principles, how to organize your arguments most effectively, or how to address potential weaknesses in your reasoning. You can ask follow up questions to refine your arguments or explore alternative approaches to presenting your case.",
+      
+      "contrarian-analysis": 
+        "Hi! I'm here to help you assess challenges in your proposed approach and identify further areas for analysis. You can articulate your proposed approaches and I'll help you evaluate potential weaknesses.\n\nTo get started, you can present your main arguments or strategy and ask \"what are the weaknesses in this approach?\" or \"what counterarguments might the opposing side raise?\" You can also ask about specific vulnerabilities in your case, alternative interpretations of the law or facts, or how to strengthen your position against anticipated challenges. You can ask for more detail on certain issues which are raised in our discussions.",
+      
+      "policy-context": 
+        "Hi! I'm here to help you explore the broader policy implications and considerations underlying your case.\n\nTo get started, you can ask \"what are the policy considerations in this case?\" or you can ask more specific questions about how policy arguments might support your position, what societal interests are at stake, or how courts have balanced competing policy concerns in similar cases. You can also ask about the practical implications of different legal outcomes, how policy considerations might influence judicial decision-making, or how to incorporate policy arguments into your overall case strategy. You can ask follow up questions to explore policy dimensions in greater depth or to understand how policy analysis connects to your legal arguments."
+    };
+
     const DEFAULT_GREETING: Message = {
       type: "ai",
-      content:
+      content: BLOCK_GREETINGS[section || "intake-facts"] || 
         "Hi, I'm your Legal Interview Assistant. Try asking me to analyze the case to begin!",
     };
 
