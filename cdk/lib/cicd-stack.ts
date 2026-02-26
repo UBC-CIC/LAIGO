@@ -61,13 +61,9 @@ export class CICDStack extends cdk.Stack {
           "lambda:UpdateFunctionConfiguration", // Update function settings
         ],
         resources: [
-          // Specific Lambda function ARNs that can be updated
+          // Specific Lambda function ARNs that can be updated (Docker-based functions only)
           `arn:aws:lambda:${this.region}:${this.account}:function:*-TextGenLambdaDockerFunction`,
           `arn:aws:lambda:${this.region}:${this.account}:function:*-PlaygroundTextGenLambdaDockerFunction`,
-          `arn:aws:lambda:${this.region}:${this.account}:function:*-audioToTextFunc`,
-          `arn:aws:lambda:${this.region}:${this.account}:function:*-CaseLambdaDockerFunction`,
-          `arn:aws:lambda:${this.region}:${this.account}:function:*-SummaryGenerationFunction`,
-          `arn:aws:lambda:${this.region}:${this.account}:function:*-AssessProgressFunction`,
         ],
       }),
     );

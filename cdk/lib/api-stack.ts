@@ -3,6 +3,7 @@ import * as cdk from "aws-cdk-lib";
 import * as apigateway from "aws-cdk-lib/aws-apigateway";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as iam from "aws-cdk-lib/aws-iam";
+import * as ec2 from "aws-cdk-lib/aws-ec2";
 import { Construct } from "constructs";
 import { Duration } from "aws-cdk-lib";
 import * as wafv2 from "aws-cdk-lib/aws-wafv2";
@@ -107,6 +108,13 @@ export class ApiGatewayStack extends cdk.Stack {
       code: lambda.Code.fromAsset("./layers/psycopg2.zip"),
       compatibleRuntimes: [lambda.Runtime.PYTHON_3_12],
       description: "Lambda layer containing the psycopg2 Python library",
+    });
+
+    // Create Lambda layer for psycopg3 (Python 3.12) - for simple Lambda functions
+    const psycopg3Layer = new lambda.LayerVersion(this, `${id}-Psycopg3Layer`, {
+      code: lambda.Code.fromAsset("./layers/psycopg3-layer.zip"),
+      compatibleRuntimes: [lambda.Runtime.PYTHON_3_12],
+      description: "psycopg3 with binary and pool support for Python 3.12",
     });
 
     // Import AWS Powertools layer for Python observability
@@ -1407,16 +1415,14 @@ export class ApiGatewayStack extends cdk.Stack {
       ],
     });
 
-    const caseGenLambdaDockerFunc = new lambda.DockerImageFunction(
+    const caseGenLambdaDockerFunc = new lambda.Function(
       this,
       `${id}-CaseLambdaDockerFunction`,
       {
-        code: lambda.DockerImageCode.fromEcr(
-          props.ecrRepositories["caseGeneration"],
-          {
-            tagOrDigest: "latest", // or whatever tag you're using
-          },
-        ),
+        runtime: lambda.Runtime.PYTHON_3_12,
+        handler: "main.handler",
+        code: lambda.Code.fromAsset("./lambda/case_generation/src"),
+        layers: [psycopg3Layer],
         memorySize: 512,
         timeout: cdk.Duration.seconds(300),
         vpc: vpcStack.vpc,
@@ -1662,19 +1668,17 @@ export class ApiGatewayStack extends cdk.Stack {
     );
 
     // Create Lambda function for assessing user progress
-    const assessProgressFunction = new lambda.DockerImageFunction(
+    const assessProgressFunction = new lambda.Function(
       this,
       "AssessProgressFunction",
       {
-        code: lambda.DockerImageCode.fromEcr(
-          props.ecrRepositories["assessProgress"],
-          {
-            tagOrDigest: "latest", // or whatever tag you're using
-          },
-        ),
+        runtime: lambda.Runtime.PYTHON_3_12,
+        handler: "main.handler",
+        code: lambda.Code.fromAsset("./lambda/assess_progress/src"),
+        layers: [psycopg3Layer],
         functionName: `${id}-AssessProgressFunction`,
         timeout: Duration.seconds(300),
-        memorySize: 1024,
+        memorySize: 512,
         vpc: vpcStack.vpc,
         environment: {
           SM_DB_CREDENTIALS: db.secretPathUser.secretName,
@@ -1794,18 +1798,16 @@ export class ApiGatewayStack extends cdk.Stack {
       sourceArn: `arn:aws:execute-api:${this.region}:${this.account}:${this.api.restApiId}/*/*/student*`,
     });
 
-    const audioToTextFunction = new lambda.DockerImageFunction(
+    const audioToTextFunction = new lambda.Function(
       this,
       `${id}-audioToTextFunc`,
       {
-        code: lambda.DockerImageCode.fromEcr(
-          props.ecrRepositories["audioToText"],
-          {
-            tagOrDigest: "latest", // or whatever tag you're using
-          },
-        ),
+        runtime: lambda.Runtime.PYTHON_3_12,
+        handler: "main.handler",
+        code: lambda.Code.fromAsset("./lambda/audioToText/src"),
+        layers: [psycopg3Layer],
         memorySize: 512,
-        timeout: cdk.Duration.seconds(300),
+        timeout: cdk.Duration.seconds(900),
         vpc: vpcStack.vpc,
         functionName: `${id}-audioToTextFunc`,
         environment: {
@@ -1891,16 +1893,14 @@ export class ApiGatewayStack extends cdk.Stack {
     );
 
     // Create Lambda function for generating case summaries
-    const summaryGenerationFunction = new lambda.DockerImageFunction(
+    const summaryGenerationFunction = new lambda.Function(
       this,
       "SummaryGenerationFunction",
       {
-        code: lambda.DockerImageCode.fromEcr(
-          props.ecrRepositories["summaryGeneration"],
-          {
-            tagOrDigest: "latest",
-          },
-        ),
+        runtime: lambda.Runtime.PYTHON_3_12,
+        handler: "main.handler",
+        code: lambda.Code.fromAsset("./lambda/summary_generation/src"),
+        layers: [psycopg3Layer],
         functionName: `${id}-SummaryGenerationFunction`,
         timeout: Duration.seconds(300),
         memorySize: 512,
