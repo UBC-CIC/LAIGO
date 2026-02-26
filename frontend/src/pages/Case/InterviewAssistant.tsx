@@ -126,7 +126,7 @@ const InterviewAssistant: React.FC = () => {
   const currentBlock = section ? SUB_ROUTE_TO_BLOCK[section] : null;
 
   // Determine if we should show the progress bar
-  // Always show for non-terminal blocks (blocks that have a next step)
+  // Show progress bar for blocks that have a next step (not yet unlocked)
   const showProgressBar = React.useMemo(() => {
     if (!currentBlock) return false;
     const nextStep = PROGRESSION_MAP[currentBlock];
@@ -490,8 +490,8 @@ const InterviewAssistant: React.FC = () => {
           ).length;
           setMessageCount(humanMsgCount);
 
-          // Initialize progress bar if there's existing chat history
-          if (Array.isArray(history) && history.length > 0 && showProgressBar) {
+          // Initialize feedback with existing chat history
+          if (Array.isArray(history) && history.length > 0 && currentBlock) {
             assessProgress();
           }
         } else {
@@ -576,12 +576,8 @@ const InterviewAssistant: React.FC = () => {
             streamingIndexRef.current = null;
             setIsLoading(false);
 
-            // Always trigger assessment for progress tracking (even though blocks are unlocked)
-            if (
-              newMessageCount % 2 === 1 &&
-              currentBlock &&
-              PROGRESSION_MAP[currentBlock]
-            ) {
+            // Trigger assessment every other message for continuous feedback
+            if (newMessageCount % 2 === 1 && currentBlock) {
               assessProgress();
             }
           },
@@ -656,11 +652,9 @@ const InterviewAssistant: React.FC = () => {
               { type: "ai", content: data.llm_output },
             ]);
 
-            // Always trigger assessment for progress tracking (even though blocks are unlocked)
-            if (newMessageCount % 2 === 1) {
-              if (currentBlock && PROGRESSION_MAP[currentBlock]) {
-                assessProgress();
-              }
+            // Trigger assessment every other message for continuous feedback
+            if (newMessageCount % 2 === 1 && currentBlock) {
+              assessProgress();
             }
           }
         } else {
