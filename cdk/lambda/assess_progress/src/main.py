@@ -151,18 +151,31 @@ def connect_to_db():
     global connection
     if connection is None or connection.closed:
         try:
-            logger.info("Connecting to database...")
+            logger.info("Connecting to database with SSL/TLS...")
             secret = get_secret(DB_SECRET_NAME)
             connection_params = {
                 'dbname': secret["dbname"],
                 'user': secret["username"],
                 'password': secret["password"],
                 'host': RDS_PROXY_ENDPOINT,
-                'port': secret["port"]
+                'port': secret["port"],
+                'sslmode': 'require'  # Require SSL connection
             }
             connection_string = " ".join([f"{key}={value}" for key, value in connection_params.items()])
             connection = psycopg.connect(connection_string)
-            logger.info("Successfully connected to the database!")
+            logger.info("Successfully connected to database with SSL/TLS")
+        except psycopg.OperationalError as e:
+            logger.error(f"SSL/TLS connection failed: {e}")
+            logger.error(f"Connection details: host={RDS_PROXY_ENDPOINT}, port={secret['port']}, sslmode=require")
+            if 'SSL' in str(e) or 'certificate' in str(e).lower():
+                logger.error("SSL certificate validation failed. Verify RDS Proxy TLS configuration.")
+            if connection:
+                try:
+                    connection.rollback()
+                    connection.close()
+                except Exception as close_err:
+                    logger.error(f"Error closing connection after failure: {close_err}")
+            raise
         except Exception as e:
             logger.exception(f"Failed to connect to database: {e}")
             if connection:

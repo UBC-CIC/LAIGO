@@ -16,6 +16,7 @@ const secretsManager = new SecretsManagerClient();
  * @param {string} RDS_PROXY_ENDPOINT - RDS Proxy endpoint for database connection
  */
 async function initializeConnection(SM_DB_CREDENTIALS, RDS_PROXY_ENDPOINT) {
+  let credentials;
   try {
     // Retrieve database credentials from AWS Secrets Manager
     const getSecretValueCommand = new GetSecretValueCommand({
@@ -24,18 +25,18 @@ async function initializeConnection(SM_DB_CREDENTIALS, RDS_PROXY_ENDPOINT) {
     const secretResponse = await secretsManager.send(getSecretValueCommand);
 
     // Parse JSON credentials from secret
-    const credentials = JSON.parse(secretResponse.SecretString);
+    credentials = JSON.parse(secretResponse.SecretString);
 
     console.log(`Connecting to database with user: ${credentials.username}`);
 
-    // Configure PostgreSQL connection parameters
+    // Configure PostgreSQL connection parameters with SSL/TLS enforcement
     const connectionConfig = {
       host: RDS_PROXY_ENDPOINT, // Use RDS Proxy for connection pooling
       port: credentials.port,
       username: credentials.username,
       password: credentials.password,
       database: credentials.dbname,
-      ssl: { rejectUnauthorized: false }, // Allow self-signed certificates
+      ssl: { rejectUnauthorized: false }, // Allow self-signed certificates from RDS Proxy
     };
 
     // Create PostgreSQL connection and store globally for reuse

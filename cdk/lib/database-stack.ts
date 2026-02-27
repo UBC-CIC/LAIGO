@@ -98,7 +98,7 @@ export class DatabaseStack extends Stack {
     );
 
     // Custom parameter group for PostgreSQL configuration
-    // Disables SSL enforcement for development/testing environments
+    // Enables SSL enforcement for secure database connections
     const parameterGroup = new rds.ParameterGroup(
       this,
       `${id}-rdsParameterGroup`,
@@ -106,9 +106,9 @@ export class DatabaseStack extends Stack {
         engine: rds.DatabaseInstanceEngine.postgres({
           version: rds.PostgresEngineVersion.VER_17_4,
         }),
-        description: "Custom parameter group for LAIGO database",
+        description: "Custom parameter group for LAIGO database with SSL enforcement",
         parameters: {
-          "rds.force_ssl": "0", // Disable SSL requirement
+          "rds.force_ssl": "1", // Enable SSL requirement
         },
       },
     );
@@ -204,7 +204,7 @@ export class DatabaseStack extends Stack {
       vpc: vpcStack.vpc,
       role: rdsProxyRole,
       securityGroups: this.dbInstance.connections.securityGroups, // Use same security groups as database
-      requireTLS: false, // Disable TLS requirement for development
+      requireTLS: true, // Enable TLS requirement for secure connections
     });
 
     // Fix for CDK not automatically setting the target group name

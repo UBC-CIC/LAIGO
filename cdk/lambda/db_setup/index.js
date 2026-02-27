@@ -25,20 +25,38 @@ async function putSecret(name, secret) {
 }
 
 async function runMigrations(db) {
+  // Use SSL with relaxed certificate validation for RDS Proxy self-signed certificates
   const dbUrl = `postgresql://${encodeURIComponent(
     db.username
   )}:${encodeURIComponent(db.password)}@${db.host}:${db.port || 5432}/${
     db.dbname
-  }`;
-  await migrate({
-    databaseUrl: dbUrl,
-    dir: path.join(__dirname, "migrations"),
-    direction: "up",
-    count: Infinity,
-    migrationsTable: "pgmigrations",
-    logger: console,
-    createSchema: false,
-  });
+  }?sslmode=require`;
+  
+  try {
+    await migrate({
+      databaseUrl: dbUrl,
+      dir: path.join(__dirname, "migrations"),
+      direction: "up",
+      count: Infinity,
+      migrationsTable: "pgmigrations",
+      logger: console,
+      createSchema: false,
+      // Pass SSL config via databaseUrlConfig for node-pg-migrate
+      databaseUrlConfig: {
+        ssl: { rejectUnauthorized: false }, // Accept RDS Proxy self-signed certificates
+      },
+    });
+    console.log("Database migrations completed successfully with SSL/TLS");
+  } catch (error) {
+    console.error("Error running migrations:", error);
+    console.error("Migration connection details:", {
+      host: db.host,
+      port: db.port || 5432,
+      database: db.dbname,
+      sslMode: 'require',
+    });
+    throw error;
+  }
 }
 
 async function ensureBaselineOrMigrate(db) {
@@ -51,15 +69,29 @@ async function createAppUsers(
   userSecretName,
   tableCreatorSecretName
 ) {
+  // Use SSL with relaxed certificate validation for RDS Proxy self-signed certificates
   const adminClient = new Client({
     user: adminDb.username,
     password: adminDb.password,
     host: adminDb.host,
-    database: adminDb.dbname, // target DB
+    database: adminDb.dbname,
     port: adminDb.port || 5432,
-    ssl: adminDb.ssl || undefined, // set true or config if needed
+    ssl: { rejectUnauthorized: false }, // Accept RDS Proxy self-signed certificates
   });
-  await adminClient.connect();
+  
+  try {
+    await adminClient.connect();
+    console.log("Admin client connected successfully with SSL/TLS");
+  } catch (error) {
+    console.error("Error connecting admin client:", error);
+    console.error("Admin connection details:", {
+      host: adminDb.host,
+      port: adminDb.port || 5432,
+      database: adminDb.dbname,
+      sslEnabled: true,
+    });
+    throw error;
+  }
 
   // Stable usernames; rotate passwords idempotently
   const RW_NAME = "app_rw";

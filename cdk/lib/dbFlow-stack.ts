@@ -95,6 +95,7 @@ export class DBFlowStack extends Stack {
         DB_SECRET_NAME: db.secretPathAdmin.secretName,
         DB_USER_SECRET_NAME: db.secretPathUser.secretName,
         DB_TABLE_CREATOR_SECRET_NAME: db.secretPathTableCreator.secretName,
+        NODE_TLS_REJECT_UNAUTHORIZED: "0", // Accept self-signed certificates from RDS Proxy
       },
       vpc: db.dbInstance.vpc,
       code: lambda.Code.fromAsset("lambda/db_setup"),

@@ -35,10 +35,10 @@ def get_vectorstore(
     """
     try:
         connection_string = (
-            f"postgresql+psycopg://{user}:{password}@{host}:{port}/{dbname}"
+            f"postgresql+psycopg://{user}:{password}@{host}:{port}/{dbname}?sslmode=require"
         )
 
-        logger.info("Initializing the VectorStore")
+        logger.info("Initializing the VectorStore with SSL/TLS")
         vectorstore = PGVector(
             embeddings=embeddings,
             collection_name=collection_name,
@@ -46,9 +46,12 @@ def get_vectorstore(
             use_jsonb=True
         )
 
-        logger.info("VectorStore initialized")
+        logger.info("VectorStore initialized successfully with SSL/TLS")
         return vectorstore, connection_string
 
     except Exception as e:
-        logger.error(f"Error initializing vector store: {e}")
+        logger.error(f"Error initializing vector store with SSL/TLS: {e}")
+        logger.error(f"Connection string (credentials redacted): postgresql+psycopg://***@{host}:{port}/{dbname}?sslmode=require")
+        if 'SSL' in str(e) or 'certificate' in str(e).lower():
+            logger.error("SSL certificate validation failed. Verify RDS Proxy TLS configuration.")
         return None
