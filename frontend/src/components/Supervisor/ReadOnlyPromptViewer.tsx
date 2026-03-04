@@ -15,9 +15,7 @@ type PromptCategory = "General Settings" | "reasoning" | "assessment";
 
 type BlockType =
   | "intake"
-  | "issues"
-  | "research"
-  | "argument"
+  | "legal_analysis"
   | "contrarian"
   | "policy";
 

@@ -1053,9 +1053,7 @@ exports.handler = async (event) => {
           // Map sub_route to block_type enum (same as text_generation Lambda)
           const subrouteMap = {
             "intake-facts": "intake",
-            "issue-identification": "issues",
-            "research-strategy": "research",
-            "argument-construction": "argument",
+            "legal-analysis": "legal_analysis",
             "contrarian-analysis": "contrarian",
             "policy-context": "policy",
           };

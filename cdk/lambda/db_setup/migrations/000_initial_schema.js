@@ -4,8 +4,8 @@ exports.up = (pgm) => {
 
     -- Create enums
     CREATE TYPE user_role AS ENUM ('student', 'instructor', 'admin');
-    CREATE TYPE case_status AS ENUM ('in_progress', 'submitted', 'reviewed');
-    CREATE TYPE block_type AS ENUM ('intake', 'issues', 'research', 'argument', 'contrarian', 'policy');
+    CREATE TYPE case_status AS ENUM ('in_progress', 'submitted', 'reviewed', 'archived');
+    CREATE TYPE block_type AS ENUM ('intake', 'legal_analysis', 'contrarian', 'policy');
     CREATE TYPE prompt_category AS ENUM ('reasoning', 'assessment');
     CREATE TYPE summary_scope AS ENUM ('block', 'full_case');
 
@@ -41,7 +41,8 @@ exports.up = (pgm) => {
       last_viewed timestamptz DEFAULT now(),
       time_submitted timestamptz,
       time_reviewed timestamptz,
-      sent_to_review boolean DEFAULT false
+      sent_to_review boolean DEFAULT false,
+      student_notes text
     );
 
     CREATE TABLE case_feedback (
@@ -95,6 +96,15 @@ exports.up = (pgm) => {
       time_uploaded timestamptz DEFAULT now()
     );
 
+    CREATE TABLE messages (
+      message_id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+      instructor_id uuid,
+      message_content text,
+      case_id uuid,
+      time_sent timestamptz DEFAULT now(),
+      is_read boolean DEFAULT false
+    );
+
     CREATE TABLE case_reviewers (
       case_id uuid NOT NULL,
       reviewer_id uuid NOT NULL,
@@ -124,6 +134,10 @@ exports.up = (pgm) => {
     CREATE UNIQUE INDEX ux_prompt_versions_one_active ON prompt_versions (category, block_type) WHERE is_active = true;
     CREATE UNIQUE INDEX ux_disclaimers_one_active ON disclaimers (is_active) WHERE is_active = true;
 
+    -- Indexes for messages table
+    CREATE INDEX idx_messages_case_id ON messages (case_id);
+    CREATE INDEX idx_messages_instructor_id ON messages (instructor_id);
+
     -- Add foreign key constraints
     ALTER TABLE cases ADD CONSTRAINT fk_cases_student FOREIGN KEY (student_id) REFERENCES users(user_id);
     ALTER TABLE case_feedback ADD CONSTRAINT fk_casefeedback_case FOREIGN KEY (case_id) REFERENCES cases(case_id) ON DELETE CASCADE;
@@ -133,6 +147,8 @@ exports.up = (pgm) => {
     ALTER TABLE annotations ADD CONSTRAINT fk_annotations_summary FOREIGN KEY (summary_id) REFERENCES summaries(summary_id) ON DELETE CASCADE;
     ALTER TABLE annotations ADD CONSTRAINT fk_annotations_author FOREIGN KEY (author_id) REFERENCES users(user_id);
     ALTER TABLE audio_files ADD CONSTRAINT fk_audiofiles_case FOREIGN KEY (case_id) REFERENCES cases(case_id) ON DELETE CASCADE;
+    ALTER TABLE messages ADD CONSTRAINT fk_messages_case FOREIGN KEY (case_id) REFERENCES cases(case_id) ON DELETE CASCADE ON UPDATE CASCADE;
+    ALTER TABLE messages ADD CONSTRAINT fk_messages_instructor FOREIGN KEY (instructor_id) REFERENCES users(user_id) ON DELETE CASCADE ON UPDATE CASCADE;
     ALTER TABLE case_reviewers ADD CONSTRAINT fk_caserev_case FOREIGN KEY (case_id) REFERENCES cases(case_id);
     ALTER TABLE case_reviewers ADD CONSTRAINT fk_caserev_reviewer FOREIGN KEY (reviewer_id) REFERENCES users(user_id);
     ALTER TABLE instructor_students ADD CONSTRAINT fk_instructorstudents_instructor FOREIGN KEY (instructor_id) REFERENCES users(user_id);
@@ -147,6 +163,7 @@ exports.down = (pgm) => {
     DROP TABLE IF EXISTS annotations CASCADE;
     DROP TABLE IF EXISTS audio_files CASCADE;
     DROP TABLE IF EXISTS summaries CASCADE;
+    DROP TABLE IF EXISTS messages CASCADE;
     DROP TABLE IF EXISTS case_reviewers CASCADE;
     DROP TABLE IF EXISTS instructor_students CASCADE;
     DROP TABLE IF EXISTS prompt_versions CASCADE;
@@ -156,6 +173,8 @@ exports.down = (pgm) => {
 
     DROP INDEX IF EXISTS ux_prompt_versions_one_active;
     DROP INDEX IF EXISTS ux_disclaimers_one_active;
+    DROP INDEX IF EXISTS idx_messages_case_id;
+    DROP INDEX IF EXISTS idx_messages_instructor_id;
 
     DROP TYPE IF EXISTS summary_scope;
     DROP TYPE IF EXISTS prompt_category;

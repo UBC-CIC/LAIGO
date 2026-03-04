@@ -384,9 +384,7 @@ def update_summaries(case_id, summary, block_type, scope='block'):
     # Map block_type to human-readable titles
     block_titles = {
         "intake": "Intake Facts Summary",
-        "issues": "Issue Identification Summary",
-        "research": "Research Strategy Summary",
-        "argument": "Argument Construction Summary",
+        "legal_analysis": "Legal Analysis Summary",
         "contrarian": "Contrarian Analysis Summary",
         "policy": "Policy Context Summary"
     }
@@ -436,9 +434,7 @@ def publish_notification_event(event_type, case_id, cognito_id, success=True, er
         # Map event_type (sub_route) to readable block name
         block_titles = {
             "intake-facts": "Intake Facts",
-            "issue-identification": "Issue Identification",
-            "research-strategy": "Research Strategy",
-            "argument-construction": "Argument Construction",
+            "legal-analysis": "Legal Analysis",
             "contrarian-analysis": "Contrarian Analysis",
             "policy-context": "Policy Context",
             "full-case": "Full Case"
@@ -653,9 +649,7 @@ def handler(event, context):
         # Map sub_route to block_type enum
         subroute_map = {
             "intake-facts": "intake",
-            "issue-identification": "issues",
-            "research-strategy": "research",
-            "argument-construction": "argument",
+            "legal-analysis": "legal_analysis",
             "contrarian-analysis": "contrarian",
             "policy-context": "policy"
         }

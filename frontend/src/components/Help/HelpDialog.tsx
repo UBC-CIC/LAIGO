@@ -23,7 +23,7 @@ const FAQ_ITEMS = [
   {
     question: "How does the progression work?",
     answer:
-      "You begin restricted to the Intake & Facts block. Complete each block sequentially to unlock the next one. After completing the Research Strategy block, all remaining blocks (Argument Construction, Contrarian Analysis, and Policy Context) will unlock simultaneously.",
+      "You begin restricted to the Intake & Facts block. Complete it to unlock Legal Analysis. After completing Legal Analysis, both Contrarian Analysis and Policy Context will unlock simultaneously.",
   },
   {
     question: "How do I unlock the next block?",

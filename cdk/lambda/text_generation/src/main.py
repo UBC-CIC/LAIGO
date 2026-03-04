@@ -359,9 +359,7 @@ def handler(event, context):
     # Map sub_route to block_type enum
     subroute_map = {
         "intake-facts": "intake",
-        "issue-identification": "issues",
-        "research-strategy": "research",
-        "argument-construction": "argument",
+        "legal-analysis": "legal_analysis",
         "contrarian-analysis": "contrarian",
         "policy-context": "policy"
     }

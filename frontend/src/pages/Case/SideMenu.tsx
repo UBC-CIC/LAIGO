@@ -44,19 +44,9 @@ const SideMenu: React.FC<SideMenuProps> = ({
           blockType: "intake",
         },
         {
-          text: "Issue Identification",
-          path: "interview/issue-identification",
-          blockType: "issues",
-        },
-        {
-          text: "Research Strategy",
-          path: "interview/research-strategy",
-          blockType: "research",
-        },
-        {
-          text: "Argument Construction",
-          path: "interview/argument-construction",
-          blockType: "argument",
+          text: "Legal Analysis",
+          path: "interview/legal-analysis",
+          blockType: "legal_analysis",
         },
         {
           text: "Contrarian Analysis",

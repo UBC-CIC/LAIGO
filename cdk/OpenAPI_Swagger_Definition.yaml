@@ -2451,9 +2451,7 @@ paths:
             type: string
             enum:
               - intake-facts
-              - issue-identification
-              - research-strategy
-              - argument-construction
+              - legal-analysis
               - contrarian-analysis
               - policy-context
               - full-case
@@ -3410,9 +3408,7 @@ paths:
             type: string
             enum:
               - intake-facts
-              - issue-identification
-              - research-strategy
-              - argument-construction
+              - legal-analysis
               - contrarian-analysis
               - policy-context
       responses:

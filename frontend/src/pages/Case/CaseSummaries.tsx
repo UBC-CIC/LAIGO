@@ -39,9 +39,7 @@ import type { CaseOutletContext } from "./CaseLayout";
 type SummaryScope = "full_case" | "block";
 type BlockType =
   | "intake"
-  | "issues"
-  | "research"
-  | "argument"
+  | "legal_analysis"
   | "contrarian"
   | "policy";
 

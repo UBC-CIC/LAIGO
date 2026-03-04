@@ -187,7 +187,7 @@ def generate_lawyer_summary(
         case_type (str, optional): Type of legal case.
         case_description (str, optional): Brief description of the case.
         jurisdiction (str, optional): Legal jurisdiction for the case.
-        block_type (str, optional): The type of block to summarize (e.g. intake, issues).
+        block_type (str, optional): The type of block to summarize (e.g. intake, legal_analysis).
     
     Returns:
         str: Formatted lawyer-friendly summary.
@@ -221,7 +221,7 @@ Structure your summary with these sections:
 
 Use markdown formatting. Only include sections where content was discussed.
         """,
-        "issues": """
+        "legal_analysis": """
 You are a legal summarization assistant helping identify legal issues in a case.
 
 Summarize ONLY the issues explicitly identified in the conversation. Do NOT add your own analysis or spot new issues.
@@ -242,57 +242,6 @@ Structure your summary with these sections:
 
 ## Elements to Establish
 - Key elements that must be proven for each cause of action or defense.
-
-Use markdown formatting. Only include sections where content was discussed.
-        """,
-        "research": """
-You are a legal summarization assistant helping document a legal research strategy.
-
-Summarize ONLY the research approach and findings discussed in the conversation. Do NOT add new cases, statutes, or search terms.
-
-Structure your summary with these sections:
-
-## Research Questions
-- The specific legal questions guiding the research.
-
-## Search Strategy
-- Keywords, search terms, and databases discussed (e.g., CanLII, Westlaw).
-
-## Statutes & Regulations Identified
-- Specific legislative provisions found or referenced.
-
-## Case Law Identified
-- Key cases discussed with their relevance noted.
-
-## Secondary Sources
-- Textbooks, articles, or commentary mentioned.
-
-## Outstanding Research
-- Areas requiring further investigation.
-
-Use markdown formatting. Only include sections where content was discussed.
-        """,
-        "argument": """
-You are a legal summarization assistant helping document legal argument construction.
-
-Summarize ONLY the arguments developed in the conversation. Do NOT improve, extend, or fill gaps in the reasoning.
-
-Structure your summary with these sections:
-
-## Core Legal Arguments
-- The main arguments constructed, each with:
-  - Legal principle or authority
-  - Application to the facts
-  - Why the position should succeed
-
-## Supporting Evidence
-- How specific evidence supports each argument element.
-
-## Argument Structure
-- The logical flow and organization of the argumentation.
-
-## Anticipated Strengths
-- Identified strong points in the client's position.
 
 Use markdown formatting. Only include sections where content was discussed.
         """,
@@ -444,7 +393,7 @@ Structure your summary with these sections:
 
 Use markdown formatting. Only include sections where content was discussed.
         """,
-        "issues": """
+        "legal_analysis": """
 You are a legal summarization assistant helping identify legal issues in a case.
 
 Summarize ONLY the issues explicitly identified in the conversation. Do NOT add your own analysis or spot new issues.
@@ -465,57 +414,6 @@ Structure your summary with these sections:
 
 ## Elements to Establish
 - Key elements that must be proven for each cause of action or defense.
-
-Use markdown formatting. Only include sections where content was discussed.
-        """,
-        "research": """
-You are a legal summarization assistant helping document a legal research strategy.
-
-Summarize ONLY the research approach and findings discussed in the conversation. Do NOT add new cases, statutes, or search terms.
-
-Structure your summary with these sections:
-
-## Research Questions
-- The specific legal questions guiding the research.
-
-## Search Strategy
-- Keywords, search terms, and databases discussed (e.g., CanLII, Westlaw).
-
-## Statutes & Regulations Identified
-- Specific legislative provisions found or referenced.
-
-## Case Law Identified
-- Key cases discussed with their relevance noted.
-
-## Secondary Sources
-- Textbooks, articles, or commentary mentioned.
-
-## Outstanding Research
-- Areas requiring further investigation.
-
-Use markdown formatting. Only include sections where content was discussed.
-        """,
-        "argument": """
-You are a legal summarization assistant helping document legal argument construction.
-
-Summarize ONLY the arguments developed in the conversation. Do NOT improve, extend, or fill gaps in the reasoning.
-
-Structure your summary with these sections:
-
-## Core Legal Arguments
-- The main arguments constructed, each with:
-  - Legal principle or authority
-  - Application to the facts
-  - Why the position should succeed
-
-## Supporting Evidence
-- How specific evidence supports each argument element.
-
-## Argument Structure
-- The logical flow and organization of the argumentation.
-
-## Anticipated Strengths
-- Identified strong points in the client's position.
 
 Use markdown formatting. Only include sections where content was discussed.
         """,

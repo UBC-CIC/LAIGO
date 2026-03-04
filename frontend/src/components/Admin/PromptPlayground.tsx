@@ -90,9 +90,7 @@ const AVAILABLE_MODELS = [
 // Block types for prompt selection
 const BLOCK_TYPES = [
   { id: "intake", label: "Intake & Facts" },
-  { id: "issues", label: "Issue Identification" },
-  { id: "research", label: "Research Strategy" },
-  { id: "argument", label: "Argument Construction" },
+  { id: "legal_analysis", label: "Legal Analysis" },
   { id: "contrarian", label: "Contrarian Analysis" },
   { id: "policy", label: "Policy Context" },
 ];
@@ -100,8 +98,7 @@ const BLOCK_TYPES = [
 // Only these blocks have assessment prompts
 const ASSESSABLE_BLOCK_TYPES = [
   { id: "intake", label: "Intake & Facts" },
-  { id: "issues", label: "Issue Identification" },
-  { id: "research", label: "Research Strategy" },
+  { id: "legal_analysis", label: "Legal Analysis" },
 ];
 
 type PlaygroundMode = "reasoning" | "assessment";

@@ -17,9 +17,7 @@ type PromptCategory = "General Settings" | "reasoning" | "assessment";
 
 type BlockType =
   | "intake"
-  | "issues"
-  | "research"
-  | "argument"
+  | "legal_analysis"
   | "contrarian"
   | "policy";
 
@@ -30,16 +28,13 @@ const SIDEBAR_TO_BACKEND: Record<
 > = {
   // Reasoning
   "intake-facts": { category: "reasoning", block_type: "intake" },
-  "issue-identification": { category: "reasoning", block_type: "issues" },
-  "research-strategy": { category: "reasoning", block_type: "research" },
-  "argument-construction": { category: "reasoning", block_type: "argument" },
+  "legal-analysis": { category: "reasoning", block_type: "legal_analysis" },
   "contrarian-analysis": { category: "reasoning", block_type: "contrarian" },
   "policy-context": { category: "reasoning", block_type: "policy" },
 
   // Assessment
   "intake-assessment": { category: "assessment", block_type: "intake" },
-  "issues-assessment": { category: "assessment", block_type: "issues" },
-  "research-assessment": { category: "assessment", block_type: "research" },
+  "legal-analysis-assessment": { category: "assessment", block_type: "legal_analysis" },
 };
 
 interface SidebarItem {
@@ -66,22 +61,10 @@ const SECTIONS: SidebarSection[] = [
           "Instructs the AI to guide the user through gathering relevant factual details, establishing a timeline, and identifying missing information to assess the case.",
       },
       {
-        id: "issue-identification",
-        label: "Issue Identification",
+        id: "legal-analysis",
+        label: "Legal Analysis",
         description:
-          "Directs the AI to help the user identify core legal issues based on the facts, exploring potential angles and framing the problem for research.",
-      },
-      {
-        id: "research-strategy",
-        label: "Research Strategy",
-        description:
-          "Guides the AI in helping the user formulate a research plan, identifying relevant case law, statutes, and regulations to support legal arguments.",
-      },
-      {
-        id: "argument-construction",
-        label: "Argument Construction",
-        description:
-          "Structures the AI's assistance in building a persuasive legal argument, synthesizing facts and research into a cohesive narrative for the client.",
+          "Guides the AI in helping the user identify legal issues, develop research strategies, and construct persuasive arguments by synthesizing facts and legal principles.",
       },
       {
         id: "contrarian-analysis",
@@ -104,19 +87,13 @@ const SECTIONS: SidebarSection[] = [
         id: "intake-assessment",
         label: "Intake Assessment",
         description:
-          "Defines criteria to evaluate if 'Intake & Facts' is complete. Passing advances the user to 'Issue Identification'.",
+          "Defines criteria to evaluate if 'Intake & Facts' is complete. Passing advances the user to 'Legal Analysis'.",
       },
       {
-        id: "issues-assessment",
-        label: "Issues Assessment",
+        id: "legal-analysis-assessment",
+        label: "Legal Analysis Assessment",
         description:
-          "Establishes standards for assessing issue understanding. Success advances the workflow to 'Research Strategy'.",
-      },
-      {
-        id: "research-assessment",
-        label: "Research Assessment",
-        description:
-          "Determines if the research strategy is robust. Approval unlocks advanced blocks (Argument, Contrarian, Policy).",
+          "Establishes standards for assessing legal analysis comprehension. Success unlocks advanced blocks (Contrarian, Policy).",
       },
     ],
   },

@@ -56,9 +56,7 @@ const CaseLayout: React.FC = () => {
         // Forced unlock for testing/temporary requirement
         setUnlockedBlocks([
           "intake",
-          "issues",
-          "research",
-          "argument",
+          "legal_analysis",
           "contrarian",
           "policy",
         ]);
@@ -107,9 +105,7 @@ const CaseLayout: React.FC = () => {
         // Forced unlock for testing/temporary requirement
         setUnlockedBlocks([
           "intake",
-          "issues",
-          "research",
-          "argument",
+          "legal_analysis",
           "contrarian",
           "policy",
         ]);

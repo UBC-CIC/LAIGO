@@ -596,11 +596,10 @@ def handler(event, context):
         return _response(403, error_msg)
 
     # Determine progression map
-    # Intake -> Issues -> Research -> (Argument, Contrarian, Policy)
+    # Intake -> Legal Analysis -> (Contrarian, Policy)
     progression_map = {
-        "intake": "issues",
-        "issues": "research",
-        "research": ["argument", "contrarian", "policy"] # Unlocks all three
+        "intake": "legal_analysis",
+        "legal_analysis": ["contrarian", "policy"]
     }
     
     next_step = progression_map.get(block_type)
