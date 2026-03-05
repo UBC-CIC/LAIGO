@@ -570,7 +570,7 @@ const SystemPromptSection: React.FC<{
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Block Type Selection */}
+            {/* Stage Type Selection */}
             <FormControl
               size="small"
               sx={{
@@ -580,11 +580,11 @@ const SystemPromptSection: React.FC<{
               }}
             >
               <InputLabel sx={{ color: "var(--text-secondary)" }}>
-                Block Type
+                Stage Type
               </InputLabel>
               <Select
                 value={config.blockType}
-                label="Block Type"
+                label="Stage Type"
                 onChange={(e) => onConfigChange({ blockType: e.target.value })}
                 sx={{
                   color: "var(--text)",
@@ -814,7 +814,7 @@ const AssessmentPromptSection: React.FC<{
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Block Type Selection - only assessable blocks */}
+            {/* Stage Type Selection - only assessable stages */}
             <FormControl
               size="small"
               sx={{
@@ -824,11 +824,11 @@ const AssessmentPromptSection: React.FC<{
               }}
             >
               <InputLabel sx={{ color: "var(--text-secondary)" }}>
-                Block Type
+                Stage Type
               </InputLabel>
               <Select
                 value={config.blockType}
-                label="Block Type"
+                label="Stage Type"
                 onChange={(e) => onConfigChange({ blockType: e.target.value })}
                 sx={{
                   color: "var(--text)",

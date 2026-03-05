@@ -93,7 +93,7 @@ const SECTIONS: SidebarSection[] = [
         id: "legal-analysis-assessment",
         label: "Legal Analysis Assessment",
         description:
-          "Establishes standards for assessing legal analysis comprehension. Success unlocks advanced blocks (Contrarian, Policy).",
+          "Establishes standards for assessing legal analysis comprehension. Success unlocks advanced stages (Contrarian, Policy).",
       },
     ],
   },
@@ -175,7 +175,7 @@ const SupervisorPrompts = () => {
                   }}
                 >
                   {section.category === "reasoning"
-                    ? "Reasoning Blocks"
+                    ? "Reasoning Stages"
                     : section.category === "assessment"
                       ? "Assessment Prompts"
                       : section.category}

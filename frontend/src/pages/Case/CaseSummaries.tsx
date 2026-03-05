@@ -390,7 +390,7 @@ const CaseSummaries: React.FC = () => {
       const blockName = summary.block_context
         ? summary.block_context.charAt(0).toUpperCase() +
           summary.block_context.slice(1)
-        : "Block";
+        : "Stage"; // fallback name when context missing
       filenameStr += `${blockName} Summary`;
     }
     filenameStr += ".pdf";
@@ -782,7 +782,7 @@ const CaseSummaries: React.FC = () => {
               </>
             )}
 
-            {/* Block Summaries */}
+            {/* Stage Summaries */}
             {groupedSummaries["block"] && (
               <>
                 <ListItemButton
@@ -797,7 +797,7 @@ const CaseSummaries: React.FC = () => {
                     }}
                   />
                   <ListItemText
-                    primary="Block Summaries"
+                    primary="Stage Summaries"
                     slotProps={{
                       primary: {
                         fontSize: "0.85rem",
@@ -861,7 +861,7 @@ const CaseSummaries: React.FC = () => {
                                     .charAt(0)
                                     .toUpperCase() +
                                   summary.block_context.slice(1)
-                                : "Block"}
+                                : "Stage"}
                             </Typography>
                           }
                           secondary={

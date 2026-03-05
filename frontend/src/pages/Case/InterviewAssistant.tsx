@@ -35,7 +35,7 @@ interface AssessmentResponse {
   unlocked?: boolean;
 }
 
-// Map sub_route to block_type for assessment
+  // Map sub_route to stage_type for assessment (variable names remain unchanged)
 const SUB_ROUTE_TO_BLOCK: Record<string, string> = {
   "intake-facts": "intake",
   "legal-analysis": "legal_analysis",
@@ -59,7 +59,7 @@ const InterviewAssistant: React.FC = () => {
   const [progress, setProgress] = useState(0);
   const [showSnackbar, setShowSnackbar] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState(
-    "Success! You have unlocked the next block. Feel free to proceed or continue asking questions.",
+    "Success! You have unlocked the next stage. Feel free to proceed or continue asking questions.",
   );
   const [snackbarSeverity, setSnackbarSeverity] = useState<
     "success" | "info" | "warning" | "error"
@@ -112,7 +112,7 @@ const InterviewAssistant: React.FC = () => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const streamingIndexRef = useRef<number | null>(null);
 
-  // Get current block type from section
+  // Get current stage type from section
   const currentBlock = section ? SUB_ROUTE_TO_BLOCK[section] : null;
 
   const isCurrentBlockCompleted = React.useMemo(() => {
@@ -120,7 +120,7 @@ const InterviewAssistant: React.FC = () => {
     return completedBlocks.includes(currentBlock) || progress >= 100;
   }, [currentBlock, completedBlocks, progress]);
 
-  // Show progress bar only when current block is not fully completed
+  // Show progress bar only when current stage is not fully completed
   const showProgressBar = React.useMemo(() => {
     if (!currentBlock) return false;
     return !isCurrentBlockCompleted;
@@ -412,7 +412,7 @@ const InterviewAssistant: React.FC = () => {
     setProgress(0); // Reset progress on new section
     setFeedback(null); // clear stale reasoning when switching blocks
 
-    // Block-specific greetings that explain the purpose and suggest starting points
+    // Stage-specific greetings that explain the purpose and suggest starting points
     const BLOCK_GREETINGS: Record<string, string> = {
       "intake-facts": 
         "Hi! I'm here to help you assess the facts of your case, including further evidence you may need to consider, how to analyze the strengths and weaknesses of the evidence you have identified, and further areas which may be relevant to the facts of the case.\n\nTo get started, you can ask me to \"please analyze the facts of the case\" but you can also ask more specific questions, such as asking about specific potential areas for further inquiry, asking about other areas of evidence you might think are relevant, and getting assistance with strategies for analyzing the strengths and weaknesses of the evidence. You can also ask follow up questions to any response you receive.",
@@ -717,7 +717,7 @@ const InterviewAssistant: React.FC = () => {
                   fontFamily: "Outfit",
                 }}
               >
-                Progress in current block
+                Progress in current stage
               </Typography>
               <Box sx={{ flexGrow: 1 }}>
                 <LinearProgress

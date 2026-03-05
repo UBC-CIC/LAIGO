@@ -23,22 +23,22 @@ const FAQ_ITEMS = [
   {
     question: "How does the progression work?",
     answer:
-      "You begin restricted to the Intake & Facts block. Complete it to unlock Legal Analysis. After completing Legal Analysis, both Contrarian Analysis and Policy Context will unlock simultaneously.",
+      "You begin restricted to the Intake & Facts stage. Complete it to unlock Legal Analysis. After completing Legal Analysis, both Contrarian Analysis and Policy Context will unlock simultaneously.",
   },
   {
-    question: "How do I unlock the next block?",
+    question: "How do I unlock the next stage?",
     answer:
-      "Engage naturally with the Assistant by asking questions and exploring the topics relevant to the specific block. The system analyzes your conversation depth and coverage of key legal concepts to determine when you are ready to advance.",
+      "Engage naturally with the Assistant by asking questions and exploring the topics relevant to the specific stage. The system analyzes your conversation depth and coverage of key legal concepts to determine when you are ready to advance.",
   },
   {
     question: "How can I track my progress?",
     answer:
-      "A progress bar at the top of the chat visualizes your standing. As you cover more ground in your conversation, this bar will fill up. Reaching 100% will trigger a notification that the next block is unlocked.",
+      "A progress bar at the top of the chat visualizes your standing. As you cover more ground in your conversation, this bar will fill up. Reaching 100% will trigger a notification that the next stage is unlocked.",
   },
   {
     question: "What is the feedback panel for?",
     answer:
-      "The feedback panel on the right is your real-time coach. It offers specific insights into what information you might be missing or which topics require further exploration. You will only receive feedback while the next block is locked.",
+      "The feedback panel on the right is your real-time coach. It offers specific insights into what information you might be missing or which topics require further exploration. You will only receive feedback while the next stage is locked.",
   },
 ];
 

@@ -198,7 +198,7 @@ const AIConfiguration = () => {
                   }}
                 >
                   {section.category === "reasoning"
-                    ? "Reasoning Blocks"
+                    ? "Reasoning Stages"
                     : section.category === "assessment"
                       ? "Assessment Prompts"
                       : section.category}
