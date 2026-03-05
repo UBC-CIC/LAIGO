@@ -19,6 +19,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { useNotifications } from "../../contexts/NotificationContext";
 import type { Notification } from "../../types/notification";
+import { getNotificationTargetPath } from "./notificationNavigation";
 
 interface NotificationDropdownProps {
   open: boolean;
@@ -263,32 +264,7 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
       markAsRead(notification.notificationId);
     }
 
-    // Determine navigation based on notification type
-    const caseId = notification.metadata?.caseId;
-
-    if (!caseId) {
-      // Fallback if no case ID - go to root/dashboard
-      navigate("/");
-      onClose();
-      return;
-    }
-
-    switch (notification.type) {
-      case "feedback":
-        navigate(`/case/${caseId}/feedback`);
-        break;
-      case "summary_complete":
-        navigate(`/case/${caseId}/summaries`);
-        break;
-      case "transcript_complete":
-        navigate(`/case/${caseId}/transcriptions`);
-        break;
-      case "case_submission":
-        navigate(`/case/${caseId}/overview`);
-        break;
-      default:
-        navigate(`/case/${caseId}/overview`);
-    }
+    navigate(getNotificationTargetPath(notification));
 
     onClose();
   };

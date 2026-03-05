@@ -7,6 +7,9 @@ import React, {
   useRef,
 } from "react";
 import { fetchAuthSession } from "aws-amplify/auth";
+import { useNavigate } from "react-router-dom";
+import NotificationSnackbar from "../components/Notifications/NotificationSnackbar";
+import { getNotificationTargetPath } from "../components/Notifications/notificationNavigation";
 import type {
   Notification,
   WebSocketNotificationMessage,
@@ -52,15 +55,29 @@ interface NotificationProviderProps {
 }
 
 export function NotificationProvider({ children }: NotificationProviderProps) {
+  const navigate = useNavigate();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [notificationSnackbarQueue, setNotificationSnackbarQueue] = useState<
+    Notification[]
+  >([]);
+  const [activeSnackbarNotification, setActiveSnackbarNotification] =
+    useState<Notification | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<number | null>(null);
   const reconnectAttemptsRef = useRef(0);
+
+  useEffect(() => {
+    if (!activeSnackbarNotification && notificationSnackbarQueue.length > 0) {
+      const [nextNotification, ...remainingQueue] = notificationSnackbarQueue;
+      setActiveSnackbarNotification(nextNotification);
+      setNotificationSnackbarQueue(remainingQueue);
+    }
+  }, [activeSnackbarNotification, notificationSnackbarQueue]);
 
   // Fetch notifications from REST API
   const refreshNotifications = useCallback(async () => {
@@ -116,6 +133,19 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
     },
     [notifications, unreadCount],
   );
+
+  const handleSnackbarClick = useCallback(() => {
+    if (!activeSnackbarNotification) {
+      return;
+    }
+
+    if (!activeSnackbarNotification.isRead) {
+      markAsRead(activeSnackbarNotification.notificationId);
+    }
+
+    navigate(getNotificationTargetPath(activeSnackbarNotification));
+    setActiveSnackbarNotification(null);
+  }, [activeSnackbarNotification, markAsRead, navigate]);
 
   // Mark all notifications as read
   const markAllAsRead = useCallback(async () => {
@@ -226,6 +256,9 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
 
         // Increment unread count
         setUnreadCount((prev) => prev + 1);
+
+        // Queue a notification-style snackbar for new deliveries
+        setNotificationSnackbarQueue((prev) => [...prev, wsMessage.notification]);
       }
     } catch (err) {
       console.error("[Notifications] Error parsing WebSocket message:", err);
@@ -340,6 +373,12 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
   return (
     <NotificationContext.Provider value={value}>
       {children}
+      <NotificationSnackbar
+        notification={activeSnackbarNotification}
+        open={Boolean(activeSnackbarNotification)}
+        onClose={() => setActiveSnackbarNotification(null)}
+        onClick={handleSnackbarClick}
+      />
     </NotificationContext.Provider>
   );
 }
