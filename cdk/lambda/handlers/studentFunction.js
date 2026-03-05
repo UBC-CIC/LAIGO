@@ -1484,7 +1484,8 @@ exports.handler = async (event) => {
 
         break;
 
-      case "PUT /student/unlock_block":
+      case "PUT /student/complete_block":
+        // mark a block completed (formerly called "unlock")
         if (
           event.queryStringParameters != null &&
           event.queryStringParameters.case_id &&
@@ -1493,9 +1494,9 @@ exports.handler = async (event) => {
           const { case_id, block_type } = event.queryStringParameters;
 
           try {
-            // First, get current unlocked_blocks
+            // First, get current completed_blocks
             const caseData = await sqlConnection`
-                SELECT unlocked_blocks FROM "cases" WHERE case_id = ${case_id};
+                SELECT completed_blocks FROM "cases" WHERE case_id = ${case_id};
               `;
 
             if (caseData.length === 0) {
@@ -1504,7 +1505,7 @@ exports.handler = async (event) => {
               break;
             }
 
-            const currentBlocks = caseData[0].unlocked_blocks || [];
+            const currentBlocks = caseData[0].completed_blocks || [];
 
             // Add the new block if not already present
             if (!currentBlocks.includes(block_type)) {
@@ -1512,20 +1513,20 @@ exports.handler = async (event) => {
 
               await sqlConnection`
                   UPDATE "cases"
-                  SET unlocked_blocks = ${updatedBlocks}
+                  SET completed_blocks = ${updatedBlocks}
                   WHERE case_id = ${case_id};
                 `;
 
               response.statusCode = 200;
               response.body = JSON.stringify({
-                message: "Block unlocked successfully",
-                unlocked_blocks: updatedBlocks,
+                message: "Block marked completed successfully",
+                completed_blocks: updatedBlocks,
               });
             } else {
               response.statusCode = 200;
               response.body = JSON.stringify({
-                message: "Block already unlocked",
-                unlocked_blocks: currentBlocks,
+                message: "Block already marked completed",
+                completed_blocks: currentBlocks,
               });
             }
           } catch (err) {

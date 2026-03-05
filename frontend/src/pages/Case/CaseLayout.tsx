@@ -10,6 +10,7 @@ import Notepad from "../../components/Case/Notepad";
 // Context type for child routes
 export interface CaseOutletContext {
   unlockedBlocks: string[];
+  completedBlocks: string[];
   refreshUnlockedBlocks: () => Promise<void>;
   caseStatus: string;
   refreshCaseData: () => Promise<void>;
@@ -21,6 +22,7 @@ const CaseLayout: React.FC = () => {
   const [caseTitle, setCaseTitle] = useState<string>("");
   const [caseStatus, setCaseStatus] = useState<string>("");
   const [unlockedBlocks, setUnlockedBlocks] = useState<string[]>([]);
+  const [completedBlocks, setCompletedBlocks] = useState<string[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
   // Notepad State
@@ -53,6 +55,9 @@ const CaseLayout: React.FC = () => {
       if (res.ok) {
         const data = await res.json();
         const cData = data.caseData || data;
+        setCompletedBlocks(
+          Array.isArray(cData.completed_blocks) ? cData.completed_blocks : [],
+        );
         // Forced unlock for testing/temporary requirement
         setUnlockedBlocks([
           "intake",
@@ -102,6 +107,9 @@ const CaseLayout: React.FC = () => {
         const cData = data.caseData || data;
         setCaseTitle(cData.case_title || "Untitled Case");
         setCaseStatus(cData.status || "");
+        setCompletedBlocks(
+          Array.isArray(cData.completed_blocks) ? cData.completed_blocks : [],
+        );
         // Forced unlock for testing/temporary requirement
         setUnlockedBlocks([
           "intake",
@@ -197,7 +205,7 @@ const CaseLayout: React.FC = () => {
       <SideMenu
         caseTitle={caseTitle}
         loading={loading}
-        unlockedBlocks={unlockedBlocks}
+        completedBlocks={completedBlocks}
         onToggleNotepad={() => !loading && setShowNotepad(!showNotepad)}
       />
 
@@ -219,6 +227,7 @@ const CaseLayout: React.FC = () => {
           context={
             {
               unlockedBlocks,
+              completedBlocks,
               refreshUnlockedBlocks,
               caseStatus,
               refreshCaseData: init,

@@ -43,22 +43,15 @@ const SUB_ROUTE_TO_BLOCK: Record<string, string> = {
   "policy-context": "policy",
 };
 
-// Progression map: current block -> next block(s) to unlock
-const PROGRESSION_MAP: Record<string, string | string[]> = {
-  intake: "legal_analysis",
-  legal_analysis: ["contrarian", "policy"],
-};
-
 const InterviewAssistant: React.FC = () => {
   const { caseId, section } = useParams();
-  const { refreshUnlockedBlocks, caseStatus } =
+  const { refreshUnlockedBlocks, caseStatus, completedBlocks } =
     useOutletContext<CaseOutletContext>();
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
-  const [messageCount, setMessageCount] = useState(0);
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
   const [wsUrl, setWsUrl] = useState<string | null>(null);
 
@@ -122,14 +115,16 @@ const InterviewAssistant: React.FC = () => {
   // Get current block type from section
   const currentBlock = section ? SUB_ROUTE_TO_BLOCK[section] : null;
 
-  // Determine if we should show the progress bar
-  // Show progress bar for blocks that have a next step (not yet unlocked)
+  const isCurrentBlockCompleted = React.useMemo(() => {
+    if (!currentBlock) return false;
+    return completedBlocks.includes(currentBlock) || progress >= 100;
+  }, [currentBlock, completedBlocks, progress]);
+
+  // Show progress bar only when current block is not fully completed
   const showProgressBar = React.useMemo(() => {
     if (!currentBlock) return false;
-    const nextStep = PROGRESSION_MAP[currentBlock];
-    // Show progress bar if there's a next step defined (not a terminal block)
-    return !!nextStep;
-  }, [currentBlock]);
+    return !isCurrentBlockCompleted;
+  }, [currentBlock, isCurrentBlockCompleted]);
 
   const assessProgressRef = useRef<(() => Promise<void>) | null>(null);
 
@@ -196,8 +191,8 @@ const InterviewAssistant: React.FC = () => {
         streamingIndexRef.current = null;
         setIsLoading(false);
 
-        // Always trigger assessment for progress tracking (even though blocks are unlocked)
-        if (currentBlock && PROGRESSION_MAP[currentBlock]) {
+        // Always trigger assessment for continuous feedback
+        if (currentBlock) {
           assessProgressRef.current?.();
         }
       } else if (message.type === "error") {
@@ -255,9 +250,7 @@ const InterviewAssistant: React.FC = () => {
               setFeedback(assessment.reasoning);
             }
 
-            // Don't show unlock notification since all blocks are already unlocked
-            // Just refresh to keep data in sync
-            if (assessment.unlocked) {
+            if (progress === 5 || assessment.unlocked) {
               await refreshUnlockedBlocks();
             }
           },
@@ -299,9 +292,7 @@ const InterviewAssistant: React.FC = () => {
           setFeedback(data.reasoning);
         }
 
-        // Don't show unlock notification since all blocks are already unlocked
-        // Just refresh to keep data in sync
-        if (data.unlocked) {
+        if (currentScore === 5 || data.unlocked) {
           await refreshUnlockedBlocks();
         }
       }
@@ -418,7 +409,6 @@ const InterviewAssistant: React.FC = () => {
 
   // Reset state when section changes
   useEffect(() => {
-    setMessageCount(0);
     setProgress(0); // Reset progress on new section
 
     // Block-specific greetings that explain the purpose and suggest starting points
@@ -476,11 +466,6 @@ const InterviewAssistant: React.FC = () => {
               : [DEFAULT_GREETING],
           );
           // Set message count based on existing human messages
-          const humanMsgCount = history.filter(
-            (m: Message) => m.type === "human",
-          ).length;
-          setMessageCount(humanMsgCount);
-
           // Initialize feedback with existing chat history
           if (Array.isArray(history) && history.length > 0 && currentBlock) {
             assessProgress();
@@ -508,10 +493,6 @@ const InterviewAssistant: React.FC = () => {
 
     setMessages((prev) => [...prev, { type: "human", content: message }]);
     setIsLoading(true);
-
-    // Increment message count
-    const newMessageCount = messageCount + 1;
-    setMessageCount(newMessageCount);
 
     // Use WebSocket if connected, otherwise fall back to HTTP
     if (isConnected) {
@@ -567,8 +548,7 @@ const InterviewAssistant: React.FC = () => {
             streamingIndexRef.current = null;
             setIsLoading(false);
 
-            // Trigger assessment every other message for continuous feedback
-            if (newMessageCount % 2 === 1 && currentBlock) {
+            if (currentBlock) {
               assessProgress();
             }
           },
@@ -643,8 +623,7 @@ const InterviewAssistant: React.FC = () => {
               { type: "ai", content: data.llm_output },
             ]);
 
-            // Trigger assessment every other message for continuous feedback
-            if (newMessageCount % 2 === 1 && currentBlock) {
+            if (currentBlock) {
               assessProgress();
             }
           }
@@ -737,7 +716,7 @@ const InterviewAssistant: React.FC = () => {
                   fontFamily: "Outfit",
                 }}
               >
-                Progress to next block
+                Progress in current block
               </Typography>
               <Box sx={{ flexGrow: 1 }}>
                 <LinearProgress

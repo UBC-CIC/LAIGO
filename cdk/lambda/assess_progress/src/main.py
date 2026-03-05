@@ -342,34 +342,34 @@ def check_authorization(user_id, case_id):
         logger.error(f"Authorization check failed with error: {e}")
         return False
 
-def unlock_next_block(case_id, next_block):
+def mark_block_completed(case_id, block_type):
     connection = connect_to_db()
     if connection is None:
         return False
         
     try:
         cur = connection.cursor()
-        # Append next_block to unlocked_blocks array if not already present
-        logger.info(f"Attempting to unlock block '{next_block}' for case '{case_id}'")
+        # Append block_type to completed_blocks array if not already present
+        logger.info(f"Attempting to mark block '{block_type}' as completed for case '{case_id}'")
         cur.execute("""
             UPDATE cases
-            SET unlocked_blocks = array_append(unlocked_blocks, %s)
+            SET completed_blocks = array_append(completed_blocks, %s)
             WHERE case_id = %s
-              AND NOT (%s = ANY(unlocked_blocks));
-        """, (next_block, case_id, next_block))
+              AND NOT (%s = ANY(completed_blocks));
+        """, (block_type, case_id, block_type))
         
         connection.commit()
         row_count = cur.rowcount
         cur.close()
         
         if row_count > 0:
-            logger.info(f"Successfully unlocked block '{next_block}' for case '{case_id}'")
+            logger.info(f"Successfully marked block '{block_type}' as completed for case '{case_id}'")
         else:
-            logger.info(f"Block '{next_block}' was already unlocked or case '{case_id}' not found.")
+            logger.info(f"Block '{block_type}' was already marked completed or case '{case_id}' not found.")
             
         return True
     except Exception as e:
-        logger.exception(f"Error unlocking block '{next_block}' for case '{case_id}': {e}")
+        logger.exception(f"Error marking block '{block_type}' as completed for case '{case_id}': {e}")
         try:
             connection.rollback()
         except:
@@ -579,18 +579,6 @@ def handler(event, context):
             return {"statusCode": 403}
         return _response(403, error_msg)
 
-    # Determine progression map
-    # Intake -> Legal Analysis -> (Contrarian, Policy)
-    progression_map = {
-        "intake": "legal_analysis",
-        "legal_analysis": ["contrarian", "policy"]
-    }
-    
-    next_step = progression_map.get(block_type)
-    if not next_step:
-        logger.info(f"No next step defined for block {block_type} or end of chain.")
-        return _response(200, {'unlocked': False, 'progress': 0, 'reasoning': 'End of progression chain.'})
-    
     session_id = f"{case_id}-{block_type}"
     chat_history = fetch_chat_history(session_id)
     
@@ -660,15 +648,9 @@ def handler(event, context):
         }
         
         if progress == 5:
-            logger.info(f"Progress is 5/5. Unlocking next steps: {next_step}")
-            # Unlock next block(s)
-            targets = next_step if isinstance(next_step, list) else [next_step]
-            unlocked_any = False
-            for target in targets:
-                if unlock_next_block(case_id, target):
-                    unlocked_any = True
-            
-            response_data["unlocked"] = unlocked_any
+            logger.info(f"Progress is 5/5. Marking current block as completed: {block_type}")
+            completed_marked = mark_block_completed(case_id, block_type)
+            response_data["unlocked"] = completed_marked
             
         if is_websocket and connection_id:
             send_to_websocket(connection_id, ws_endpoint, request_id, "complete", data=response_data)

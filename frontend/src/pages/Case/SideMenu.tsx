@@ -11,7 +11,7 @@ import {
 } from "@mui/material";
 import { useNavigate, useLocation } from "react-router-dom";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import LockIcon from "@mui/icons-material/Lock";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import EditNoteIcon from "@mui/icons-material/EditNote";
 
 const drawerWidth = 220;
@@ -19,14 +19,14 @@ const drawerWidth = 220;
 interface SideMenuProps {
   caseTitle: string;
   loading: boolean;
-  unlockedBlocks: string[];
+  completedBlocks: string[];
   onToggleNotepad: () => void;
 }
 
 const SideMenu: React.FC<SideMenuProps> = ({
   caseTitle,
   loading,
-  unlockedBlocks,
+  completedBlocks,
   onToggleNotepad,
 }) => {
   const navigate = useNavigate();
@@ -205,14 +205,13 @@ const SideMenu: React.FC<SideMenuProps> = ({
                   >
                     {item.subItems!.map((sub) => {
                       const isSubActive = location.pathname.includes(sub.path);
-                      const isLocked = !!(
-                        sub.blockType && !unlockedBlocks.includes(sub.blockType)
+                      const isCompleted = !!(
+                        sub.blockType && completedBlocks.includes(sub.blockType)
                       );
                       return (
                         <ListItem key={sub.text} disablePadding>
                           <ListItemButton
-                            disabled={isLocked}
-                            onClick={() => !isLocked && navigate(sub.path)}
+                            onClick={() => navigate(sub.path)}
                             sx={{
                               py: 0.5,
                               ml: 1,
@@ -222,9 +221,7 @@ const SideMenu: React.FC<SideMenuProps> = ({
                                 ? "var(--secondary)"
                                 : "transparent",
                               "&:hover": {
-                                backgroundColor: isLocked
-                                  ? "transparent"
-                                  : "var(--secondary)",
+                                backgroundColor: "var(--secondary)",
                               },
                             }}
                           >
@@ -237,19 +234,17 @@ const SideMenu: React.FC<SideMenuProps> = ({
                                     fontSize: "0.85rem",
                                     color: isSubActive
                                       ? "var(--primary)"
-                                      : isLocked
-                                        ? "var(--text-secondary)"
-                                        : "var(--text)",
+                                      : "var(--text)",
                                     opacity: isSubActive ? 1 : 0.8,
                                   },
                                 },
                               }}
                             />
-                            {isLocked && (
-                              <LockIcon
+                            {isCompleted && (
+                              <CheckCircleIcon
                                 sx={{
                                   fontSize: 14,
-                                  color: "var(--text-secondary)",
+                                  color: "var(--primary)",
                                   mr: 1,
                                 }}
                               />

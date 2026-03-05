@@ -228,8 +228,8 @@ def handler(event, context):
         cur = conn.cursor()
         logger.debug(f"Using user_id from context: {user_id}")
 
-        cur.execute('''INSERT INTO "cases"(student_id, case_title, case_type, jurisdiction, case_description, province, statute, status, unlocked_blocks, last_updated)
-                       VALUES (%s,%s,%s,%s,%s,%s,%s,'in_progress',ARRAY['intake']::block_type[],CURRENT_TIMESTAMP) RETURNING case_id''',
+        cur.execute('''INSERT INTO "cases"(student_id, case_title, case_type, jurisdiction, case_description, province, statute, status, completed_blocks, last_updated)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,'in_progress',ARRAY[]::block_type[],CURRENT_TIMESTAMP) RETURNING case_id''',
                     (user_id, case_title, case_type, jurisdiction, case_desc, province, statute))
         case_id = cur.fetchone()[0]
 

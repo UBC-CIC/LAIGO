@@ -50,6 +50,8 @@ BEDROCK_TEMP = 0.5
 BEDROCK_TOP_P = 0.9
 BEDROCK_MAX_TOKENS = 2048
 
+FULL_CASE_BLOCK_TYPES = ["intake", "legal_analysis", "contrarian", "policy"]
+
 
 
 
@@ -264,9 +266,9 @@ def get_case_details(case_id):
         connection.rollback()
         return None, None, None, None
 
-def get_unlocked_blocks(case_id):
+def get_completed_blocks(case_id):
     """
-    Retrieve list of unlocked blocks for a case.
+    Retrieve list of completed blocks for a case.
     """
     connection = connect_to_db()
     if connection is None:
@@ -275,7 +277,7 @@ def get_unlocked_blocks(case_id):
     try:
         cur = connection.cursor()
         cur.execute("""
-            SELECT unlocked_blocks FROM cases WHERE case_id = %s;
+            SELECT completed_blocks FROM cases WHERE case_id = %s;
         """, (case_id,))
         result = cur.fetchone()
         cur.close()
@@ -284,24 +286,24 @@ def get_unlocked_blocks(case_id):
             return result[0]
         return []
     except Exception as e:
-        logger.error(f"Error fetching unlocked blocks: {e}")
+        logger.error(f"Error fetching completed blocks: {e}")
         if cur:
             cur.close()
         connection.rollback()
         return []
 
-def get_latest_block_summaries(case_id, unlocked_blocks):
+def get_latest_block_summaries(case_id, block_types):
     """
-    Retrieve the most recent summary for each unlocked block.
+    Retrieve the most recent summary for each requested block type.
     """
     connection = connect_to_db()
-    if connection is None or not unlocked_blocks:
+    if connection is None or not block_types:
         return []
     
     summaries = []
     try:
         cur = connection.cursor()
-        # Fetch latest summary for each block type in unlocked_blocks
+        # Fetch latest summary for each requested block type
         # We process them one by one or via IN clause. 
         # Using specific query to get latest per block type.
         
@@ -315,7 +317,7 @@ def get_latest_block_summaries(case_id, unlocked_blocks):
             ORDER BY block_context, time_created DESC;
         """
         
-        cur.execute(query, (case_id, unlocked_blocks))
+        cur.execute(query, (case_id, block_types))
         rows = cur.fetchall()
         cur.close()
         
@@ -326,7 +328,7 @@ def get_latest_block_summaries(case_id, unlocked_blocks):
                 "title": row[2]
             })
             
-        return sorted(summaries, key=lambda x: unlocked_blocks.index(x['block_type']) if x['block_type'] in unlocked_blocks else 999)
+        return sorted(summaries, key=lambda x: block_types.index(x['block_type']) if x['block_type'] in block_types else 999)
 
     except Exception as e:
         logger.error(f"Error fetching block summaries: {e}")
@@ -544,22 +546,16 @@ def handler(event, context):
     # --- Full Case Summary Logic ---
     if sub_route == "full-case":
         logger.info(f"Generating full case summary for case_id: {case_id}")
-        
-        # 1. Get unlocked blocks
-        unlocked_blocks = get_unlocked_blocks(case_id)
-        if not unlocked_blocks:
-            return _error_response(400, "No blocks have been unlocked yet for this case.", is_websocket, connection_id, ws_endpoint, request_id)
-        
-        logger.info(f"Unlocked blocks: {unlocked_blocks}")
 
-        # 2. Get latest summaries for unlocked blocks
-        block_summaries = get_latest_block_summaries(case_id, unlocked_blocks)
+        # 1. Get latest summaries for the canonical interview blocks
+        block_summaries = get_latest_block_summaries(case_id, FULL_CASE_BLOCK_TYPES)
         if not block_summaries:
             return _error_response(400, "No block summaries found to synthesize. Please generate summaries for individual blocks first.", is_websocket, connection_id, ws_endpoint, request_id)
         
+        logger.info(f"Requested full-case blocks: {FULL_CASE_BLOCK_TYPES}")
         logger.info(f"Found {len(block_summaries)} block summaries to synthesize.")
 
-        # 3. Generate full case summary
+        # 2. Generate full case summary
         try:
             if is_websocket and connection_id:
                 # Streaming mode
@@ -588,7 +584,7 @@ def handler(event, context):
             publish_notification_event("full-case", case_id, user_id, success=False, error_message=str(e))
             return _error_response(500, 'Error generating full case summary', is_websocket, connection_id, ws_endpoint, request_id)
 
-        # 4. Save summary
+        # 3. Save summary
         try:
             update_summaries(case_id, response, None, scope='full_case')
         except Exception as e:
@@ -596,7 +592,7 @@ def handler(event, context):
             publish_notification_event("full-case", case_id, user_id, success=False, error_message=str(e))
             return _error_response(500, 'Error saving full case summary', is_websocket, connection_id, ws_endpoint, request_id)
         
-        # 5. Publish success notification event
+        # 4. Publish success notification event
         publish_notification_event("full-case", case_id, user_id, success=True)
         
         # Return response

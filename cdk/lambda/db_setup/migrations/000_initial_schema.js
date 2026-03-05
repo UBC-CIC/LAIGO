@@ -41,7 +41,7 @@ exports.up = (pgm) => {
       province varchar DEFAULT 'N/A',
       statute varchar DEFAULT 'N/A',
       status case_status DEFAULT 'in_progress',
-      unlocked_blocks block_type[],
+      completed_blocks block_type[],
       last_updated timestamptz DEFAULT now(),
       last_viewed timestamptz DEFAULT now(),
       time_submitted timestamptz,
