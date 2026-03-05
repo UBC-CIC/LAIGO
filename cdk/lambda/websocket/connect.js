@@ -1,69 +1,22 @@
 const { DynamoDBClient, PutItemCommand } = require("@aws-sdk/client-dynamodb");
-const postgres = require("postgres");
 
 const dynamodb = new DynamoDBClient({});
-let sqlConnection;
-
-/**
- * Initialize database connection using RDS Proxy
- */
-async function initializeDatabase() {
-  if (sqlConnection) return sqlConnection;
-
-  const secretsManager = require("@aws-sdk/client-secrets-manager");
-  const client = new secretsManager.SecretsManagerClient();
-
-  const response = await client.send(
-    new secretsManager.GetSecretValueCommand({
-      SecretId: process.env.SM_DB_CREDENTIALS,
-    })
-  );
-
-  const secret = JSON.parse(response.SecretString);
-
-  sqlConnection = postgres({
-    host: process.env.RDS_PROXY_ENDPOINT,
-    port: 5432,
-    database: secret.dbname,
-    username: secret.username,
-    password: secret.password,
-    ssl: "require",
-    max: 1,
-    idle_timeout: 20,
-    connect_timeout: 10,
-  });
-
-  return sqlConnection;
-}
 
 exports.handler = async (event) => {
   const connectionId = event.requestContext.connectionId;
-  const idpId = event.requestContext.authorizer?.idpId;
+  const userId = event.requestContext.authorizer?.userId;
+  const userEmail = event.requestContext.authorizer?.email;
 
   console.log("WebSocket connection established:", {
     connectionId,
-    idpId,
+    userId,
+    userEmail,
     timestamp: new Date().toISOString(),
   });
 
   // Store connection-to-user mapping in DynamoDB for notification targeting
-  if (idpId) {
+  if (userId) {
     try {
-      // Query database to get userId from idpId
-      const sql = await initializeDatabase();
-      const user = await sql`
-        SELECT user_id
-        FROM users
-        WHERE idp_id = ${idpId};
-      `;
-
-      if (user.length === 0) {
-        console.error("User not found for idpId:", idpId);
-        return { statusCode: 403, body: "User not found" };
-      }
-
-      const userId = user[0].user_id;
-
       const ttl = Math.floor(Date.now() / 1000) + 24 * 60 * 60; // 24 hours from now
       const connectedAt = new Date().toISOString();
 

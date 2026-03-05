@@ -561,19 +561,27 @@ export class ApiGatewayStack extends cdk.Stack {
       `${id}-admin-authorization-api-gateway`,
       {
         runtime: lambda.Runtime.NODEJS_22_X,
-        code: lambda.Code.fromAsset("lambda/adminAuthorizerFunction"),
+        code: lambda.Code.fromAsset("lambda/authorization"),
         handler: "adminAuthorizerFunction.handler",
         timeout: Duration.seconds(300),
-        vpc: vpcStack.vpc, // VPC access for database connectivity if needed
+        vpc: vpcStack.vpc, // VPC access for database connectivity
+        vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+        securityGroups: [db.dbInstance.connections.securityGroups[0]],
         environment: {
           SM_IDP_CREDENTIALS: this.secret.secretName, // IDP config from Secrets Manager (Cognito initially)
+          SM_DB_CREDENTIALS: db.secretPathUser.secretName, // Database credentials
+          RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint, // RDS Proxy endpoint
         },
         functionName: `${id}-adminLambdaAuthorizer`,
         memorySize: 512,
-        layers: [jwt], // JWT verification library
+        layers: [jwt, postgres], // JWT verification library + PostgreSQL client
         role: lambdaRole,
       },
     );
+
+    // Grant database access to admin authorizer
+    db.secretPathUser.grantRead(adminAuthorizationFunction);
+    db.dbInstance.grantConnect(adminAuthorizationFunction, "applicationUsername");
 
     // Grant API Gateway permission to invoke the admin authorizer
     adminAuthorizationFunction.grantInvoke(
@@ -592,19 +600,27 @@ export class ApiGatewayStack extends cdk.Stack {
       `${id}-student-authorization-api-gateway`,
       {
         runtime: lambda.Runtime.NODEJS_22_X,
-        code: lambda.Code.fromAsset("lambda/studentAuthorizerFunction"),
+        code: lambda.Code.fromAsset("lambda/authorization"),
         handler: "studentAuthorizerFunction.handler",
         timeout: Duration.seconds(300),
-        vpc: vpcStack.vpc, // VPC access for database connectivity if needed
-        memorySize: 512, // Lower memory since no VPC overhead
-        layers: [jwt], // JWT verification library
+        vpc: vpcStack.vpc, // VPC access for database connectivity
+        vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+        securityGroups: [db.dbInstance.connections.securityGroups[0]],
+        memorySize: 512,
+        layers: [jwt, postgres], // JWT verification library + PostgreSQL client
         role: lambdaRole,
         environment: {
           SM_IDP_CREDENTIALS: this.secret.secretName, // IDP config from Secrets Manager (Cognito initially)
+          SM_DB_CREDENTIALS: db.secretPathUser.secretName, // Database credentials
+          RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint, // RDS Proxy endpoint
         },
         functionName: `${id}-studentLambdaAuthorizer`,
       },
     );
+
+    // Grant database access to student authorizer
+    db.secretPathUser.grantRead(studentAuthFunction);
+    db.dbInstance.grantConnect(studentAuthFunction, "applicationUsername");
 
     // Grant API Gateway permission to invoke the student authorizer
     studentAuthFunction.grantInvoke(
@@ -625,19 +641,27 @@ export class ApiGatewayStack extends cdk.Stack {
       `${id}-instructor-authorization-api-gateway`,
       {
         runtime: lambda.Runtime.NODEJS_22_X,
-        code: lambda.Code.fromAsset("lambda/instructorAuthorizerFunction"),
+        code: lambda.Code.fromAsset("lambda/authorization"),
         handler: "instructorAuthorizerFunction.handler",
         timeout: Duration.seconds(300),
         vpc: vpcStack.vpc,
-        memorySize: 512, // Lower memory since no VPC overhead
-        layers: [jwt], // JWT verification library
+        vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+        securityGroups: [db.dbInstance.connections.securityGroups[0]],
+        memorySize: 512,
+        layers: [jwt, postgres], // JWT verification library + PostgreSQL client
         role: lambdaRole,
         environment: {
           SM_IDP_CREDENTIALS: this.secret.secretName, // IDP config from Secrets Manager (Cognito initially)
+          SM_DB_CREDENTIALS: db.secretPathUser.secretName, // Database credentials
+          RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint, // RDS Proxy endpoint
         },
         functionName: `${id}-instructorLambdaAuthorizer`,
       },
     );
+
+    // Grant database access to instructor authorizer
+    db.secretPathUser.grantRead(instructorAuthFunction);
+    db.dbInstance.grantConnect(instructorAuthFunction, "applicationUsername");
 
     // Grant API Gateway permission to invoke the instructor authorizer
     instructorAuthFunction.grantInvoke(
@@ -1847,7 +1871,8 @@ export class ApiGatewayStack extends cdk.Stack {
     // WebSocket API for Chat Streaming
     // ========================================
 
-    // Lambda for $connect route - validates JWT tokens and stores connection
+    // Lambda for $connect route - stores connection mapping
+    // No longer needs database access - receives userId from authorizer context
     const wsConnectFunction = new lambda.Function(
       this,
       `${id}-WsConnectFunction`,
@@ -1857,7 +1882,6 @@ export class ApiGatewayStack extends cdk.Stack {
         handler: "connect.handler",
         timeout: Duration.seconds(30),
         memorySize: 256,
-        layers: [jwt],
         functionName: `${id}-WsConnect`,
         environment: {
           CONNECTION_TABLE_NAME: connectionTable.tableName,
@@ -1871,13 +1895,15 @@ export class ApiGatewayStack extends cdk.Stack {
       `${id}-WsAuthorizerFunction`,
       {
         runtime: lambda.Runtime.NODEJS_22_X,
-        code: lambda.Code.fromAsset("lambda/websocket"),
-        handler: "authorizer.handler",
+        code: lambda.Code.fromAsset("lambda/authorization"),
+        handler: "wsAuthorizer.handler",
         timeout: Duration.seconds(10),
         memorySize: 256,
         layers: [jwt, postgres], // JWT verification and PostgreSQL client
         functionName: `${id}-WsAuthorizer`,
         vpc: vpcStack.vpc, // VPC access for database connectivity
+        vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+        securityGroups: [db.dbInstance.connections.securityGroups[0]],
         role: lambdaRole, // Use existing Lambda role with database permissions
         environment: {
           JWT_ISSUER_ID: this.userPool.userPoolId, // IDP-agnostic: Cognito User Pool ID initially
@@ -1887,6 +1913,10 @@ export class ApiGatewayStack extends cdk.Stack {
         },
       },
     );
+
+    // Grant database access to WebSocket authorizer
+    db.secretPathUser.grantRead(wsAuthorizerFunction);
+    db.dbInstance.grantConnect(wsAuthorizerFunction, "applicationUsername");
 
     // Lambda for $disconnect route - cleanup/logging
     const wsDisconnectFunction = new lambda.Function(
@@ -2089,6 +2119,7 @@ export class ApiGatewayStack extends cdk.Stack {
         timeout: Duration.seconds(30),
         memorySize: 512,
         functionName: `${id}-NotificationService`,
+        role: lambdaRole,
         environment: {
           NOTIFICATION_TABLE_NAME: notificationTable.tableName,
           CONNECTION_TABLE_NAME: connectionTable.tableName,

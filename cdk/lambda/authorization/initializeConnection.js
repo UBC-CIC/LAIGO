@@ -1,61 +1,65 @@
-// PostgreSQL client library
-const postgres = require("postgres");
-// AWS SDK imports for Secrets Manager
+/**
+ * Database Connection Module for Authorizers
+ * 
+ * Provides database connection initialization and user metadata lookup
+ * for Lambda authorizers. Implements execution context caching to avoid
+ * repeated database queries within the same Lambda invocation.
+ */
+
 const {
   SecretsManagerClient,
   GetSecretValueCommand,
 } = require("@aws-sdk/client-secrets-manager");
+const postgres = require("postgres");
 
-// Initialize Secrets Manager client for retrieving database credentials
 const secretsManager = new SecretsManagerClient();
 
 /**
- * Initialize PostgreSQL database connection using credentials from Secrets Manager
- * Creates a global connection object for reuse across Lambda invocations
- * @param {string} SM_DB_CREDENTIALS - Secrets Manager secret name containing DB credentials
- * @param {string} RDS_PROXY_ENDPOINT - RDS Proxy endpoint for database connection
+ * Initialize database connection for authorizer Lambda
+ * Reuses connection across invocations via global.sqlConnection
  */
-async function initializeConnection(SM_DB_CREDENTIALS, RDS_PROXY_ENDPOINT) {
-  let credentials;
+async function initializeConnection() {
+  if (global.sqlConnection) {
+    return global.sqlConnection;
+  }
+
+  const { SM_DB_CREDENTIALS, RDS_PROXY_ENDPOINT } = process.env;
+
+  if (!SM_DB_CREDENTIALS || !RDS_PROXY_ENDPOINT) {
+    throw new Error(
+      "Missing required environment variables: SM_DB_CREDENTIALS, RDS_PROXY_ENDPOINT"
+    );
+  }
+
   try {
-    // Retrieve database credentials from AWS Secrets Manager
+    // Retrieve database credentials from Secrets Manager
     const getSecretValueCommand = new GetSecretValueCommand({
       SecretId: SM_DB_CREDENTIALS,
     });
     const secretResponse = await secretsManager.send(getSecretValueCommand);
+    const credentials = JSON.parse(secretResponse.SecretString);
 
-    // Parse JSON credentials from secret
-    credentials = JSON.parse(secretResponse.SecretString);
-
-    console.log(`Connecting to database with user: ${credentials.username}`);
-
-    // Configure PostgreSQL connection parameters with SSL/TLS enforcement
-    const connectionConfig = {
-      host: RDS_PROXY_ENDPOINT, // Use RDS Proxy for connection pooling
-      port: credentials.port,
+    // Create PostgreSQL connection via RDS Proxy
+    global.sqlConnection = postgres({
+      host: RDS_PROXY_ENDPOINT,
+      port: 5432,
+      database: credentials.dbname,
       username: credentials.username,
       password: credentials.password,
-      database: credentials.dbname,
-      ssl: { rejectUnauthorized: false }, // Allow self-signed certificates from RDS Proxy
-    };
-
-    // Create PostgreSQL connection and store globally for reuse
-    global.sqlConnection = postgres(connectionConfig);
-
-    // Test connection with simple query
-    await global.sqlConnection`SELECT 1`;
-
-    console.log("Database connection initialized and tested successfully");
-  } catch (error) {
-    console.error("Error initializing database connection:", error);
-    console.error("Connection details:", {
-      host: RDS_PROXY_ENDPOINT,
-      username: credentials?.username,
-      database: credentials?.dbname,
+      ssl: "require",
+      max: 1, // Single connection per Lambda instance
+      idle_timeout: 20,
+      connect_timeout: 10,
     });
-    throw new Error(
-      `Failed to initialize database connection: ${error.message}`
-    );
+
+    console.log("Database connection initialized for authorizer");
+    return global.sqlConnection;
+  } catch (error) {
+    console.error("Database connection initialization failed", {
+      errorType: error.name,
+      errorMessage: error.message,
+    });
+    throw new Error("Failed to initialize database connection");
   }
 }
 

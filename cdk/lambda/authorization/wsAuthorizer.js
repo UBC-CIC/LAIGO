@@ -1,6 +1,63 @@
 const { CognitoJwtVerifier } = require("aws-jwt-verify");
+const { initializeConnection } = require("./initializeConnection");
 
 let jwtVerifier;
+
+// User metadata cache for Lambda execution context
+// Avoids repeated database queries within the same invocation
+let userMetadataCache = {};
+
+/**
+ * Query database to resolve idpId to userId and retrieve user metadata
+ * Implements execution context caching to avoid repeated queries
+ */
+async function getUserMetadataFromDatabase(idpId) {
+  // Check cache first
+  if (userMetadataCache[idpId]) {
+    console.log("Using cached user metadata", { idpId });
+    return userMetadataCache[idpId];
+  }
+
+  // Ensure database connection is initialized
+  if (!global.sqlConnection) {
+    await initializeConnection();
+  }
+
+  const sqlConnection = global.sqlConnection;
+
+  try {
+    // Query database by idp_id
+    const result = await sqlConnection`
+      SELECT user_id, user_email, first_name, last_name, roles
+      FROM users
+      WHERE idp_id = ${idpId};
+    `;
+
+    if (result.length === 0) {
+      throw new Error("User not found");
+    }
+
+    const user = {
+      user_id: result[0].user_id,
+      email: result[0].user_email,
+      first_name: result[0].first_name,
+      last_name: result[0].last_name,
+      roles: result[0].roles,
+    };
+
+    // Cache for this execution context
+    userMetadataCache[idpId] = user;
+
+    return user;
+  } catch (error) {
+    console.error("Database query failed", {
+      idpId,
+      errorType: error.name,
+      errorMessage: error.message,
+    });
+    throw error;
+  }
+}
 
 /**
  * Lambda Authorizer for WebSocket $connect route.
@@ -10,10 +67,11 @@ let jwtVerifier;
  * 1. Extracts JWT token from headers/query
  * 2. Verifies token signature and expiration
  * 3. Extracts "sub" claim as idpId
- * 4. Returns IAM policy with idpId in context (NO role/group validation)
+ * 4. Queries database to resolve idpId to userId
+ * 5. Returns IAM policy with userId and user metadata in context
  * 
  * Note: Authorization checks (role validation) are performed by WebSocket handlers
- * using database lookups, not JWT claims.
+ * using the userId from context, not JWT claims.
  */
 exports.handler = async (event) => {
   const methodArn = event.methodArn;
@@ -41,16 +99,33 @@ exports.handler = async (event) => {
     const decoded = await jwtVerifier.verify(token);
     const idpId = decoded.sub;
 
+    // Query database to resolve idpId to userId
+    let user;
+    try {
+      user = await getUserMetadataFromDatabase(idpId);
+    } catch (error) {
+      console.error("User lookup failed", {
+        idpId,
+        errorType: error.name,
+        errorMessage: error.message,
+        timestamp,
+      });
+      throw new Error("Unauthorized");
+    }
+
     console.log("WebSocket connection authorized", {
       timestamp,
-      idpId,
+      userId: user.user_id,
     });
 
     // Return IAM Policy allowing the connection
-    // Pass only idpId to downstream handlers via context
-    // Authorization checks (role validation) are performed by handlers using database lookups
-    return generatePolicy(idpId, "Allow", methodArn, {
-      idpId: idpId,
+    // Pass userId and user metadata to downstream handlers via context
+    return generatePolicy(user.user_id, "Allow", methodArn, {
+      userId: user.user_id,
+      email: user.email,
+      firstName: user.first_name || "",
+      lastName: user.last_name || "",
+      roles: JSON.stringify(user.roles), // API Gateway requires string values
     });
   } catch (error) {
     console.error("WebSocket authorizer: token validation failed", {

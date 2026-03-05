@@ -9,18 +9,9 @@ const {
   ApiGatewayManagementApiClient,
   PostToConnectionCommand,
 } = require("@aws-sdk/client-apigatewaymanagementapi");
-const {
-  SecretsManagerClient,
-  GetSecretValueCommand,
-} = require("@aws-sdk/client-secrets-manager");
 const { marshall, unmarshall } = require("@aws-sdk/util-dynamodb");
-const postgres = require("postgres");
 
 const dynamodb = new DynamoDBClient({});
-const secretsManager = new SecretsManagerClient({});
-
-// Database connection (initialized on first use)
-let sqlConnection;
 
 /**
  * Notification Service Lambda
@@ -60,57 +51,6 @@ exports.handler = async (event, context) => {
 };
 
 /**
- * Initialize database connection using RDS Proxy
- */
-async function initializeDatabase() {
-  if (sqlConnection) return sqlConnection;
-
-  const response = await secretsManager.send(
-    new GetSecretValueCommand({
-      SecretId: process.env.SM_DB_CREDENTIALS,
-    })
-  );
-
-  const secret = JSON.parse(response.SecretString);
-
-  sqlConnection = postgres({
-    host: process.env.RDS_PROXY_ENDPOINT,
-    port: 5432,
-    database: secret.dbname,
-    username: secret.username,
-    password: secret.password,
-    ssl: "require",
-    max: 2, // Notification service may need a few connections
-    idle_timeout: 20,
-    connect_timeout: 10,
-  });
-
-  return sqlConnection;
-}
-
-/**
- * Get database user_id from IDP identifier
- * @param {string} idpId - IDP user identifier (JWT sub claim)
- * @returns {Promise<string>} Database user_id
- * @throws {Error} If user not found
- */
-async function getUserIdFromIdpId(idpId) {
-  const sql = await initializeDatabase();
-
-  const user = await sql`
-    SELECT user_id
-    FROM users
-    WHERE idp_id = ${idpId};
-  `;
-
-  if (user.length === 0) {
-    throw new Error("User not found");
-  }
-
-  return user[0].user_id;
-}
-
-/**
  * Handle EventBridge notification events
  */
 async function handleEventBridgeEvent(event) {
@@ -137,26 +77,13 @@ async function handleEventBridgeEvent(event) {
  */
 async function handleRestApiRequest(event) {
   const { httpMethod, resource, pathParameters, queryStringParameters } = event;
-  const idpId = event.requestContext?.authorizer?.idpId;
+  const userId = event.requestContext?.authorizer?.userId;
 
-  if (!idpId) {
+  if (!userId) {
     return {
       statusCode: 401,
       headers: getCorsHeaders(),
       body: JSON.stringify({ error: "Unauthorized" }),
-    };
-  }
-
-  // Query database to get user_id from idp_id
-  let userId;
-  try {
-    userId = await getUserIdFromIdpId(idpId);
-  } catch (error) {
-    console.error("Error getting user_id from idp_id:", error);
-    return {
-      statusCode: 403,
-      headers: getCorsHeaders(),
-      body: JSON.stringify({ error: "User not found" }),
     };
   }
 

@@ -4,7 +4,6 @@ const {
   parseBody,
   handleError,
   getSqlConnection,
-  getUserMetadata,
 } = require("./utils/utils");
 
 const {
@@ -41,29 +40,29 @@ exports.handler = async (event) => {
 
   const sqlConnectionTableCreator = getSqlConnection();
 
-  // Extract idpId from authorization context and get user metadata
-  const idpId = event.requestContext?.authorizer?.idpId;
-  let currentUser;
-  
-  try {
-    currentUser = await getUserMetadata(idpId);
-  } catch (err) {
-    console.error("User metadata lookup failed:", err);
-    response.statusCode = 403;
-    response.body = JSON.stringify({
-      error: "User not found",
-    });
-    return response;
-  }
+  // Extract userId and user metadata from authorization context
+  const userId = event.requestContext?.authorizer?.userId;
+  const email = event.requestContext?.authorizer?.email;
+  const firstName = event.requestContext?.authorizer?.firstName;
+  const lastName = event.requestContext?.authorizer?.lastName;
+  const roles = JSON.parse(event.requestContext?.authorizer?.roles || "[]");
 
   // Verify user has admin role
-  if (!currentUser.roles.includes("admin")) {
+  if (!roles.includes("admin")) {
     response.statusCode = 403;
     response.body = JSON.stringify({
       error: "Forbidden: Admin access required",
     });
     return response;
   }
+
+  const currentUser = {
+    user_id: userId,
+    email,
+    first_name: firstName,
+    last_name: lastName,
+    roles,
+  };
 
   // Function to format student full names (lowercase and spaces replaced with "_")
   const formatNames = (name) => {

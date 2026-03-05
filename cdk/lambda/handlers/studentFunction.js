@@ -5,7 +5,6 @@ const {
   parseBody,
   handleError,
   getSqlConnection,
-  getUserMetadata,
 } = require("./utils/utils");
 let {
   SM_DB_CREDENTIALS,
@@ -28,10 +27,14 @@ let sqlConnection;
 exports.handler = async (event) => {
   console.log(event);
   
-  // Extract idpId from authorization context
-  const idpId = event.requestContext?.authorizer?.idpId || null;
+  // Extract userId and user metadata from authorization context
+  const userId = event.requestContext?.authorizer?.userId || null;
+  const email = event.requestContext?.authorizer?.email;
+  const firstName = event.requestContext?.authorizer?.firstName;
+  const lastName = event.requestContext?.authorizer?.lastName;
+  const roles = JSON.parse(event.requestContext?.authorizer?.roles || "[]");
   
-  if (!idpId) {
+  if (!userId) {
     const resp = createResponse();
     resp.statusCode = 401;
     resp.body = JSON.stringify({ error: "Unauthorized: Missing user identity" });
@@ -44,18 +47,14 @@ exports.handler = async (event) => {
   await initConnection();
   sqlConnection = getSqlConnection();
 
-  // Get user metadata from database
-  let user;
-  try {
-    user = await getUserMetadata(idpId);
-  } catch (error) {
-    if (error.message === "User not found") {
-      response.statusCode = 403;
-      response.body = JSON.stringify({ error: "User not found" });
-      return response;
-    }
-    throw error;
-  }
+  // Build user object from context
+  const user = {
+    user_id: userId,
+    email,
+    first_name: firstName,
+    last_name: lastName,
+    roles,
+  };
 
   // Extract user_id and email for use in queries
   const user_id = user.user_id;

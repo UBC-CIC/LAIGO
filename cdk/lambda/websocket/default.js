@@ -3,96 +3,41 @@ const {
   ApiGatewayManagementApiClient,
   PostToConnectionCommand,
 } = require("@aws-sdk/client-apigatewaymanagementapi");
-const postgres = require("postgres");
 
 const lambda = new LambdaClient({});
-
-// Lambda execution context cache for user metadata
-let userCache = {};
-let sqlConnection;
-
-/**
- * Initialize database connection using RDS Proxy
- */
-async function initializeDatabase() {
-  if (sqlConnection) return sqlConnection;
-
-  const secretsManager = require("@aws-sdk/client-secrets-manager");
-  const client = new secretsManager.SecretsManagerClient();
-
-  const response = await client.send(
-    new secretsManager.GetSecretValueCommand({
-      SecretId: process.env.SM_DB_CREDENTIALS,
-    })
-  );
-
-  const secret = JSON.parse(response.SecretString);
-
-  sqlConnection = postgres({
-    host: process.env.RDS_PROXY_ENDPOINT,
-    port: 5432,
-    database: secret.dbname,
-    username: secret.username,
-    password: secret.password,
-    ssl: "require",
-    max: 2, // Minimal connections for WebSocket handler
-    idle_timeout: 20,
-    connect_timeout: 10,
-  });
-
-  return sqlConnection;
-}
-
-/**
- * Get user metadata from database with caching
- * @param {string} idpId - IDP user identifier from JWT sub claim
- * @returns {Promise<Object>} User metadata including user_id, email, and roles
- */
-async function getUserMetadata(idpId) {
-  // Check cache first
-  if (userCache[idpId]) {
-    return userCache[idpId];
-  }
-
-  // Query database for user metadata
-  const sql = await initializeDatabase();
-  const user = await sql`
-    SELECT user_id, email, first_name, last_name, roles
-    FROM users
-    WHERE idp_id = ${idpId};
-  `;
-
-  if (user.length === 0) {
-    throw new Error(`User not found for idpId: ${idpId}`);
-  }
-
-  // Cache for this execution context
-  userCache[idpId] = user[0];
-  return user[0];
-}
 
 exports.handler = async (event) => {
   const connectionId = event.requestContext.connectionId;
   const domainName = event.requestContext.domainName;
   const stage = event.requestContext.stage;
 
-  // Extract idpId from authorization context (passed from authorizer)
-  const idpId = event.requestContext.authorizer?.idpId;
+  // Extract userId and user metadata from authorization context (passed from authorizer)
+  const userId = event.requestContext.authorizer?.userId;
+  const email = event.requestContext.authorizer?.email;
+  const firstName = event.requestContext.authorizer?.firstName;
+  const lastName = event.requestContext.authorizer?.lastName;
+  const roles = JSON.parse(event.requestContext.authorizer?.roles || "[]");
 
   console.log("WebSocket message received:", {
     connectionId,
     routeKey: event.requestContext.routeKey,
     timestamp: new Date().toISOString(),
-    idpId,
+    userId,
   });
 
   try {
-    // Get user metadata from database using idpId
-    const user = await getUserMetadata(idpId);
-    const userId = user.user_id;
+    // Build user object from context
+    const user = {
+      user_id: userId,
+      email,
+      first_name: firstName,
+      last_name: lastName,
+      roles,
+    };
+
     const userEmail = user.email;
 
-    // Check roles from database (not JWT groups)
+    // Check roles from context
     const isAdmin = user.roles.includes("admin");
     const isInstructor = user.roles.includes("instructor");
     const isStaff = isAdmin || isInstructor;

@@ -4,7 +4,6 @@ const {
   parseBody,
   handleError,
   getSqlConnection,
-  getUserMetadata,
 } = require("./utils/utils");
 
 const {
@@ -79,7 +78,6 @@ async function publishFeedbackNotificationEvent(
 
 exports.handler = async (event) => {
   const response = createResponse();
-  const idpId = event.requestContext.authorizer.idpId;
 
   // Initialize the database connection if not already initialized
   try {
@@ -93,18 +91,20 @@ exports.handler = async (event) => {
     return response;
   }
 
-  // Get user metadata from database
-  let user;
-  try {
-    user = await getUserMetadata(idpId);
-  } catch (error) {
-    if (error.message === "User not found") {
-      response.statusCode = 403;
-      response.body = JSON.stringify({ error: "User not found" });
-      return response;
-    }
-    throw error;
-  }
+  // Extract userId and user metadata from authorization context
+  const userId = event.requestContext?.authorizer?.userId;
+  const email = event.requestContext?.authorizer?.email;
+  const firstName = event.requestContext?.authorizer?.firstName;
+  const lastName = event.requestContext?.authorizer?.lastName;
+  const roles = JSON.parse(event.requestContext?.authorizer?.roles || "[]");
+
+  const user = {
+    user_id: userId,
+    email,
+    first_name: firstName,
+    last_name: lastName,
+    roles,
+  };
 
   const sqlConnection = getSqlConnection();
 
