@@ -49,7 +49,7 @@ exports.handler = async (event) => {
 
     // Check if user already exists in database
     const existingUser = await sqlConnection`
-      SELECT * FROM "users" WHERE idp_id = ${idpId} OR email = ${email};
+      SELECT * FROM "users" WHERE idp_id = ${idpId} OR user_email = ${email};
     `;
 
     if (existingUser.length > 0) {
@@ -62,18 +62,27 @@ exports.handler = async (event) => {
           last_name = ${lastName},
           last_sign_in = CURRENT_TIMESTAMP,
           idp_id = ${idpId}
-        WHERE email = ${email}
+        WHERE user_email = ${email}
         RETURNING *;
       `;
       
       console.log(`User ${email} updated in database`);
       
     } else {
-      // Create new user with default 'student' role
-      console.log("Creating new user in database");
+      // Check if this is the first user in the system
+      const userCount = await sqlConnection`
+        SELECT COUNT(*) as count FROM "users";
+      `;
+      
+      const isFirstUser = parseInt(userCount[0].count, 10) === 0;
+      const defaultRole = isFirstUser ? 'admin' : 'student';
+      
+      console.log(`Creating new user in database with role: ${defaultRole} (first user: ${isFirstUser})`);
+      
+      // Create new user with admin role if first user, otherwise student
       const newUser = await sqlConnection`
-        INSERT INTO "users" (idp_id, email, first_name, last_name, time_account_created, roles, last_sign_in)
-        VALUES (${idpId}, ${email}, ${firstName}, ${lastName}, CURRENT_TIMESTAMP, ARRAY['student']::user_role[], CURRENT_TIMESTAMP)
+        INSERT INTO "users" (idp_id, user_email, first_name, last_name, time_account_created, roles, last_sign_in)
+        VALUES (${idpId}, ${email}, ${firstName}, ${lastName}, CURRENT_TIMESTAMP, ARRAY[${defaultRole}]::user_role[], CURRENT_TIMESTAMP)
         RETURNING *;
       `;
       
