@@ -3,34 +3,99 @@ const {
   ApiGatewayManagementApiClient,
   PostToConnectionCommand,
 } = require("@aws-sdk/client-apigatewaymanagementapi");
+const postgres = require("postgres");
 
 const lambda = new LambdaClient({});
+
+// Lambda execution context cache for user metadata
+let userCache = {};
+let sqlConnection;
+
+/**
+ * Initialize database connection using RDS Proxy
+ */
+async function initializeDatabase() {
+  if (sqlConnection) return sqlConnection;
+
+  const secretsManager = require("@aws-sdk/client-secrets-manager");
+  const client = new secretsManager.SecretsManagerClient();
+
+  const response = await client.send(
+    new secretsManager.GetSecretValueCommand({
+      SecretId: process.env.SM_DB_CREDENTIALS,
+    })
+  );
+
+  const secret = JSON.parse(response.SecretString);
+
+  sqlConnection = postgres({
+    host: process.env.RDS_PROXY_ENDPOINT,
+    port: 5432,
+    database: secret.dbname,
+    username: secret.username,
+    password: secret.password,
+    ssl: "require",
+    max: 2, // Minimal connections for WebSocket handler
+    idle_timeout: 20,
+    connect_timeout: 10,
+  });
+
+  return sqlConnection;
+}
+
+/**
+ * Get user metadata from database with caching
+ * @param {string} userId - Database user_id (UUID)
+ * @returns {Promise<Object>} User metadata including roles
+ */
+async function getUserMetadata(userId) {
+  // Check cache first
+  if (userCache[userId]) {
+    return userCache[userId];
+  }
+
+  // Query database for user metadata
+  const sql = await initializeDatabase();
+  const user = await sql`
+    SELECT user_id, email, first_name, last_name, roles
+    FROM users
+    WHERE user_id = ${userId};
+  `;
+
+  if (user.length === 0) {
+    throw new Error("User not found");
+  }
+
+  // Cache for this execution context
+  userCache[userId] = user[0];
+  return user[0];
+}
 
 exports.handler = async (event) => {
   const connectionId = event.requestContext.connectionId;
   const domainName = event.requestContext.domainName;
   const stage = event.requestContext.stage;
 
-  // Extract user identity from authorizer context
-  const cognitoId = event.requestContext.authorizer?.principalId;
-  const userEmail = event.requestContext.authorizer?.email;
-  const userGroups = (event.requestContext.authorizer?.groups || "")
-    .split(",")
-    .filter((g) => g.length > 0);
-
-  const isAdmin = userGroups.includes("admin");
-  const isInstructor = userGroups.includes("instructor");
-  const isStaff = isAdmin || isInstructor;
+  // Extract user_id from authorization context (passed from authorizer)
+  const userId = event.requestContext.authorizer?.userId;
 
   console.log("WebSocket message received:", {
     connectionId,
     routeKey: event.requestContext.routeKey,
     timestamp: new Date().toISOString(),
-    cognitoId,
-    userEmail,
+    userId,
   });
 
   try {
+    // Get user metadata from database
+    const user = await getUserMetadata(userId);
+    const userEmail = user.email;
+
+    // Check roles from database (not JWT groups)
+    const isAdmin = user.roles.includes("admin");
+    const isInstructor = user.roles.includes("instructor");
+    const isStaff = isAdmin || isInstructor;
+
     const body = JSON.parse(event.body);
     const { action, requestId } = body;
 
@@ -56,14 +121,14 @@ exports.handler = async (event) => {
       console.log("Invoking text generation:", {
         case_id,
         sub_route,
-        cognitoId,
+        userId,
         requestId,
         messageLength: message_content?.length || 0,
       });
 
       const textGenPayload = {
         isWebSocket: true,
-        cognitoId: cognitoId,
+        userId: userId,
         requestId: requestId, // Pass request ID for response correlation
         queryStringParameters: {
           case_id: case_id,
@@ -108,8 +173,9 @@ exports.handler = async (event) => {
       // RBAC Check: Only admin and instructor can use playground features
       if (!isStaff) {
         console.warn("Unauthorized playground access attempt", {
-          cognitoId,
-          userGroups,
+          userId,
+          userEmail,
+          roles: user.roles,
         });
         return {
           statusCode: 403,
@@ -122,14 +188,14 @@ exports.handler = async (event) => {
       console.log("Invoking playground test:", {
         block_type,
         session_id,
-        cognitoId,
+        userId,
         requestId,
         model_id,
       });
 
       const playgroundPayload = {
         isWebSocket: true,
-        cognitoId: cognitoId,
+        userId: userId,
         requestId: requestId,
         queryStringParameters: {
           playground_mode: "true",
@@ -172,13 +238,13 @@ exports.handler = async (event) => {
       console.log("Invoking assess_progress:", {
         case_id,
         block_type,
-        cognitoId,
+        userId,
         requestId,
       });
 
       const assessPayload = {
         isWebSocket: true,
-        cognitoId: cognitoId,
+        userId: userId,
         requestId: requestId,
         body: JSON.stringify({ case_id, block_type }),
         requestContext: {
@@ -207,8 +273,9 @@ exports.handler = async (event) => {
       // RBAC Check: Only admin and instructor can use playground features
       if (!isStaff) {
         console.warn("Unauthorized playground assessment attempt", {
-          cognitoId,
-          userGroups,
+          userId,
+          userEmail,
+          roles: user.roles,
         });
         return {
           statusCode: 403,
@@ -221,13 +288,13 @@ exports.handler = async (event) => {
       console.log("Invoking playground_assess:", {
         block_type,
         session_id,
-        cognitoId,
+        userId,
         requestId,
       });
 
       const playgroundAssessPayload = {
         isWebSocket: true,
-        cognitoId: cognitoId,
+        userId: userId,
         requestId: requestId,
         body: JSON.stringify({
           playground_mode: true,
@@ -261,13 +328,13 @@ exports.handler = async (event) => {
       console.log("Invoking generate_summary:", {
         case_id,
         sub_route,
-        cognitoId,
+        userId,
         requestId,
       });
 
       const summaryPayload = {
         isWebSocket: true,
-        cognitoId: cognitoId,
+        userId: userId,
         requestId: requestId,
         queryStringParameters: {
           case_id: case_id,
@@ -301,13 +368,13 @@ exports.handler = async (event) => {
         file_name,
         file_type,
         case_id,
-        cognitoId,
+        userId,
         requestId,
       });
 
       const audioPayload = {
         isWebSocket: true,
-        cognitoId: cognitoId,
+        userId: userId,
         requestId: requestId,
         body: JSON.stringify({
           audio_file_id,
@@ -341,6 +408,15 @@ exports.handler = async (event) => {
     };
   } catch (error) {
     console.error("Error processing WebSocket message:", error);
+    
+    // Handle user not found error
+    if (error.message === "User not found") {
+      return {
+        statusCode: 403,
+        body: JSON.stringify({ error: "User not found" }),
+      };
+    }
+    
     return {
       statusCode: 500,
       body: JSON.stringify({ error: "Internal server error" }),

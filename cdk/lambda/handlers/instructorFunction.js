@@ -4,28 +4,29 @@ const {
   parseBody,
   handleError,
   getSqlConnection,
+  getUserMetadata,
 } = require("./utils/utils");
 
-const {
-  CognitoIdentityProviderClient,
-  AdminGetUserCommand,
-} = require("@aws-sdk/client-cognito-identity-provider");
 const {
   EventBridgeClient,
   PutEventsCommand,
 } = require("@aws-sdk/client-eventbridge");
 
-let { USER_POOL } = process.env;
-
 const eventBridgeClient = new EventBridgeClient({});
 
 /**
  * Publish feedback notification event to EventBridge
+ * @param {string} caseId - Case ID
+ * @param {string} studentUserId - Database user_id of the student (not idp_id)
+ * @param {string} instructorIdpId - IDP ID of the instructor
+ * @param {string} messageContent - Feedback message content
+ * @param {string} caseTitle - Case title
+ * @param {string} instructorName - Instructor's full name
  */
 async function publishFeedbackNotificationEvent(
   caseId,
-  studentId,
-  instructorId,
+  studentUserId, // Database user_id
+  instructorIdpId,
   messageContent,
   caseTitle,
   instructorName,
@@ -41,19 +42,19 @@ async function publishFeedbackNotificationEvent(
 
     const eventDetail = {
       type: "feedback",
-      recipientId: studentId,
+      recipientId: studentUserId, // Database user_id
       title: `Feedback from ${instructorName} on ${caseTitle}`,
       message: messageContent,
       metadata: {
         caseId: caseId,
         caseName: caseTitle,
-        instructorId: instructorId,
+        instructorId: instructorIdpId,
         instructorName: instructorName,
         feedbackPreview:
           messageContent.substring(0, 100) +
           (messageContent.length > 100 ? "..." : ""),
       },
-      createdBy: instructorId,
+      createdBy: instructorIdpId,
     };
 
     const response = await eventBridgeClient.send(
@@ -78,34 +79,7 @@ async function publishFeedbackNotificationEvent(
 
 exports.handler = async (event) => {
   const response = createResponse();
-  const cognito_id = event.requestContext.authorizer.userId;
-  const client = new CognitoIdentityProviderClient();
-  const userAttributesCommand = new AdminGetUserCommand({
-    UserPoolId: USER_POOL,
-    Username: cognito_id,
-  });
-  const userAttributesResponse = await client.send(userAttributesCommand);
-
-  const emailAttr = userAttributesResponse.UserAttributes.find(
-    (attr) => attr.Name === "email",
-  );
-  const userEmailAttribute = emailAttr ? emailAttr.Value : null;
-
-  // Check for query string parameters
-
-  const queryStringParams = event.queryStringParameters || {};
-  const queryEmail = queryStringParams.email;
-  const instructorEmail = queryStringParams.instructor_email;
-
-  const isUnauthorized =
-    (queryEmail && queryEmail !== userEmailAttribute) ||
-    (instructorEmail && instructorEmail !== userEmailAttribute);
-
-  if (isUnauthorized) {
-    response.statusCode = 401;
-    response.body = JSON.stringify({ error: "Unauthorized" });
-    return response;
-  }
+  const idpId = event.requestContext.authorizer.idpId;
 
   // Initialize the database connection if not already initialized
   try {
@@ -119,6 +93,19 @@ exports.handler = async (event) => {
     return response;
   }
 
+  // Get user metadata from database
+  let user;
+  try {
+    user = await getUserMetadata(idpId);
+  } catch (error) {
+    if (error.message === "User not found") {
+      response.statusCode = 403;
+      response.body = JSON.stringify({ error: "User not found" });
+      return response;
+    }
+    throw error;
+  }
+
   const sqlConnection = getSqlConnection();
 
   try {
@@ -126,23 +113,10 @@ exports.handler = async (event) => {
 
     switch (pathData) {
       case "GET /instructor/students":
-        // SECURITY: Use trusted cognito_id from authorizer
         try {
-          // First, get the user_id using trusted cognito_id from authorizer
-          const userResult = await sqlConnection`
-            SELECT user_id FROM "users" WHERE cognito_id = ${cognito_id};
-          `;
+          const userId = user.user_id;
 
-          if (userResult.length === 0) {
-            response = buildResponse(404, {
-              error: "Instructor user not found",
-            });
-            break;
-          }
-
-          const userId = userResult[0].user_id;
-
-          // Now, fetch the student details
+          // Fetch the student details
           const data = await sqlConnection`
             SELECT u.student_id, u.first_name, u.last_name 
             FROM "instructor_students" i
@@ -158,20 +132,8 @@ exports.handler = async (event) => {
         break;
 
       case "GET /instructor/cases_to_review":
-        // SECURITY: Use trusted cognito_id from authorizer
         try {
-          const userIdResult = await sqlConnection`
-            SELECT user_id FROM "users" WHERE cognito_id = ${cognito_id};
-          `;
-
-          if (userIdResult.length === 0) {
-            response = buildResponse(404, {
-              error: "Instructor user not found",
-            });
-            break;
-          }
-
-          const instructorUserId = userIdResult[0].user_id;
+          const instructorUserId = user.user_id;
 
           // Query to get cases explicitly assigned to this instructor for review
           const data = await sqlConnection`
@@ -220,24 +182,12 @@ exports.handler = async (event) => {
         }
 
         try {
-          // Get instructor user_id and name using trusted cognito_id from authorizer
-          const user = await sqlConnection`
-            SELECT user_id, first_name, last_name FROM "users" WHERE cognito_id = ${cognito_id};
-          `;
+          const user_id = user.user_id;
+          const instructorName = `${user.first_name} ${user.last_name}`;
 
-          if (user.length === 0) {
-            response.statusCode = 404;
-            response.body = JSON.stringify({
-              error: "Instructor user not found",
-            });
-            break;
-          }
-          const user_id = user[0].user_id;
-          const instructorName = `${user[0].first_name} ${user[0].last_name}`;
-
-          // Get student_id, cognito_id, and case_title from the case and user tables
+          // Get student_id, idp_id, and case_title from the case and user tables
           const caseResult = await sqlConnection`
-            SELECT c.student_id, c.case_title, u.cognito_id 
+            SELECT c.student_id, c.case_title, u.idp_id 
             FROM "cases" c
             JOIN "users" u ON c.student_id = u.user_id
             WHERE c.case_id = ${case_id};
@@ -251,7 +201,7 @@ exports.handler = async (event) => {
             break;
           }
           const student_id = caseResult[0].student_id;
-          const student_cognito_id = caseResult[0].cognito_id;
+          const student_idp_id = caseResult[0].idp_id;
           const case_title = caseResult[0].case_title;
 
           // Insert message
@@ -280,11 +230,11 @@ exports.handler = async (event) => {
             WHERE case_id = ${case_id};
           `;
 
-          // Publish feedback notification event using student's cognito_id
+          // Publish feedback notification event using student's database user_id
           await publishFeedbackNotificationEvent(
             case_id,
-            student_cognito_id,
-            cognito_id,
+            student_id, // Database user_id, not idp_id
+            idpId,
             message_content,
             case_title,
             instructorName,
@@ -326,22 +276,10 @@ exports.handler = async (event) => {
         break;
 
       case "GET /instructor/view_students":
-        // SECURITY: Use trusted cognito_id from authorizer
         try {
-          // Step 1: Get the instructor's user_id using trusted cognito_id
-          const userIdResult = await sqlConnection`
-            SELECT user_id FROM "users" WHERE cognito_id = ${cognito_id};
-          `;
+          const instructorId = user.user_id;
 
-          if (userIdResult.length === 0) {
-            response = buildResponse(404, {
-              error: "Instructor user not found",
-            });
-            break;
-          }
-          const instructorId = userIdResult[0].user_id;
-
-          // Step 2: Get student_ids associated with the instructor
+          // Get student_ids associated with the instructor
           const studentIdsResult = await sqlConnection`
             SELECT student_id FROM "instructor_students" WHERE instructor_id = ${instructorId};
           `;
@@ -353,7 +291,7 @@ exports.handler = async (event) => {
             break;
           }
 
-          // Step 3: Get cases and student names
+          // Get cases and student names
           const cases = await sqlConnection`
             SELECT 
               c.*, 
@@ -422,17 +360,7 @@ exports.handler = async (event) => {
         }
         const deleteCaseId = event.queryStringParameters.case_id;
         try {
-          // Get instructor user_id from cognito_id
-          const userResult = await sqlConnection`
-            SELECT user_id FROM "users" WHERE cognito_id = ${cognito_id};
-          `;
-          if (userResult.length === 0) {
-            response = buildResponse(404, {
-              error: "Instructor user not found",
-            });
-            break;
-          }
-          const instructorId = userResult[0].user_id;
+          const instructorId = user.user_id;
 
           // Get case owner
           const caseResult = await sqlConnection`
@@ -488,18 +416,7 @@ exports.handler = async (event) => {
         }
         const archiveCaseId = event.queryStringParameters.case_id;
         try {
-          // Get instructor user_id from cognito_id
-          const userResult = await sqlConnection`
-            SELECT user_id FROM "users" WHERE cognito_id = ${cognito_id};
-          `;
-          if (userResult.length === 0) {
-            response.statusCode = 404;
-            response.body = JSON.stringify({
-              error: "Instructor user not found",
-            });
-            break;
-          }
-          const instructorId = userResult[0].user_id;
+          const instructorId = user.user_id;
 
           // Get case owner
           const caseResult = await sqlConnection`
@@ -557,18 +474,7 @@ exports.handler = async (event) => {
         }
         const unarchiveCaseId = event.queryStringParameters.case_id;
         try {
-          // Get instructor user_id from cognito_id
-          const userResult = await sqlConnection`
-            SELECT user_id FROM "users" WHERE cognito_id = ${cognito_id};
-          `;
-          if (userResult.length === 0) {
-            response.statusCode = 404;
-            response.body = JSON.stringify({
-              error: "Instructor user not found",
-            });
-            break;
-          }
-          const instructorId = userResult[0].user_id;
+          const instructorId = user.user_id;
 
           // Get case owner
           const caseResult = await sqlConnection`
@@ -626,17 +532,7 @@ exports.handler = async (event) => {
         }
         const deleteMessageId = event.queryStringParameters.message_id;
         try {
-          // Get instructor user_id from cognito_id
-          const userResult = await sqlConnection`
-            SELECT user_id FROM "users" WHERE cognito_id = ${cognito_id};
-          `;
-          if (userResult.length === 0) {
-            response = buildResponse(404, {
-              error: "Instructor user not found",
-            });
-            break;
-          }
-          const instructorId = userResult[0].user_id;
+          const instructorId = user.user_id;
 
           // Get message and its author
           const messageResult = await sqlConnection`

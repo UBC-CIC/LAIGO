@@ -9,9 +9,18 @@ const {
   ApiGatewayManagementApiClient,
   PostToConnectionCommand,
 } = require("@aws-sdk/client-apigatewaymanagementapi");
+const {
+  SecretsManagerClient,
+  GetSecretValueCommand,
+} = require("@aws-sdk/client-secrets-manager");
 const { marshall, unmarshall } = require("@aws-sdk/util-dynamodb");
+const postgres = require("postgres");
 
 const dynamodb = new DynamoDBClient({});
+const secretsManager = new SecretsManagerClient({});
+
+// Database connection (initialized on first use)
+let sqlConnection;
 
 /**
  * Notification Service Lambda
@@ -51,6 +60,57 @@ exports.handler = async (event, context) => {
 };
 
 /**
+ * Initialize database connection using RDS Proxy
+ */
+async function initializeDatabase() {
+  if (sqlConnection) return sqlConnection;
+
+  const response = await secretsManager.send(
+    new GetSecretValueCommand({
+      SecretId: process.env.SM_DB_CREDENTIALS,
+    })
+  );
+
+  const secret = JSON.parse(response.SecretString);
+
+  sqlConnection = postgres({
+    host: process.env.RDS_PROXY_ENDPOINT,
+    port: 5432,
+    database: secret.dbname,
+    username: secret.username,
+    password: secret.password,
+    ssl: "require",
+    max: 2, // Notification service may need a few connections
+    idle_timeout: 20,
+    connect_timeout: 10,
+  });
+
+  return sqlConnection;
+}
+
+/**
+ * Get database user_id from IDP identifier
+ * @param {string} idpId - IDP user identifier (JWT sub claim)
+ * @returns {Promise<string>} Database user_id
+ * @throws {Error} If user not found
+ */
+async function getUserIdFromIdpId(idpId) {
+  const sql = await initializeDatabase();
+
+  const user = await sql`
+    SELECT user_id
+    FROM users
+    WHERE idp_id = ${idpId};
+  `;
+
+  if (user.length === 0) {
+    throw new Error("User not found");
+  }
+
+  return user[0].user_id;
+}
+
+/**
  * Handle EventBridge notification events
  */
 async function handleEventBridgeEvent(event) {
@@ -59,7 +119,7 @@ async function handleEventBridgeEvent(event) {
 
   console.log("Processing EventBridge event:", {
     eventType,
-    recipientId: detail.recipientId,
+    recipientId: detail.recipientId, // Database user_id
     notificationType: detail.type,
   });
 
@@ -77,13 +137,26 @@ async function handleEventBridgeEvent(event) {
  */
 async function handleRestApiRequest(event) {
   const { httpMethod, resource, pathParameters, queryStringParameters } = event;
-  const userId = event.requestContext?.authorizer?.principalId;
+  const idpId = event.requestContext?.authorizer?.idpId;
 
-  if (!userId) {
+  if (!idpId) {
     return {
       statusCode: 401,
       headers: getCorsHeaders(),
       body: JSON.stringify({ error: "Unauthorized" }),
+    };
+  }
+
+  // Query database to get user_id from idp_id
+  let userId;
+  try {
+    userId = await getUserIdFromIdpId(idpId);
+  } catch (error) {
+    console.error("Error getting user_id from idp_id:", error);
+    return {
+      statusCode: 403,
+      headers: getCorsHeaders(),
+      body: JSON.stringify({ error: "User not found" }),
     };
   }
 
@@ -125,11 +198,18 @@ async function handleRestApiRequest(event) {
 
 /**
  * Create a new notification record in DynamoDB
+ * @param {Object} eventDetail - Event detail from EventBridge
+ * @param {string} eventDetail.recipientId - Database user_id (not idp_id or cognito_id)
+ * @param {string} eventDetail.type - Notification type
+ * @param {string} eventDetail.title - Notification title
+ * @param {string} eventDetail.message - Notification message
+ * @param {Object} eventDetail.metadata - Additional metadata
+ * @param {string} eventDetail.createdBy - User ID of creator (optional)
  */
 async function createNotification(eventDetail) {
   const {
     type,
-    recipientId,
+    recipientId, // Database user_id
     title,
     message,
     metadata = {},
@@ -141,12 +221,12 @@ async function createNotification(eventDetail) {
   const ttl = Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60; // 30 days
 
   const notification = {
-    PK: `USER#${recipientId}`,
+    PK: `USER#${recipientId}`, // Database user_id
     SK: `NOTIFICATION#${timestamp}#${notificationId}`,
     GSI1PK: `NOTIFICATION#${notificationId}`,
-    GSI1SK: `USER#${recipientId}`,
+    GSI1SK: `USER#${recipientId}`, // Database user_id
     notificationId,
-    userId: recipientId,
+    userId: recipientId, // Database user_id
     type,
     title,
     message,
@@ -167,7 +247,7 @@ async function createNotification(eventDetail) {
 
   console.log("Notification created:", {
     notificationId,
-    userId: recipientId,
+    userId: recipientId, // Database user_id
     type,
   });
 
@@ -176,9 +256,11 @@ async function createNotification(eventDetail) {
 
 /**
  * Deliver notification to user via WebSocket if they're online
+ * @param {Object} notification - Notification object
+ * @param {string} notification.userId - Database user_id (not idp_id or cognito_id)
  */
 async function deliverNotificationViaWebSocket(notification) {
-  const userId = notification.userId;
+  const userId = notification.userId; // Database user_id
 
   try {
     // Get active connections for the user
@@ -243,6 +325,8 @@ async function deliverNotificationViaWebSocket(notification) {
 
 /**
  * Get active WebSocket connections for a user
+ * @param {string} userId - Database user_id (not idp_id or cognito_id)
+ * @returns {Promise<Array>} Array of connection objects
  */
 async function getUserConnections(userId) {
   try {
@@ -252,7 +336,7 @@ async function getUserConnections(userId) {
         IndexName: "GSI1",
         KeyConditionExpression: "GSI1PK = :pk",
         ExpressionAttributeValues: {
-          ":pk": { S: `USER#${userId}` },
+          ":pk": { S: `USER#${userId}` }, // Database user_id
         },
       }),
     );
@@ -266,6 +350,8 @@ async function getUserConnections(userId) {
 
 /**
  * Clean up stale WebSocket connection
+ * @param {string} connectionId - WebSocket connection ID
+ * @param {string} userId - Database user_id (not idp_id or cognito_id)
  */
 async function cleanupStaleConnection(connectionId, userId) {
   try {
@@ -274,7 +360,7 @@ async function cleanupStaleConnection(connectionId, userId) {
         TableName: process.env.CONNECTION_TABLE_NAME,
         Key: marshall({
           PK: `CONNECTION#${connectionId}`,
-          SK: `USER#${userId}`,
+          SK: `USER#${userId}`, // Database user_id
         }),
       }),
     );

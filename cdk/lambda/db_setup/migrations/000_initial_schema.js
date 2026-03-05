@@ -12,7 +12,7 @@ exports.up = (pgm) => {
     -- Create tables
     CREATE TABLE users (
       user_id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
-      cognito_id varchar,
+      idp_id uuid,
       user_email varchar UNIQUE NOT NULL,
       username varchar,
       first_name varchar,
@@ -22,8 +22,13 @@ exports.up = (pgm) => {
       last_sign_in timestamptz DEFAULT now(),
       activity_counter integer DEFAULT 0,
       last_activity timestamptz DEFAULT now(),
-      accepted_disclaimer boolean DEFAULT false
+      accepted_disclaimer boolean DEFAULT false,
+      metadata jsonb DEFAULT '{}'::jsonb
     );
+
+    -- Indexes for efficient lookups
+    CREATE INDEX idx_users_email ON users(user_email);
+    CREATE INDEX idx_users_idp_id ON users(idp_id) WHERE idp_id IS NOT NULL;
 
     CREATE TABLE cases (
       case_id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -175,6 +180,8 @@ exports.down = (pgm) => {
     DROP INDEX IF EXISTS ux_disclaimers_one_active;
     DROP INDEX IF EXISTS idx_messages_case_id;
     DROP INDEX IF EXISTS idx_messages_instructor_id;
+    DROP INDEX IF EXISTS idx_users_email;
+    DROP INDEX IF EXISTS idx_users_idp_id;
 
     DROP TYPE IF EXISTS summary_scope;
     DROP TYPE IF EXISTS prompt_category;

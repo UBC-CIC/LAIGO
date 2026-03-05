@@ -259,12 +259,13 @@ export class ApiGatewayStack extends cdk.Stack {
       },
     );
 
-    // Store Cognito configuration in Secrets Manager for frontend application
+    // Store Cognito configuration in Secrets Manager for frontend application and Lambda authorizers
     const secretsName = `${id}-LAIGO_Cognito_Secrets`;
     this.secret = new secretsmanager.Secret(this, secretsName, {
       secretName: secretsName,
       description: "Cognito Secrets for authentication",
       secretObjectValue: {
+        // Frontend environment variables
         VITE_COGNITO_USER_POOL_ID: cdk.SecretValue.unsafePlainText(
           this.userPool.userPoolId,
         ),
@@ -274,6 +275,14 @@ export class ApiGatewayStack extends cdk.Stack {
         VITE_AWS_REGION: cdk.SecretValue.unsafePlainText(this.region),
         VITE_IDENTITY_POOL_ID: cdk.SecretValue.unsafePlainText(
           this.identityPool.ref,
+        ),
+        // IDP-agnostic Lambda authorizer environment variables
+        // Currently configured for Cognito, but can be changed to support other OIDC providers
+        JWT_ISSUER_ID: cdk.SecretValue.unsafePlainText(
+          this.userPool.userPoolId,
+        ),
+        JWT_CLIENT_ID: cdk.SecretValue.unsafePlainText(
+          this.appClient.userPoolClientId,
         ),
       },
       removalPolicy: cdk.RemovalPolicy.DESTROY,
@@ -436,8 +445,9 @@ export class ApiGatewayStack extends cdk.Stack {
     // Ensure API stage is created before WAF association
     wafAssociation.node.addDependency(this.api.deploymentStage);
 
-    // Create IAM role for authenticated admin users
-    const adminRole = new iam.Role(this, `${id}-AdminRole`, {
+    // Create single IAM role for all authenticated users
+    // Authorization is now handled by Lambda authorizers querying the database
+    const authenticatedRole = new iam.Role(this, `${id}-AuthenticatedRole`, {
       assumedBy: new iam.FederatedPrincipal(
         "cognito-identity.amazonaws.com",
         {
@@ -452,39 +462,10 @@ export class ApiGatewayStack extends cdk.Stack {
       ),
     });
 
-    const studentRole = new iam.Role(this, `${id}-StudentRole`, {
-      assumedBy: new iam.FederatedPrincipal(
-        "cognito-identity.amazonaws.com",
-        {
-          StringEquals: {
-            "cognito-identity.amazonaws.com:aud": this.identityPool.ref,
-          },
-          "ForAnyValue:StringLike": {
-            "cognito-identity.amazonaws.com:amr": "authenticated", // Only authenticated users
-          },
-        },
-        "sts:AssumeRoleWithWebIdentity",
-      ),
-    });
-
-    const instructorRole = new iam.Role(this, `${id}-InstructorRole`, {
-      assumedBy: new iam.FederatedPrincipal(
-        "cognito-identity.amazonaws.com",
-        {
-          StringEquals: {
-            "cognito-identity.amazonaws.com:aud": this.identityPool.ref,
-          },
-          "ForAnyValue:StringLike": {
-            "cognito-identity.amazonaws.com:amr": "authenticated", // Only authenticated users
-          },
-        },
-        "sts:AssumeRoleWithWebIdentity",
-      ),
-    });
-
-    // Grant admin role permissions to invoke API Gateway endpoints
-    adminRole.attachInlinePolicy(
-      new iam.Policy(this, `${id}-AdminPolicy`, {
+    // Grant authenticated role permissions to invoke API Gateway endpoints
+    // Note: Actual authorization is enforced by Lambda authorizers and handlers
+    authenticatedRole.attachInlinePolicy(
+      new iam.Policy(this, `${id}-AuthenticatedPolicy`, {
         statements: [
           createPolicyStatement(
             ["execute-api:Invoke"],
@@ -496,63 +477,6 @@ export class ApiGatewayStack extends cdk.Stack {
           ),
         ],
       }),
-    );
-
-    // Grant instructor role permissions to invoke API Gateway endpoints
-    instructorRole.attachInlinePolicy(
-      new iam.Policy(this, `${id}-InstructorPolicy`, {
-        statements: [
-          createPolicyStatement(
-            ["execute-api:Invoke"],
-            [
-              `arn:aws:execute-api:${this.region}:${this.account}:${this.api.restApiId}/*/*/instructor/*`,
-            ],
-          ),
-        ],
-      }),
-    );
-
-    // Grant student role permissions to invoke API Gateway endpoints
-    studentRole.attachInlinePolicy(
-      new iam.Policy(this, `${id}-StudentPolicy`, {
-        statements: [
-          createPolicyStatement(
-            ["execute-api:Invoke"],
-            [
-              `arn:aws:execute-api:${this.region}:${this.account}:${this.api.restApiId}/*/*/student/*`,
-            ],
-          ),
-        ],
-      }),
-    );
-
-    // Create admin user group in Cognito
-    const adminGroup = new cognito.CfnUserPoolGroup(this, `${id}-AdminGroup`, {
-      groupName: "admin",
-      userPoolId: this.userPool.userPoolId,
-      roleArn: adminRole.roleArn,
-    });
-
-    // Create instructor user group in Cognito
-    const instructorGroup = new cognito.CfnUserPoolGroup(
-      this,
-      `${id}-InstructorGroup`,
-      {
-        groupName: "instructor",
-        userPoolId: this.userPool.userPoolId,
-        roleArn: instructorRole.roleArn,
-      },
-    );
-
-    // Create student user group in Cognito
-    const studentGroup = new cognito.CfnUserPoolGroup(
-      this,
-      `${id}-StudentGroup`,
-      {
-        groupName: "student",
-        userPoolId: this.userPool.userPoolId,
-        roleArn: studentRole.roleArn,
-      },
     );
 
     // Create IAM role for Lambda functions that access PostgreSQL
@@ -635,16 +559,19 @@ export class ApiGatewayStack extends cdk.Stack {
     );
     lambdaRole.attachInlinePolicy(adminAddUserToGroupPolicyLambda);
 
-    // Attach IAM roles to identity pool with role mapping based on Cognito groups
+    // Attach single authenticated role to identity pool
+    // All authenticated users receive the same IAM role
+    // Authorization is handled by Lambda authorizers and database queries
     new cognito.CfnIdentityPoolRoleAttachment(this, `${id}-IdentityPoolRoles`, {
       identityPoolId: this.identityPool.ref,
       roles: {
-        authenticated: studentRole.roleArn, // Default role for authenticated users
+        authenticated: authenticatedRole.roleArn, // Single role for all authenticated users
       },
+      // No role mappings - all authenticated users get the same role
     });
 
     // Create Lambda authorizer function for admin endpoints
-    // Validates JWT tokens and ensures user belongs to 'admin' group
+    // Validates JWT tokens from IDP and extracts user identifier
     const adminAuthorizationFunction = new lambda.Function(
       this,
       `${id}-admin-authorization-api-gateway`,
@@ -655,7 +582,7 @@ export class ApiGatewayStack extends cdk.Stack {
         timeout: Duration.seconds(300),
         vpc: vpcStack.vpc, // VPC access for database connectivity if needed
         environment: {
-          SM_COGNITO_CREDENTIALS: this.secret.secretName, // Cognito config from Secrets Manager
+          SM_IDP_CREDENTIALS: this.secret.secretName, // IDP config from Secrets Manager (Cognito initially)
         },
         functionName: `${id}-adminLambdaAuthorizer`,
         memorySize: 512,
@@ -675,7 +602,7 @@ export class ApiGatewayStack extends cdk.Stack {
     apiGW_adminAuthorizationFunction.overrideLogicalId("adminLambdaAuthorizer");
 
     // Create Lambda authorizer function for student endpoints
-    // Validates JWT tokens and ensures user belongs to 'student', 'instructor', or 'admin' group
+    // Validates JWT tokens from IDP and extracts user identifier
     const studentAuthFunction = new lambda.Function(
       this,
       `${id}-student-authorization-api-gateway`,
@@ -689,7 +616,7 @@ export class ApiGatewayStack extends cdk.Stack {
         layers: [jwt], // JWT verification library
         role: lambdaRole,
         environment: {
-          SM_COGNITO_CREDENTIALS: this.secret.secretName, // Cognito config from Secrets Manager
+          SM_IDP_CREDENTIALS: this.secret.secretName, // IDP config from Secrets Manager (Cognito initially)
         },
         functionName: `${id}-studentLambdaAuthorizer`,
       },
@@ -708,7 +635,7 @@ export class ApiGatewayStack extends cdk.Stack {
     );
 
     // Create Lambda authorizer function for instructor endpoints
-    // Validates JWT tokens and ensures user belongs to 'instructor' or 'admin' group
+    // Validates JWT tokens from IDP and extracts user identifier
     const instructorAuthFunction = new lambda.Function(
       this,
       `${id}-instructor-authorization-api-gateway`,
@@ -722,7 +649,7 @@ export class ApiGatewayStack extends cdk.Stack {
         layers: [jwt], // JWT verification library
         role: lambdaRole,
         environment: {
-          SM_COGNITO_CREDENTIALS: this.secret.secretName, // Cognito config from Secrets Manager
+          SM_IDP_CREDENTIALS: this.secret.secretName, // IDP config from Secrets Manager (Cognito initially)
         },
         functionName: `${id}-instructorLambdaAuthorizer`,
       },
@@ -878,28 +805,6 @@ export class ApiGatewayStack extends cdk.Stack {
       },
     );
 
-    // Cognito Pre-Token Generation Lambda Trigger
-    // Adjusts user roles and adds custom claims to JWT tokens based on database records
-    const preTokenGenerationLambda = new lambda.Function(
-      this,
-      "PreTokenGenerationLambda",
-      {
-        runtime: lambda.Runtime.NODEJS_22_X,
-        handler: "adjustUserRoles.handler",
-        timeout: Duration.seconds(300),
-        code: lambda.Code.fromAsset("lambda/authorization"),
-        vpc: vpcStack.vpc, // VPC access for database connectivity
-        environment: {
-          SM_DB_CREDENTIALS: db.secretPathUser.secretName, // Database user credentials
-          RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint, // RDS Proxy for connection pooling
-        },
-        functionName: `${id}-adjustUserRoles`,
-        memorySize: 512,
-        layers: [postgres],
-        role: cognitoRole,
-      },
-    );
-
     // Attach Lambda triggers to Cognito User Pool lifecycle events
     this.userPool.addTrigger(
       cognito.UserPoolOperation.PRE_SIGN_UP, // Triggered before user registration
@@ -909,10 +814,8 @@ export class ApiGatewayStack extends cdk.Stack {
       cognito.UserPoolOperation.POST_CONFIRMATION, // Triggered after email verification
       postConfirmationLambda,
     );
-    this.userPool.addTrigger(
-      cognito.UserPoolOperation.PRE_TOKEN_GENERATION, // Triggered before JWT token creation
-      preTokenGenerationLambda,
-    );
+    // Pre-token generation trigger removed - no longer needed
+    // Authorization is now handled entirely by Lambda authorizers querying the database
     // ========================================
     // Bedrock Guardrails (Created in CDK for Security)
     // ========================================
@@ -1976,7 +1879,7 @@ export class ApiGatewayStack extends cdk.Stack {
     // WebSocket API for Chat Streaming
     // ========================================
 
-    // Lambda for $connect route - validates Cognito JWT tokens
+    // Lambda for $connect route - validates JWT tokens and stores connection
     const wsConnectFunction = new lambda.Function(
       this,
       `${id}-WsConnectFunction`,
@@ -1989,8 +1892,6 @@ export class ApiGatewayStack extends cdk.Stack {
         layers: [jwt],
         functionName: `${id}-WsConnect`,
         environment: {
-          COGNITO_USER_POOL_ID: this.userPool.userPoolId,
-          COGNITO_CLIENT_ID: this.appClient.userPoolClientId,
           CONNECTION_TABLE_NAME: connectionTable.tableName,
         },
       },
@@ -2006,11 +1907,15 @@ export class ApiGatewayStack extends cdk.Stack {
         handler: "authorizer.handler",
         timeout: Duration.seconds(10),
         memorySize: 256,
-        layers: [jwt],
+        layers: [jwt, postgres], // JWT verification and PostgreSQL client
         functionName: `${id}-WsAuthorizer`,
+        vpc: vpcStack.vpc, // VPC access for database connectivity
+        role: lambdaRole, // Use existing Lambda role with database permissions
         environment: {
-          COGNITO_USER_POOL_ID: this.userPool.userPoolId,
-          COGNITO_CLIENT_ID: this.appClient.userPoolClientId,
+          JWT_ISSUER_ID: this.userPool.userPoolId, // IDP-agnostic: Cognito User Pool ID initially
+          JWT_CLIENT_ID: this.appClient.userPoolClientId, // IDP-agnostic: Cognito Client ID initially
+          SM_DB_CREDENTIALS: db.secretPathUser.secretName, // Database credentials
+          RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint, // RDS Proxy endpoint
         },
       },
     );

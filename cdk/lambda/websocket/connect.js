@@ -4,18 +4,16 @@ const dynamodb = new DynamoDBClient({});
 
 exports.handler = async (event) => {
   const connectionId = event.requestContext.connectionId;
-  const cognitoId = event.requestContext.authorizer?.principalId;
-  const userEmail = event.requestContext.authorizer?.email;
+  const userId = event.requestContext.authorizer?.userId;
 
   console.log("WebSocket connection established:", {
     connectionId,
-    cognitoId,
-    userEmail,
+    userId,
     timestamp: new Date().toISOString(),
   });
 
   // Store connection-to-user mapping in DynamoDB for notification targeting
-  if (cognitoId) {
+  if (userId) {
     try {
       const ttl = Math.floor(Date.now() / 1000) + 24 * 60 * 60; // 24 hours from now
       const connectedAt = new Date().toISOString();
@@ -25,11 +23,11 @@ exports.handler = async (event) => {
           TableName: process.env.CONNECTION_TABLE_NAME,
           Item: {
             PK: { S: `CONNECTION#${connectionId}` },
-            SK: { S: `USER#${cognitoId}` },
-            GSI1PK: { S: `USER#${cognitoId}` },
+            SK: { S: `USER#${userId}` },
+            GSI1PK: { S: `USER#${userId}` },
             GSI1SK: { S: `CONNECTION#${connectionId}` },
             connectionId: { S: connectionId },
-            userId: { S: cognitoId },
+            userId: { S: userId },
             connectedAt: { S: connectedAt },
             lastActivity: { S: connectedAt },
             ttl: { N: ttl.toString() },
@@ -39,7 +37,7 @@ exports.handler = async (event) => {
 
       console.log("Connection mapping stored successfully:", {
         connectionId,
-        cognitoId,
+        userId,
       });
     } catch (error) {
       console.error("Error storing connection mapping:", error);

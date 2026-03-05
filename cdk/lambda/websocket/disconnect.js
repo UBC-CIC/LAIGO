@@ -4,30 +4,30 @@ const dynamodb = new DynamoDBClient({});
 
 exports.handler = async (event) => {
   const connectionId = event.requestContext.connectionId;
-  const cognitoId = event.requestContext.authorizer?.principalId;
+  const userId = event.requestContext.authorizer?.userId;
 
   console.log("WebSocket connection closed:", {
     connectionId: event.requestContext.connectionId,
     domainName: event.requestContext.domainName,
     stage: event.requestContext.stage,
-    cognitoId,
+    userId,
     timestamp: new Date().toISOString(),
   });
 
   // Clean up connection record from DynamoDB
-  if (cognitoId) {
+  if (userId) {
     try {
       await dynamodb.send(new DeleteItemCommand({
         TableName: process.env.CONNECTION_TABLE_NAME,
         Key: {
           PK: { S: `CONNECTION#${connectionId}` },
-          SK: { S: `USER#${cognitoId}` }
+          SK: { S: `USER#${userId}` }
         }
       }));
 
       console.log("Connection mapping cleaned up successfully:", {
         connectionId,
-        cognitoId
+        userId
       });
     } catch (error) {
       console.error("Error cleaning up connection mapping:", error);

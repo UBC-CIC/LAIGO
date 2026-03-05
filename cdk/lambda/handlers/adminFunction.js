@@ -4,13 +4,9 @@ const {
   parseBody,
   handleError,
   getSqlConnection,
+  getUserMetadata,
 } = require("./utils/utils");
 
-const {
-  CognitoIdentityProviderClient,
-  AdminAddUserToGroupCommand,
-  AdminGetUserCommand,
-} = require("@aws-sdk/client-cognito-identity-provider");
 const {
   SSMClient,
   GetParameterCommand,
@@ -22,7 +18,6 @@ let {
   RDS_PROXY_ENDPOINT,
   MESSAGE_LIMIT,
   FILE_SIZE_LIMIT,
-  USER_POOL_ID,
   BEDROCK_LLM_PARAM,
   BEDROCK_TEMP_PARAM,
   BEDROCK_TOP_P_PARAM,
@@ -45,6 +40,30 @@ exports.handler = async (event) => {
   }
 
   const sqlConnectionTableCreator = getSqlConnection();
+
+  // Extract idpId from authorization context and get user metadata
+  const idpId = event.requestContext?.authorizer?.idpId;
+  let currentUser;
+  
+  try {
+    currentUser = await getUserMetadata(idpId);
+  } catch (err) {
+    console.error("User metadata lookup failed:", err);
+    response.statusCode = 403;
+    response.body = JSON.stringify({
+      error: "User not found",
+    });
+    return response;
+  }
+
+  // Verify user has admin role
+  if (!currentUser.roles.includes("admin")) {
+    response.statusCode = 403;
+    response.body = JSON.stringify({
+      error: "Forbidden: Admin access required",
+    });
+    return response;
+  }
 
   // Function to format student full names (lowercase and spaces replaced with "_")
   const formatNames = (name) => {
@@ -957,39 +976,7 @@ exports.handler = async (event) => {
               break;
             }
 
-            // User is a student - elevate to instructor
-            // First, add to Cognito instructor group
-            const cognitoClient = new CognitoIdentityProviderClient();
-
-            try {
-              let username = existingUser[0].cognito_id;
-
-              if (!username) {
-                throw new Error(
-                  "User cognito_id is missing in the database. Cannot elevate user.",
-                );
-              }
-
-              await cognitoClient.send(
-                new AdminAddUserToGroupCommand({
-                  UserPoolId: USER_POOL_ID,
-                  Username: username,
-                  GroupName: "instructor",
-                }),
-              );
-            } catch (cognitoErr) {
-              console.error(
-                "Failed to add user to Cognito instructor group:",
-                cognitoErr,
-              );
-              response.statusCode = 500;
-              response.body = JSON.stringify({
-                error: "Failed to update user permissions in Cognito.",
-              });
-              break;
-            }
-
-            // Update database roles
+            // User is a student - elevate to instructor in database only
             const newRoles = userRoles.map((role) =>
               role === "student" ? "instructor" : role,
             );

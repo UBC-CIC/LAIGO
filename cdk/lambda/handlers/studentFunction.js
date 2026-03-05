@@ -5,6 +5,7 @@ const {
   parseBody,
   handleError,
   getSqlConnection,
+  getUserMetadata,
 } = require("./utils/utils");
 let {
   SM_DB_CREDENTIALS,
@@ -14,10 +15,6 @@ let {
   FILE_SIZE_LIMIT,
   TABLE_NAME,
 } = process.env;
-const {
-  CognitoIdentityProviderClient,
-  AdminGetUserCommand,
-} = require("@aws-sdk/client-cognito-identity-provider");
 const {
   EventBridgeClient,
   PutEventsCommand,
@@ -30,34 +27,14 @@ let sqlConnection;
 
 exports.handler = async (event) => {
   console.log(event);
-  const cognito_id = event.requestContext?.authorizer?.userId || null;
-  const client = new CognitoIdentityProviderClient();
-  const userAttributesCommand = new AdminGetUserCommand({
-    UserPoolId: USER_POOL,
-    Username: cognito_id,
-  });
-  const userAttributesResponse = await client.send(userAttributesCommand);
-
-  const emailAttr = userAttributesResponse.UserAttributes.find(
-    (attr) => attr.Name === "email",
-  );
-  const userEmailAttribute = emailAttr ? emailAttr.Value : null;
-  // Check for query string parameters
-
-  const queryStringParams = event.queryStringParameters || {};
-  const queryEmail = queryStringParams.email;
-  const studentEmail = queryStringParams.student_email;
-  const userEmail = queryStringParams.user_email;
-
-  const isUnauthorized =
-    (queryEmail && queryEmail !== userEmailAttribute) ||
-    (studentEmail && studentEmail !== userEmailAttribute) ||
-    (userEmail && userEmail !== userEmailAttribute);
-
-  if (isUnauthorized) {
+  
+  // Extract idpId from authorization context
+  const idpId = event.requestContext?.authorizer?.idpId || null;
+  
+  if (!idpId) {
     const resp = createResponse();
     resp.statusCode = 401;
-    resp.body = JSON.stringify({ error: "Unauthorized" });
+    resp.body = JSON.stringify({ error: "Unauthorized: Missing user identity" });
     return resp;
   }
 
@@ -67,28 +44,69 @@ exports.handler = async (event) => {
   await initConnection();
   sqlConnection = getSqlConnection();
 
-  // Function to format student full names (lowercase and spaces replaced with "_")
-  const formatNames = (name) => {
-    return name.toLowerCase().replace(/\s+/g, "_");
-  };
+  // Get user metadata from database
+  let user;
+  try {
+    user = await getUserMetadata(idpId);
+  } catch (error) {
+    if (error.message === "User not found") {
+      response.statusCode = 403;
+      response.body = JSON.stringify({ error: "User not found" });
+      return response;
+    }
+    throw error;
+  }
+
+  // Extract user_id and email for use in queries
+  const user_id = user.user_id;
+  const userEmail = user.email;
 
   let data;
   try {
     const pathData = event.httpMethod + " " + event.resource;
     switch (pathData) {
+      case "GET /student/profile":
+        // Return user metadata from database
+        try {
+          // Fetch additional fields from database
+          const userDetails = await sqlConnection`
+            SELECT user_id, user_email, first_name, last_name, roles, time_account_created, accepted_disclaimer
+            FROM users
+            WHERE user_id = ${user_id};
+          `;
+
+          if (userDetails.length === 0) {
+            response.statusCode = 404;
+            response.body = JSON.stringify({ error: "User not found" });
+            break;
+          }
+
+          const userDetail = userDetails[0];
+          response.statusCode = 200;
+          response.body = JSON.stringify({
+            userId: userDetail.user_id,
+            email: userDetail.user_email,
+            firstName: userDetail.first_name,
+            lastName: userDetail.last_name,
+            roles: userDetail.roles,
+            timeAccountCreated: userDetail.time_account_created,
+            acceptedDisclaimer: userDetail.accepted_disclaimer,
+          });
+        } catch (err) {
+          handleError(err, response);
+        }
+        break;
+
       case "POST /student/create_user":
         if (event.queryStringParameters) {
           const { user_email, username, first_name, last_name } =
             event.queryStringParameters;
 
-          const cognitoUserId = event.requestContext.authorizer.userId;
-          console.log(event);
-
           try {
-            // Check if the user already exists
+            // Check if the user already exists by idp_id
             const existingUser = await sqlConnection`
                 SELECT * FROM "users"
-                WHERE cognito_id = ${cognitoUserId};
+                WHERE idp_id = ${idpId};
             `;
 
             if (existingUser.length > 0) {
@@ -101,7 +119,7 @@ exports.handler = async (event) => {
                         last_name = ${last_name},
                         last_sign_in = CURRENT_TIMESTAMP,
                         time_account_created = CURRENT_TIMESTAMP
-                    WHERE cognito_id = ${user_id}
+                    WHERE idp_id = ${idpId}
                     RETURNING *;
                 `;
               response.body = JSON.stringify(updatedUser[0]);
@@ -109,8 +127,8 @@ exports.handler = async (event) => {
               // Insert a new user with 'student' role
               console.log("Trying to create A new User");
               const newUser = await sqlConnection`
-                    INSERT INTO "users" (cognito_id, user_email, username, first_name, last_name, time_account_created, roles, last_sign_in)
-                    VALUES (${cognitoUserId}, ${user_email}, ${username}, ${first_name}, ${last_name}, CURRENT_TIMESTAMP, ARRAY['student'], CURRENT_TIMESTAMP)
+                    INSERT INTO "users" (idp_id, user_email, username, first_name, last_name, time_account_created, roles, last_sign_in)
+                    VALUES (${idpId}, ${user_email}, ${username}, ${first_name}, ${last_name}, CURRENT_TIMESTAMP, ARRAY['student'], CURRENT_TIMESTAMP)
                     RETURNING *;
                 `;
               response.body = JSON.stringify(newUser[0]);
@@ -265,32 +283,20 @@ exports.handler = async (event) => {
         break;
 
       case "GET /student/get_cases":
-        // SECURITY: Use trusted cognito_id from authorizer, not query params
+        // Use user_id from database user metadata
         try {
-          // Retrieve the user ID using the trusted cognito_id
-          const user = await sqlConnection`
-            SELECT user_id FROM "users" WHERE cognito_id = ${cognito_id};
+          const data = await sqlConnection`
+            SELECT * 
+            FROM "cases" WHERE student_id = ${user_id};
           `;
 
-          const user_id = user[0]?.user_id;
-
-          if (user_id) {
-            const data = await sqlConnection`
-              SELECT * 
-              FROM "cases" WHERE student_id = ${user_id};
-            `;
-
-            // Check if data is empty and handle the case
-            if (data.length === 0) {
-              response.statusCode = 404; // Not Found
-              response.body = JSON.stringify({ message: "No cases found" });
-            } else {
-              response.statusCode = 200; // OK
-              response.body = JSON.stringify(data); // Ensure the data is always valid JSON
-            }
-          } else {
+          // Check if data is empty and handle the case
+          if (data.length === 0) {
             response.statusCode = 404; // Not Found
-            response.body = JSON.stringify({ error: "User not found" });
+            response.body = JSON.stringify({ message: "No cases found" });
+          } else {
+            response.statusCode = 200; // OK
+            response.body = JSON.stringify(data); // Ensure the data is always valid JSON
           }
         } catch (err) {
           response.statusCode = 500; // Internal server error
@@ -300,23 +306,9 @@ exports.handler = async (event) => {
         break;
 
       case "GET /student/get_disclaimer":
-        // SECURITY: Use trusted cognito_id from authorizer
+        // Use user_id from database user metadata
         try {
-          // Step 1: Get internal user_id and current acceptance status
-          const user = await sqlConnection`
-            SELECT user_id, accepted_disclaimer FROM "users" WHERE cognito_id = ${cognito_id};
-          `;
-
-          const user_id = user[0]?.user_id;
-          const has_accepted = user[0]?.accepted_disclaimer || false;
-
-          if (!user_id) {
-            response.statusCode = 404;
-            response.body = JSON.stringify({ error: "User not found" });
-            break;
-          }
-
-          // Step 2: Fetch the latest active disclaimer
+          // Fetch the latest active disclaimer
           const disclaimer = await sqlConnection`
             SELECT disclaimer_text, last_updated
             FROM disclaimers
@@ -326,8 +318,6 @@ exports.handler = async (event) => {
           `;
 
           if (!disclaimer.length) {
-            // If no active disclaimer exists, we can consider it "accepted" or not applicable
-            // But let's return 404 as before, or handle gracefully on frontend
             response.statusCode = 404;
             response.body = JSON.stringify({
               message: "No disclaimer found",
@@ -338,7 +328,7 @@ exports.handler = async (event) => {
           response.statusCode = 200;
           response.body = JSON.stringify({
             ...disclaimer[0],
-            has_accepted,
+            has_accepted: user.accepted_disclaimer || false,
           });
         } catch (err) {
           console.error("Error fetching disclaimer:", err);
@@ -347,22 +337,9 @@ exports.handler = async (event) => {
         break;
 
       case "POST /student/accept_disclaimer":
-        // SECURITY: Use trusted cognito_id from authorizer
+        // Use user_id from database user metadata
         try {
-          // Step 1: Get internal user_id
-          const user = await sqlConnection`
-            SELECT user_id FROM "users" WHERE cognito_id = ${cognito_id};
-          `;
-
-          const user_id = user[0]?.user_id;
-
-          if (!user_id) {
-            response.statusCode = 404;
-            response.body = JSON.stringify({ error: "User not found" });
-            break;
-          }
-
-          // Step 2: Update accepted_disclaimer to true
+          // Update accepted_disclaimer to true
           await sqlConnection`
             UPDATE "users"
             SET accepted_disclaimer = true
@@ -380,34 +357,22 @@ exports.handler = async (event) => {
         break;
 
       case "GET /student/recent_cases":
-        // SECURITY: Use trusted cognito_id from authorizer
+        // Use user_id from database user metadata
         try {
-          // Retrieve the user ID using the trusted cognito_id
-          const user = await sqlConnection`
-            SELECT user_id FROM "users" WHERE cognito_id = ${cognito_id};
+          const data = await sqlConnection`
+            SELECT * 
+            FROM "cases"
+            WHERE student_id = ${user_id}
+            ORDER BY last_viewed DESC
+            LIMIT 6;
           `;
 
-          const user_id = user[0]?.user_id;
-
-          if (user_id) {
-            const data = await sqlConnection`
-              SELECT * 
-              FROM "cases"
-              WHERE student_id = ${user_id}
-              ORDER BY last_viewed DESC
-              LIMIT 6;
-            `;
-
-            if (data.length === 0) {
-              response.statusCode = 404;
-              response.body = JSON.stringify({ message: "No cases found" });
-            } else {
-              response.statusCode = 200;
-              response.body = JSON.stringify(data);
-            }
-          } else {
+          if (data.length === 0) {
             response.statusCode = 404;
-            response.body = JSON.stringify({ error: "User not found" });
+            response.body = JSON.stringify({ message: "No cases found" });
+          } else {
+            response.statusCode = 200;
+            response.body = JSON.stringify(data);
           }
         } catch (err) {
           handleError(err, response);
@@ -445,7 +410,7 @@ exports.handler = async (event) => {
         break;
 
       case "GET /student/get_transcriptions":
-        // SECURITY: Use trusted cognito_id from authorizer for ownership check
+        // Use user_id from database user metadata for ownership check
         if (
           event.queryStringParameters &&
           event.queryStringParameters.case_id
@@ -453,18 +418,7 @@ exports.handler = async (event) => {
           const caseId = event.queryStringParameters.case_id;
 
           try {
-            // Step 1: Get user's UUID using trusted cognito_id from authorizer
-            const userResult = await sqlConnection`
-              SELECT user_id FROM "users" WHERE cognito_id = ${cognito_id};
-            `;
-            if (userResult.length === 0) {
-              response.statusCode = 403;
-              response.body = JSON.stringify({ error: "User not found" });
-              break;
-            }
-            const requestingUserId = userResult[0].user_id;
-
-            // Step 2: Get the case and its owner
+            // Get the case and its owner
             const caseResult = await sqlConnection`
               SELECT * FROM "cases" WHERE case_id = ${caseId};
             `;
@@ -475,16 +429,16 @@ exports.handler = async (event) => {
             }
             const caseOwnerId = caseResult[0].student_id;
 
-            // Step 3: Check access — either owner OR an instructor of the owner
+            // Check access — either owner OR an instructor of the owner
             let hasAccess = false;
 
-            if (requestingUserId === caseOwnerId) {
+            if (user_id === caseOwnerId) {
               hasAccess = true; // User owns the case
             } else {
               // Check if requesting user is an instructor of the student who owns the case
               const instructorCheck = await sqlConnection`
                 SELECT 1 FROM "instructor_students"
-                WHERE instructor_id = ${requestingUserId} AND student_id = ${caseOwnerId};
+                WHERE instructor_id = ${user_id} AND student_id = ${caseOwnerId};
               `;
               if (instructorCheck.length > 0) {
                 hasAccess = true;
@@ -497,7 +451,7 @@ exports.handler = async (event) => {
               break;
             }
 
-            // Step 4: Fetch transcriptions from audio_files for the case
+            // Fetch transcriptions from audio_files for the case
             const transcriptions = await sqlConnection`
               SELECT audio_file_id, file_title, time_uploaded
               FROM "audio_files"
@@ -505,7 +459,7 @@ exports.handler = async (event) => {
               ORDER BY time_uploaded DESC;
             `;
 
-            // Step 5: Return transcriptions
+            // Return transcriptions
             response.statusCode = 200;
             response.body = JSON.stringify(transcriptions);
             break;
@@ -520,7 +474,7 @@ exports.handler = async (event) => {
         break;
 
       case "GET /student/transcription":
-        // SECURITY: Use trusted cognito_id from authorizer, not query params
+        // Use user_id from database user metadata for ownership check
         if (
           event.queryStringParameters &&
           event.queryStringParameters.audio_file_id
@@ -528,18 +482,7 @@ exports.handler = async (event) => {
           const audioFileId = event.queryStringParameters.audio_file_id;
 
           try {
-            // Step 1: Get user ID from trusted cognito_id (from authorizer)
-            const userResult = await sqlConnection`
-              SELECT user_id FROM "users" WHERE cognito_id = ${cognito_id};
-            `;
-            if (userResult.length === 0) {
-              response.statusCode = 403;
-              response.body = JSON.stringify({ error: "User not found" });
-              break;
-            }
-            const requestingUserId = userResult[0].user_id;
-
-            // Step 2: Get case + owner for the audio file
+            // Get case + owner for the audio file
             const caseResult = await sqlConnection`
               SELECT af.case_id, c.student_id AS case_owner_id
               FROM "audio_files" af
@@ -555,14 +498,14 @@ exports.handler = async (event) => {
             const caseId = caseResult[0].case_id;
             const caseOwnerId = caseResult[0].case_owner_id;
 
-            // Step 3: Check access (owner or assigned instructor)
+            // Check access (owner or assigned instructor)
             let hasAccess = false;
-            if (requestingUserId === caseOwnerId) {
+            if (user_id === caseOwnerId) {
               hasAccess = true;
             } else {
               const instructorCheck = await sqlConnection`
                 SELECT 1 FROM "instructor_students"
-                WHERE instructor_id = ${requestingUserId} AND student_id = ${caseOwnerId};
+                WHERE instructor_id = ${user_id} AND student_id = ${caseOwnerId};
               `;
               if (instructorCheck.length > 0) {
                 hasAccess = true;
@@ -575,7 +518,7 @@ exports.handler = async (event) => {
               break;
             }
 
-            // Step 4: Fetch transcription
+            // Fetch transcription
             const data = await sqlConnection`
               SELECT audio_text
               FROM "audio_files"
@@ -604,7 +547,7 @@ exports.handler = async (event) => {
         break;
 
       case "GET /student/case_page":
-        // SECURITY: Use trusted cognito_id from authorizer for ownership check
+        // Use user_id from database user metadata for ownership check
         if (
           event.queryStringParameters &&
           event.queryStringParameters.case_id
@@ -612,18 +555,7 @@ exports.handler = async (event) => {
           const case_id = event.queryStringParameters.case_id;
 
           try {
-            // Step 1: Get user's UUID using trusted cognito_id
-            const userResult = await sqlConnection`
-              SELECT user_id FROM "users" WHERE cognito_id = ${cognito_id};
-            `;
-            if (userResult.length === 0) {
-              response.statusCode = 403;
-              response.body = JSON.stringify({ error: "User not found" });
-              break;
-            }
-            const requestingUserId = userResult[0].user_id;
-
-            // Step 2: Get the case and its owner
+            // Get the case and its owner
             const caseResult = await sqlConnection`
               SELECT * FROM "cases" WHERE case_id = ${case_id};
             `;
@@ -634,16 +566,16 @@ exports.handler = async (event) => {
             }
             const caseOwnerId = caseResult[0].student_id;
 
-            // Step 3: Check access — either owner OR an instructor of the owner
+            // Check access — either owner OR an instructor of the owner
             let hasAccess = false;
 
-            if (requestingUserId === caseOwnerId) {
+            if (user_id === caseOwnerId) {
               hasAccess = true; // User owns the case
             } else {
               // Check if requesting user is an instructor of the student who owns the case
               const instructorCheck = await sqlConnection`
                 SELECT 1 FROM "instructor_students"
-                WHERE instructor_id = ${requestingUserId} AND student_id = ${caseOwnerId};
+                WHERE instructor_id = ${user_id} AND student_id = ${caseOwnerId};
               `;
               if (instructorCheck.length > 0) {
                 hasAccess = true;
@@ -656,7 +588,7 @@ exports.handler = async (event) => {
               break;
             }
 
-            // Step 4: Fetch messages and summaries
+            // Fetch messages and summaries
             const messages = await sqlConnection`
               SELECT m.*, u.first_name, u.last_name
               FROM "messages" m
@@ -688,45 +620,33 @@ exports.handler = async (event) => {
         break;
 
       case "GET /student/notifications":
-        // SECURITY: Use trusted cognito_id from authorizer
+        // Use user_id from database user metadata
         try {
-          // Retrieve the user ID using the trusted cognito_id
-          const user = await sqlConnection`
-            SELECT user_id FROM "users" WHERE cognito_id = ${cognito_id};
+          const data = await sqlConnection`
+            SELECT 
+              c.case_id,
+              c.case_title,
+              m.message_content,
+              m.time_sent,
+              u.first_name||' '||u.last_name AS instructor_name
+            FROM cases c
+            JOIN messages m ON c.case_id = m.case_id
+            JOIN users u ON m.instructor_id = u.user_id
+            WHERE c.student_id = ${user_id}
+            AND m.time_sent >= NOW() - INTERVAL '1 week'
+            AND m.is_read = false
+            ORDER BY m.time_sent DESC;
           `;
 
-          const user_id = user[0]?.user_id;
-
-          if (user_id) {
-            const data = await sqlConnection`
-              SELECT 
-                c.case_id,
-                c.case_title,
-                m.message_content,
-                m.time_sent,
-                u.first_name||' '||u.last_name AS instructor_name
-              FROM cases c
-              JOIN messages m ON c.case_id = m.case_id
-              JOIN users u ON m.instructor_id = u.user_id
-              WHERE c.student_id = ${user_id}
-              AND m.time_sent >= NOW() - INTERVAL '1 week'
-              AND m.is_read = false
-              ORDER BY m.time_sent DESC;
-            `;
-
-            // Check if data is empty and handle the case
-            if (data.length === 0) {
-              response.statusCode = 404;
-              response.body = JSON.stringify({
-                message: "No notifications found",
-              });
-            } else {
-              response.statusCode = 200;
-              response.body = JSON.stringify(data);
-            }
-          } else {
+          // Check if data is empty and handle the case
+          if (data.length === 0) {
             response.statusCode = 404;
-            response.body = JSON.stringify({ error: "User not found" });
+            response.body = JSON.stringify({
+              message: "No notifications found",
+            });
+          } else {
+            response.statusCode = 200;
+            response.body = JSON.stringify(data);
           }
         } catch (err) {
           handleError(err, response);
@@ -734,37 +654,25 @@ exports.handler = async (event) => {
         break;
 
       case "GET /student/instructors":
-        // SECURITY: Use trusted cognito_id from authorizer
+        // Use user_id from database user metadata
         try {
-          // Retrieve the user ID using the trusted cognito_id
-          const user = await sqlConnection`
-            SELECT user_id FROM "users" WHERE cognito_id = ${cognito_id};
+          const data = await sqlConnection`
+            SELECT 
+              u.user_id AS instructor_id,
+              u.first_name||' '||u.last_name AS instructor_name
+            FROM instructor_students inst
+            JOIN users u ON inst.instructor_id = u.user_id
+            WHERE inst.student_id = ${user_id}
           `;
 
-          const user_id = user[0]?.user_id;
-
-          if (user_id) {
-            const data = await sqlConnection`
-              SELECT 
-                u.user_id AS instructor_id,
-                u.first_name||' '||u.last_name AS instructor_name
-              FROM instructor_students inst
-              JOIN users u ON inst.instructor_id = u.user_id
-              WHERE inst.student_id = ${user_id}
-            `;
-
-            if (data.length === 0) {
-              response.statusCode = 404;
-              response.body = JSON.stringify({
-                message: "No instructors assigned to this user.",
-              });
-            } else {
-              response.statusCode = 200;
-              response.body = JSON.stringify(data);
-            }
-          } else {
+          if (data.length === 0) {
             response.statusCode = 404;
-            response.body = JSON.stringify({ error: "User not found" });
+            response.body = JSON.stringify({
+              message: "No instructors assigned to this user.",
+            });
+          } else {
+            response.statusCode = 200;
+            response.body = JSON.stringify(data);
           }
         } catch (err) {
           handleError(err, response);
@@ -772,7 +680,7 @@ exports.handler = async (event) => {
         break;
 
       case "GET /student/feedback":
-        // SECURITY: Use trusted cognito_id from authorizer for ownership check
+        // Use user_id from database user metadata for ownership check
         if (
           event.queryStringParameters &&
           event.queryStringParameters.case_id
@@ -780,18 +688,7 @@ exports.handler = async (event) => {
           const caseId = event.queryStringParameters.case_id;
 
           try {
-            // Step 1: Get user ID using trusted cognito_id
-            const userResult = await sqlConnection`
-              SELECT user_id FROM "users" WHERE cognito_id = ${cognito_id};
-            `;
-            if (userResult.length === 0) {
-              response.statusCode = 403;
-              response.body = JSON.stringify({ error: "User not found" });
-              break;
-            }
-            const requestingUserId = userResult[0].user_id;
-
-            // Step 2: Get case owner
+            // Get case owner
             const caseResult = await sqlConnection`
               SELECT * FROM "cases" WHERE case_id = ${caseId};
             `;
@@ -802,14 +699,14 @@ exports.handler = async (event) => {
             }
             const caseOwnerId = caseResult[0].student_id;
 
-            // Step 3: Check access (Owner or Assigned Instructor)
+            // Check access (Owner or Assigned Instructor)
             let hasAccess = false;
-            if (requestingUserId === caseOwnerId) {
+            if (user_id === caseOwnerId) {
               hasAccess = true;
             } else {
               const instructorCheck = await sqlConnection`
                 SELECT 1 FROM "instructor_students"
-                WHERE instructor_id = ${requestingUserId} AND student_id = ${caseOwnerId};
+                WHERE instructor_id = ${user_id} AND student_id = ${caseOwnerId};
               `;
               if (instructorCheck.length > 0) {
                 hasAccess = true;
@@ -822,7 +719,7 @@ exports.handler = async (event) => {
               break;
             }
 
-            // Step 4: Fetch messages
+            // Fetch messages
             const messages = await sqlConnection`
               SELECT 
                 m.message_id,
@@ -907,10 +804,10 @@ exports.handler = async (event) => {
         break;
 
       case "GET /student/message_counter":
-        // SECURITY: Use trusted cognito_id from authorizer
+        // Use user_id from database user metadata
         try {
           const activityData = await sqlConnection`
-            SELECT activity_counter, last_activity FROM "users" WHERE cognito_id = ${cognito_id};
+            SELECT activity_counter, last_activity FROM "users" WHERE user_id = ${user_id};
           `;
           if (activityData.length > 0) {
             let activity_counter = parseInt(
@@ -929,7 +826,7 @@ exports.handler = async (event) => {
               // Check if 24 hours have passed since the last activity
               if (hoursDifference >= 24) {
                 await sqlConnection`
-                  UPDATE "users" SET activity_counter = 0 WHERE cognito_id = ${cognito_id};
+                  UPDATE "users" SET activity_counter = 0 WHERE user_id = ${user_id};
                 `;
 
                 activity_counter = 0;
@@ -946,10 +843,10 @@ exports.handler = async (event) => {
         break;
 
       case "PUT /student/message_counter":
-        // SECURITY: Use trusted cognito_id from authorizer
+        // Use user_id from database user metadata
         try {
           const activityData = await sqlConnection`
-            SELECT activity_counter, last_activity FROM "users" WHERE cognito_id = ${cognito_id};
+            SELECT activity_counter, last_activity FROM "users" WHERE user_id = ${user_id};
           `;
 
           if (activityData.length > 0) {
@@ -964,14 +861,14 @@ exports.handler = async (event) => {
             if (hoursSinceLast >= 24) {
               // Reset counter and last_activity
               await sqlConnection`
-                UPDATE "users" SET activity_counter = 1, last_activity = CURRENT_TIMESTAMP WHERE cognito_id = ${cognito_id};
+                UPDATE "users" SET activity_counter = 1, last_activity = CURRENT_TIMESTAMP WHERE user_id = ${user_id};
               `;
               activity_counter = 1;
               // HARDCODED TO 10 RIGHT NOW, CHANGE TO BE FROM SECRETS MANAGER OR PARAM STORE
             } else if (activity_counter < 10) {
               // Increment counter
               await sqlConnection`
-                UPDATE "users" SET activity_counter = activity_counter + 1 WHERE cognito_id = ${cognito_id};
+                UPDATE "users" SET activity_counter = activity_counter + 1 WHERE user_id = ${user_id};
               `;
               activity_counter += 1;
             } else {
@@ -1026,11 +923,11 @@ exports.handler = async (event) => {
         break;
 
       case "PUT /student/disclaimer":
-        // SECURITY: Use trusted cognito_id from authorizer
+        // Use user_id from database user metadata
         try {
           // Mark the disclaimer as accepted
           await sqlConnection`
-            UPDATE users SET accepted_disclaimer = true WHERE cognito_id = ${cognito_id};
+            UPDATE users SET accepted_disclaimer = true WHERE user_id = ${user_id};
           `;
 
           response.body = JSON.stringify({ success: true });
@@ -1130,25 +1027,14 @@ exports.handler = async (event) => {
         break;
 
       case "GET /student/notes":
-        // SECURITY: Use trusted cognito_id from authorizer for ownership check
+        // Use user_id from database user metadata for ownership check
         if (
           event.queryStringParameters &&
           event.queryStringParameters.case_id
         ) {
           const case_id = event.queryStringParameters.case_id;
           try {
-            // Step 1: Get user ID using trusted cognito_id
-            const userResult = await sqlConnection`
-              SELECT user_id FROM "users" WHERE cognito_id = ${cognito_id};
-            `;
-            if (userResult.length === 0) {
-              response.statusCode = 403;
-              response.body = JSON.stringify({ error: "User not found" });
-              break;
-            }
-            const requestingUserId = userResult[0].user_id;
-
-            // Step 2: Get case with student_notes and ownership check
+            // Get case with student_notes and ownership check
             const caseData = await sqlConnection`
               SELECT student_notes, student_id FROM "cases" WHERE case_id = ${case_id};
             `;
@@ -1159,15 +1045,15 @@ exports.handler = async (event) => {
               break;
             }
 
-            // Step 3: Check ownership or instructor relationship
+            // Check ownership or instructor relationship
             const caseOwnerId = caseData[0].student_id;
             let hasAccess = false;
-            if (requestingUserId === caseOwnerId) {
+            if (user_id === caseOwnerId) {
               hasAccess = true;
             } else {
               const instructorCheck = await sqlConnection`
                 SELECT 1 FROM "instructor_students"
-                WHERE instructor_id = ${requestingUserId} AND student_id = ${caseOwnerId};
+                WHERE instructor_id = ${user_id} AND student_id = ${caseOwnerId};
               `;
               if (instructorCheck.length > 0) {
                 hasAccess = true;
@@ -1193,7 +1079,7 @@ exports.handler = async (event) => {
         break;
 
       case "PUT /student/notes":
-        // SECURITY: Use trusted cognito_id from authorizer for ownership check
+        // Use user_id from database user metadata for ownership check
         if (
           event.queryStringParameters != null &&
           event.queryStringParameters.case_id
@@ -1202,18 +1088,7 @@ exports.handler = async (event) => {
           const { notes } = parseBody(event.body);
 
           try {
-            // Step 1: Get user ID using trusted cognito_id
-            const userResult = await sqlConnection`
-              SELECT user_id FROM "users" WHERE cognito_id = ${cognito_id};
-            `;
-            if (userResult.length === 0) {
-              response.statusCode = 403;
-              response.body = JSON.stringify({ error: "User not found" });
-              break;
-            }
-            const requestingUserId = userResult[0].user_id;
-
-            // Step 2: Get the case and verify ownership
+            // Get the case and verify ownership
             const caseResult = await sqlConnection`
               SELECT student_id FROM "cases" WHERE case_id = ${case_id};
             `;
@@ -1223,8 +1098,8 @@ exports.handler = async (event) => {
               break;
             }
 
-            // Step 3: Only owner can update notes
-            if (requestingUserId !== caseResult[0].student_id) {
+            // Only owner can update notes
+            if (user_id !== caseResult[0].student_id) {
               response.statusCode = 403;
               response.body = JSON.stringify({
                 error: "Access denied - only the case owner can update notes",
@@ -1253,7 +1128,7 @@ exports.handler = async (event) => {
         break;
 
       case "PUT /student/edit_case":
-        // SECURITY: Use trusted cognito_id from authorizer for ownership check
+        // Use user_id from database user metadata for ownership check
         if (
           event.queryStringParameters != null &&
           event.queryStringParameters.case_id
@@ -1270,18 +1145,7 @@ exports.handler = async (event) => {
             statute,
           } = parseBody(event.body);
           try {
-            // Step 1: Get user ID using trusted cognito_id
-            const userResult = await sqlConnection`
-              SELECT user_id FROM "users" WHERE cognito_id = ${cognito_id};
-            `;
-            if (userResult.length === 0) {
-              response.statusCode = 403;
-              response.body = JSON.stringify({ error: "User not found" });
-              break;
-            }
-            const requestingUserId = userResult[0].user_id;
-
-            // Step 2: Get the case and verify ownership
+            // Get the case and verify ownership
             const caseResult = await sqlConnection`
               SELECT student_id FROM "cases" WHERE case_id = ${case_id};
             `;
@@ -1291,8 +1155,8 @@ exports.handler = async (event) => {
               break;
             }
 
-            // Step 3: Only owner can edit case
-            if (requestingUserId !== caseResult[0].student_id) {
+            // Only owner can edit case
+            if (user_id !== caseResult[0].student_id) {
               response.statusCode = 403;
               response.body = JSON.stringify({
                 error: "Access denied - only the case owner can edit",
@@ -1326,7 +1190,7 @@ exports.handler = async (event) => {
         break;
 
       case "DELETE /student/delete_transcription":
-        // SECURITY: Use trusted cognito_id from authorizer for ownership check
+        // Use user_id from database user metadata for ownership check
         console.log(event);
         if (
           event.queryStringParameters != null &&
@@ -1335,18 +1199,7 @@ exports.handler = async (event) => {
           const audioFileId = event.queryStringParameters.audio_file_id;
 
           try {
-            // Step 1: Get user ID using trusted cognito_id
-            const userResult = await sqlConnection`
-              SELECT user_id FROM "users" WHERE cognito_id = ${cognito_id};
-            `;
-            if (userResult.length === 0) {
-              response.statusCode = 403;
-              response.body = JSON.stringify({ error: "User not found" });
-              break;
-            }
-            const requestingUserId = userResult[0].user_id;
-
-            // Step 2: Get the audio file's case and verify ownership
+            // Get the audio file's case and verify ownership
             const audioResult = await sqlConnection`
               SELECT a.case_id, c.student_id 
               FROM "audio_files" a
@@ -1359,8 +1212,8 @@ exports.handler = async (event) => {
               break;
             }
 
-            // Step 3: Only owner can delete transcription
-            if (requestingUserId !== audioResult[0].student_id) {
+            // Only owner can delete transcription
+            if (user_id !== audioResult[0].student_id) {
               response.statusCode = 403;
               response.body = JSON.stringify({
                 error:
@@ -1390,7 +1243,7 @@ exports.handler = async (event) => {
         break;
 
       case "PUT /student/review_case":
-        // SECURITY: Use trusted cognito_id from authorizer for ownership check
+        // Use user_id from database user metadata for ownership check
         if (
           event.queryStringParameters != null &&
           event.queryStringParameters.case_id
@@ -1410,18 +1263,7 @@ exports.handler = async (event) => {
           }
 
           try {
-            // Step 1: Get user ID using trusted cognito_id
-            const userResult = await sqlConnection`
-              SELECT user_id FROM "users" WHERE cognito_id = ${cognito_id};
-            `;
-            if (userResult.length === 0) {
-              response.statusCode = 403;
-              response.body = JSON.stringify({ error: "User not found" });
-              break;
-            }
-            const requestingUserId = userResult[0].user_id;
-
-            // Step 2: Get the case and its owner
+            // Get the case and its owner
             const caseResult = await sqlConnection`
               SELECT student_id FROM "cases" WHERE case_id = ${case_id};
             `;
@@ -1432,8 +1274,8 @@ exports.handler = async (event) => {
             }
             const caseOwnerId = caseResult[0].student_id;
 
-            // Step 3: Check ownership — only owner can submit for review
-            if (requestingUserId !== caseOwnerId) {
+            // Check ownership — only owner can submit for review
+            if (user_id !== caseOwnerId) {
               response.statusCode = 403;
               response.body = JSON.stringify({
                 error:
@@ -1461,70 +1303,63 @@ exports.handler = async (event) => {
                     ON CONFLICT (case_id, reviewer_id) DO NOTHING;
                   `;
 
-                  // Fetch reviewer's cognito_id to send notification
-                  const reviewerResult = await sql`
-                    SELECT cognito_id FROM "users" WHERE user_id = ${reviewerId};
-                  `;
+                  // Send notification to reviewer using database user_id
+                  const eventBusName =
+                    process.env.NOTIFICATION_EVENT_BUS_NAME;
 
-                  if (reviewerResult.length > 0) {
-                    const reviewerCognitoId = reviewerResult[0].cognito_id;
-                    const eventBusName =
-                      process.env.NOTIFICATION_EVENT_BUS_NAME;
+                  if (eventBusName) {
+                    try {
+                      // Get student details for the message
+                      const studentResult = await sql`
+                         SELECT first_name, last_name FROM "users" WHERE user_id = ${user_id};
+                      `;
+                      const studentName =
+                        studentResult.length > 0
+                          ? `${studentResult[0].first_name} ${studentResult[0].last_name}`.trim()
+                          : "A student";
 
-                    if (eventBusName) {
-                      try {
-                        // Get student details for the message
-                        const studentResult = await sql`
-                           SELECT first_name, last_name FROM "users" WHERE user_id = ${requestingUserId};
-                        `;
-                        const studentName =
-                          studentResult.length > 0
-                            ? `${studentResult[0].first_name} ${studentResult[0].last_name}`.trim()
-                            : "A student";
+                      // Get case title for the message
+                      const caseTitleResult = await sql`
+                          SELECT case_title FROM "cases" WHERE case_id = ${case_id};
+                       `;
+                      const caseTitle =
+                        caseTitleResult.length > 0
+                          ? caseTitleResult[0].case_title
+                          : "Case";
 
-                        // Get case title for the message
-                        const caseTitleResult = await sql`
-                            SELECT case_title FROM "cases" WHERE case_id = ${case_id};
-                         `;
-                        const caseTitle =
-                          caseTitleResult.length > 0
-                            ? caseTitleResult[0].case_title
-                            : "Case";
+                      const eventParams = {
+                        Entries: [
+                          {
+                            Source: "notification.system",
+                            DetailType: "Case Submitted",
+                            Detail: JSON.stringify({
+                              recipientId: reviewerId, // Database user_id, not idp_id
+                              type: "case_submission",
+                              title: "Case Submitted",
+                              message: `${studentName} submitted case "${caseTitle}" for your review.`,
+                              metadata: { caseId: case_id },
+                            }),
+                            EventBusName: eventBusName,
+                          },
+                        ],
+                      };
 
-                        const eventParams = {
-                          Entries: [
-                            {
-                              Source: "notification.system",
-                              DetailType: "Case Submitted",
-                              Detail: JSON.stringify({
-                                recipientId: reviewerCognitoId,
-                                type: "case_submission",
-                                title: "Case Submitted",
-                                message: `${studentName} submitted case "${caseTitle}" for your review.`,
-                                metadata: { caseId: case_id },
-                              }),
-                              EventBusName: eventBusName,
-                            },
-                          ],
-                        };
-
-                        await eventBridge.send(
-                          new PutEventsCommand(eventParams),
-                        );
-                        console.log(
-                          `Notification sent to reviewer ${reviewerId} (Cognito: ${reviewerCognitoId})`,
-                        );
-                      } catch (error) {
-                        console.error(
-                          `Failed to send notification to reviewer ${reviewerId}:`,
-                          error,
-                        );
-                      }
-                    } else {
-                      console.warn(
-                        "NOTIFICATION_EVENT_BUS_NAME not set, skipping notification.",
+                      await eventBridge.send(
+                        new PutEventsCommand(eventParams),
+                      );
+                      console.log(
+                        `Notification sent to reviewer ${reviewerId}`,
+                      );
+                    } catch (error) {
+                      console.error(
+                        `Failed to send notification to reviewer ${reviewerId}:`,
+                        error,
                       );
                     }
+                  } else {
+                    console.warn(
+                      "NOTIFICATION_EVENT_BUS_NAME not set, skipping notification.",
+                    );
                   }
                 }
               }
@@ -1549,25 +1384,14 @@ exports.handler = async (event) => {
         break;
 
       case "PUT /student/archive_case":
-        // SECURITY: Use trusted cognito_id from authorizer for ownership check
+        // Use user_id from database user metadata for ownership check
         if (
           event.queryStringParameters != null &&
           event.queryStringParameters.case_id
         ) {
           const case_id = event.queryStringParameters.case_id;
           try {
-            // Step 1: Get user ID using trusted cognito_id
-            const userResult = await sqlConnection`
-              SELECT user_id FROM "users" WHERE cognito_id = ${cognito_id};
-            `;
-            if (userResult.length === 0) {
-              response.statusCode = 403;
-              response.body = JSON.stringify({ error: "User not found" });
-              break;
-            }
-            const requestingUserId = userResult[0].user_id;
-
-            // Step 2: Get the case and its owner
+            // Get the case and its owner
             const caseResult = await sqlConnection`
               SELECT student_id FROM "cases" WHERE case_id = ${case_id};
             `;
@@ -1578,8 +1402,8 @@ exports.handler = async (event) => {
             }
             const caseOwnerId = caseResult[0].student_id;
 
-            // Step 3: Check ownership — only owner can archive
-            if (requestingUserId !== caseOwnerId) {
+            // Check ownership — only owner can archive
+            if (user_id !== caseOwnerId) {
               response.statusCode = 403;
               response.body = JSON.stringify({
                 error: "Access denied - only the case owner can archive",
@@ -1611,25 +1435,14 @@ exports.handler = async (event) => {
         break;
 
       case "PUT /student/unarchive_case":
-        // SECURITY: Use trusted cognito_id from authorizer for ownership check
+        // Use user_id from database user metadata for ownership check
         if (
           event.queryStringParameters != null &&
           event.queryStringParameters.case_id
         ) {
           const case_id = event.queryStringParameters.case_id;
           try {
-            // Step 1: Get user ID using trusted cognito_id
-            const userResult = await sqlConnection`
-              SELECT user_id FROM "users" WHERE cognito_id = ${cognito_id};
-            `;
-            if (userResult.length === 0) {
-              response.statusCode = 403;
-              response.body = JSON.stringify({ error: "User not found" });
-              break;
-            }
-            const requestingUserId = userResult[0].user_id;
-
-            // Step 2: Get the case and its owner
+            // Get the case and its owner
             const caseResult = await sqlConnection`
               SELECT student_id FROM "cases" WHERE case_id = ${case_id};
             `;
@@ -1640,8 +1453,8 @@ exports.handler = async (event) => {
             }
             const caseOwnerId = caseResult[0].student_id;
 
-            // Step 3: Check ownership — only owner can unarchive
-            if (requestingUserId !== caseOwnerId) {
+            // Check ownership — only owner can unarchive
+            if (user_id !== caseOwnerId) {
               response.statusCode = 403;
               response.body = JSON.stringify({
                 error: "Access denied - only the case owner can unarchive",

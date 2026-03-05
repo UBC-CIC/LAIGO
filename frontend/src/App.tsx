@@ -69,15 +69,40 @@ function App() {
         const session = await fetchAuthSession();
 
         if (user && session.tokens?.idToken) {
-          const idToken = session.tokens.idToken;
-          const payload = idToken.payload;
+          const token = session.tokens.idToken.toString();
+
+          // Fetch user profile from database via API
+          const response = await fetch(
+            `${import.meta.env.VITE_API_ENDPOINT}/student/profile`,
+            {
+              headers: {
+                Authorization: token,
+              },
+            }
+          );
+
+          if (response.status === 403) {
+            // User not found in database - sign out and redirect to login
+            console.error("User not found in database");
+            await signOut();
+            setIsAuthenticated(false);
+            setUserInfo(null);
+            setLoading(false);
+            return;
+          }
+
+          if (!response.ok) {
+            throw new Error(`Failed to fetch user profile: ${response.status}`);
+          }
+
+          const profile = await response.json();
 
           const userInfo: UserInfo = {
-            userId: payload.sub as string,
-            email: payload.email as string,
-            firstName: (payload.given_name as string) || "",
-            lastName: (payload.family_name as string) || "",
-            groups: (payload["cognito:groups"] as string[]) || ["student"],
+            userId: profile.userId,
+            email: profile.email,
+            firstName: profile.firstName,
+            lastName: profile.lastName,
+            groups: profile.roles, // Use roles from database, not JWT
           };
 
           setUserInfo(userInfo);
