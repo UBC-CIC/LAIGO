@@ -43,28 +43,18 @@ export class DBFlowStack extends Stack {
       }),
     );
 
+    // VPC Lambda execution permissions (standard AWS pattern)
     lambdaRole.addToPolicy(
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
-        actions: ["ec2:CreateNetworkInterface", "ec2:DeleteNetworkInterface"],
-        resources: [
-          `arn:aws:ec2:${this.region}:${this.account}:network-interface/*`,
-          ...vpcStack.vpc.privateSubnets.map((subnet) => 
-            `arn:aws:ec2:${this.region}:${this.account}:subnet/${subnet.subnetId}`
-          ),
-          ...vpcStack.vpc.isolatedSubnets.map((subnet) => 
-            `arn:aws:ec2:${this.region}:${this.account}:subnet/${subnet.subnetId}`
-          ),
-          `arn:aws:ec2:${this.region}:${this.account}:security-group/${vpcStack.vpc.vpcDefaultSecurityGroup}`,
+        actions: [
+          "ec2:CreateNetworkInterface",
+          "ec2:DescribeNetworkInterfaces",
+          "ec2:DeleteNetworkInterface",
+          "ec2:AssignPrivateIpAddresses",
+          "ec2:UnassignPrivateIpAddresses",
         ],
-      }),
-    );
-
-    lambdaRole.addToPolicy(
-      new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: ["ec2:DescribeNetworkInterfaces"],
-        resources: ["*"], // DescribeNetworkInterfaces does not support resource-level permissions
+        resources: ["*"],
       }),
     );
 

@@ -497,29 +497,13 @@ export class ApiGatewayStack extends cdk.Stack {
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
         actions: [
-          "ec2:CreateNetworkInterface", // Create ENI for VPC access
-          "ec2:DeleteNetworkInterface", // Clean up ENI
-          "ec2:AssignPrivateIpAddresses", // Assign private IPs
-          "ec2:UnassignPrivateIpAddresses", // Release private IPs
+          "ec2:CreateNetworkInterface",
+          "ec2:DescribeNetworkInterfaces",
+          "ec2:DeleteNetworkInterface",
+          "ec2:AssignPrivateIpAddresses",
+          "ec2:UnassignPrivateIpAddresses",
         ],
-        resources: [
-          `arn:aws:ec2:${this.region}:${this.account}:network-interface/*`,
-          ...vpcStack.vpc.privateSubnets.map((subnet) => 
-            `arn:aws:ec2:${this.region}:${this.account}:subnet/${subnet.subnetId}`
-          ),
-          ...vpcStack.vpc.isolatedSubnets.map((subnet) => 
-            `arn:aws:ec2:${this.region}:${this.account}:subnet/${subnet.subnetId}`
-          ),
-          `arn:aws:ec2:${this.region}:${this.account}:security-group/${vpcStack.vpc.vpcDefaultSecurityGroup}`,
-        ],
-      }),
-    );
-
-    lambdaRole.addToPolicy(
-      new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: ["ec2:DescribeNetworkInterfaces"], // Query ENI status
-        resources: ["*"], // Describe* does not support resource-level scoping
+        resources: ["*"],
       }),
     );
 
@@ -688,33 +672,17 @@ export class ApiGatewayStack extends cdk.Stack {
       }),
     );
 
-    // Grant access to EC2 for Cognito Lambda triggers
+    // Grant access to EC2 for Cognito Lambda triggers (VPC Lambda execution)
     cognitoRole.addToPolicy(
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
         actions: [
           "ec2:CreateNetworkInterface",
+          "ec2:DescribeNetworkInterfaces",
           "ec2:DeleteNetworkInterface",
           "ec2:AssignPrivateIpAddresses",
           "ec2:UnassignPrivateIpAddresses",
         ],
-        resources: [
-          `arn:aws:ec2:${this.region}:${this.account}:network-interface/*`,
-          ...vpcStack.vpc.privateSubnets.map((subnet) => 
-            `arn:aws:ec2:${this.region}:${this.account}:subnet/${subnet.subnetId}`
-          ),
-          ...vpcStack.vpc.isolatedSubnets.map((subnet) => 
-            `arn:aws:ec2:${this.region}:${this.account}:subnet/${subnet.subnetId}`
-          ),
-          `arn:aws:ec2:${this.region}:${this.account}:security-group/${vpcStack.vpc.vpcDefaultSecurityGroup}`,
-        ],
-      }),
-    );
-
-    cognitoRole.addToPolicy(
-      new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: ["ec2:DescribeNetworkInterfaces"],
         resources: ["*"],
       }),
     );
