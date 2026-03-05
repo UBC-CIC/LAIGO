@@ -410,6 +410,7 @@ const InterviewAssistant: React.FC = () => {
   // Reset state when section changes
   useEffect(() => {
     setProgress(0); // Reset progress on new section
+    setFeedback(null); // clear stale reasoning when switching blocks
 
     // Block-specific greetings that explain the purpose and suggest starting points
     const BLOCK_GREETINGS: Record<string, string> = {
