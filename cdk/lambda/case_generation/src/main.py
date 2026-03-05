@@ -190,9 +190,11 @@ def _handle_guardrail_error(resp):
 
 def handler(event, context):
     try:
-        cognito_id = event.get('queryStringParameters', {}).get('user_id')
-        if not cognito_id:
-            return _response(400, {'error': 'Missing user_id'})
+        # Extract idp_id from authorizer context (passed from REST API authorizer)
+        idp_id = event.get('requestContext', {}).get('authorizer', {}).get('idpId')
+        if not idp_id:
+            logger.error("Missing idpId from authorizer context")
+            return _response(401, {'error': 'Unauthorized: Missing user identity'})
 
         body = json.loads(event.get('body', '{}'))
         case_title = body.get('case_title')
@@ -218,13 +220,15 @@ def handler(event, context):
         if guard_resp.get('action') == 'GUARDRAIL_INTERVENED':
             return _handle_guardrail_error(guard_resp)
 
+        # Lookup database user_id from idp_id
         conn = connect_to_db()
         cur = conn.cursor()
-        cur.execute('SELECT user_id FROM "users" WHERE cognito_id=%s', (cognito_id,))
+        cur.execute('SELECT user_id FROM "users" WHERE idp_id=%s', (idp_id,))
         row = cur.fetchone()
         if not row:
             cur.close()
-            return _response(404, {'error': 'User not found'})
+            logger.error(f"User not found for idp_id: {idp_id}")
+            return _response(403, {'error': 'User not found'})
         user_id = row[0]
 
         cur.execute('''INSERT INTO "cases"(student_id, case_title, case_type, jurisdiction, case_description, province, statute, status, unlocked_blocks, last_updated)

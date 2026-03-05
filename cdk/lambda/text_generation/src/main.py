@@ -144,13 +144,13 @@ def connect_to_db():
     return connection
 
 @functools.lru_cache(maxsize=128)
-def check_authorization(cognito_id, case_id):
+def check_authorization(idp_id, case_id):
     """
-    Verify that the user (identified by cognito_id) owns the specified case.
+    Verify that the user (identified by idp_id) owns the specified case.
     Prevents IDOR attacks by checking case ownership.
     
     Args:
-        cognito_id: Cognito user ID from JWT token
+        idp_id: Identity provider user ID from JWT token
         case_id: Case ID from the request
     
     Returns:
@@ -160,15 +160,15 @@ def check_authorization(cognito_id, case_id):
         conn = connect_to_db()
         cursor = conn.cursor()
         
-        # Look up user_id from cognito_id
+        # Look up user_id from idp_id
         cursor.execute(
-            'SELECT user_id FROM "users" WHERE cognito_id = %s',
-            (cognito_id,)
+            'SELECT user_id FROM "users" WHERE idp_id = %s',
+            (idp_id,)
         )
         user_row = cursor.fetchone()
         
         if not user_row:
-            logger.warning(f"Authorization failed: User not found for cognito_id={cognito_id}")
+            logger.warning(f"Authorization failed: User not found for idp_id={idp_id}")
             cursor.close()
             return False
         
@@ -189,7 +189,7 @@ def check_authorization(cognito_id, case_id):
         case_owner_id = case_row[0]
         
         if str(user_id) == str(case_owner_id):
-            logger.info(f"Authorization successful: User {cognito_id} owns case {case_id}")
+            logger.info(f"Authorization successful: User {idp_id} owns case {case_id}")
             cursor.close()
             return True
 
@@ -210,11 +210,11 @@ def check_authorization(cognito_id, case_id):
         cursor.close()
 
         if is_instructor:
-            logger.info(f"Authorization successful: User {cognito_id} is instructor for case owner {case_owner_id}")
+            logger.info(f"Authorization successful: User {idp_id} is instructor for case owner {case_owner_id}")
             return True
 
         logger.warning(
-            f"Authorization failed: User {cognito_id} (user_id={user_id}) "
+            f"Authorization failed: User {idp_id} (user_id={user_id}) "
             f"attempted to access case {case_id} owned by {case_owner_id}"
         )
         return False
@@ -557,13 +557,13 @@ def handler(event, context):
         logger.info("Generating response from the LLM.")
                 
         # Unified Identity Extraction
-        cognito_id = event.get("cognitoId")
-        if not cognito_id:
+        idp_id = event.get("idpId")
+        if not idp_id:
             # Try extracting from HTTP authorizer context
-            cognito_id = request_context.get("authorizer", {}).get("principalId")
+            idp_id = request_context.get("authorizer", {}).get("principalId")
 
         # Unified Authorization Check
-        if not cognito_id:
+        if not idp_id:
             logger.error("Authorization failed: Missing user identity")
             error_body = json.dumps({"error": "Unauthorized: Missing user identity"})
             if is_websocket:
@@ -584,8 +584,8 @@ def handler(event, context):
                     "body": error_body
                 }
 
-        if not check_authorization(cognito_id, case_id):
-            logger.error(f"Authorization failed: User {cognito_id} does not own case {case_id}")
+        if not check_authorization(idp_id, case_id):
+            logger.error(f"Authorization failed: User {idp_id} does not own case {case_id}")
             error_body = json.dumps({"error": "Forbidden: You do not have access to this case."})
             if is_websocket:
                  return {"statusCode": 403, "body": "Forbidden"}
@@ -612,7 +612,7 @@ def handler(event, context):
                 limit = int(MESSAGE_LIMIT)
                 conn = connect_to_db()
                 cur = conn.cursor()
-                cur.execute('SELECT user_id FROM "users" WHERE cognito_id = %s', (cognito_id,))
+                cur.execute('SELECT user_id FROM "users" WHERE idp_id = %s', (idp_id,))
                 user_row = cur.fetchone()
                 cur.close()
                 
@@ -657,7 +657,7 @@ def handler(event, context):
         # Request Processing
         if is_websocket and connection_id:
             # WebSocket streaming mode
-            logger.info(f"WebSocket streaming mode - connectionId: {connection_id}, cognitoId: {cognito_id}")
+            logger.info(f"WebSocket streaming mode - connectionId: {connection_id}, idpId: {idp_id}")
             
             websocket_endpoint = os.environ.get("WEBSOCKET_API_ENDPOINT")
             if not websocket_endpoint:
@@ -685,7 +685,7 @@ def handler(event, context):
             return {"statusCode": 200}
         else:
             # Traditional HTTP mode
-            logger.info(f"HTTP mode processing request from user {cognito_id}")
+            logger.info(f"HTTP mode processing request from user {idp_id}")
             
             response = get_response(
                 query=student_query,

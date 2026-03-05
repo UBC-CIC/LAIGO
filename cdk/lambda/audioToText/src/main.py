@@ -278,9 +278,18 @@ def customize_pii_markers(transcript_text):
     
     return transcript_text
 
-def publish_transcription_notification_event(audio_file_id, cognito_id, file_name, case_name, case_id, success=True, error_message=None):
+def publish_transcription_notification_event(audio_file_id, user_id, file_name, case_name, case_id, success=True, error_message=None):
     """
     Publish notification event to EventBridge for transcription completion
+    
+    Args:
+        audio_file_id: UUID of the audio file
+        user_id: Database user_id (UUID) - recipient of the notification
+        file_name: Name of the audio file
+        case_name: Name of the case
+        case_id: UUID of the case
+        success: Whether transcription succeeded
+        error_message: Error message if transcription failed
     """
     try:
         event_bus_name = os.environ.get("NOTIFICATION_EVENT_BUS_NAME")
@@ -303,7 +312,7 @@ def publish_transcription_notification_event(audio_file_id, cognito_id, file_nam
 
         event_detail = {
             "type": notification_type,
-            "recipientId": cognito_id,
+            "recipientId": user_id,  # Database user_id (already translated at boundary)
             "title": title,
             "message": message,
             "metadata": {
@@ -388,7 +397,7 @@ def handler(event, context):
             file_type = body.get("file_type", "mp3").lower()
             case_title = body.get("case_title")
             case_id = body.get("case_id")
-            cognito_id = event.get("cognitoId")  # Set by default.js from authorizer
+            user_id = event.get("userId")  # Database user_id from default.js (already translated at boundary)
             cognito_token = None  # Not needed for WebSocket mode
         else:
             # HTTP: parameters come from query string
@@ -399,9 +408,9 @@ def handler(event, context):
             cognito_token = qs.get("cognito_token")
             case_title = qs.get("case_title")
             case_id = qs.get("case_id")
-            cognito_id = request_context.get("authorizer", {}).get("principalId")
-            if not cognito_id:
-                logger.warning("No cognito_id available for notification")
+            user_id = request_context.get("authorizer", {}).get("principalId")
+            if not user_id:
+                logger.warning("No user_id available for notification")
 
         # Validate required parameters
         if not file_name or not audio_file_id:
@@ -411,8 +420,8 @@ def handler(event, context):
             if not audio_file_id:
                 missing.append("audio_file_id")
             logger.error(f"Missing params: {missing}")
-            if cognito_id:
-                publish_transcription_notification_event(audio_file_id, cognito_id, file_name, case_title, case_id, success=False, error_message=f"Missing parameters: {missing}")
+            if user_id:
+                publish_transcription_notification_event(audio_file_id, user_id, file_name, case_title, case_id, success=False, error_message=f"Missing parameters: {missing}")
             return _error_response(400, f"Missing parameters: {missing}", is_websocket, connection_id, ws_endpoint, request_id)
 
         # 2a. Validate physical file integrity (Server-side validation)
@@ -481,8 +490,8 @@ def handler(event, context):
         logger.info(f"About to send completion notification for audio_file_id={audio_file_id}")
 
         # Publish success notification via EventBridge (bell/toast notification system)
-        if cognito_id:
-            publish_transcription_notification_event(audio_file_id, cognito_id, file_name, case_title, case_id, success=True)
+        if user_id:
+            publish_transcription_notification_event(audio_file_id, user_id, file_name, case_title, case_id, success=True)
 
         # 6. Delete the audio file from S3
         try:
@@ -512,19 +521,19 @@ def handler(event, context):
 
     except Exception as e:
         logger.error("Handler error: %s", e, exc_info=True)
-        # Publish failure notification event if cognito_id is available
+        # Publish failure notification event if user_id is available
         if is_websocket:
-            cognito_id_for_notif = event.get("cognitoId")
+            user_id_for_notif = event.get("userId")
         else:
-            cognito_id_for_notif = event.get("requestContext", {}).get("authorizer", {}).get("principalId")
+            user_id_for_notif = event.get("requestContext", {}).get("authorizer", {}).get("principalId")
         
-        if cognito_id_for_notif:
+        if user_id_for_notif:
             if is_websocket:
                 body = json.loads(event.get("body", "{}"))
                 afid = body.get("audio_file_id", "unknown")
             else:
                 qs = event.get("queryStringParameters") or {}
                 afid = qs.get("audio_file_id", "unknown")
-            publish_transcription_notification_event(afid, cognito_id_for_notif, file_name=None, case_name=None, case_id=None, success=False, error_message=str(e))
+            publish_transcription_notification_event(afid, user_id_for_notif, file_name=None, case_name=None, case_id=None, success=False, error_message=str(e))
 
         return _error_response(500, str(e), is_websocket, connection_id, ws_endpoint, request_id)

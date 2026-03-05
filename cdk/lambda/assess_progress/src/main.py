@@ -4,7 +4,6 @@ import boto3
 import logging
 import psycopg
 import time
-import functools
 from botocore.exceptions import ClientError
 
 # Set up logging - Force level to INFO to ensure CloudWatch capture
@@ -282,14 +281,13 @@ def fetch_chat_history(session_id, table_name=None):
         logger.exception(f"Error fetching chat history from DynamoDB for session '{session_id}': {e}")
         return ""
 
-@functools.lru_cache(maxsize=128)
-def check_authorization(cognito_id, case_id):
+def check_authorization(user_id, case_id):
     """
-    Verify that the user (identified by cognito_id) owns the specified case.
+    Verify that the user (identified by database user_id) owns the specified case.
     Prevents IDOR attacks by checking case ownership.
     
     Args:
-        cognito_id: Cognito user ID from JWT token
+        user_id: Database user ID (already translated at boundary)
         case_id: Case ID from the request
     
     Returns:
@@ -298,20 +296,6 @@ def check_authorization(cognito_id, case_id):
     try: 
         conn = connect_to_db()
         cursor = conn.cursor()
-        
-        # Look up user_id from cognito_id
-        cursor.execute(
-            'SELECT user_id FROM "users" WHERE cognito_id = %s',
-            (cognito_id,)
-        )
-        user_row = cursor.fetchone()
-        
-        if not user_row:
-            logger.warning(f"Authorization failed: User not found for cognito_id={cognito_id}")
-            cursor.close()
-            return False
-        
-        user_id = user_row[0]
         
         # Verify case ownership
         cursor.execute(
@@ -328,7 +312,7 @@ def check_authorization(cognito_id, case_id):
         case_owner_id = case_row[0]
         
         if str(user_id) == str(case_owner_id):
-            logger.info(f"Authorization successful: User {cognito_id} owns case {case_id}")
+            logger.info(f"Authorization successful: User {user_id} owns case {case_id}")
             cursor.close()
             return True
 
@@ -345,11 +329,11 @@ def check_authorization(cognito_id, case_id):
         cursor.close()
 
         if is_instructor:
-            logger.info(f"Authorization successful: User {cognito_id} is instructor for case owner {case_owner_id}")
+            logger.info(f"Authorization successful: User {user_id} is instructor for case owner {case_owner_id}")
             return True
 
         logger.warning(
-            f"Authorization failed: User {cognito_id} (user_id={user_id}) "
+            f"Authorization failed: User {user_id} "
             f"attempted to access case {case_id} owned by {case_owner_id}"
         )
         return False
@@ -572,14 +556,14 @@ def handler(event, context):
             return {"statusCode": 400}
         return _response(400, error_msg)
     
-    # Extract cognito_id for authorization
-    cognito_id = event.get("cognitoId")
-    if not cognito_id:
+    # Extract user_id (database user_id already translated at boundary)
+    user_id = event.get("userId")
+    if not user_id:
         # Try to get from request context (HTTP fallback)
-        cognito_id = request_context.get("authorizer", {}).get("principalId")
+        user_id = request_context.get("authorizer", {}).get("principalId")
     
-    if not cognito_id:
-        logger.error("Authorization failed: Missing cognitoId")
+    if not user_id:
+        logger.error("Authorization failed: Missing userId")
         error_msg = "Unauthorized: Missing user identity"
         if is_websocket and connection_id:
             send_to_websocket(connection_id, ws_endpoint, request_id, "error", content=error_msg)
@@ -587,8 +571,8 @@ def handler(event, context):
         return _response(401, error_msg)
     
     # IDOR Protection: Verify user owns the case
-    if not check_authorization(cognito_id, case_id):
-        logger.error(f"Authorization failed: User {cognito_id} does not own case {case_id}")
+    if not check_authorization(user_id, case_id):
+        logger.error(f"Authorization failed: User {user_id} does not own case {case_id}")
         error_msg = "Forbidden: You do not have access to this case"
         if is_websocket and connection_id:
             send_to_websocket(connection_id, ws_endpoint, request_id, "error", content=error_msg)

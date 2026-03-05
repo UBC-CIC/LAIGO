@@ -1,10 +1,19 @@
 const { CognitoJwtVerifier } = require("aws-jwt-verify");
 
-let cognitoVerifier;
+let jwtVerifier;
 
 /**
  * Lambda Authorizer for WebSocket $connect route.
- * Validates Cognito JWT token and returns IAM Policy Document.
+ * Validates JWT token and returns IAM Policy Document.
+ * 
+ * Flow:
+ * 1. Extracts JWT token from headers/query
+ * 2. Verifies token signature and expiration
+ * 3. Extracts "sub" claim as idpId
+ * 4. Returns IAM policy with idpId in context (NO role/group validation)
+ * 
+ * Note: Authorization checks (role validation) are performed by WebSocket handlers
+ * using database lookups, not JWT claims.
  */
 exports.handler = async (event) => {
   const methodArn = event.methodArn;
@@ -18,34 +27,30 @@ exports.handler = async (event) => {
       throw new Error("Unauthorized");
     }
 
-    if (!cognitoVerifier) {
-      cognitoVerifier = CognitoJwtVerifier.create({
-        userPoolId: process.env.COGNITO_USER_POOL_ID,
+    // Initialize JWT verifier (IDP-agnostic)
+    if (!jwtVerifier) {
+      jwtVerifier = CognitoJwtVerifier.create({
+        userPoolId: process.env.JWT_ISSUER_ID,
         tokenUse: "id",
-        clientId: process.env.COGNITO_CLIENT_ID,
-        groups: ["admin", "instructor", "student"], // Restrict access to specific groups
+        clientId: process.env.JWT_CLIENT_ID,
+        // NO groups parameter - we don't validate groups in JWT
       });
     }
 
-    const decoded = await cognitoVerifier.verify(token);
-    const cognitoId = decoded.sub;
-    const email = decoded.email;
-    const username = decoded["cognito:username"];
-    const groups = decoded["cognito:groups"] || [];
+    // Validate JWT and extract sub claim
+    const decoded = await jwtVerifier.verify(token);
+    const idpId = decoded.sub;
 
     console.log("WebSocket connection authorized", {
       timestamp,
-      cognitoId,
-      email,
-      username,
-      groups,
+      idpId,
     });
 
     // Return IAM Policy allowing the connection
-    return generatePolicy(cognitoId, "Allow", methodArn, {
-      email: email || "",
-      username: username || "",
-      groups: groups.join(","), // Pass groups to downstream handlers
+    // Pass only idpId to downstream handlers via context
+    // Authorization checks (role validation) are performed by handlers using database lookups
+    return generatePolicy(idpId, "Allow", methodArn, {
+      idpId: idpId,
     });
   } catch (error) {
     console.error("WebSocket authorizer: token validation failed", {

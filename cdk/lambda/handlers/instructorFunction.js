@@ -18,7 +18,7 @@ const eventBridgeClient = new EventBridgeClient({});
  * Publish feedback notification event to EventBridge
  * @param {string} caseId - Case ID
  * @param {string} studentUserId - Database user_id of the student (not idp_id)
- * @param {string} instructorIdpId - IDP ID of the instructor
+ * @param {string} instructorUserId - Database user_id of the instructor (not idp_id)
  * @param {string} messageContent - Feedback message content
  * @param {string} caseTitle - Case title
  * @param {string} instructorName - Instructor's full name
@@ -26,7 +26,7 @@ const eventBridgeClient = new EventBridgeClient({});
 async function publishFeedbackNotificationEvent(
   caseId,
   studentUserId, // Database user_id
-  instructorIdpId,
+  instructorUserId, // Database user_id
   messageContent,
   caseTitle,
   instructorName,
@@ -48,13 +48,13 @@ async function publishFeedbackNotificationEvent(
       metadata: {
         caseId: caseId,
         caseName: caseTitle,
-        instructorId: instructorIdpId,
+        instructorId: instructorUserId, // Database user_id
         instructorName: instructorName,
         feedbackPreview:
           messageContent.substring(0, 100) +
           (messageContent.length > 100 ? "..." : ""),
       },
-      createdBy: instructorIdpId,
+      createdBy: instructorUserId, // Database user_id
     };
 
     const response = await eventBridgeClient.send(
@@ -185,11 +185,10 @@ exports.handler = async (event) => {
           const user_id = user.user_id;
           const instructorName = `${user.first_name} ${user.last_name}`;
 
-          // Get student_id, idp_id, and case_title from the case and user tables
+          // Get student_id and case_title from the case
           const caseResult = await sqlConnection`
-            SELECT c.student_id, c.case_title, u.idp_id 
+            SELECT c.student_id, c.case_title
             FROM "cases" c
-            JOIN "users" u ON c.student_id = u.user_id
             WHERE c.case_id = ${case_id};
           `;
 
@@ -201,7 +200,6 @@ exports.handler = async (event) => {
             break;
           }
           const student_id = caseResult[0].student_id;
-          const student_idp_id = caseResult[0].idp_id;
           const case_title = caseResult[0].case_title;
 
           // Insert message
@@ -230,11 +228,11 @@ exports.handler = async (event) => {
             WHERE case_id = ${case_id};
           `;
 
-          // Publish feedback notification event using student's database user_id
+          // Publish feedback notification event using database user_ids
           await publishFeedbackNotificationEvent(
             case_id,
-            student_id, // Database user_id, not idp_id
-            idpId,
+            student_id, // Database user_id
+            user_id, // Database user_id (instructor)
             message_content,
             case_title,
             instructorName,

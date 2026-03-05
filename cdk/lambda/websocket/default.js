@@ -45,13 +45,13 @@ async function initializeDatabase() {
 
 /**
  * Get user metadata from database with caching
- * @param {string} userId - Database user_id (UUID)
- * @returns {Promise<Object>} User metadata including roles
+ * @param {string} idpId - IDP user identifier from JWT sub claim
+ * @returns {Promise<Object>} User metadata including user_id, email, and roles
  */
-async function getUserMetadata(userId) {
+async function getUserMetadata(idpId) {
   // Check cache first
-  if (userCache[userId]) {
-    return userCache[userId];
+  if (userCache[idpId]) {
+    return userCache[idpId];
   }
 
   // Query database for user metadata
@@ -59,15 +59,15 @@ async function getUserMetadata(userId) {
   const user = await sql`
     SELECT user_id, email, first_name, last_name, roles
     FROM users
-    WHERE user_id = ${userId};
+    WHERE idp_id = ${idpId};
   `;
 
   if (user.length === 0) {
-    throw new Error("User not found");
+    throw new Error(`User not found for idpId: ${idpId}`);
   }
 
   // Cache for this execution context
-  userCache[userId] = user[0];
+  userCache[idpId] = user[0];
   return user[0];
 }
 
@@ -76,19 +76,20 @@ exports.handler = async (event) => {
   const domainName = event.requestContext.domainName;
   const stage = event.requestContext.stage;
 
-  // Extract user_id from authorization context (passed from authorizer)
-  const userId = event.requestContext.authorizer?.userId;
+  // Extract idpId from authorization context (passed from authorizer)
+  const idpId = event.requestContext.authorizer?.idpId;
 
   console.log("WebSocket message received:", {
     connectionId,
     routeKey: event.requestContext.routeKey,
     timestamp: new Date().toISOString(),
-    userId,
+    idpId,
   });
 
   try {
-    // Get user metadata from database
-    const user = await getUserMetadata(userId);
+    // Get user metadata from database using idpId
+    const user = await getUserMetadata(idpId);
+    const userId = user.user_id;
     const userEmail = user.email;
 
     // Check roles from database (not JWT groups)

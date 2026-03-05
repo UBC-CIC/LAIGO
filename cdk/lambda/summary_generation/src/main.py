@@ -4,7 +4,6 @@ import boto3
 import logging
 import hashlib
 import uuid
-import functools
 from datetime import datetime
 import psycopg
 from botocore.exceptions import ClientError
@@ -128,14 +127,13 @@ def connect_to_db():
     return connection
 
 
-@functools.lru_cache(maxsize=128)
-def check_authorization(cognito_id, case_id):
+def check_authorization(user_id, case_id):
     """
-    Verify that the user (identified by cognito_id) owns the specified case.
+    Verify that the user (identified by database user_id) owns the specified case.
     Prevents IDOR attacks by checking case ownership.
     
     Args:
-        cognito_id: Cognito user ID from JWT token
+        user_id: Database user ID (already translated at boundary)
         case_id: Case ID from the request
     
     Returns:
@@ -144,20 +142,6 @@ def check_authorization(cognito_id, case_id):
     try:
         conn = connect_to_db()
         cursor = conn.cursor()
-        
-        # Look up user_id from cognito_id
-        cursor.execute(
-            'SELECT user_id FROM "users" WHERE cognito_id = %s',
-            (cognito_id,)
-        )
-        user_row = cursor.fetchone()
-        
-        if not user_row:
-            logger.warning(f"Authorization failed: User not found for cognito_id={cognito_id}")
-            cursor.close()
-            return False
-        
-        user_id = user_row[0]
         
         # Verify case ownership
         cursor.execute(
@@ -171,38 +155,22 @@ def check_authorization(cognito_id, case_id):
             cursor.close()
             return False
         
-        case_owner_id = case_row[0]
-        
-        if str(user_id) == str(case_owner_id):
-            logger.info(f"Authorization successful: User {cognito_id} owns case {case_id}")
-            cursor.close()
-            return True
-
-        # Check if user is an instructor for this student
-        cursor.execute(
-            """
-            SELECT 1 
-            FROM instructor_students 
-            WHERE instructor_id = %s AND student_id = %s
-            """,
-            (user_id, case_owner_id)
-        )
-        is_instructor = cursor.fetchone()
+        student_id = case_row[0]
         cursor.close()
-
-        if is_instructor:
-            logger.info(f"Authorization successful: User {cognito_id} is instructor for case owner {case_owner_id}")
-            return True
-
-        logger.warning(
-            f"Authorization failed: User {cognito_id} (user_id={user_id}) "
-            f"attempted to access case {case_id} owned by {case_owner_id}"
-        )
-        return False
+        
+        # Check if user owns the case
+        if student_id != user_id:
+            logger.warning(f"Authorization failed: User {user_id} does not own case {case_id}")
+            return False
+        
+        return True
         
     except Exception as e:
-        logger.error(f"Authorization check failed with error: {e}")
+        logger.error(f"Authorization check failed: {e}")
         return False
+
+
+
 
 
 def send_to_websocket(connection_id, endpoint, request_id, msg_type, content=None, data=None):
@@ -418,7 +386,7 @@ def update_summaries(case_id, summary, block_type, scope='block'):
         connection.rollback()
         return False
 
-def publish_notification_event(event_type, case_id, cognito_id, success=True, error_message=None):
+def publish_notification_event(event_type, case_id, user_id, success=True, error_message=None):
     """
     Publish notification event to EventBridge for summary generation completion
     """
@@ -454,7 +422,7 @@ def publish_notification_event(event_type, case_id, cognito_id, success=True, er
 
         event_detail = {
             "type": notification_type,
-            "recipientId": cognito_id,
+            "recipientId": user_id,
             "title": title,
             "message": message,
             "metadata": {
@@ -499,7 +467,7 @@ def handler(event, context):
     Expected event structure (WebSocket):
     {
         "isWebSocket": true,
-        "cognitoId": "user-cognito-id",
+        "userId": "database-user-id",
         "requestId": "unique-request-id",
         "queryStringParameters": { "case_id": "...", "sub_route": "..." },
         "requestContext": { "connectionId": "...", "domainName": "...", "stage": "..." }
@@ -532,20 +500,21 @@ def handler(event, context):
     if not case_id:
         return _error_response(400, "Missing required parameters: case_id", is_websocket, connection_id, ws_endpoint, request_id)
 
-    # Authorization check
-    cognito_id = event.get("cognitoId")
-    if not cognito_id:
+    # Get user_id from event (already translated at boundary)
+    user_id = event.get("userId")
+    if not user_id:
         # Try to get from request context (HTTP fallback)
-        cognito_id = request_context.get("authorizer", {}).get("principalId")
+        user_id = request_context.get("authorizer", {}).get("principalId")
     
-    # Enforce authorization for ALL requests (HTTP and WebSocket)
-    if not cognito_id:
-        logger.error("Authorization failed: Missing cognitoId")
+    # Validate user_id is present
+    if not user_id:
+        logger.error("Authorization failed: Missing userId")
         return _error_response(401, "Unauthorized: Missing user identity", is_websocket, connection_id, ws_endpoint, request_id)
-    
-    if not check_authorization(cognito_id, case_id):
-        logger.error(f"Authorization failed: User {cognito_id} does not own case {case_id}")
-        return _error_response(403, "Forbidden: You do not have access to this case", is_websocket, connection_id, ws_endpoint, request_id)
+
+    # Check case ownership (IDOR protection)
+    if not check_authorization(user_id, case_id):
+        logger.error(f"Authorization failed: User {user_id} does not own case {case_id}")
+        return _error_response(403, "Forbidden: You do not own this case", is_websocket, connection_id, ws_endpoint, request_id)
 
     case_title, case_type, jurisdiction, case_description = get_case_details(case_id)
     if case_title is None or case_type is None or jurisdiction is None or case_description is None:
@@ -608,7 +577,7 @@ def handler(event, context):
                 )
         except Exception as e:
             logger.error(f"Error generating full case summary: {e}")
-            publish_notification_event("full-case", case_id, cognito_id, success=False, error_message=str(e))
+            publish_notification_event("full-case", case_id, user_id, success=False, error_message=str(e))
             return _error_response(500, 'Error generating full case summary', is_websocket, connection_id, ws_endpoint, request_id)
 
         # 4. Save summary
@@ -616,11 +585,11 @@ def handler(event, context):
             update_summaries(case_id, response, None, scope='full_case')
         except Exception as e:
             logger.error(f"Error saving full case summary: {e}")
-            publish_notification_event("full-case", case_id, cognito_id, success=False, error_message=str(e))
+            publish_notification_event("full-case", case_id, user_id, success=False, error_message=str(e))
             return _error_response(500, 'Error saving full case summary', is_websocket, connection_id, ws_endpoint, request_id)
         
         # 5. Publish success notification event
-        publish_notification_event("full-case", case_id, cognito_id, success=True)
+        publish_notification_event("full-case", case_id, user_id, success=True)
         
         # Return response
         if is_websocket and connection_id:
@@ -694,7 +663,7 @@ def handler(event, context):
                 )
         except Exception as e:
             logger.error(f"Error getting response: {e}")
-            publish_notification_event(sub_route, case_id, cognito_id, success=False, error_message=str(e))
+            publish_notification_event(sub_route, case_id, user_id, success=False, error_message=str(e))
             return _error_response(500, 'Error getting response', is_websocket, connection_id, ws_endpoint, request_id)
             
         try:
@@ -703,11 +672,11 @@ def handler(event, context):
             update_summaries(case_id, response, block_type, scope='block')
         except Exception as e:
             logger.error(f"Error updating case summary: {e}")
-            publish_notification_event(sub_route, case_id, cognito_id, success=False, error_message=str(e))
+            publish_notification_event(sub_route, case_id, user_id, success=False, error_message=str(e))
             return _error_response(500, 'Error updating case summary', is_websocket, connection_id, ws_endpoint, request_id)
         
         # Publish success notification event
-        publish_notification_event(sub_route, case_id, cognito_id, success=True)
+        publish_notification_event(sub_route, case_id, user_id, success=True)
         
         # Return response
         if is_websocket and connection_id:
