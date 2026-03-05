@@ -142,6 +142,11 @@ def check_authorization(user_id, case_id):
     try:
         conn = connect_to_db()
         cursor = conn.cursor()
+
+        if not user_id:
+            logger.warning("Authorization failed: Missing user_id")
+            cursor.close()
+            return False
         
         # Verify case ownership
         cursor.execute(
@@ -159,7 +164,7 @@ def check_authorization(user_id, case_id):
         cursor.close()
         
         # Check if user owns the case
-        if student_id != user_id:
+        if str(student_id) != str(user_id):
             logger.warning(f"Authorization failed: User {user_id} does not own case {case_id}")
             return False
         
@@ -504,6 +509,9 @@ def handler(event, context):
     user_id = event.get("userId")
     if not user_id:
         # Try to get from request context (HTTP fallback)
+        user_id = request_context.get("authorizer", {}).get("userId")
+    if not user_id:
+        # Backward compatibility fallback for older authorizer payloads
         user_id = request_context.get("authorizer", {}).get("principalId")
     
     # Validate user_id is present
