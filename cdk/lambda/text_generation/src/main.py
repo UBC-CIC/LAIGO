@@ -144,13 +144,13 @@ def connect_to_db():
     return connection
 
 @functools.lru_cache(maxsize=128)
-def check_authorization(idp_id, case_id):
+def check_authorization(user_id, case_id):
     """
-    Verify that the user (identified by idp_id) owns the specified case.
+    Verify that the user (identified by user_id) owns the specified case.
     Prevents IDOR attacks by checking case ownership.
     
     Args:
-        idp_id: Identity provider user ID from JWT token
+        user_id: Database user ID from authorizer context
         case_id: Case ID from the request
     
     Returns:
@@ -160,19 +160,10 @@ def check_authorization(idp_id, case_id):
         conn = connect_to_db()
         cursor = conn.cursor()
         
-        # Look up user_id from idp_id
-        cursor.execute(
-            'SELECT user_id FROM "users" WHERE idp_id = %s',
-            (idp_id,)
-        )
-        user_row = cursor.fetchone()
-        
-        if not user_row:
-            logger.warning(f"Authorization failed: User not found for idp_id={idp_id}")
+        if not user_id:
+            logger.warning("Authorization failed: Missing user_id")
             cursor.close()
             return False
-        
-        user_id = user_row[0]
         
         # Verify case ownership
         cursor.execute(
@@ -189,7 +180,7 @@ def check_authorization(idp_id, case_id):
         case_owner_id = case_row[0]
         
         if str(user_id) == str(case_owner_id):
-            logger.info(f"Authorization successful: User {idp_id} owns case {case_id}")
+            logger.info(f"Authorization successful: User {user_id} owns case {case_id}")
             cursor.close()
             return True
 
@@ -210,11 +201,11 @@ def check_authorization(idp_id, case_id):
         cursor.close()
 
         if is_instructor:
-            logger.info(f"Authorization successful: User {idp_id} is instructor for case owner {case_owner_id}")
+            logger.info(f"Authorization successful: User {user_id} is instructor for case owner {case_owner_id}")
             return True
 
         logger.warning(
-            f"Authorization failed: User {idp_id} (user_id={user_id}) "
+            f"Authorization failed: User {user_id} "
             f"attempted to access case {case_id} owned by {case_owner_id}"
         )
         return False
@@ -557,13 +548,14 @@ def handler(event, context):
         logger.info("Generating response from the LLM.")
                 
         # Unified Identity Extraction
-        idp_id = event.get("idpId")
-        if not idp_id:
-            # Try extracting from HTTP authorizer context
-            idp_id = request_context.get("authorizer", {}).get("principalId")
+        # Prefer explicit payload userId (used by websocket invocations),
+        # then fall back to HTTP API authorizer context.
+        user_id = event.get("userId")
+        if not user_id:
+            user_id = request_context.get("authorizer", {}).get("userId")
 
         # Unified Authorization Check
-        if not idp_id:
+        if not user_id:
             logger.error("Authorization failed: Missing user identity")
             error_body = json.dumps({"error": "Unauthorized: Missing user identity"})
             if is_websocket:
@@ -584,8 +576,8 @@ def handler(event, context):
                     "body": error_body
                 }
 
-        if not check_authorization(idp_id, case_id):
-            logger.error(f"Authorization failed: User {idp_id} does not own case {case_id}")
+        if not check_authorization(user_id, case_id):
+            logger.error(f"Authorization failed: User {user_id} does not own case {case_id}")
             error_body = json.dumps({"error": "Forbidden: You do not have access to this case."})
             if is_websocket:
                  return {"statusCode": 403, "body": "Forbidden"}
@@ -611,44 +603,37 @@ def handler(event, context):
             try:
                 limit = int(MESSAGE_LIMIT)
                 conn = connect_to_db()
-                cur = conn.cursor()
-                cur.execute('SELECT user_id FROM "users" WHERE idp_id = %s', (idp_id,))
-                user_row = cur.fetchone()
-                cur.close()
-                
-                if user_row:
-                    user_id = user_row[0]
-                    current_usage = check_and_increment_usage(conn, user_id)
-                    logging.info(f"User {user_id} usage: {current_usage}/{limit}")
+                current_usage = check_and_increment_usage(conn, user_id)
+                logging.info(f"User {user_id} usage: {current_usage}/{limit}")
                     
-                    if current_usage > limit:
-                        error_message = "Daily message limit reached. Please contact your administrator."
-                        if is_websocket and connection_id:
-                            websocket_endpoint = os.environ.get("WEBSOCKET_API_ENDPOINT")
-                            if not websocket_endpoint:
-                                websocket_endpoint = f"https://{domain_name}/{stage}"
-                            
-                            apigw_client = boto3.client('apigatewaymanagementapi', endpoint_url=websocket_endpoint)
-                            apigw_client.post_to_connection(
-                                ConnectionId=connection_id,
-                                Data=json.dumps({"type": "error", "content": error_message}).encode('utf-8')
-                            )
-                            return {"statusCode": 200}
-                        else:
-                             return {
-                                'statusCode': 429,
-                                "headers": {
-                                    "Content-Type": "application/json",
-                                    "Access-Control-Allow-Headers": "*",
-                                    "Access-Control-Allow-Origin": "*",
-                                    "Access-Control-Allow-Methods": "*",
-                                    "X-Content-Type-Options": "nosniff",
-                                    "X-Frame-Options": "DENY",
-                                    "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none';",
-                                    "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
-                                },
-                                "body": json.dumps({"error": error_message})
-                             }
+                if current_usage > limit:
+                    error_message = "Daily message limit reached. Please contact your administrator."
+                    if is_websocket and connection_id:
+                        websocket_endpoint = os.environ.get("WEBSOCKET_API_ENDPOINT")
+                        if not websocket_endpoint:
+                            websocket_endpoint = f"https://{domain_name}/{stage}"
+
+                        apigw_client = boto3.client('apigatewaymanagementapi', endpoint_url=websocket_endpoint)
+                        apigw_client.post_to_connection(
+                            ConnectionId=connection_id,
+                            Data=json.dumps({"type": "error", "content": error_message}).encode('utf-8')
+                        )
+                        return {"statusCode": 200}
+                    else:
+                         return {
+                            'statusCode': 429,
+                            "headers": {
+                                "Content-Type": "application/json",
+                                "Access-Control-Allow-Headers": "*",
+                                "Access-Control-Allow-Origin": "*",
+                                "Access-Control-Allow-Methods": "*",
+                                "X-Content-Type-Options": "nosniff",
+                                "X-Frame-Options": "DENY",
+                                "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none';",
+                                "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+                            },
+                            "body": json.dumps({"error": error_message})
+                         }
             except Exception as e:
                 logger.error(f"Error checking message limit: {e}")
                 # Log error but allow request to proceed if usage check fails (fail open)
@@ -657,7 +642,7 @@ def handler(event, context):
         # Request Processing
         if is_websocket and connection_id:
             # WebSocket streaming mode
-            logger.info(f"WebSocket streaming mode - connectionId: {connection_id}, idpId: {idp_id}")
+            logger.info(f"WebSocket streaming mode - connectionId: {connection_id}, userId: {user_id}")
             
             websocket_endpoint = os.environ.get("WEBSOCKET_API_ENDPOINT")
             if not websocket_endpoint:
@@ -685,7 +670,7 @@ def handler(event, context):
             return {"statusCode": 200}
         else:
             # Traditional HTTP mode
-            logger.info(f"HTTP mode processing request from user {idp_id}")
+            logger.info(f"HTTP mode processing request from user {user_id}")
             
             response = get_response(
                 query=student_query,
