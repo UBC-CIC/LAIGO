@@ -92,13 +92,15 @@ const BLOCK_TYPES = [
   { id: "intake", label: "Intake & Facts" },
   { id: "legal_analysis", label: "Legal Analysis" },
   { id: "contrarian", label: "Contrarian Analysis" },
-  { id: "policy", label: "Policy Context" },
+  { id: "policy", label: "Policy Analysis" },
 ];
 
 // Only these blocks have assessment prompts
 const ASSESSABLE_BLOCK_TYPES = [
   { id: "intake", label: "Intake & Facts" },
   { id: "legal_analysis", label: "Legal Analysis" },
+  { id: "contrarian", label: "Contrarian Analysis" },
+  { id: "policy", label: "Policy Analysis" },
 ];
 
 type PlaygroundMode = "reasoning" | "assessment";

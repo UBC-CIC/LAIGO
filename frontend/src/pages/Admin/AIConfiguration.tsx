@@ -17,11 +17,7 @@ import PromptPlayground from "../../components/Admin/PromptPlayground";
 
 type PromptCategory = "General Settings" | "reasoning" | "assessment";
 
-type BlockType =
-  | "intake"
-  | "legal_analysis"
-  | "contrarian"
-  | "policy";
+type BlockType = "intake" | "legal_analysis" | "contrarian" | "policy";
 
 // Mapping from Sidebar ID to Backend Enums
 const SIDEBAR_TO_BACKEND: Record<
@@ -40,7 +36,12 @@ const SIDEBAR_TO_BACKEND: Record<
 
   // Assessment
   "intake-assessment": { category: "assessment", block_type: "intake" },
-  "legal-analysis-assessment": { category: "assessment", block_type: "legal_analysis" },
+  "legal-analysis-assessment": {
+    category: "assessment",
+    block_type: "legal_analysis",
+  },
+  "contrarian-assessment": { category: "assessment", block_type: "contrarian" },
+  "policy-assessment": { category: "assessment", block_type: "policy" },
 };
 
 interface SidebarItem {
@@ -97,7 +98,7 @@ const SECTIONS: SidebarSection[] = [
       },
       {
         id: "policy-context",
-        label: "Policy Context",
+        label: "Policy Analysis",
         description:
           "Guides the user to consider broader contexts like comparative precedents, public policy, and Charter issues for a holistic analysis.",
       },
@@ -117,6 +118,18 @@ const SECTIONS: SidebarSection[] = [
         label: "Legal Analysis Assessment",
         description:
           "Establishes standards for assessing legal analysis comprehension. Success unlocks advanced blocks (Contrarian, Policy).",
+      },
+      {
+        id: "contrarian-assessment",
+        label: "Contrarian Assessment",
+        description:
+          "Defines criteria to evaluate if 'Contrarian Analysis' is complete.",
+      },
+      {
+        id: "policy-assessment",
+        label: "Policy Assessment",
+        description:
+          "Establishes standards for assessing policy analysis comprehension.",
       },
     ],
   },
