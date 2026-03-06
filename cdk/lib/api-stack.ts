@@ -563,7 +563,7 @@ export class ApiGatewayStack extends cdk.Stack {
         runtime: lambda.Runtime.NODEJS_22_X,
         code: lambda.Code.fromAsset("lambda/authorization"),
         handler: "adminAuthorizerFunction.handler",
-        timeout: Duration.seconds(300),
+        timeout: Duration.seconds(10),
         vpc: vpcStack.vpc, // VPC access for database connectivity
         vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
         securityGroups: [db.dbInstance.connections.securityGroups[0]],
@@ -581,7 +581,10 @@ export class ApiGatewayStack extends cdk.Stack {
 
     // Grant database access to admin authorizer
     db.secretPathUser.grantRead(adminAuthorizationFunction);
-    db.dbInstance.grantConnect(adminAuthorizationFunction, "applicationUsername");
+    db.dbInstance.grantConnect(
+      adminAuthorizationFunction,
+      "applicationUsername",
+    );
 
     // Grant API Gateway permission to invoke the admin authorizer
     adminAuthorizationFunction.grantInvoke(
@@ -602,7 +605,7 @@ export class ApiGatewayStack extends cdk.Stack {
         runtime: lambda.Runtime.NODEJS_22_X,
         code: lambda.Code.fromAsset("lambda/authorization"),
         handler: "studentAuthorizerFunction.handler",
-        timeout: Duration.seconds(300),
+        timeout: Duration.seconds(10),
         vpc: vpcStack.vpc, // VPC access for database connectivity
         vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
         securityGroups: [db.dbInstance.connections.securityGroups[0]],
@@ -643,7 +646,7 @@ export class ApiGatewayStack extends cdk.Stack {
         runtime: lambda.Runtime.NODEJS_22_X,
         code: lambda.Code.fromAsset("lambda/authorization"),
         handler: "instructorAuthorizerFunction.handler",
-        timeout: Duration.seconds(300),
+        timeout: Duration.seconds(10),
         vpc: vpcStack.vpc,
         vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
         securityGroups: [db.dbInstance.connections.securityGroups[0]],
@@ -765,7 +768,7 @@ export class ApiGatewayStack extends cdk.Stack {
       runtime: lambda.Runtime.NODEJS_22_X,
       handler: "preSignup.handler",
       code: lambda.Code.fromAsset("lambda/authorization"),
-      timeout: Duration.seconds(30),
+      timeout: Duration.seconds(10),
       vpc: vpcStack.vpc,
       environment: {
         ALLOWED_EMAIL_DOMAINS: "/LAIGO/AllowedEmailDomains", // SSM parameter with allowed domains
@@ -784,7 +787,7 @@ export class ApiGatewayStack extends cdk.Stack {
         runtime: lambda.Runtime.NODEJS_22_X,
         handler: "addStudentOnSignUp.handler",
         code: lambda.Code.fromAsset("lambda/authorization"),
-        timeout: Duration.seconds(300),
+        timeout: Duration.seconds(29),
         vpc: vpcStack.vpc, // VPC access for database connectivity
         environment: {
           SM_DB_CREDENTIALS: db.secretPathUser.secretName, // Database user credentials
@@ -911,8 +914,7 @@ export class ApiGatewayStack extends cdk.Stack {
         description: "Block financial advice",
         blockedInputMessaging:
           "Sorry, I cannot process inputs that appear to contain financial advice requests.",
-        blockedOutputsMessaging:
-          "Sorry, I cannot provide financial advice.",
+        blockedOutputsMessaging: "Sorry, I cannot provide financial advice.",
         topicPolicyConfig: {
           topicsConfig: [
             {
@@ -1160,7 +1162,7 @@ export class ApiGatewayStack extends cdk.Stack {
         runtime: lambda.Runtime.NODEJS_22_X,
         handler: "studentFunction.handler",
         code: lambda.Code.fromAsset("lambda/handlers"),
-        timeout: Duration.seconds(30),
+        timeout: Duration.seconds(29),
         vpc: vpcStack.vpc,
         environment: {
           SM_DB_CREDENTIALS: db.secretPathUser.secretName,
@@ -1209,7 +1211,7 @@ export class ApiGatewayStack extends cdk.Stack {
         runtime: lambda.Runtime.NODEJS_22_X,
         code: lambda.Code.fromAsset("lambda/handlers"),
         handler: "adminFunction.handler",
-        timeout: Duration.seconds(300),
+        timeout: Duration.seconds(29),
         vpc: vpcStack.vpc,
         environment: {
           SM_DB_CREDENTIALS: db.secretPathTableCreator.secretName,
@@ -1265,7 +1267,7 @@ export class ApiGatewayStack extends cdk.Stack {
         runtime: lambda.Runtime.NODEJS_22_X,
         code: lambda.Code.fromAsset("lambda/handlers"),
         handler: "instructorFunction.handler",
-        timeout: Duration.seconds(300),
+        timeout: Duration.seconds(29),
         vpc: vpcStack.vpc,
         environment: {
           SM_DB_CREDENTIALS: db.secretPathUser.secretName,
@@ -1319,7 +1321,7 @@ export class ApiGatewayStack extends cdk.Stack {
         code: lambda.Code.fromAsset("./lambda/case_generation/src"),
         layers: [psycopg3Layer],
         memorySize: 512,
-        timeout: cdk.Duration.seconds(300),
+        timeout: cdk.Duration.seconds(30),
         vpc: vpcStack.vpc,
         functionName: `${id}-CaseLambdaDockerFunction`,
         environment: {
@@ -1357,13 +1359,8 @@ export class ApiGatewayStack extends cdk.Stack {
     caseGenLambdaDockerFunc.addToRolePolicy(
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
-        actions: [
-          "bedrock:InvokeGuardrail",
-          "bedrock:ApplyGuardrail",
-        ],
-        resources: [
-          caseGenGuardrail.attrGuardrailArn,
-        ],
+        actions: ["bedrock:InvokeGuardrail", "bedrock:ApplyGuardrail"],
+        resources: [caseGenGuardrail.attrGuardrailArn],
       }),
     );
 
@@ -1397,7 +1394,7 @@ export class ApiGatewayStack extends cdk.Stack {
           },
         ),
         memorySize: 512,
-        timeout: cdk.Duration.seconds(300),
+        timeout: cdk.Duration.seconds(120),
         vpc: vpcStack.vpc,
         functionName: `${id}-TextGenLambdaDockerFunction`,
         environment: {
@@ -1434,13 +1431,8 @@ export class ApiGatewayStack extends cdk.Stack {
     textGenLambdaDockerFunc.addToRolePolicy(
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
-        actions: [
-          "bedrock:InvokeGuardrail",
-          "bedrock:ApplyGuardrail",
-        ],
-        resources: [
-          textGenGuardrail.attrGuardrailArn,
-        ],
+        actions: ["bedrock:InvokeGuardrail", "bedrock:ApplyGuardrail"],
+        resources: [textGenGuardrail.attrGuardrailArn],
       }),
     );
 
@@ -1492,7 +1484,7 @@ export class ApiGatewayStack extends cdk.Stack {
           },
         ),
         memorySize: 512,
-        timeout: cdk.Duration.seconds(300),
+        timeout: cdk.Duration.seconds(120),
         vpc: vpcStack.vpc,
         functionName: `${id}-PlaygroundTextGenLambdaDockerFunction`,
         environment: {
@@ -1552,13 +1544,8 @@ export class ApiGatewayStack extends cdk.Stack {
     playgroundGenLambdaDockerFunc.addToRolePolicy(
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
-        actions: [
-          "bedrock:InvokeGuardrail",
-          "bedrock:ApplyGuardrail",
-        ],
-        resources: [
-          textGenGuardrail.attrGuardrailArn,
-        ],
+        actions: ["bedrock:InvokeGuardrail", "bedrock:ApplyGuardrail"],
+        resources: [textGenGuardrail.attrGuardrailArn],
       }),
     );
 
@@ -1572,7 +1559,7 @@ export class ApiGatewayStack extends cdk.Stack {
         code: lambda.Code.fromAsset("./lambda/assess_progress/src"),
         layers: [psycopg3Layer],
         functionName: `${id}-AssessProgressFunction`,
-        timeout: Duration.seconds(300),
+        timeout: Duration.seconds(30),
         memorySize: 512,
         vpc: vpcStack.vpc,
         environment: {
@@ -1658,7 +1645,7 @@ export class ApiGatewayStack extends cdk.Stack {
         runtime: lambda.Runtime.PYTHON_3_12,
         code: lambda.Code.fromAsset("lambda/generatePreSignedURL"),
         handler: "generatePreSignedURL.lambda_handler",
-        timeout: Duration.seconds(300),
+        timeout: Duration.seconds(29),
         memorySize: 128,
         environment: {
           BUCKET: audioStorageBucket.bucketName,
@@ -1702,7 +1689,7 @@ export class ApiGatewayStack extends cdk.Stack {
         code: lambda.Code.fromAsset("./lambda/audioToText/src"),
         layers: [psycopg3Layer],
         memorySize: 512,
-        timeout: cdk.Duration.seconds(900),
+        timeout: cdk.Duration.seconds(120),
         vpc: vpcStack.vpc,
         functionName: `${id}-audioToTextFunc`,
         environment: {
@@ -1797,7 +1784,7 @@ export class ApiGatewayStack extends cdk.Stack {
         code: lambda.Code.fromAsset("./lambda/summary_generation/src"),
         layers: [psycopg3Layer],
         functionName: `${id}-SummaryGenerationFunction`,
-        timeout: Duration.seconds(300),
+        timeout: Duration.seconds(120),
         memorySize: 512,
         vpc: vpcStack.vpc,
         environment: {
@@ -1880,7 +1867,7 @@ export class ApiGatewayStack extends cdk.Stack {
         runtime: lambda.Runtime.NODEJS_22_X,
         code: lambda.Code.fromAsset("lambda/websocket"),
         handler: "connect.handler",
-        timeout: Duration.seconds(30),
+        timeout: Duration.seconds(10),
         memorySize: 256,
         functionName: `${id}-WsConnect`,
         environment: {
@@ -1943,7 +1930,7 @@ export class ApiGatewayStack extends cdk.Stack {
         runtime: lambda.Runtime.NODEJS_22_X,
         code: lambda.Code.fromAsset("lambda/websocket"),
         handler: "default.handler",
-        timeout: Duration.seconds(30),
+        timeout: Duration.seconds(10),
         memorySize: 256,
         functionName: `${id}-WsDefault`,
         environment: {
@@ -2116,7 +2103,7 @@ export class ApiGatewayStack extends cdk.Stack {
         runtime: lambda.Runtime.NODEJS_22_X,
         code: lambda.Code.fromAsset("lambda/notificationService"),
         handler: "index.handler",
-        timeout: Duration.seconds(30),
+        timeout: Duration.seconds(29),
         memorySize: 512,
         functionName: `${id}-NotificationService`,
         role: lambdaRole,
@@ -2158,7 +2145,10 @@ export class ApiGatewayStack extends cdk.Stack {
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
         actions: ["dynamodb:Query", "dynamodb:DeleteItem"],
-        resources: [connectionTable.tableArn, `${connectionTable.tableArn}/index/*`],
+        resources: [
+          connectionTable.tableArn,
+          `${connectionTable.tableArn}/index/*`,
+        ],
       }),
     );
 
