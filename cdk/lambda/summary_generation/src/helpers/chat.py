@@ -320,25 +320,24 @@ Use markdown formatting. Only include sections where content was discussed.
     system_prompt = f"""
 {selected_prompt_instruction}
 
-CRITICAL OUTPUT INSTRUCTIONS:
+--- CASE METADATA ---
+Case Type: {case_type or 'Not Specified'}
+Case Description: {case_description or 'No additional description provided'}
+Jurisdiction: {jurisdiction or 'Not Specified'}
+
+--- CRITICAL OUTPUT INSTRUCTIONS ---
 - Respond with ONLY the summary content in markdown format.
 - DO NOT include ANY preamble, such as "Here's your summary...", "Based on the information provided...", or "Based on the conversation...".
 - DO NOT include ANY outro, such as "Let me know if this is correct...", "Please review...", or "Please let me know if I am missing...".
 - Start directly with the first section heading.
 - End with the last content point.
 - NO conversational text whatsoever. ONLY the structured markdown summary.
-
-Respond in a proper, readable, markdown format.
-Use a clear, professional tone. Organize the summary with clear headings.
-Avoid personal opinions and stick to the observable facts from the conversation.
-
-Case Metadata:
-- Case Type: {case_type or 'Not Specified'}
-- Case Description: {case_description or 'No additional description provided'}
-- Jurisdiction: {jurisdiction or 'Not Specified'}
+- Respond in a proper, readable, markdown format.
+- Use a clear, professional tone. Organize the summary with clear headings.
+- Avoid personal opinions and stick to the observable facts from the conversation.
     """.strip()
 
-    user_prompt = f"Here is the conversation to summarize:\n{conversation_history}"
+    user_prompt = f"Please summarize the following conversation:\n\n---\n{conversation_history}\n---\n\nAdhere strictly to the critical output instructions."
     return _invoke_model_text(llm, system_prompt, user_prompt)
 
 def generate_lawyer_summary_streaming(
@@ -493,25 +492,24 @@ Use markdown formatting. Only include sections where content was discussed.
     system_prompt = f"""
 {selected_prompt_instruction}
 
-CRITICAL OUTPUT INSTRUCTIONS:
+--- CASE METADATA ---
+Case Type: {case_type or 'Not Specified'}
+Case Description: {case_description or 'No additional description provided'}
+Jurisdiction: {jurisdiction or 'Not Specified'}
+
+--- CRITICAL OUTPUT INSTRUCTIONS ---
 - Respond with ONLY the summary content in markdown format.
 - DO NOT include ANY preamble, such as "Here's your summary...", "Based on the information provided...", or "Based on the conversation...".
 - DO NOT include ANY outro, such as "Let me know if this is correct...", "Please review...", or "Please let me know if I am missing...".
 - Start directly with the first section heading.
 - End with the last content point.
 - NO conversational text whatsoever. ONLY the structured markdown summary.
-
-Respond in a proper, readable, markdown format.
-Use a clear, professional tone. Organize the summary with clear headings.
-Avoid personal opinions and stick to the observable facts from the conversation.
-
-Case Metadata:
-- Case Type: {case_type or 'Not Specified'}
-- Case Description: {case_description or 'No additional description provided'}
-- Jurisdiction: {jurisdiction or 'Not Specified'}
+- Respond in a proper, readable, markdown format.
+- Use a clear, professional tone. Organize the summary with clear headings.
+- Avoid personal opinions and stick to the observable facts from the conversation.
     """.strip()
 
-    user_prompt = f"Here is the conversation to summarize:\n{conversation_history}"
+    user_prompt = f"Please summarize the following conversation:\n\n---\n{conversation_history}\n---\n\nAdhere strictly to the critical output instructions."
 
     try:
         return _stream_invoke_model_text(llm, system_prompt, user_prompt, send_chunk_callback)
@@ -572,12 +570,13 @@ OUTPUT: Respond with ONLY the case summary in markdown format. No preamble.
     system_prompt = f"""
 {prompt_instruction}
 
+--- CRITICAL OUTPUT INSTRUCTIONS ---
 IMPORTANT: Respond with ONLY the synthesized summary content in markdown format.
 Do not include any preamble, explanation, or meta-commentary (e.g. no "Here is the summary" or "Based on the information...").
 Do not include any outro or conclusion text.
 Start directly with the summary content and end with the last content point. No conversational text whatsoever.
     """.strip()
-    user_prompt = f"Here are the summaries from different stages of the case:\n{summaries_text}"
+    user_prompt = f"Here are the summaries from different stages of the case:\n\n---\n{summaries_text}\n---\n\nPlease synthesize them strictly adhering to the critical output instructions."
     return _invoke_model_text(llm, system_prompt, user_prompt)
 
 def generate_full_case_summary_streaming(
@@ -635,12 +634,13 @@ OUTPUT: Respond with ONLY the case summary in markdown format. No preamble.
     system_prompt = f"""
 {prompt_instruction}
 
+--- CRITICAL OUTPUT INSTRUCTIONS ---
 IMPORTANT: Respond with ONLY the synthesized summary content in markdown format.
 Do not include any preamble, explanation, or meta-commentary (e.g. no "Here is the summary" or "Based on the information...").
 Do not include any outro or conclusion text.
 Start directly with the summary content and end with the last content point. No conversational text whatsoever.
     """.strip()
-    user_prompt = f"Here are the summaries from different stages of the case:\n{summaries_text}"
+    user_prompt = f"Here are the summaries from different stages of the case:\n\n---\n{summaries_text}\n---\n\nPlease synthesize them strictly adhering to the critical output instructions."
 
     try:
         return _stream_invoke_model_text(llm, system_prompt, user_prompt, send_chunk_callback)
