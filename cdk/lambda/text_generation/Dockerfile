@@ -1,23 +1,25 @@
+# Multi-stage build for smaller images
+FROM public.ecr.aws/lambda/python:3.12 as builder
+
+# Install build dependencies
+RUN dnf -y install postgresql-devel gcc libpq gcc-c++
+
+# Install Python packages in a separate directory
+WORKDIR /install
+COPY requirements.txt .
+RUN pip install --no-cache-dir --target=/install -r requirements.txt
+
+# Final stage - minimal image
 FROM public.ecr.aws/lambda/python:3.12
 
-# Install system dependencies for psycopg[binary] and build tools for numpy
-RUN dnf -y install postgresql-devel gcc libpq gcc-c++ \
-    && dnf clean all \
-    && rm -rf /var/cache/dnf # Clean up dnf cache to keep image size down
-
-# Set working directory
-WORKDIR ${LAMBDA_TASK_ROOT}
-
-# Copy the  requirements.txt file
-COPY requirements.txt ${LAMBDA_TASK_ROOT}
-
-# Install Python packages
-RUN pip install --no-cache-dir -r requirements.txt
+# Copy only the installed packages
+COPY --from=builder /install ${LAMBDA_RUNTIME_DIR}/
 
 # Show installed packages (for debugging)
 RUN pip list
 
-# Copy source code
+# Copy application code
+WORKDIR ${LAMBDA_TASK_ROOT}
 COPY src/ ${LAMBDA_TASK_ROOT}
 
 # Set Lambda handler
