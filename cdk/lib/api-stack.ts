@@ -769,7 +769,6 @@ export class ApiGatewayStack extends cdk.Stack {
       handler: "preSignup.handler",
       code: lambda.Code.fromAsset("lambda/authorization"),
       timeout: Duration.seconds(10),
-      vpc: vpcStack.vpc,
       environment: {
         ALLOWED_EMAIL_DOMAINS: "/LAIGO/AllowedEmailDomains", // SSM parameter with allowed domains
       },
