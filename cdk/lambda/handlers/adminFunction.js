@@ -188,6 +188,142 @@ exports.handler = async (event) => {
           handleError(err, response);
         }
         break;
+      case "GET /admin/users":
+        try {
+          const params = event.queryStringParameters || {};
+          const page = parseInt(params.page || "0", 10);
+          const limit = parseInt(params.limit || "10", 10);
+          const offset = page * limit;
+          const search = params.search ? `%${params.search}%` : null;
+          const role =
+            params.role && params.role !== "all" ? params.role : null;
+
+          let dataQuery;
+          let countQuery;
+
+          if (search && role) {
+            countQuery = sqlConnectionTableCreator`
+              SELECT COUNT(*) as exact_count FROM "users"
+              WHERE (first_name ILIKE ${search} OR last_name ILIKE ${search} OR user_email ILIKE ${search})
+              AND ${role} = ANY(roles);
+            `;
+            dataQuery = sqlConnectionTableCreator`
+              SELECT user_email, first_name, last_name, user_id, roles
+              FROM "users"
+              WHERE (first_name ILIKE ${search} OR last_name ILIKE ${search} OR user_email ILIKE ${search})
+              AND ${role} = ANY(roles)
+              ORDER BY last_name ASC
+              LIMIT ${limit} OFFSET ${offset};
+            `;
+          } else if (search) {
+            countQuery = sqlConnectionTableCreator`
+              SELECT COUNT(*) as exact_count FROM "users"
+              WHERE (first_name ILIKE ${search} OR last_name ILIKE ${search} OR user_email ILIKE ${search});
+            `;
+            dataQuery = sqlConnectionTableCreator`
+              SELECT user_email, first_name, last_name, user_id, roles
+              FROM "users"
+              WHERE (first_name ILIKE ${search} OR last_name ILIKE ${search} OR user_email ILIKE ${search})
+              ORDER BY last_name ASC
+              LIMIT ${limit} OFFSET ${offset};
+            `;
+          } else if (role) {
+            countQuery = sqlConnectionTableCreator`
+              SELECT COUNT(*) as exact_count FROM "users"
+              WHERE ${role} = ANY(roles);
+            `;
+            dataQuery = sqlConnectionTableCreator`
+              SELECT user_email, first_name, last_name, user_id, roles
+              FROM "users"
+              WHERE ${role} = ANY(roles)
+              ORDER BY last_name ASC
+              LIMIT ${limit} OFFSET ${offset};
+            `;
+          } else {
+            countQuery = sqlConnectionTableCreator`
+              SELECT COUNT(*) as exact_count FROM "users";
+            `;
+            dataQuery = sqlConnectionTableCreator`
+              SELECT user_email, first_name, last_name, user_id, roles
+              FROM "users"
+              ORDER BY last_name ASC
+              LIMIT ${limit} OFFSET ${offset};
+            `;
+          }
+
+          const [countResult, users] = await Promise.all([
+            countQuery,
+            dataQuery,
+          ]);
+          const totalCount = parseInt(countResult[0].exact_count, 10);
+
+          response.body = JSON.stringify({ users, totalCount });
+        } catch (err) {
+          console.error("Database error:", err);
+          handleError(err, response);
+        }
+        break;
+
+      case "PUT /admin/user_role":
+        try {
+          if (!event.body) throw new Error("Request body is missing");
+          const { email: userEmail, new_role } = parseBody(event.body);
+
+          if (!userEmail || !new_role) {
+            response.statusCode = 400;
+            response.body = JSON.stringify({
+              error: "email and new_role are required",
+            });
+            break;
+          }
+
+          const validRoles = ["admin", "instructor", "student"];
+          if (!validRoles.includes(new_role)) {
+            response.statusCode = 400;
+            response.body = JSON.stringify({ error: "Invalid role" });
+            break;
+          }
+
+          const existingUser = await sqlConnectionTableCreator`
+            SELECT user_id, roles FROM "users" WHERE user_email = ${userEmail};
+          `;
+
+          if (existingUser.length === 0) {
+            response.statusCode = 404;
+            response.body = JSON.stringify({ error: "User not found" });
+            break;
+          }
+
+          const userIdToUpdate = existingUser[0].user_id;
+          const currentRoles = existingUser[0].roles || [];
+
+          await sqlConnectionTableCreator`
+            UPDATE "users"
+            SET roles = ARRAY[${new_role}]::user_role[]
+            WHERE user_id = ${userIdToUpdate};
+          `;
+
+          if (
+            new_role !== "instructor" &&
+            currentRoles.includes("instructor")
+          ) {
+            await sqlConnectionTableCreator`
+              DELETE FROM "instructor_students"
+              WHERE instructor_id = ${userIdToUpdate};
+            `;
+          }
+
+          response.statusCode = 200;
+          response.body = JSON.stringify({
+            success: true,
+            message: "User role updated successfully",
+          });
+        } catch (err) {
+          console.error("Database error:", err);
+          handleError(err, response);
+        }
+        break;
+
       case "POST /admin/prompt":
         try {
           console.log("System prompt creation initiated");

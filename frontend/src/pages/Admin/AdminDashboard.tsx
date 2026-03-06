@@ -1,10 +1,9 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Box,
   Typography,
   TextField,
   InputAdornment,
-  Button,
   Table,
   TableBody,
   TableCell,
@@ -15,11 +14,17 @@ import {
   TablePagination,
   Container,
   CircularProgress,
+  MenuItem,
+  Select,
+  FormControl,
+  InputLabel,
+  IconButton,
+  Tooltip,
 } from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
+import EditIcon from "@mui/icons-material/Edit";
 import AdminHeader from "../../components/AdminHeader";
-import AddSupervisorDialog from "../../components/Admin/AddSupervisorDialog";
-import SupervisorDetailsDialog from "../../components/Admin/SupervisorDetailsDialog";
+import UserManagementDialog from "../../components/Admin/UserManagementDialog";
 import { fetchAuthSession } from "aws-amplify/auth";
 
 interface UserInfo {
@@ -34,29 +39,35 @@ interface AdminDashboardProps {
   userInfo: UserInfo;
 }
 
-interface Supervisor {
+interface User {
   user_id: string;
   user_email: string;
   first_name: string;
   last_name: string;
+  roles: string[];
 }
 
 const AdminDashboard: React.FC<AdminDashboardProps> = () => {
-  const [supervisors, setSupervisors] = useState<Supervisor[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [roleFilter, setRoleFilter] = useState("all");
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [addDialogOpen, setAddDialogOpen] = useState(false);
-  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
-  const [selectedSupervisor, setSelectedSupervisor] =
-    useState<Supervisor | null>(null);
+  const [userManagementDialogOpen, setUserManagementDialogOpen] =
+    useState(false);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
   useEffect(() => {
-    fetchSupervisors();
-  }, []);
+    const delayDebounceFn = setTimeout(() => {
+      fetchUsers();
+    }, 500);
 
-  const fetchSupervisors = async () => {
+    return () => clearTimeout(delayDebounceFn);
+  }, [page, rowsPerPage, searchQuery, roleFilter]);
+
+  const fetchUsers = async () => {
     setLoading(true);
     try {
       const session = await fetchAuthSession();
@@ -64,8 +75,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = () => {
 
       if (!token) throw new Error("No auth token");
 
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: rowsPerPage.toString(),
+      });
+      if (searchQuery.trim()) params.append("search", searchQuery.trim());
+      if (roleFilter !== "all") params.append("role", roleFilter);
+
       const response = await fetch(
-        `${import.meta.env.VITE_API_ENDPOINT}/admin/instructors`,
+        `${import.meta.env.VITE_API_ENDPOINT}/admin/users?${params.toString()}`,
         {
           headers: {
             Authorization: token,
@@ -74,27 +92,18 @@ const AdminDashboard: React.FC<AdminDashboardProps> = () => {
       );
 
       if (!response.ok) {
-        throw new Error("Failed to fetch supervisors");
+        throw new Error("Failed to fetch users");
       }
 
       const data = await response.json();
-      setSupervisors(data);
+      setUsers(data.users || []);
+      setTotalCount(data.totalCount || 0);
     } catch (error) {
-      console.error("Error fetching supervisors:", error);
+      console.error("Error fetching users:", error);
     } finally {
       setLoading(false);
     }
   };
-
-  const filteredSupervisors = useMemo(() => {
-    const query = searchQuery.toLowerCase();
-    return supervisors.filter(
-      (supervisor) =>
-        supervisor.first_name.toLowerCase().includes(query) ||
-        supervisor.last_name.toLowerCase().includes(query) ||
-        supervisor.user_email.toLowerCase().includes(query),
-    );
-  }, [supervisors, searchQuery]);
 
   const handleChangePage = (
     _event: React.MouseEvent<HTMLButtonElement> | null,
@@ -110,6 +119,26 @@ const AdminDashboard: React.FC<AdminDashboardProps> = () => {
     setPage(0);
   };
 
+  const getPrimaryRole = (roles: string[]) => {
+    if (!roles || roles.length === 0) return "student";
+    if (roles.includes("admin")) return "admin";
+    if (roles.includes("instructor")) return "instructor";
+    return roles[0];
+  };
+
+  const formatRoleDisplay = (role: string) => {
+    switch (role) {
+      case "admin":
+        return "Admin";
+      case "instructor":
+        return "Instructor";
+      case "student":
+        return "Student";
+      default:
+        return role.charAt(0).toUpperCase() + role.slice(1);
+    }
+  };
+
   return (
     <Box
       sx={{
@@ -122,50 +151,90 @@ const AdminDashboard: React.FC<AdminDashboardProps> = () => {
     >
       <AdminHeader />
       <Container maxWidth="lg" sx={{ mt: 4, flexGrow: 1 }}>
-        <Box
-          display="flex"
-          justifyContent="space-between"
-          alignItems="center"
-          mb={3}
-        >
-          <Typography variant="h5">Manage Supervisors</Typography>
-          <Button
-            variant="contained"
-            onClick={() => setAddDialogOpen(true)}
-            sx={{
-              backgroundColor: "var(--primary)",
-              color: "var(--text)",
-              "&:hover": { backgroundColor: "var(--primary)", opacity: 0.9 },
-            }}
-          >
-            ADD SUPERVISOR
-          </Button>
+        <Box mb={3}>
+          <Typography variant="h5">Manage Users</Typography>
         </Box>
 
-        <TextField
-          variant="outlined"
-          placeholder="Search by User"
-          fullWidth
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          sx={{
-            mb: 3,
-            backgroundColor: "var(--background)",
-            "& .MuiOutlinedInput-root": {
-              color: "var(--text)",
-              "& fieldset": { borderColor: "var(--border)" },
-              "&:hover fieldset": { borderColor: "var(--text-secondary)" },
-              "&.Mui-focused fieldset": { borderColor: "var(--primary)" },
-            },
-          }}
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <SearchIcon sx={{ color: "var(--text-secondary)" }} />
-              </InputAdornment>
-            ),
-          }}
-        />
+        <Box display="flex" gap={2} mb={3}>
+          <TextField
+            variant="outlined"
+            placeholder="Search by First Name, Last Name, or Email"
+            fullWidth
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setPage(0);
+            }}
+            sx={{
+              backgroundColor: "var(--background)",
+              "& .MuiOutlinedInput-root": {
+                color: "var(--text)",
+                "& fieldset": { borderColor: "var(--border)" },
+                "&:hover fieldset": { borderColor: "var(--text-secondary)" },
+                "&.Mui-focused fieldset": { borderColor: "var(--primary)" },
+              },
+            }}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon sx={{ color: "var(--text-secondary)" }} />
+                </InputAdornment>
+              ),
+            }}
+          />
+          <FormControl sx={{ minWidth: 200 }} variant="outlined">
+            <InputLabel
+              id="role-filter-label"
+              sx={{ color: "var(--text-secondary)" }}
+            >
+              Role
+            </InputLabel>
+            <Select
+              labelId="role-filter-label"
+              value={roleFilter}
+              label="Role"
+              onChange={(e) => {
+                setRoleFilter(e.target.value);
+                setPage(0);
+              }}
+              sx={{
+                color: "var(--text)",
+                "& .MuiOutlinedInput-notchedOutline": {
+                  borderColor: "var(--border)",
+                },
+                "&:hover .MuiOutlinedInput-notchedOutline": {
+                  borderColor: "var(--text-secondary)",
+                },
+                "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
+                  borderColor: "var(--primary)",
+                },
+                "& .MuiSvgIcon-root": { color: "var(--text-secondary)" },
+              }}
+              MenuProps={{
+                PaperProps: {
+                  sx: {
+                    backgroundColor: "var(--background)",
+                    border: "1px solid var(--border)",
+                    "& .MuiMenuItem-root": {
+                      color: "var(--text)",
+                      "&:hover": { backgroundColor: "var(--border)" },
+                      "&.Mui-selected": {
+                        backgroundColor: "var(--primary)",
+                        color: "#000",
+                        "&:hover": { backgroundColor: "var(--primary)" },
+                      },
+                    },
+                  },
+                },
+              }}
+            >
+              <MenuItem value="all">All Roles</MenuItem>
+              <MenuItem value="admin">Admin</MenuItem>
+              <MenuItem value="instructor">Instructor</MenuItem>
+              <MenuItem value="student">Student</MenuItem>
+            </Select>
+          </FormControl>
+        </Box>
 
         {loading ? (
           <Box display="flex" justifyContent="center" mt={4}>
@@ -207,20 +276,44 @@ const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                     >
                       Email
                     </TableCell>
+                    <TableCell
+                      sx={{
+                        color: "var(--text)",
+                        borderBottom: "1px solid var(--border)",
+                      }}
+                    >
+                      Role
+                    </TableCell>
+                    <TableCell
+                      align="right"
+                      sx={{
+                        color: "var(--text)",
+                        borderBottom: "1px solid var(--border)",
+                      }}
+                    >
+                      Actions
+                    </TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {filteredSupervisors
-                    .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                    .map((supervisor) => (
+                  {users.map((user) => {
+                    const primaryRole = getPrimaryRole(user.roles);
+                    const isInstructorType =
+                      primaryRole === "instructor" || primaryRole === "admin";
+                    return (
                       <TableRow
-                        key={supervisor.user_id}
+                        key={user.user_id}
                         hover
-                        onClick={() => {
-                          setSelectedSupervisor(supervisor);
-                          setDetailsDialogOpen(true);
+                        onClick={(e) => {
+                          const target = e.target as HTMLElement;
+                          if (target.closest("button")) return;
+
+                          setSelectedUser(user);
+                          setUserManagementDialogOpen(true);
                         }}
-                        sx={{ cursor: "pointer" }}
+                        sx={{
+                          cursor: "pointer",
+                        }}
                       >
                         <TableCell
                           sx={{
@@ -228,7 +321,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                             borderBottom: "1px solid var(--border)",
                           }}
                         >
-                          {supervisor.first_name}
+                          {user.first_name}
                         </TableCell>
                         <TableCell
                           sx={{
@@ -236,7 +329,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                             borderBottom: "1px solid var(--border)",
                           }}
                         >
-                          {supervisor.last_name}
+                          {user.last_name}
                         </TableCell>
                         <TableCell
                           sx={{
@@ -244,21 +337,53 @@ const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                             borderBottom: "1px solid var(--border)",
                           }}
                         >
-                          {supervisor.user_email}
+                          {user.user_email}
+                        </TableCell>
+                        <TableCell
+                          sx={{
+                            color: "var(--text)",
+                            borderBottom: "1px solid var(--border)",
+                          }}
+                        >
+                          {formatRoleDisplay(primaryRole)}
+                        </TableCell>
+                        <TableCell
+                          align="right"
+                          sx={{
+                            borderBottom: "1px solid var(--border)",
+                          }}
+                        >
+                          <Tooltip title="Edit Role">
+                            <IconButton
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedUser(user);
+                                setUserManagementDialogOpen(true);
+                              }}
+                              sx={{
+                                color: "var(--text-secondary)",
+                                "&:hover": { color: "var(--primary)" },
+                              }}
+                            >
+                              <EditIcon />
+                            </IconButton>
+                          </Tooltip>
                         </TableCell>
                       </TableRow>
-                    ))}
-                  {filteredSupervisors.length === 0 && (
+                    );
+                  })}
+                  {users.length === 0 && (
                     <TableRow>
                       <TableCell
-                        colSpan={3}
+                        colSpan={5}
                         align="center"
                         sx={{
                           color: "var(--text-secondary)",
                           borderBottom: "none",
+                          py: 4,
                         }}
                       >
-                        No supervisors found
+                        No users found
                       </TableCell>
                     </TableRow>
                   )}
@@ -268,7 +393,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = () => {
             <TablePagination
               rowsPerPageOptions={[10, 25, 50]}
               component="div"
-              count={filteredSupervisors.length}
+              count={totalCount}
               rowsPerPage={rowsPerPage}
               page={page}
               onPageChange={handleChangePage}
@@ -289,18 +414,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = () => {
         )}
       </Container>
 
-      <AddSupervisorDialog
-        open={addDialogOpen}
-        onClose={() => setAddDialogOpen(false)}
-        onSuccess={() => {
-          fetchSupervisors();
+      <UserManagementDialog
+        open={userManagementDialogOpen}
+        onClose={() => {
+          setUserManagementDialogOpen(false);
+          setSelectedUser(null);
         }}
-      />
-
-      <SupervisorDetailsDialog
-        open={detailsDialogOpen}
-        onClose={() => setDetailsDialogOpen(false)}
-        supervisor={selectedSupervisor}
+        onSuccess={() => {
+          fetchUsers();
+        }}
+        user={selectedUser}
       />
     </Box>
   );
