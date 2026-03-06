@@ -35,7 +35,7 @@ interface AssessmentResponse {
   unlocked?: boolean;
 }
 
-  // Map sub_route to stage_type for assessment (variable names remain unchanged)
+// Map sub_route to stage_type for assessment (variable names remain unchanged)
 const SUB_ROUTE_TO_BLOCK: Record<string, string> = {
   "intake-facts": "intake",
   "legal-analysis": "legal_analysis",
@@ -53,6 +53,7 @@ const InterviewAssistant: React.FC = () => {
 
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
+  const [isAssessingProgress, setIsAssessingProgress] = useState(false);
   const [wsUrl, setWsUrl] = useState<string | null>(null);
 
   // Progress & Notification State
@@ -234,6 +235,8 @@ const InterviewAssistant: React.FC = () => {
   const assessProgress = useCallback(async () => {
     if (!caseId || !currentBlock) return;
 
+    setIsAssessingProgress(true);
+
     // Try WebSocket first if connected
     if (isConnected) {
       sendStreamingRequest(
@@ -253,8 +256,12 @@ const InterviewAssistant: React.FC = () => {
             if (progress === 5 || assessment.unlocked) {
               await refreshUnlockedBlocks();
             }
+            setIsAssessingProgress(false);
           },
-          onError: (msg) => console.error("assess_progress error:", msg),
+          onError: (msg) => {
+            console.error("assess_progress error:", msg);
+            setIsAssessingProgress(false);
+          },
         },
       );
       return;
@@ -298,6 +305,8 @@ const InterviewAssistant: React.FC = () => {
       }
     } catch (error) {
       console.error("Error calling assess_progress:", error);
+    } finally {
+      setIsAssessingProgress(false);
     }
   }, [
     caseId,
@@ -414,22 +423,23 @@ const InterviewAssistant: React.FC = () => {
 
     // Stage-specific greetings that explain the purpose and suggest starting points
     const BLOCK_GREETINGS: Record<string, string> = {
-      "intake-facts": 
-        "Hi! I'm here to help you assess the facts of your case, including further evidence you may need to consider, how to analyze the strengths and weaknesses of the evidence you have identified, and further areas which may be relevant to the facts of the case.\n\nTo get started, you can ask me to \"please analyze the facts of the case\" but you can also ask more specific questions, such as asking about specific potential areas for further inquiry, asking about other areas of evidence you might think are relevant, and getting assistance with strategies for analyzing the strengths and weaknesses of the evidence. You can also ask follow up questions to any response you receive.",
-      
-      "legal-analysis": 
-        "Hi! I'm here to help you with comprehensive legal analysis of your case. This includes identifying legal issues, developing research strategies, and constructing persuasive arguments.\n\nTo get started, you can ask me to \"analyze the legal issues in this case\" or \"help me develop arguments.\" You can also ask specific questions about causes of action, research approaches, argument structure, or how to connect facts to legal principles. Feel free to ask follow-up questions to dive deeper into any aspect of your legal analysis.",
-      
-      "contrarian-analysis": 
-        "Hi! I'm here to help you assess challenges in your proposed approach and identify further areas for analysis. You can articulate your proposed approaches and I'll help you evaluate potential weaknesses.\n\nTo get started, you can present your main arguments or strategy and ask \"what are the weaknesses in this approach?\" or \"what counterarguments might the opposing side raise?\" You can also ask about specific vulnerabilities in your case, alternative interpretations of the law or facts, or how to strengthen your position against anticipated challenges. You can ask for more detail on certain issues which are raised in our discussions.",
-      
-      "policy-context": 
-        "Hi! I'm here to help you explore the broader policy implications and considerations underlying your case.\n\nTo get started, you can ask \"what are the policy considerations in this case?\" or you can ask more specific questions about how policy arguments might support your position, what societal interests are at stake, or how courts have balanced competing policy concerns in similar cases. You can also ask about the practical implications of different legal outcomes, how policy considerations might influence judicial decision-making, or how to incorporate policy arguments into your overall case strategy. You can ask follow up questions to explore policy dimensions in greater depth or to understand how policy analysis connects to your legal arguments."
+      "intake-facts":
+        'Hi! I\'m here to help you assess the facts of your case, including further evidence you may need to consider, how to analyze the strengths and weaknesses of the evidence you have identified, and further areas which may be relevant to the facts of the case.\n\nTo get started, you can ask me to "please analyze the facts of the case" but you can also ask more specific questions, such as asking about specific potential areas for further inquiry, asking about other areas of evidence you might think are relevant, and getting assistance with strategies for analyzing the strengths and weaknesses of the evidence. You can also ask follow up questions to any response you receive.',
+
+      "legal-analysis":
+        'Hi! I\'m here to help you with comprehensive legal analysis of your case. This includes identifying legal issues, developing research strategies, and constructing persuasive arguments.\n\nTo get started, you can ask me to "analyze the legal issues in this case" or "help me develop arguments." You can also ask specific questions about causes of action, research approaches, argument structure, or how to connect facts to legal principles. Feel free to ask follow-up questions to dive deeper into any aspect of your legal analysis.',
+
+      "contrarian-analysis":
+        'Hi! I\'m here to help you assess challenges in your proposed approach and identify further areas for analysis. You can articulate your proposed approaches and I\'ll help you evaluate potential weaknesses.\n\nTo get started, you can present your main arguments or strategy and ask "what are the weaknesses in this approach?" or "what counterarguments might the opposing side raise?" You can also ask about specific vulnerabilities in your case, alternative interpretations of the law or facts, or how to strengthen your position against anticipated challenges. You can ask for more detail on certain issues which are raised in our discussions.',
+
+      "policy-context":
+        'Hi! I\'m here to help you explore the broader policy implications and considerations underlying your case.\n\nTo get started, you can ask "what are the policy considerations in this case?" or you can ask more specific questions about how policy arguments might support your position, what societal interests are at stake, or how courts have balanced competing policy concerns in similar cases. You can also ask about the practical implications of different legal outcomes, how policy considerations might influence judicial decision-making, or how to incorporate policy arguments into your overall case strategy. You can ask follow up questions to explore policy dimensions in greater depth or to understand how policy analysis connects to your legal arguments.',
     };
 
     const DEFAULT_GREETING: Message = {
       type: "ai",
-      content: BLOCK_GREETINGS[section || "intake-facts"] || 
+      content:
+        BLOCK_GREETINGS[section || "intake-facts"] ||
         "Hi, I'm your Legal Interview Assistant. Try asking me to analyze the case to begin!",
     };
 
@@ -907,16 +917,24 @@ const InterviewAssistant: React.FC = () => {
             </IconButton>
 
             {rightOpen && (
-              <Typography
-                variant="subtitle2"
-                sx={{
-                  fontFamily: "Outfit",
-                  fontWeight: 600,
-                  color: "var(--text)",
-                }}
-              >
-                Assessment Feedback
-              </Typography>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <Typography
+                  variant="subtitle2"
+                  sx={{
+                    fontFamily: "Outfit",
+                    fontWeight: 600,
+                    color: "var(--text)",
+                  }}
+                >
+                  Assessment Feedback
+                </Typography>
+                {isAssessingProgress && (
+                  <CircularProgress
+                    size={16}
+                    sx={{ color: "var(--primary)" }}
+                  />
+                )}
+              </Box>
             )}
           </Box>
 
