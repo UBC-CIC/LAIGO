@@ -19,15 +19,7 @@ let sqlConnection;
 
 const routes = {
   "GET /student/profile": async (event, env) => {
-    const {
-      response,
-      user,
-      user_id,
-      userEmail,
-      cognito_id,
-      sqlConnection,
-      idpId,
-    } = env;
+    const { response, user, user_id, userEmail, sqlConnection } = env;
     // Return user metadata from database
     try {
       // Fetch additional fields from database
@@ -59,50 +51,29 @@ const routes = {
     }
   },
   "POST /student/create_user": async (event, env) => {
-    const {
-      response,
-      user,
-      user_id,
-      userEmail,
-      cognito_id,
-      sqlConnection,
-      idpId,
-    } = env;
+    const { response, user, user_id, sqlConnection } = env;
     if (event.queryStringParameters) {
       const { user_email, username, first_name, last_name } =
         event.queryStringParameters;
 
       try {
-        // Check if the user already exists by idp_id
-        const existingUser = await sqlConnection`
-                SELECT * FROM "users"
-                WHERE idp_id = ${idpId};
-            `;
-
-        if (existingUser.length > 0) {
-          // Update the existing user's information
-          const updatedUser = await sqlConnection`
+        // Sync user information based on user_id from authorizer
+        const updatedUser = await sqlConnection`
                     UPDATE "users"
                     SET
                         username = ${username},
+                        user_email = ${user_email},
                         first_name = ${first_name},
                         last_name = ${last_name},
-                        last_sign_in = CURRENT_TIMESTAMP,
-                        time_account_created = CURRENT_TIMESTAMP
-                    WHERE idp_id = ${idpId}
+                        last_sign_in = CURRENT_TIMESTAMP
+                    WHERE user_id = ${user_id}
                     RETURNING *;
                 `;
+        if (updatedUser.length > 0) {
           response.body = JSON.stringify(updatedUser[0]);
         } else {
-          // Insert a new user with 'student' role
-          console.log("Trying to create A new User");
-          const newUser = await sqlConnection`
-                    INSERT INTO "users" (idp_id, user_email, username, first_name, last_name, time_account_created, roles, last_sign_in)
-                    VALUES (${idpId}, ${user_email}, ${username}, ${first_name}, ${last_name}, CURRENT_TIMESTAMP, ARRAY['student'], CURRENT_TIMESTAMP)
-                    RETURNING *;
-                `;
-          response.body = JSON.stringify(newUser[0]);
-          console.log(newUser);
+          response.statusCode = 404;
+          response.body = JSON.stringify({ error: "User not found" });
         }
       } catch (err) {
         handleError(err, response);
@@ -113,15 +84,7 @@ const routes = {
     }
   },
   "GET /student/get_name": async (event, env) => {
-    const {
-      response,
-      user,
-      user_id,
-      userEmail,
-      cognito_id,
-      sqlConnection,
-      idpId,
-    } = env;
+    const { response, user, user_id, userEmail, sqlConnection } = env;
     if (event.queryStringParameters && event.queryStringParameters.user_email) {
       const user_email = event.queryStringParameters.user_email;
       try {
@@ -147,15 +110,7 @@ const routes = {
     }
   },
   "GET /student/get_summaries": async (event, env) => {
-    const {
-      response,
-      user,
-      user_id,
-      userEmail,
-      cognito_id,
-      sqlConnection,
-      idpId,
-    } = env;
+    const { response, user, user_id, userEmail, sqlConnection } = env;
     if (event.queryStringParameters && event.queryStringParameters.case_id) {
       const case_id = event.queryStringParameters.case_id;
       try {
@@ -182,15 +137,7 @@ const routes = {
     }
   },
   "DELETE /student/delete_summary": async (event, env) => {
-    const {
-      response,
-      user,
-      user_id,
-      userEmail,
-      cognito_id,
-      sqlConnection,
-      idpId,
-    } = env;
+    const { response, user, user_id, userEmail, sqlConnection } = env;
     console.log(event);
     if (
       event.queryStringParameters != null &&
@@ -217,15 +164,7 @@ const routes = {
     }
   },
   "GET /student/message_limit": async (event, env) => {
-    const {
-      response,
-      user,
-      user_id,
-      userEmail,
-      cognito_id,
-      sqlConnection,
-      idpId,
-    } = env;
+    const { response, user, user_id, userEmail, sqlConnection } = env;
     if (event.queryStringParameters && event.queryStringParameters.user_id) {
       try {
         console.log("Message limit name: ", MESSAGE_LIMIT);
@@ -257,15 +196,7 @@ const routes = {
     }
   },
   "GET /student/file_size_limit": async (event, env) => {
-    const {
-      response,
-      user,
-      user_id,
-      userEmail,
-      cognito_id,
-      sqlConnection,
-      idpId,
-    } = env;
+    const { response, user, user_id, userEmail, sqlConnection } = env;
     try {
       const { SSMClient, GetParameterCommand } =
         await import("@aws-sdk/client-ssm");
@@ -283,15 +214,7 @@ const routes = {
     }
   },
   "GET /student/get_cases": async (event, env) => {
-    const {
-      response,
-      user,
-      user_id,
-      userEmail,
-      cognito_id,
-      sqlConnection,
-      idpId,
-    } = env;
+    const { response, user, user_id, userEmail, sqlConnection } = env;
     // Use user_id from database user metadata
     try {
       const data = await sqlConnection`
@@ -314,15 +237,7 @@ const routes = {
     }
   },
   "GET /student/get_disclaimer": async (event, env) => {
-    const {
-      response,
-      user,
-      user_id,
-      userEmail,
-      cognito_id,
-      sqlConnection,
-      idpId,
-    } = env;
+    const { response, user, user_id, userEmail, sqlConnection } = env;
     // Use user_id from database user metadata
     try {
       // Fetch the latest active disclaimer
@@ -353,15 +268,7 @@ const routes = {
     }
   },
   "POST /student/accept_disclaimer": async (event, env) => {
-    const {
-      response,
-      user,
-      user_id,
-      userEmail,
-      cognito_id,
-      sqlConnection,
-      idpId,
-    } = env;
+    const { response, user, user_id, userEmail, sqlConnection } = env;
     // Use user_id from database user metadata
     try {
       // Update accepted_disclaimer to true
@@ -381,15 +288,7 @@ const routes = {
     }
   },
   "GET /student/recent_cases": async (event, env) => {
-    const {
-      response,
-      user,
-      user_id,
-      userEmail,
-      cognito_id,
-      sqlConnection,
-      idpId,
-    } = env;
+    const { response, user, user_id, userEmail, sqlConnection } = env;
     // Use user_id from database user metadata
     try {
       const data = await sqlConnection`
@@ -412,15 +311,7 @@ const routes = {
     }
   },
   "PUT /student/view_case": async (event, env) => {
-    const {
-      response,
-      user,
-      user_id,
-      userEmail,
-      cognito_id,
-      sqlConnection,
-      idpId,
-    } = env;
+    const { response, user, user_id, userEmail, sqlConnection } = env;
     if (event.queryStringParameters && event.queryStringParameters.case_id) {
       const case_id = event.queryStringParameters.case_id;
 
@@ -447,15 +338,7 @@ const routes = {
     }
   },
   "GET /student/get_transcriptions": async (event, env) => {
-    const {
-      response,
-      user,
-      user_id,
-      userEmail,
-      cognito_id,
-      sqlConnection,
-      idpId,
-    } = env;
+    const { response, user, user_id, userEmail, sqlConnection } = env;
     // Use user_id from database user metadata for ownership check
     if (event.queryStringParameters && event.queryStringParameters.case_id) {
       const caseId = event.queryStringParameters.case_id;
@@ -516,15 +399,7 @@ const routes = {
     }
   },
   "GET /student/transcription": async (event, env) => {
-    const {
-      response,
-      user,
-      user_id,
-      userEmail,
-      cognito_id,
-      sqlConnection,
-      idpId,
-    } = env;
+    const { response, user, user_id, userEmail, sqlConnection } = env;
     // Use user_id from database user metadata for ownership check
     if (
       event.queryStringParameters &&
@@ -597,15 +472,7 @@ const routes = {
     }
   },
   "GET /student/case_page": async (event, env) => {
-    const {
-      response,
-      user,
-      user_id,
-      userEmail,
-      cognito_id,
-      sqlConnection,
-      idpId,
-    } = env;
+    const { response, user, user_id, userEmail, sqlConnection } = env;
     // Use user_id from database user metadata for ownership check
     if (event.queryStringParameters && event.queryStringParameters.case_id) {
       const case_id = event.queryStringParameters.case_id;
@@ -675,15 +542,7 @@ const routes = {
     }
   },
   "GET /student/notifications": async (event, env) => {
-    const {
-      response,
-      user,
-      user_id,
-      userEmail,
-      cognito_id,
-      sqlConnection,
-      idpId,
-    } = env;
+    const { response, user, user_id, userEmail, sqlConnection } = env;
     // Use user_id from database user metadata
     try {
       const data = await sqlConnection`
@@ -717,15 +576,7 @@ const routes = {
     }
   },
   "GET /student/instructors": async (event, env) => {
-    const {
-      response,
-      user,
-      user_id,
-      userEmail,
-      cognito_id,
-      sqlConnection,
-      idpId,
-    } = env;
+    const { response, user, user_id, userEmail, sqlConnection } = env;
     // Use user_id from database user metadata
     try {
       const data = await sqlConnection`
@@ -751,15 +602,7 @@ const routes = {
     }
   },
   "GET /student/feedback": async (event, env) => {
-    const {
-      response,
-      user,
-      user_id,
-      userEmail,
-      cognito_id,
-      sqlConnection,
-      idpId,
-    } = env;
+    const { response, user, user_id, userEmail, sqlConnection } = env;
     // Use user_id from database user metadata for ownership check
     if (event.queryStringParameters && event.queryStringParameters.case_id) {
       const caseId = event.queryStringParameters.case_id;
@@ -823,61 +666,31 @@ const routes = {
     }
   },
   "GET /student/disclaimer": async (event, env) => {
-    const {
-      response,
-      user,
-      user_id,
-      userEmail,
-      cognito_id,
-      sqlConnection,
-      idpId,
-    } = env;
-    // SECURITY: Use trusted cognito_id from authorizer
+    const { response, user, user_id, sqlConnection } = env;
     try {
-      // Retrieve the user ID using the trusted cognito_id
-      const user = await sqlConnection`
-            SELECT user_id FROM "users" WHERE cognito_id = ${cognito_id};
+      const data = await sqlConnection`
+            SELECT accepted_disclaimer
+            FROM users
+            WHERE user_id = ${user_id};
           `;
 
-      const user_id = user[0]?.user_id;
-
-      if (user_id) {
-        const data = await sqlConnection`
-              SELECT accepted_disclaimer
-              FROM users
-              WHERE user_id = ${user_id};
-            `;
-
-        // Check if data is empty and handle the case
-        if (data.length === 0) {
-          response.statusCode = 404;
-          response.body = JSON.stringify({
-            message: "Couldn't check if disclaimer was accepted",
-          });
-        } else {
-          response.statusCode = 200;
-          response.body = JSON.stringify(data);
-        }
-      } else {
+      if (data.length === 0) {
         response.statusCode = 404;
-        response.body = JSON.stringify({ error: "User not found" });
+        response.body = JSON.stringify({
+          message: "User not found",
+        });
+      } else {
+        response.statusCode = 200;
+        response.body = JSON.stringify(data);
       }
     } catch (err) {
       handleError(err, response);
     }
   },
   "POST /student/initialize_audio_file": async (event, env) => {
-    const {
-      response,
-      user,
-      user_id,
-      userEmail,
-      cognito_id,
-      sqlConnection,
-      idpId,
-    } = env;
+    const { response, user, user_id, userEmail, sqlConnection } = env;
     if (event.queryStringParameters) {
-      const { audio_file_id, s3_file_path, cognito_id, case_id, title } =
+      const { audio_file_id, s3_file_path, case_id, title } =
         event.queryStringParameters;
 
       try {
@@ -896,15 +709,7 @@ const routes = {
     }
   },
   "GET /student/message_counter": async (event, env) => {
-    const {
-      response,
-      user,
-      user_id,
-      userEmail,
-      cognito_id,
-      sqlConnection,
-      idpId,
-    } = env;
+    const { response, user, user_id, userEmail, sqlConnection } = env;
     // Use user_id from database user metadata
     try {
       const activityData = await sqlConnection`
@@ -938,15 +743,7 @@ const routes = {
     }
   },
   "PUT /student/message_counter": async (event, env) => {
-    const {
-      response,
-      user,
-      user_id,
-      userEmail,
-      cognito_id,
-      sqlConnection,
-      idpId,
-    } = env;
+    const { response, user, user_id, userEmail, sqlConnection } = env;
     // Use user_id from database user metadata
     try {
       const activityData = await sqlConnection`
@@ -991,15 +788,7 @@ const routes = {
     }
   },
   "PUT /student/read_message": async (event, env) => {
-    const {
-      response,
-      user,
-      user_id,
-      userEmail,
-      cognito_id,
-      sqlConnection,
-      idpId,
-    } = env;
+    const { response, user, user_id, userEmail, sqlConnection } = env;
     if (event.queryStringParameters && event.queryStringParameters.message_id) {
       const message_id = event.queryStringParameters.message_id;
       try {
@@ -1028,15 +817,7 @@ const routes = {
     }
   },
   "PUT /student/disclaimer": async (event, env) => {
-    const {
-      response,
-      user,
-      user_id,
-      userEmail,
-      cognito_id,
-      sqlConnection,
-      idpId,
-    } = env;
+    const { response, user, user_id, userEmail, sqlConnection } = env;
     // Use user_id from database user metadata
     try {
       // Mark the disclaimer as accepted
@@ -1052,15 +833,7 @@ const routes = {
     // NOTE: Duplicate GET /student/notifications case removed - already handled above
   },
   "GET /student/get_messages": async (event, env) => {
-    const {
-      response,
-      user,
-      user_id,
-      userEmail,
-      cognito_id,
-      sqlConnection,
-      idpId,
-    } = env;
+    const { response, user, user_id, userEmail, sqlConnection } = env;
     if (event.queryStringParameters && event.queryStringParameters.case_id) {
       const case_id = event.queryStringParameters.case_id;
       const sub_route = event.queryStringParameters.sub_route || "intake-facts";
@@ -1144,15 +917,7 @@ const routes = {
     }
   },
   "GET /student/notes": async (event, env) => {
-    const {
-      response,
-      user,
-      user_id,
-      userEmail,
-      cognito_id,
-      sqlConnection,
-      idpId,
-    } = env;
+    const { response, user, user_id, userEmail, sqlConnection } = env;
     // Use user_id from database user metadata for ownership check
     if (event.queryStringParameters && event.queryStringParameters.case_id) {
       const case_id = event.queryStringParameters.case_id;
@@ -1201,15 +966,7 @@ const routes = {
     }
   },
   "PUT /student/notes": async (event, env) => {
-    const {
-      response,
-      user,
-      user_id,
-      userEmail,
-      cognito_id,
-      sqlConnection,
-      idpId,
-    } = env;
+    const { response, user, user_id, userEmail, sqlConnection } = env;
     // Use user_id from database user metadata for ownership check
     if (
       event.queryStringParameters != null &&
@@ -1258,15 +1015,7 @@ const routes = {
     }
   },
   "PUT /student/edit_case": async (event, env) => {
-    const {
-      response,
-      user,
-      user_id,
-      userEmail,
-      cognito_id,
-      sqlConnection,
-      idpId,
-    } = env;
+    const { response, user, user_id, userEmail, sqlConnection } = env;
     // Use user_id from database user metadata for ownership check
     if (
       event.queryStringParameters != null &&
@@ -1328,15 +1077,7 @@ const routes = {
     }
   },
   "DELETE /student/delete_transcription": async (event, env) => {
-    const {
-      response,
-      user,
-      user_id,
-      userEmail,
-      cognito_id,
-      sqlConnection,
-      idpId,
-    } = env;
+    const { response, user, user_id, userEmail, sqlConnection } = env;
     // Use user_id from database user metadata for ownership check
     console.log(event);
     if (
@@ -1389,15 +1130,7 @@ const routes = {
     }
   },
   "PUT /student/review_case": async (event, env) => {
-    const {
-      response,
-      user,
-      user_id,
-      userEmail,
-      cognito_id,
-      sqlConnection,
-      idpId,
-    } = env;
+    const { response, user, user_id, userEmail, sqlConnection } = env;
     // Use user_id from database user metadata for ownership check
     if (
       event.queryStringParameters != null &&
@@ -1531,15 +1264,7 @@ const routes = {
     }
   },
   "PUT /student/archive_case": async (event, env) => {
-    const {
-      response,
-      user,
-      user_id,
-      userEmail,
-      cognito_id,
-      sqlConnection,
-      idpId,
-    } = env;
+    const { response, user, user_id, userEmail, sqlConnection } = env;
     // Use user_id from database user metadata for ownership check
     if (
       event.queryStringParameters != null &&
@@ -1589,15 +1314,7 @@ const routes = {
     }
   },
   "PUT /student/unarchive_case": async (event, env) => {
-    const {
-      response,
-      user,
-      user_id,
-      userEmail,
-      cognito_id,
-      sqlConnection,
-      idpId,
-    } = env;
+    const { response, user, user_id, userEmail, sqlConnection } = env;
     // Use user_id from database user metadata for ownership check
     if (
       event.queryStringParameters != null &&
@@ -1647,15 +1364,7 @@ const routes = {
     }
   },
   "PUT /student/complete_block": async (event, env) => {
-    const {
-      response,
-      user,
-      user_id,
-      userEmail,
-      cognito_id,
-      sqlConnection,
-      idpId,
-    } = env;
+    const { response, user, user_id, userEmail, sqlConnection } = env;
     // mark a block completed (formerly called "unlock")
     if (
       event.queryStringParameters != null &&
@@ -1753,17 +1462,13 @@ exports.handler = async (event) => {
   let data;
   try {
     const pathData = event.httpMethod + " " + event.resource;
-    const cognito_id = event.requestContext?.authorizer?.claims?.sub; // assuming this or however it's defined
-    const idpId = "TODO"; // To define if missing
     const env = {
       event,
       response,
       user,
       user_id,
       userEmail,
-      cognito_id,
       sqlConnection,
-      idpId,
     };
 
     const handlerConfig = routes[pathData];
