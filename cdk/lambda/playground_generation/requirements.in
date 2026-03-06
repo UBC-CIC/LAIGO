@@ -7,4 +7,4 @@ langchain-classic
 psycopg[binary]
 python-dotenv
 numpy==1.26.4
-
+aws-lambda-powertools[all]

@@ -8,20 +8,14 @@ import time
 import uuid
 import functools
 from langchain_aws import BedrockEmbeddings
+from aws_lambda_powertools import Logger
 
 from helpers.vectorstore import get_vectorstore_retriever
 from helpers.chat import get_bedrock_llm, get_initial_student_query, get_response, get_streaming_response
 from helpers.usage import check_and_increment_usage
  
-# Set up logging - Force level to INFO to ensure CloudWatch capture
-logger = logging.getLogger()
-if len(logger.handlers) > 0:
-    # The Lambda environment pre-configures a handler logging to stderr. 
-    # If a handler is already set, basicConfig won't do anything.
-    # We set the level directly on the root logger.
-    logger.setLevel(logging.INFO)
-else:
-    logging.basicConfig(level=logging.INFO)
+# Set up logging for the Lambda function
+logger = Logger(service="TextGeneration")
 
 # Environment variables
 DB_SECRET_NAME = os.environ["SM_DB_CREDENTIALS"]
@@ -330,8 +324,9 @@ def get_case_details(case_id):
         return None, None, None, None
 
 
+@logger.inject_lambda_context(log_event=True)
 def handler(event, context):
-    logger.info("Text Generation Lambda function is called!")
+    #logger.info("Text Generation Lambda function is called!")
     initialize_constants()
     
     # Extract request context early for both WebSocket and HTTP

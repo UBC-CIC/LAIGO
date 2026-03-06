@@ -13,13 +13,23 @@ anyio==4.12.1
 asyncpg==0.31.0
     # via langchain-postgres
 attrs==25.4.0
-    # via aiohttp
+    # via
+    #   aiohttp
+    #   aws-encryption-sdk
+aws-encryption-sdk==4.0.4
+    # via aws-lambda-powertools
+aws-lambda-powertools==3.25.0
+    # via -r cdk/lambda/text_generation/requirements.in
+aws-xray-sdk==2.15.0
+    # via aws-lambda-powertools
 boto3==1.42.56
     # via
     #   -r cdk/lambda/text_generation/requirements.in
+    #   aws-encryption-sdk
     #   langchain-aws
 botocore==1.42.56
     # via
+    #   aws-xray-sdk
     #   boto3
     #   s3transfer
 certifi==2026.2.25
@@ -27,10 +37,16 @@ certifi==2026.2.25
     #   httpcore
     #   httpx
     #   requests
+cffi==2.0.0
+    # via cryptography
 charset-normalizer==3.4.4
     # via requests
+cryptography==46.0.5
+    # via aws-encryption-sdk
 dataclasses-json==0.6.7
     # via langchain-community
+fastjsonschema==2.21.2
+    # via aws-lambda-powertools
 frozenlist==1.8.0
     # via
     #   aiohttp
@@ -55,10 +71,13 @@ idna==3.11
     #   yarl
 jmespath==1.1.0
     # via
+    #   aws-lambda-powertools
     #   boto3
     #   botocore
 jsonpatch==1.33
     # via langchain-core
+jsonpath-ng==1.8.0
+    # via aws-lambda-powertools
 jsonpointer==3.0.0
     # via jsonpatch
 langchain==1.2.10
@@ -141,8 +160,11 @@ psycopg-binary==3.3.3
     # via psycopg
 psycopg-pool==3.3.0
     # via langchain-postgres
+pycparser==3.0
+    # via cffi
 pydantic==2.12.5
     # via
+    #   aws-lambda-powertools
     #   langchain
     #   langchain-aws
     #   langchain-classic
@@ -153,7 +175,9 @@ pydantic==2.12.5
 pydantic-core==2.41.5
     # via pydantic
 pydantic-settings==2.13.1
-    # via langchain-community
+    # via
+    #   aws-lambda-powertools
+    #   langchain-community
 python-dateutil==2.9.0.post0
     # via botocore
 python-dotenv==1.2.1
@@ -190,6 +214,7 @@ typing-extensions==4.15.0
     # via
     #   aiosignal
     #   anyio
+    #   aws-lambda-powertools
     #   langchain-core
     #   psycopg
     #   psycopg-pool
@@ -214,6 +239,10 @@ uuid-utils==0.14.1
     # via
     #   langchain-core
     #   langsmith
+wrapt==2.1.2
+    # via
+    #   aws-encryption-sdk
+    #   aws-xray-sdk
 xxhash==3.6.0
     # via
     #   langgraph

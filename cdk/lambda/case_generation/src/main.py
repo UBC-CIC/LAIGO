@@ -8,18 +8,12 @@ import time
 import boto3
 import psycopg
 from botocore.exceptions import ClientError
+from aws_lambda_powertools import Logger
 
 from helpers.chat import get_bedrock_llm, get_response
 
-# Set up logging - Force level to INFO to ensure CloudWatch capture
-logger = logging.getLogger()
-if len(logger.handlers) > 0:
-    # The Lambda environment pre-configures a handler logging to stderr. 
-    # If a handler is already set, basicConfig won't do anything.
-    # We set the level directly on the root logger.
-    logger.setLevel(logging.INFO)
-else:
-    logging.basicConfig(level=logging.INFO) 
+# Set up logging for the Lambda function
+logger = Logger(service="CaseGeneration")
 
 # Environment variables
 DB_SECRET_NAME = os.environ["SM_DB_CREDENTIALS"]
@@ -188,6 +182,7 @@ def _handle_guardrail_error(resp):
 #         return _response(400, {"error": "Missing or invalid 'action' query parameter"})
 
 
+@logger.inject_lambda_context(log_event=True)
 def handler(event, context):
     try:
         # Extract idp_id from authorizer context (passed from REST API authorizer)
