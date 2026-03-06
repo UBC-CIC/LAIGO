@@ -37,11 +37,7 @@ import type { CaseOutletContext } from "./CaseLayout";
 // --- Types ---
 
 type SummaryScope = "full_case" | "block";
-type BlockType =
-  | "intake"
-  | "legal_analysis"
-  | "contrarian"
-  | "policy";
+type BlockType = "intake" | "legal_analysis" | "contrarian" | "policy";
 
 // Updated to match API response
 interface Summary {
@@ -111,6 +107,14 @@ const formatTime = (dateString: string) => {
     hour: "numeric",
     minute: "2-digit",
   });
+};
+
+const formatBlockName = (blockContext?: string) => {
+  if (!blockContext) return "Stage";
+  return blockContext
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
 };
 
 const CaseSummaries: React.FC = () => {
@@ -387,10 +391,7 @@ const CaseSummaries: React.FC = () => {
     if (summary.scope === "full_case") {
       filenameStr += "Full Case Summary";
     } else {
-      const blockName = summary.block_context
-        ? summary.block_context.charAt(0).toUpperCase() +
-          summary.block_context.slice(1)
-        : "Stage"; // fallback name when context missing
+      const blockName = formatBlockName(summary.block_context);
       filenameStr += `${blockName} Summary`;
     }
     filenameStr += ".pdf";
@@ -637,9 +638,9 @@ const CaseSummaries: React.FC = () => {
 
         {/* List Content */}
         {leftOpen && (
-          <Box 
-            sx={{ 
-              flexGrow: 1, 
+          <Box
+            sx={{
+              flexGrow: 1,
               overflowY: "auto",
               // Hide scrollbar while keeping scroll functionality
               "&::-webkit-scrollbar": {
@@ -715,7 +716,7 @@ const CaseSummaries: React.FC = () => {
                         selected={selectedSummaryId === summary.summary_id}
                         onClick={() => setSelectedSummaryId(summary.summary_id)}
                         sx={{
-                          pl: 4,
+                          pl: 2,
                           borderLeft:
                             selectedSummaryId === summary.summary_id
                               ? "4px solid var(--primary)"
@@ -729,6 +730,7 @@ const CaseSummaries: React.FC = () => {
                         }}
                       >
                         <ListItemText
+                          sx={{ pr: 1, minWidth: 0, my: 0 }}
                           primary={
                             <Typography
                               variant="body2"
@@ -740,6 +742,10 @@ const CaseSummaries: React.FC = () => {
                               sx={{
                                 fontFamily: "Outfit",
                                 color: "var(--text)",
+                                whiteSpace: "normal",
+                                wordBreak: "break-word",
+                                lineHeight: 1.2,
+                                mb: 0.5,
                               }}
                             >
                               {formatDate(summary.time_created)}
@@ -748,33 +754,41 @@ const CaseSummaries: React.FC = () => {
                           secondary={
                             <Typography
                               variant="caption"
-                              sx={{ color: "var(--text-secondary)" }}
+                              sx={{
+                                color: "var(--text-secondary)",
+                                whiteSpace: "normal",
+                                wordBreak: "break-word",
+                                display: "block",
+                                lineHeight: 1.2,
+                              }}
                             >
                               {formatTime(summary.time_created)}
                             </Typography>
                           }
                         />
-                        <IconButton
-                          size="small"
-                          sx={{ color: "var(--text-secondary)" }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDownload(summary);
-                          }}
-                        >
-                          <DownloadIcon fontSize="small" />
-                        </IconButton>
-                        <IconButton
-                          size="small"
-                          sx={{ color: "var(--text-secondary)" }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteSummary(summary.summary_id);
-                          }}
-                          disabled={caseStatus === "archived"}
-                        >
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
+                        <Box sx={{ display: "flex", flexShrink: 0 }}>
+                          <IconButton
+                            size="small"
+                            sx={{ color: "var(--text-secondary)" }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDownload(summary);
+                            }}
+                          >
+                            <DownloadIcon fontSize="small" />
+                          </IconButton>
+                          <IconButton
+                            size="small"
+                            sx={{ color: "var(--text-secondary)" }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteSummary(summary.summary_id);
+                            }}
+                            disabled={caseStatus === "archived"}
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </Box>
                       </ListItemButton>
                     ))}
                   </List>
@@ -829,7 +843,7 @@ const CaseSummaries: React.FC = () => {
                         selected={selectedSummaryId === summary.summary_id}
                         onClick={() => setSelectedSummaryId(summary.summary_id)}
                         sx={{
-                          pl: 4,
+                          pl: 2,
                           borderLeft:
                             selectedSummaryId === summary.summary_id
                               ? "4px solid var(--primary)"
@@ -843,6 +857,7 @@ const CaseSummaries: React.FC = () => {
                         }}
                       >
                         <ListItemText
+                          sx={{ pr: 1, minWidth: 0, my: 0 }}
                           primary={
                             <Typography
                               variant="body2"
@@ -854,46 +869,67 @@ const CaseSummaries: React.FC = () => {
                               sx={{
                                 fontFamily: "Outfit",
                                 color: "var(--text)",
+                                whiteSpace: "normal",
+                                wordBreak: "break-word",
+                                lineHeight: 1.2,
+                                mb: 0.5,
                               }}
                             >
-                              {summary.block_context
-                                ? summary.block_context
-                                    .charAt(0)
-                                    .toUpperCase() +
-                                  summary.block_context.slice(1)
-                                : "Stage"}
+                              {formatBlockName(summary.block_context)}
                             </Typography>
                           }
                           secondary={
-                            <Typography
-                              variant="caption"
-                              sx={{ color: "var(--text-secondary)" }}
-                            >
-                              {formatDate(summary.time_created)}
-                            </Typography>
+                            <>
+                              <Typography
+                                variant="caption"
+                                sx={{
+                                  color: "var(--text-secondary)",
+                                  whiteSpace: "normal",
+                                  wordBreak: "break-word",
+                                  display: "block",
+                                  lineHeight: 1.2,
+                                }}
+                              >
+                                {formatDate(summary.time_created)}
+                              </Typography>
+                              <Typography
+                                variant="caption"
+                                sx={{
+                                  color: "var(--text-secondary)",
+                                  whiteSpace: "normal",
+                                  wordBreak: "break-word",
+                                  display: "block",
+                                  lineHeight: 1.2,
+                                }}
+                              >
+                                {formatTime(summary.time_created)}
+                              </Typography>
+                            </>
                           }
                         />
-                        <IconButton
-                          size="small"
-                          sx={{ color: "var(--text-secondary)" }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDownload(summary);
-                          }}
-                        >
-                          <DownloadIcon fontSize="small" />
-                        </IconButton>
-                        <IconButton
-                          size="small"
-                          sx={{ color: "var(--text-secondary)" }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteSummary(summary.summary_id);
-                          }}
-                          disabled={caseStatus === "archived"}
-                        >
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
+                        <Box sx={{ display: "flex", flexShrink: 0 }}>
+                          <IconButton
+                            size="small"
+                            sx={{ color: "var(--text-secondary)" }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDownload(summary);
+                            }}
+                          >
+                            <DownloadIcon fontSize="small" />
+                          </IconButton>
+                          <IconButton
+                            size="small"
+                            sx={{ color: "var(--text-secondary)" }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteSummary(summary.summary_id);
+                            }}
+                            disabled={caseStatus === "archived"}
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </Box>
                       </ListItemButton>
                     ))}
                   </List>
@@ -1167,7 +1203,8 @@ const CaseSummaries: React.FC = () => {
           severity="info"
           sx={{ width: "100%" }}
         >
-          Summary generation started. Check back in a moment for the completed summary.
+          Summary generation started. Check back in a moment for the completed
+          summary.
         </Alert>
       </Snackbar>
     </Box>
