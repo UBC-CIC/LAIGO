@@ -52,6 +52,7 @@ BEDROCK_MAX_TOKENS = 2048
 
 FULL_CASE_BLOCK_TYPES = ["intake", "legal_analysis", "contrarian", "policy"]
 
+DISCLAIMER = "\n\n---\n**Disclaimer:**\nThis summary must not be provided to the client without the review and signature of the supervising lawyer.\nThe summary is based solely on the facts inputted by the user, as gathered from the client at the time it was prepared. Should additional facts come to light, or should the facts as presented change, the applicable law and analysis may also change. In such circumstances, this summary must be revised to reflect the updated or additional information.\nThe law is also constantly evolving. All summaries more than six (6) months old must be updated.\nThis summary is subject to client-solicitor privilege."
 
 
 
@@ -570,6 +571,8 @@ def handler(event, context):
                     jurisdiction=jurisdiction,
                     send_chunk_callback=send_chunk
                 )
+                send_chunk(DISCLAIMER)
+                response += DISCLAIMER
             else:
                 # Non-streaming mode (HTTP)
                 response = generate_full_case_summary(
@@ -579,6 +582,7 @@ def handler(event, context):
                     case_description=case_description,
                     jurisdiction=jurisdiction
                 )
+                response += DISCLAIMER
         except Exception as e:
             logger.error(f"Error generating full case summary: {e}")
             publish_notification_event("full-case", case_id, user_id, success=False, error_message=str(e))
@@ -655,6 +659,8 @@ def handler(event, context):
                     block_type=block_type,
                     send_chunk_callback=send_chunk
                 )
+                send_chunk(DISCLAIMER)
+                response += DISCLAIMER
             else:
                 # Non-streaming mode (HTTP)
                 response = generate_lawyer_summary(
@@ -665,6 +671,7 @@ def handler(event, context):
                     jurisdiction=jurisdiction,
                     block_type=block_type
                 )
+                response += DISCLAIMER
         except Exception as e:
             logger.error(f"Error getting response: {e}")
             publish_notification_event(sub_route, case_id, user_id, success=False, error_message=str(e))

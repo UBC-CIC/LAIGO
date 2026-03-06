@@ -321,11 +321,12 @@ Use markdown formatting. Only include sections where content was discussed.
 {selected_prompt_instruction}
 
 CRITICAL OUTPUT INSTRUCTIONS:
-- Respond with ONLY the summary content in markdown format
-- Do NOT include any preamble like "Here's your summary..." or "Based on the conversation..."
-- Do NOT include any outro like "Let me know if this is correct..." or "Please review..."
-- Start directly with the first section heading
-- End with the last content point
+- Respond with ONLY the summary content in markdown format.
+- DO NOT include ANY preamble, such as "Here's your summary...", "Based on the information provided...", or "Based on the conversation...".
+- DO NOT include ANY outro, such as "Let me know if this is correct...", "Please review...", or "Please let me know if I am missing...".
+- Start directly with the first section heading.
+- End with the last content point.
+- NO conversational text whatsoever. ONLY the structured markdown summary.
 
 Respond in a proper, readable, markdown format.
 Use a clear, professional tone. Organize the summary with clear headings.
@@ -493,11 +494,12 @@ Use markdown formatting. Only include sections where content was discussed.
 {selected_prompt_instruction}
 
 CRITICAL OUTPUT INSTRUCTIONS:
-- Respond with ONLY the summary content in markdown format
-- Do NOT include any preamble like "Here's your summary..." or "Based on the conversation..."
-- Do NOT include any outro like "Let me know if this is correct..." or "Please review..."
-- Start directly with the first section heading
-- End with the last content point
+- Respond with ONLY the summary content in markdown format.
+- DO NOT include ANY preamble, such as "Here's your summary...", "Based on the information provided...", or "Based on the conversation...".
+- DO NOT include ANY outro, such as "Let me know if this is correct...", "Please review...", or "Please let me know if I am missing...".
+- Start directly with the first section heading.
+- End with the last content point.
+- NO conversational text whatsoever. ONLY the structured markdown summary.
 
 Respond in a proper, readable, markdown format.
 Use a clear, professional tone. Organize the summary with clear headings.
@@ -571,8 +573,9 @@ OUTPUT: Respond with ONLY the case summary in markdown format. No preamble.
 {prompt_instruction}
 
 IMPORTANT: Respond with ONLY the synthesized summary content in markdown format.
-Do not include any preamble, explanation, or meta-commentary.
-Start directly with the summary content.
+Do not include any preamble, explanation, or meta-commentary (e.g. no "Here is the summary" or "Based on the information...").
+Do not include any outro or conclusion text.
+Start directly with the summary content and end with the last content point. No conversational text whatsoever.
     """.strip()
     user_prompt = f"Here are the summaries from different stages of the case:\n{summaries_text}"
     return _invoke_model_text(llm, system_prompt, user_prompt)
@@ -633,8 +636,9 @@ OUTPUT: Respond with ONLY the case summary in markdown format. No preamble.
 {prompt_instruction}
 
 IMPORTANT: Respond with ONLY the synthesized summary content in markdown format.
-Do not include any preamble, explanation, or meta-commentary.
-Start directly with the summary content.
+Do not include any preamble, explanation, or meta-commentary (e.g. no "Here is the summary" or "Based on the information...").
+Do not include any outro or conclusion text.
+Start directly with the summary content and end with the last content point. No conversational text whatsoever.
     """.strip()
     user_prompt = f"Here are the summaries from different stages of the case:\n{summaries_text}"
 
