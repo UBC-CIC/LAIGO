@@ -573,7 +573,7 @@ export class ApiGatewayStack extends cdk.Stack {
           RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint, // RDS Proxy endpoint
         },
         functionName: `${id}-adminLambdaAuthorizer`,
-        memorySize: 512,
+        memorySize: 256,
         layers: [jwt, postgres], // JWT verification library + PostgreSQL client
         role: lambdaRole,
       },
@@ -609,7 +609,7 @@ export class ApiGatewayStack extends cdk.Stack {
         vpc: vpcStack.vpc, // VPC access for database connectivity
         vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
         securityGroups: [db.dbInstance.connections.securityGroups[0]],
-        memorySize: 512,
+        memorySize: 256,
         layers: [jwt, postgres], // JWT verification library + PostgreSQL client
         role: lambdaRole,
         environment: {
@@ -650,7 +650,7 @@ export class ApiGatewayStack extends cdk.Stack {
         vpc: vpcStack.vpc,
         vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
         securityGroups: [db.dbInstance.connections.securityGroups[0]],
-        memorySize: 512,
+        memorySize: 256,
         layers: [jwt, postgres], // JWT verification library + PostgreSQL client
         role: lambdaRole,
         environment: {
@@ -794,7 +794,7 @@ export class ApiGatewayStack extends cdk.Stack {
           RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint, // RDS Proxy for connection pooling
         },
         functionName: `${id}-addStudentOnSignUp`,
-        memorySize: 128,
+        memorySize: 256,
         layers: [postgres],
         role: cognitoRole,
       },
@@ -1393,7 +1393,7 @@ export class ApiGatewayStack extends cdk.Stack {
             tagOrDigest: "latest", // or whatever tag you're using
           },
         ),
-        memorySize: 512,
+        memorySize: 1024,
         timeout: cdk.Duration.seconds(120),
         vpc: vpcStack.vpc,
         functionName: `${id}-TextGenLambdaDockerFunction`,
@@ -1483,7 +1483,7 @@ export class ApiGatewayStack extends cdk.Stack {
             tagOrDigest: "latest",
           },
         ),
-        memorySize: 512,
+        memorySize: 1024,
         timeout: cdk.Duration.seconds(120),
         vpc: vpcStack.vpc,
         functionName: `${id}-PlaygroundTextGenLambdaDockerFunction`,
@@ -1560,7 +1560,7 @@ export class ApiGatewayStack extends cdk.Stack {
         layers: [psycopg3Layer],
         functionName: `${id}-AssessProgressFunction`,
         timeout: Duration.seconds(30),
-        memorySize: 512,
+        memorySize: 1024,
         vpc: vpcStack.vpc,
         environment: {
           SM_DB_CREDENTIALS: db.secretPathUser.secretName,
@@ -1688,7 +1688,7 @@ export class ApiGatewayStack extends cdk.Stack {
         handler: "main.handler",
         code: lambda.Code.fromAsset("./lambda/audioToText/src"),
         layers: [psycopg3Layer],
-        memorySize: 512,
+        memorySize: 1024,
         timeout: cdk.Duration.seconds(120),
         vpc: vpcStack.vpc,
         functionName: `${id}-audioToTextFunc`,
@@ -1785,7 +1785,7 @@ export class ApiGatewayStack extends cdk.Stack {
         layers: [psycopg3Layer],
         functionName: `${id}-SummaryGenerationFunction`,
         timeout: Duration.seconds(120),
-        memorySize: 512,
+        memorySize: 1024,
         vpc: vpcStack.vpc,
         environment: {
           SM_DB_CREDENTIALS: db.secretPathUser.secretName,
