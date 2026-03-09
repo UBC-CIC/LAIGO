@@ -91,28 +91,48 @@ export class ApiGatewayStack extends cdk.Stack {
 
     // Create Lambda layer for JWT verification (Node.js)
     const jwt = new lambda.LayerVersion(this, "aws-jwt-verify", {
-      code: lambda.Code.fromAsset("./layers/aws-jwt-verify.zip"),
+      code: lambda.Code.fromAsset("./layers/aws-jwt-verify", {
+        bundling: {
+          image: lambda.Runtime.NODEJS_22_X.bundlingImage,
+          command: [
+            "bash",
+            "-c",
+            "npm install && mkdir -p /asset-output/nodejs && cp -r node_modules /asset-output/nodejs/",
+          ],
+        },
+      }),
       compatibleRuntimes: [lambda.Runtime.NODEJS_22_X],
       description: "Contains the aws-jwt-verify library for JS",
     });
 
     // Create Lambda layer for PostgreSQL client (Node.js)
     const postgres = new lambda.LayerVersion(this, "postgres", {
-      code: lambda.Code.fromAsset("./layers/postgres.zip"),
+      code: lambda.Code.fromAsset("./layers/postgres", {
+        bundling: {
+          image: lambda.Runtime.NODEJS_22_X.bundlingImage,
+          command: [
+            "bash",
+            "-c",
+            "npm install && mkdir -p /asset-output/nodejs && cp -r node_modules /asset-output/nodejs/",
+          ],
+        },
+      }),
       compatibleRuntimes: [lambda.Runtime.NODEJS_22_X],
       description: "Contains the postgres library for JS",
     });
 
-    // Create Lambda layer for PostgreSQL client (Python)
-    const psycopgLayer = new lambda.LayerVersion(this, "psycopgLambdaLayer", {
-      code: lambda.Code.fromAsset("./layers/psycopg2.zip"),
-      compatibleRuntimes: [lambda.Runtime.PYTHON_3_12],
-      description: "Lambda layer containing the psycopg2 Python library",
-    });
-
     // Create Lambda layer for psycopg3 (Python 3.12) - for simple Lambda functions
     const psycopg3Layer = new lambda.LayerVersion(this, `${id}-Psycopg3Layer`, {
-      code: lambda.Code.fromAsset("./layers/psycopg3-layer.zip"),
+      code: lambda.Code.fromAsset("./layers/psycopg3", {
+        bundling: {
+          image: lambda.Runtime.PYTHON_3_12.bundlingImage,
+          command: [
+            "bash",
+            "-c",
+            "pip install -r requirements.txt -t /asset-output/python",
+          ],
+        },
+      }),
       compatibleRuntimes: [lambda.Runtime.PYTHON_3_12],
       description: "psycopg3 with binary and pool support for Python 3.12",
     });
@@ -134,7 +154,6 @@ export class ApiGatewayStack extends cdk.Stack {
     // Register all layers for use by Lambda functions
     this.layerList["jwt"] = jwt;
     this.layerList["postgres"] = postgres;
-    this.layerList["psycopg2"] = psycopgLayer;
     this.layerList["powertools"] = powertoolsLayer;
     this.layerList["javascriptPowertools"] = javascriptPowertoolsLayer;
 

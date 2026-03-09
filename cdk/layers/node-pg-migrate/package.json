@@ -1,0 +1,9 @@
+{
+  "name": "node-pg-migrate-layer",
+  "version": "1.0.0",
+  "description": "Lambda layer for node-pg-migrate and pg",
+  "dependencies": {
+    "node-pg-migrate": "7.9.1",
+    "pg": "8.13.3"
+  }
+}

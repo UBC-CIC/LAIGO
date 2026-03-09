@@ -1,0 +1,8 @@
+{
+  "name": "postgres-layer",
+  "version": "1.0.0",
+  "description": "Lambda layer for postgres (postgres.js)",
+  "dependencies": {
+    "postgres": "3.4.7"
+  }
+}
