@@ -5,6 +5,8 @@ const {
   CognitoIdentityProviderClient,
   AdminGetUserCommand,
 } = require("@aws-sdk/client-cognito-identity-provider");
+const { Logger } = require("@aws-lambda-powertools/logger");
+const logger = new Logger({ serviceName: "AddStudentOnSignUp" });
 
 // Environment variables for database connection
 const { SM_DB_CREDENTIALS, RDS_PROXY_ENDPOINT } = process.env;
@@ -36,14 +38,16 @@ exports.handler = async (event) => {
 
     // Extract user attributes
     const attributes = userAttributesResponse.UserAttributes;
-    const email = attributes.find(attr => attr.Name === "email")?.Value;
-    const firstName = attributes.find(attr => attr.Name === "given_name")?.Value || "";
-    const lastName = attributes.find(attr => attr.Name === "family_name")?.Value || "";
-    const idpId = attributes.find(attr => attr.Name === "sub")?.Value; // IDP User ID (UUID)
+    const email = attributes.find((attr) => attr.Name === "email")?.Value;
+    const firstName =
+      attributes.find((attr) => attr.Name === "given_name")?.Value || "";
+    const lastName =
+      attributes.find((attr) => attr.Name === "family_name")?.Value || "";
+    const idpId = attributes.find((attr) => attr.Name === "sub")?.Value; // IDP User ID (UUID)
 
     // Return error if email attribute is missing
     if (!email) {
-      console.error("Email attribute missing from Cognito");
+      logger.error("Email attribute missing from Cognito");
       throw new Error("Email attribute not found in Cognito user");
     }
 
@@ -54,7 +58,7 @@ exports.handler = async (event) => {
 
     if (existingUser.length > 0) {
       // Update existing user's information
-      console.log("Updating existing user in database");
+      logger.info("Updating existing user in database", { email });
       await sqlConnection`
         UPDATE "users"
         SET
@@ -65,34 +69,37 @@ exports.handler = async (event) => {
         WHERE user_email = ${email}
         RETURNING *;
       `;
-      
+
       console.log(`User ${email} updated in database`);
-      
     } else {
       // Check if this is the first user in the system
       const userCount = await sqlConnection`
         SELECT COUNT(*) as count FROM "users";
       `;
-      
+
       const isFirstUser = parseInt(userCount[0].count, 10) === 0;
-      const defaultRole = isFirstUser ? 'admin' : 'student';
-      
-      console.log(`Creating new user in database with role: ${defaultRole} (first user: ${isFirstUser})`);
-      
+      const defaultRole = isFirstUser ? "admin" : "student";
+
+      logger.info("Creating new user in database", {
+        email,
+        role: defaultRole,
+        isFirstUser,
+      });
+
       // Create new user with admin role if first user, otherwise student
       const newUser = await sqlConnection`
         INSERT INTO "users" (idp_id, user_email, first_name, last_name, time_account_created, roles, last_sign_in)
         VALUES (${idpId}, ${email}, ${firstName}, ${lastName}, CURRENT_TIMESTAMP, ARRAY[${defaultRole}]::user_role[], CURRENT_TIMESTAMP)
         RETURNING *;
       `;
-      
-      console.log("New user created:", newUser[0]);
+
+      logger.info("New user created", { email });
     }
 
     // Return event to continue post-confirmation flow
     return event;
   } catch (err) {
-    console.error("Error in post-confirmation trigger:", err);
+    logger.error("Error in post-confirmation trigger", err);
     // Don't throw error - this would block user confirmation
     // Database errors are logged but don't prevent authentication (graceful degradation)
     return event;

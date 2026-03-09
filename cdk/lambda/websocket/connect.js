@@ -1,4 +1,7 @@
 const { DynamoDBClient, PutItemCommand } = require("@aws-sdk/client-dynamodb");
+const { marshall } = require("@aws-sdk/util-dynamodb");
+const { Logger } = require("@aws-lambda-powertools/logger");
+const logger = new Logger({ serviceName: "WsConnect" });
 
 const dynamodb = new DynamoDBClient({});
 
@@ -7,7 +10,7 @@ exports.handler = async (event) => {
   const userId = event.requestContext.authorizer?.userId;
   const userEmail = event.requestContext.authorizer?.email;
 
-  console.log("WebSocket connection established:", {
+  logger.info("WebSocket connection established", {
     connectionId,
     userId,
     userEmail,
@@ -20,29 +23,29 @@ exports.handler = async (event) => {
       const ttl = Math.floor(Date.now() / 1000) + 24 * 60 * 60; // 24 hours from now
       const connectedAt = new Date().toISOString();
 
-      await dynamodb.send(
-        new PutItemCommand({
-          TableName: process.env.CONNECTION_TABLE_NAME,
-          Item: {
-            PK: { S: `CONNECTION#${connectionId}` },
-            SK: { S: `USER#${userId}` },
-            GSI1PK: { S: `USER#${userId}` },
-            GSI1SK: { S: `CONNECTION#${connectionId}` },
-            connectionId: { S: connectionId },
-            userId: { S: userId },
-            connectedAt: { S: connectedAt },
-            lastActivity: { S: connectedAt },
-            ttl: { N: ttl.toString() },
-          },
-        }),
-      );
+      const item = {
+        TableName: process.env.CONNECTION_TABLE_NAME,
+        Item: {
+          PK: { S: `CONNECTION#${connectionId}` },
+          SK: { S: `USER#${userId}` },
+          GSI1PK: { S: `USER#${userId}` },
+          GSI1SK: { S: `CONNECTION#${connectionId}` },
+          connectionId: { S: connectionId },
+          userId: { S: userId },
+          connectedAt: { S: connectedAt },
+          lastActivity: { S: connectedAt },
+          ttl: { N: ttl.toString() },
+        },
+      };
 
-      console.log("Connection mapping stored successfully:", {
+      await dynamodb.send(new PutItemCommand(item));
+
+      logger.info("WebSocket connection stored in DynamoDB", {
         connectionId,
         userId,
       });
     } catch (error) {
-      console.error("Error storing connection mapping:", error);
+      logger.error("Failed to store connection in DynamoDB", error);
       // Don't fail the connection for this error
     }
   }

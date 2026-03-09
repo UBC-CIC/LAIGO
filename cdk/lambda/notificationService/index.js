@@ -10,6 +10,8 @@ const {
   PostToConnectionCommand,
 } = require("@aws-sdk/client-apigatewaymanagementapi");
 const { marshall, unmarshall } = require("@aws-sdk/util-dynamodb");
+const { Logger } = require("@aws-lambda-powertools/logger");
+const logger = new Logger({ serviceName: "NotificationService" });
 
 const dynamodb = new DynamoDBClient({});
 
@@ -21,11 +23,10 @@ const dynamodb = new DynamoDBClient({});
  * 1. EventBridge events for notification creation and delivery
  * 2. REST API requests for notification queries and updates
  */
-exports.handler = async (event, context) => {
-  console.log("Notification Service invoked:", {
+exports.handler = logger.injectLambdaContext(async (event, context) => {
+  logger.info("Notification Service invoked", {
     source: event.source || "API",
     eventType: event["detail-type"] || event.httpMethod,
-    timestamp: new Date().toISOString(),
   });
 
   try {
@@ -41,14 +42,14 @@ exports.handler = async (event, context) => {
 
     throw new Error("Unknown invocation type");
   } catch (error) {
-    console.error("Error in notification service:", error);
+    logger.error("Error in notification service", error);
     return {
       statusCode: 500,
       headers: getCorsHeaders(),
       body: JSON.stringify({ error: "Internal server error" }),
     };
   }
-};
+});
 
 /**
  * Handle EventBridge notification events
@@ -57,7 +58,7 @@ async function handleEventBridgeEvent(event) {
   const { detail } = event;
   const eventType = event["detail-type"];
 
-  console.log("Processing EventBridge event:", {
+  logger.info("Processing EventBridge event", {
     eventType,
     recipientId: detail.recipientId, // Database user_id
     notificationType: detail.type,
@@ -172,7 +173,7 @@ async function createNotification(eventDetail) {
     }),
   );
 
-  console.log("Notification created:", {
+  logger.info("Notification created", {
     notificationId,
     userId: recipientId, // Database user_id
     type,
@@ -194,7 +195,7 @@ async function deliverNotificationViaWebSocket(notification) {
     const connections = await getUserConnections(userId);
 
     if (connections.length === 0) {
-      console.log("No active connections for user:", userId);
+      logger.info("No active connections for user", { userId });
       return;
     }
 
@@ -226,12 +227,12 @@ async function deliverNotificationViaWebSocket(notification) {
           }),
         );
 
-        console.log("Notification delivered via WebSocket:", {
+        logger.info("Notification delivered via WebSocket", {
           connectionId: connection.connectionId,
           notificationId: notification.notificationId,
         });
       } catch (error) {
-        console.error("Failed to deliver to connection:", {
+        console.error("Failed to deliver to connection", {
           connectionId: connection.connectionId,
           error: error.message,
         });
@@ -245,7 +246,7 @@ async function deliverNotificationViaWebSocket(notification) {
 
     await Promise.allSettled(deliveryPromises);
   } catch (error) {
-    console.error("Error delivering notification via WebSocket:", error);
+    logger.error("Error delivering notification via WebSocket", error);
     // Don't throw - notification is still stored even if delivery fails
   }
 }
@@ -270,7 +271,7 @@ async function getUserConnections(userId) {
 
     return result.Items?.map((item) => unmarshall(item)) || [];
   } catch (error) {
-    console.error("Error getting user connections:", error);
+    logger.error("Error getting user connections", error);
     return [];
   }
 }
@@ -292,9 +293,9 @@ async function cleanupStaleConnection(connectionId, userId) {
       }),
     );
 
-    console.log("Cleaned up stale connection:", connectionId);
+    logger.info("Cleaned up stale connection", { connectionId });
   } catch (error) {
-    console.error("Error cleaning up stale connection:", error);
+    logger.error("Error cleaning up stale connection", error);
   }
 }
 
@@ -353,7 +354,7 @@ async function getNotifications(userId, queryParams = {}) {
       body: JSON.stringify(response),
     };
   } catch (error) {
-    console.error("Error getting notifications:", error);
+    logger.error("Error getting notifications", error);
     return {
       statusCode: 500,
       headers: getCorsHeaders(),
@@ -398,7 +399,8 @@ async function markNotificationAsRead(userId, notificationId) {
           PK: notification.PK,
           SK: notification.SK,
         }),
-        UpdateExpression: "SET isRead = :isRead, readStatus = :status, readAt = :readAt",
+        UpdateExpression:
+          "SET isRead = :isRead, readStatus = :status, readAt = :readAt",
         ExpressionAttributeValues: marshall({
           ":isRead": true,
           ":status": "READ",
@@ -413,7 +415,7 @@ async function markNotificationAsRead(userId, notificationId) {
       body: JSON.stringify({ success: true }),
     };
   } catch (error) {
-    console.error("Error marking notification as read:", error);
+    logger.error("Error marking notification as read", error);
     return {
       statusCode: 500,
       headers: getCorsHeaders(),
@@ -458,7 +460,8 @@ async function markNotificationAsUnread(userId, notificationId) {
           PK: notification.PK,
           SK: notification.SK,
         }),
-        UpdateExpression: "SET isRead = :isRead, readStatus = :status REMOVE readAt",
+        UpdateExpression:
+          "SET isRead = :isRead, readStatus = :status REMOVE readAt",
         ExpressionAttributeValues: marshall({
           ":isRead": false,
           ":status": "UNREAD",
@@ -472,7 +475,7 @@ async function markNotificationAsUnread(userId, notificationId) {
       body: JSON.stringify({ success: true }),
     };
   } catch (error) {
-    console.error("Error marking notification as unread:", error);
+    logger.error("Error marking notification as unread", error);
     return {
       statusCode: 500,
       headers: getCorsHeaders(),
@@ -526,7 +529,7 @@ async function deleteNotification(userId, notificationId) {
       body: JSON.stringify({ success: true }),
     };
   } catch (error) {
-    console.error("Error deleting notification:", error);
+    logger.error("Error deleting notification", error);
     return {
       statusCode: 500,
       headers: getCorsHeaders(),
@@ -571,7 +574,8 @@ async function markAllNotificationsAsRead(userId) {
             PK: notification.PK,
             SK: notification.SK,
           }),
-          UpdateExpression: "SET isRead = :isRead, readStatus = :status, readAt = :readAt",
+          UpdateExpression:
+            "SET isRead = :isRead, readStatus = :status, readAt = :readAt",
           ExpressionAttributeValues: marshall({
             ":isRead": true,
             ":status": "READ",
@@ -589,7 +593,7 @@ async function markAllNotificationsAsRead(userId) {
       body: JSON.stringify({ updated: result.Items.length }),
     };
   } catch (error) {
-    console.error("Error marking all notifications as read:", error);
+    logger.error("Error marking all notifications as read", error);
     return {
       statusCode: 500,
       headers: getCorsHeaders(),
@@ -622,7 +626,7 @@ async function getUnreadCount(userId) {
       body: JSON.stringify({ count: result.Count || 0 }),
     };
   } catch (error) {
-    console.error("Error getting unread count:", error);
+    logger.error("Error getting unread count", error);
     return {
       statusCode: 500,
       headers: getCorsHeaders(),

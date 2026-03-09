@@ -22,6 +22,8 @@ const {
 } = require("@aws-sdk/client-secrets-manager");
 const { CognitoJwtVerifier } = require("aws-jwt-verify");
 const { initializeConnection } = require("./initializeConnection");
+const { Logger } = require("@aws-lambda-powertools/logger");
+const logger = new Logger({ serviceName: "StudentAuthorizer" });
 
 // Create a Secrets Manager client
 const secretsManager = new SecretsManagerClient();
@@ -54,7 +56,7 @@ let userMetadataCache = {};
 async function getUserMetadataFromDatabase(idpId) {
   // Check cache first
   if (userMetadataCache[idpId]) {
-    console.log("Using cached user metadata", { idpId });
+    logger.info("Using cached user metadata", { idpId });
     return userMetadataCache[idpId];
   }
 
@@ -90,7 +92,7 @@ async function getUserMetadataFromDatabase(idpId) {
 
     return user;
   } catch (error) {
-    console.error("Database query failed", {
+    logger.error("Database query failed", {
       idpId,
       errorType: error.name,
       errorMessage: error.message,
@@ -123,14 +125,11 @@ async function initializeJwtVerifier() {
     });
 
     // Log verifier initialization (no secrets)
-    console.log("Student JWT verifier initialized", {
+    logger.info("Student JWT verifier initialized", {
       issuerId: credentials.JWT_ISSUER_ID,
     });
   } catch (error) {
-    console.error("Error initializing JWT verifier:", {
-      name: error?.name,
-      message: error?.message,
-    });
+    logger.error("Error initializing JWT verifier", error);
     throw new Error("Failed to initialize JWT verifier");
   }
 }
@@ -146,7 +145,7 @@ exports.handler = async (event) => {
 
   // Extract JWT token from Authorization header
   const accessToken = event.authorizationToken.toString();
-  console.log("Student authorizer invoked", { methodArn: event.methodArn });
+  logger.info("Student authorizer invoked", { methodArn: event.methodArn });
   let payload;
 
   try {
@@ -161,7 +160,7 @@ exports.handler = async (event) => {
     try {
       user = await getUserMetadataFromDatabase(idpId);
     } catch (error) {
-      console.error("User lookup failed", {
+      logger.error("User lookup failed", {
         idpId,
         errorType: error.name,
         errorMessage: error.message,
@@ -192,11 +191,7 @@ exports.handler = async (event) => {
 
     return responseStruct;
   } catch (error) {
-    console.error("Authorization error:", {
-      name: error?.name,
-      message: error?.message,
-      stack: error?.stack,
-    });
+    logger.error("Authorization error", error);
     // API Gateway requires exact "Unauthorized" message for 401 response
     throw new Error("Unauthorized");
   }

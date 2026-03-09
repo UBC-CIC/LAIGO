@@ -6,6 +6,8 @@ const {
   handleError,
   getSqlConnection,
 } = require("./utils/utils");
+const { Logger } = require("@aws-lambda-powertools/logger");
+const logger = new Logger({ serviceName: "StudentFunction" });
 let { MESSAGE_LIMIT, FILE_SIZE_LIMIT, TABLE_NAME } = process.env;
 const {
   EventBridgeClient,
@@ -263,7 +265,7 @@ const routes = {
         has_accepted: user.accepted_disclaimer || false,
       });
     } catch (err) {
-      console.error("Error fetching disclaimer:", err);
+      logger.error("Error fetching disclaimer:", err);
       handleError(err, response);
     }
   },
@@ -283,7 +285,7 @@ const routes = {
         message: "Disclaimer accepted successfully",
       });
     } catch (err) {
-      console.error("Error accepting disclaimer:", err);
+      logger.error("Error accepting disclaimer:", err);
       handleError(err, response);
     }
   },
@@ -327,7 +329,7 @@ const routes = {
           message: "Last viewed timestamp updated",
         });
       } catch (err) {
-        console.error(err);
+        logger.error(err);
         handleError(err, response);
       }
     } else {
@@ -390,7 +392,7 @@ const routes = {
         response.body = JSON.stringify(transcriptions);
         return;
       } catch (err) {
-        console.error(err);
+        logger.error(err);
         handleError(err, response);
       }
     } else {
@@ -461,7 +463,7 @@ const routes = {
           response.body = JSON.stringify(data[0]);
         }
       } catch (err) {
-        console.error(err);
+        logger.error(err);
         handleError(err, response);
       }
     } else {
@@ -531,7 +533,7 @@ const routes = {
 
         response.body = JSON.stringify(combinedData);
       } catch (err) {
-        console.error(err);
+        logger.error(err);
         handleError(err, response);
       }
     } else {
@@ -850,7 +852,7 @@ const routes = {
       const session_id = `${case_id}-${block_type}`;
 
       try {
-        console.log(
+        logger.info(
           "Received case_id: ",
           case_id,
           " and sub_route: ",
@@ -876,22 +878,22 @@ const routes = {
         };
 
         const command = new QueryCommand(params);
-        console.log("Query params: ", params); // Log the params
+        logger.info("Query params: ", params); // Log the params
 
         const data = await ddbClient.send(command);
 
-        console.log("Query results: ", data);
+        logger.info("Query results: ", data);
 
         if (data.Items && data.Items.length > 0) {
           const messages = data.Items[0].History.L;
 
-          console.log("MESSAGES: ", messages);
+          logger.info("MESSAGES: ", messages);
           const extractedMessages = messages.map((m) => ({
             type: m.M.data.M.type.S, // "human" or "ai"
             content: m.M.data.M.content.S, // Extracting only the message content
           }));
 
-          console.log("EXTRACTED MESSAGES: ", extractedMessages);
+          logger.info("EXTRACTED MESSAGES: ", extractedMessages);
           if (messages.length > 0) {
             response.body = JSON.stringify(extractedMessages); // Return the message content as JSON
           } else {
@@ -907,11 +909,11 @@ const routes = {
           });
         }
       } catch (err) {
-        console.log("Error occurred: ", err);
+        logger.error("Error occurred: ", err);
         handleError(err, response);
       }
     } else {
-      console.log("Case ID missing");
+      logger.info("Case ID missing");
       response.statusCode = 400;
       response.body = JSON.stringify({ error: "Case ID is required" });
     }
@@ -1079,7 +1081,7 @@ const routes = {
   "DELETE /student/delete_transcription": async (event, env) => {
     const { response, user, user_id, userEmail, sqlConnection } = env;
     // Use user_id from database user metadata for ownership check
-    console.log(event);
+    logger.info(event);
     if (
       event.queryStringParameters != null &&
       event.queryStringParameters.audio_file_id
@@ -1147,7 +1149,7 @@ const routes = {
           }
         }
       } catch (e) {
-        console.warn("Failed to parse body for reviewer_ids", e);
+        logger.warn("Failed to parse body for reviewer_ids", e);
       }
 
       try {
@@ -1231,15 +1233,15 @@ const routes = {
                   };
 
                   await eventBridge.send(new PutEventsCommand(eventParams));
-                  console.log(`Notification sent to reviewer ${reviewerId}`);
+                  logger.info(`Notification sent to reviewer ${reviewerId}`);
                 } catch (error) {
-                  console.error(
+                  logger.error(
                     `Failed to send notification to reviewer ${reviewerId}:`,
                     error,
                   );
                 }
               } else {
-                console.warn(
+                logger.warn(
                   "NOTIFICATION_EVENT_BUS_NAME not set, skipping notification.",
                 );
               }
@@ -1253,7 +1255,7 @@ const routes = {
         });
       } catch (err) {
         response.statusCode = 500;
-        console.error(err);
+        logger.error(err);
         response.body = JSON.stringify({
           error: "Internal server error",
         });
@@ -1303,7 +1305,7 @@ const routes = {
         });
       } catch (err) {
         response.statusCode = 500;
-        console.error(err);
+        logger.error(err);
         response.body = JSON.stringify({
           error: "Internal server error",
         });
@@ -1353,7 +1355,7 @@ const routes = {
         });
       } catch (err) {
         response.statusCode = 500;
-        console.error(err);
+        logger.error(err);
         response.body = JSON.stringify({
           error: "Internal server error",
         });
@@ -1421,8 +1423,8 @@ const routes = {
   },
 };
 
-exports.handler = async (event) => {
-  console.log(event);
+exports.handler = logger.injectLambdaContext(async (event) => {
+  logger.info(event);
 
   // Extract userId and user metadata from authorization context
   const userId = event.requestContext?.authorizer?.userId || null;
@@ -1480,10 +1482,10 @@ exports.handler = async (event) => {
     }
   } catch (error) {
     response.statusCode = 400;
-    console.log(error);
+    logger.error("Handler error", error);
     response.body = JSON.stringify(error.message);
   }
-  console.log(response);
+  logger.info("Student Response", { statusCode: response.statusCode });
 
   return response;
-};
+});

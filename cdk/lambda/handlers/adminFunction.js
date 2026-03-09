@@ -5,6 +5,8 @@ const {
   handleError,
   getSqlConnection,
 } = require("./utils/utils");
+const { Logger } = require("@aws-lambda-powertools/logger");
+const logger = new Logger({ serviceName: "AdminFunction" });
 
 const {
   SSMClient,
@@ -1269,7 +1271,7 @@ const routes = {
   },
 };
 
-exports.handler = async (event) => {
+exports.handler = logger.injectLambdaContext(async (event) => {
   const response = createResponse();
 
   // Initialize the database connection if not already initialized
@@ -1330,9 +1332,9 @@ exports.handler = async (event) => {
     }
   } catch (error) {
     response.statusCode = 400;
-    console.log(error);
+    logger.error("Handler error", error);
     response.body = JSON.stringify(error.message);
   }
-  console.log(response);
+  logger.info("Admin Response", { statusCode: response.statusCode });
   return response;
-};
+});

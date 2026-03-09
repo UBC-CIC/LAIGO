@@ -3,10 +3,12 @@ const {
   ApiGatewayManagementApiClient,
   PostToConnectionCommand,
 } = require("@aws-sdk/client-apigatewaymanagementapi");
+const { Logger } = require("@aws-lambda-powertools/logger");
+const logger = new Logger({ serviceName: "WsDefault" });
 
 const lambda = new LambdaClient({});
 
-exports.handler = async (event) => {
+exports.handler = logger.injectLambdaContext(async (event) => {
   const connectionId = event.requestContext.connectionId;
   const domainName = event.requestContext.domainName;
   const stage = event.requestContext.stage;
@@ -18,10 +20,9 @@ exports.handler = async (event) => {
   const lastName = event.requestContext.authorizer?.lastName;
   const roles = JSON.parse(event.requestContext.authorizer?.roles || "[]");
 
-  console.log("WebSocket message received:", {
+  logger.info("WebSocket message received", {
     connectionId,
     routeKey: event.requestContext.routeKey,
-    timestamp: new Date().toISOString(),
     userId,
   });
 
@@ -64,7 +65,7 @@ exports.handler = async (event) => {
       const { case_id, sub_route, message_content } = body;
 
       // Log metadata only (scrub message_content to prevent PII leakage)
-      console.log("Invoking text generation:", {
+      logger.info("Invoking text generation", {
         case_id,
         sub_route,
         userId,
@@ -98,7 +99,7 @@ exports.handler = async (event) => {
         }),
       );
 
-      console.log("Text generation function invoked successfully");
+      logger.info("Text generation function invoked successfully");
       return { statusCode: 200 };
     }
 
@@ -118,7 +119,7 @@ exports.handler = async (event) => {
 
       // RBAC Check: Only admin and instructor can use playground features
       if (!isStaff) {
-        console.warn("Unauthorized playground access attempt", {
+        logger.warn("Unauthorized playground access attempt", {
           userId,
           userEmail,
           roles: user.roles,
@@ -173,7 +174,7 @@ exports.handler = async (event) => {
         }),
       );
 
-      console.log("Playground test invoked successfully");
+      logger.info("Playground test invoked successfully");
       return { statusCode: 200 };
     }
 
@@ -208,7 +209,7 @@ exports.handler = async (event) => {
         }),
       );
 
-      console.log("Assess progress function invoked successfully");
+      logger.info("Assess progress function invoked successfully");
       return { statusCode: 200 };
     }
 
@@ -218,7 +219,7 @@ exports.handler = async (event) => {
 
       // RBAC Check: Only admin and instructor can use playground features
       if (!isStaff) {
-        console.warn("Unauthorized playground assessment attempt", {
+        logger.warn("Unauthorized playground assessment attempt", {
           userId,
           userEmail,
           roles: user.roles,
@@ -263,7 +264,7 @@ exports.handler = async (event) => {
         }),
       );
 
-      console.log("Playground assess function invoked successfully");
+      logger.info("Playground assess function invoked successfully");
       return { statusCode: 200 };
     }
 
@@ -301,7 +302,7 @@ exports.handler = async (event) => {
         }),
       );
 
-      console.log("Summary generation function invoked successfully");
+      logger.info("Summary generation function invoked successfully");
       return { statusCode: 200 };
     }
 
@@ -344,7 +345,7 @@ exports.handler = async (event) => {
         }),
       );
 
-      console.log("Audio to text function invoked successfully");
+      logger.info("Audio to text function invoked successfully");
       return { statusCode: 200 };
     }
 
@@ -353,8 +354,8 @@ exports.handler = async (event) => {
       body: JSON.stringify({ error: "Unknown action" }),
     };
   } catch (error) {
-    console.error("Error processing WebSocket message:", error);
-    
+    logger.error("Error processing WebSocket message", error);
+
     // Handle user not found error
     if (error.message === "User not found") {
       return {
@@ -362,10 +363,10 @@ exports.handler = async (event) => {
         body: JSON.stringify({ error: "User not found" }),
       };
     }
-    
+
     return {
       statusCode: 500,
       body: JSON.stringify({ error: "Internal server error" }),
     };
   }
-};
+});

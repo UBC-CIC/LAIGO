@@ -1,5 +1,7 @@
 const { CognitoJwtVerifier } = require("aws-jwt-verify");
 const { initializeConnection } = require("./initializeConnection");
+const { Logger } = require("@aws-lambda-powertools/logger");
+const logger = new Logger({ serviceName: "WsAuthorizer" });
 
 let jwtVerifier;
 
@@ -14,7 +16,7 @@ let userMetadataCache = {};
 async function getUserMetadataFromDatabase(idpId) {
   // Check cache first
   if (userMetadataCache[idpId]) {
-    console.log("Using cached user metadata", { idpId });
+    logger.info("Using cached user metadata", { idpId });
     return userMetadataCache[idpId];
   }
 
@@ -50,7 +52,7 @@ async function getUserMetadataFromDatabase(idpId) {
 
     return user;
   } catch (error) {
-    console.error("Database query failed", {
+    logger.error("Database query failed", {
       idpId,
       errorType: error.name,
       errorMessage: error.message,
@@ -62,14 +64,14 @@ async function getUserMetadataFromDatabase(idpId) {
 /**
  * Lambda Authorizer for WebSocket $connect route.
  * Validates JWT token and returns IAM Policy Document.
- * 
+ *
  * Flow:
  * 1. Extracts JWT token from headers/query
  * 2. Verifies token signature and expiration
  * 3. Extracts "sub" claim as idpId
  * 4. Queries database to resolve idpId to userId
  * 5. Returns IAM policy with userId and user metadata in context
- * 
+ *
  * Note: Authorization checks (role validation) are performed by WebSocket handlers
  * using the userId from context, not JWT claims.
  */
@@ -81,7 +83,7 @@ exports.handler = async (event) => {
     const token = extractToken(event);
 
     if (!token) {
-      console.warn("WebSocket authorizer: missing token", { timestamp });
+      logger.warn("WebSocket authorizer: missing token", { timestamp });
       throw new Error("Unauthorized");
     }
 
@@ -104,7 +106,7 @@ exports.handler = async (event) => {
     try {
       user = await getUserMetadataFromDatabase(idpId);
     } catch (error) {
-      console.error("User lookup failed", {
+      logger.error("User lookup failed", {
         idpId,
         errorType: error.name,
         errorMessage: error.message,
@@ -113,7 +115,7 @@ exports.handler = async (event) => {
       throw new Error("Unauthorized");
     }
 
-    console.log("WebSocket connection authorized", {
+    logger.info("WebSocket connection authorized", {
       timestamp,
       userId: user.user_id,
     });
@@ -128,7 +130,7 @@ exports.handler = async (event) => {
       roles: JSON.stringify(user.roles), // API Gateway requires string values
     });
   } catch (error) {
-    console.error("WebSocket authorizer: token validation failed", {
+    logger.error("WebSocket authorizer: token validation failed", {
       timestamp,
       reason: error?.message,
     });

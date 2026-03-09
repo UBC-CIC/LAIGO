@@ -124,11 +124,19 @@ export class ApiGatewayStack extends cdk.Stack {
       `arn:aws:lambda:${this.region}:017000801446:layer:AWSLambdaPowertoolsPythonV2:78`,
     );
 
+    // Create a Layer with Powertools for AWS Lambda (TypeScript)
+    const javascriptPowertoolsLayer = lambda.LayerVersion.fromLayerVersionArn(
+      this,
+      `${id}-JavaScriptPowertoolsLayer`,
+      `arn:aws:lambda:${this.region}:094274105915:layer:AWSLambdaPowertoolsTypeScriptV2:45`,
+    );
+
     // Register all layers for use by Lambda functions
     this.layerList["jwt"] = jwt;
     this.layerList["postgres"] = postgres;
     this.layerList["psycopg2"] = psycopgLayer;
     this.layerList["powertools"] = powertoolsLayer;
+    this.layerList["javascriptPowertools"] = javascriptPowertoolsLayer;
 
     // Create Cognito user pool for user authentication
     const userPoolName = `${id}-UserPool`;
@@ -640,7 +648,7 @@ export class ApiGatewayStack extends cdk.Stack {
         },
         functionName: `${id}-adminLambdaAuthorizer`,
         memorySize: 256,
-        layers: [jwt, postgres], // JWT verification library + PostgreSQL client
+        layers: [jwt, postgres, javascriptPowertoolsLayer], // JWT verification library + PostgreSQL client
         role: adminAuthorizerRole,
       },
     );
@@ -675,7 +683,7 @@ export class ApiGatewayStack extends cdk.Stack {
         vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
         securityGroups: [db.dbInstance.connections.securityGroups[0]],
         memorySize: 256,
-        layers: [jwt, postgres], // JWT verification library + PostgreSQL client
+        layers: [jwt, postgres, javascriptPowertoolsLayer], // JWT verification library + PostgreSQL client
         role: studentAuthorizerRole,
         environment: {
           SM_IDP_CREDENTIALS: this.secret.secretName, // IDP config from Secrets Manager (Cognito initially)
@@ -715,7 +723,7 @@ export class ApiGatewayStack extends cdk.Stack {
         vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
         securityGroups: [db.dbInstance.connections.securityGroups[0]],
         memorySize: 256,
-        layers: [jwt, postgres], // JWT verification library + PostgreSQL client
+        layers: [jwt, postgres, javascriptPowertoolsLayer], // JWT verification library + PostgreSQL client
         role: instructorAuthorizerRole,
         environment: {
           SM_IDP_CREDENTIALS: this.secret.secretName, // IDP config from Secrets Manager (Cognito initially)
@@ -837,6 +845,7 @@ export class ApiGatewayStack extends cdk.Stack {
       },
       functionName: `${id}-preSignupLambda`,
       memorySize: 128,
+      layers: [javascriptPowertoolsLayer],
       role: cognitoRole,
     });
 
@@ -857,7 +866,7 @@ export class ApiGatewayStack extends cdk.Stack {
         },
         functionName: `${id}-addStudentOnSignUp`,
         memorySize: 256,
-        layers: [postgres],
+        layers: [postgres, javascriptPowertoolsLayer],
         role: cognitoRole,
       },
     );
@@ -1237,7 +1246,7 @@ export class ApiGatewayStack extends cdk.Stack {
         },
         functionName: `${id}-studentFunction`,
         memorySize: 512,
-        layers: [postgres],
+        layers: [postgres, javascriptPowertoolsLayer],
         role: studentFunctionRole,
       },
     );
@@ -1291,7 +1300,7 @@ export class ApiGatewayStack extends cdk.Stack {
         },
         functionName: `${id}-adminFunction`,
         memorySize: 512,
-        layers: [postgres],
+        layers: [postgres, javascriptPowertoolsLayer],
         role: adminFunctionRole,
       },
     );
@@ -1347,7 +1356,7 @@ export class ApiGatewayStack extends cdk.Stack {
         },
         functionName: `${id}-instructorFunction`,
         memorySize: 512,
-        layers: [postgres],
+        layers: [postgres, javascriptPowertoolsLayer],
         role: instructorFunctionRole,
       },
     );
@@ -1950,6 +1959,7 @@ export class ApiGatewayStack extends cdk.Stack {
         handler: "connect.handler",
         timeout: Duration.seconds(10),
         memorySize: 256,
+        layers: [javascriptPowertoolsLayer],
         functionName: `${id}-WsConnect`,
         environment: {
           CONNECTION_TABLE_NAME: connectionTable.tableName,
@@ -1967,7 +1977,7 @@ export class ApiGatewayStack extends cdk.Stack {
         handler: "wsAuthorizer.handler",
         timeout: Duration.seconds(10),
         memorySize: 256,
-        layers: [jwt, postgres], // JWT verification and PostgreSQL client
+        layers: [jwt, postgres, javascriptPowertoolsLayer], // JWT verification and PostgreSQL client
         functionName: `${id}-WsAuthorizer`,
         vpc: vpcStack.vpc, // VPC access for database connectivity
         vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
@@ -1995,6 +2005,7 @@ export class ApiGatewayStack extends cdk.Stack {
         handler: "disconnect.handler",
         timeout: Duration.seconds(10),
         memorySize: 128,
+        layers: [javascriptPowertoolsLayer],
         functionName: `${id}-WsDisconnect`,
         environment: {
           CONNECTION_TABLE_NAME: connectionTable.tableName,
@@ -2012,6 +2023,7 @@ export class ApiGatewayStack extends cdk.Stack {
         handler: "default.handler",
         timeout: Duration.seconds(10),
         memorySize: 256,
+        layers: [javascriptPowertoolsLayer],
         functionName: `${id}-WsDefault`,
         environment: {
           TEXT_GEN_FUNCTION_NAME: textGenLambdaDockerFunc.functionName,
@@ -2185,6 +2197,7 @@ export class ApiGatewayStack extends cdk.Stack {
         handler: "index.handler",
         timeout: Duration.seconds(29),
         memorySize: 512,
+        layers: [javascriptPowertoolsLayer],
         functionName: `${id}-NotificationService`,
         role: notificationServiceRole, // Dedicated least-privilege role for notification service
         environment: {

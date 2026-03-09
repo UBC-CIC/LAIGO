@@ -1,5 +1,6 @@
-// AWS SDK imports for Systems Manager Parameter Store
 const { SSMClient, GetParameterCommand } = require("@aws-sdk/client-ssm");
+const { Logger } = require("@aws-lambda-powertools/logger");
+const logger = new Logger({ serviceName: "PreSignup" });
 
 /**
  * Cognito Pre-Signup Lambda Trigger
@@ -24,26 +25,28 @@ exports.handler = async (event) => {
     const data = await ssmClient.send(getParameterCommand);
 
     if (!data || !data.Parameter || !data.Parameter.Value) {
-      throw new Error(`SSM parameter ${parameterName} not found or has no value`);
+      throw new Error(
+        `SSM parameter ${parameterName} not found or has no value`,
+      );
     }
 
     // Parse comma-separated list of allowed domains (trim and lowercase for robust comparison)
-    const allowedDomains = data.Parameter.Value
-      .split(",")
+    const allowedDomains = data.Parameter.Value.split(",")
       .map((d) => d.trim().toLowerCase())
       .filter(Boolean);
-
-    console.log("PreSignUp: allowedDomains=", allowedDomains);
+    logger.info("Allowed domains retrieved", { allowedDomains });
 
     if (allowedDomains.length === 0) {
-      throw new Error(`SSM parameter ${parameterName} contains no allowed domains`);
+      throw new Error(
+        `SSM parameter ${parameterName} contains no allowed domains`,
+      );
     }
 
     // Extract email and domain from user attributes
     const email = event?.request?.userAttributes?.email;
 
     if (!email) {
-      console.error("PreSignUp: no email attribute provided; rejecting signup");
+      logger.error("No email attribute provided; rejecting signup");
       throw new Error("Email attribute is required for signup");
     }
 
@@ -52,8 +55,7 @@ exports.handler = async (event) => {
       throw new Error(`Invalid email address provided: ${email}`);
     }
     const emailDomain = parts.slice(1).join("@").trim().toLowerCase();
-
-    console.log("PreSignUp: email=", email, "emailDomain=", emailDomain);
+    logger.info("Signup request details", { email, emailDomain });
 
     // Accept only exact domain matches (no subdomain matching)
     const isAllowed = allowedDomains.some((allowed) => {
@@ -63,14 +65,14 @@ exports.handler = async (event) => {
 
     // Reject signup if email domain is not allowed
     if (!isAllowed) {
-      console.error(`PreSignUp: domain \"${emailDomain}\" not allowed; allowedDomains=${allowedDomains.join(",")}`);
+      logger.error("Domain not allowed", { emailDomain, allowedDomains });
       throw new Error(`Signup not allowed for email domain: ${emailDomain}`);
     }
 
     // All good — continue signup
     return event;
   } catch (error) {
-    console.error("PreSignUp error:", error);
+    logger.error("PreSignUp error", error);
     // Rethrow the original error so CloudWatch/Cognito get the specific message
     throw error;
   }

@@ -1,6 +1,6 @@
 /**
  * Database Connection Module for Authorizers
- * 
+ *
  * Provides database connection initialization and user metadata lookup
  * for Lambda authorizers. Implements execution context caching to avoid
  * repeated database queries within the same Lambda invocation.
@@ -11,6 +11,8 @@ const {
   GetSecretValueCommand,
 } = require("@aws-sdk/client-secrets-manager");
 const postgres = require("postgres");
+const { Logger } = require("@aws-lambda-powertools/logger");
+const logger = new Logger({ serviceName: "AuthorizerInit" });
 
 const secretsManager = new SecretsManagerClient();
 
@@ -27,7 +29,7 @@ async function initializeConnection() {
 
   if (!SM_DB_CREDENTIALS || !RDS_PROXY_ENDPOINT) {
     throw new Error(
-      "Missing required environment variables: SM_DB_CREDENTIALS, RDS_PROXY_ENDPOINT"
+      "Missing required environment variables: SM_DB_CREDENTIALS, RDS_PROXY_ENDPOINT",
     );
   }
 
@@ -52,10 +54,10 @@ async function initializeConnection() {
       connect_timeout: 10,
     });
 
-    console.log("Database connection initialized for authorizer");
+    logger.info("Database connection initialized for authorizer");
     return global.sqlConnection;
   } catch (error) {
-    console.error("Database connection initialization failed", {
+    logger.error("Database connection initialization failed", {
       errorType: error.name,
       errorMessage: error.message,
     });

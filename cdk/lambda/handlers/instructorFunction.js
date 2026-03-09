@@ -5,6 +5,8 @@ const {
   handleError,
   getSqlConnection,
 } = require("./utils/utils");
+const { Logger } = require("@aws-lambda-powertools/logger");
+const logger = new Logger({ serviceName: "InstructorFunction" });
 
 const {
   EventBridgeClient,
@@ -33,7 +35,7 @@ async function publishFeedbackNotificationEvent(
   try {
     const eventBusName = process.env.NOTIFICATION_EVENT_BUS_NAME;
     if (!eventBusName) {
-      console.warn(
+      logger.warn(
         "NOTIFICATION_EVENT_BUS_NAME not configured, skipping notification",
       );
       return;
@@ -68,10 +70,9 @@ async function publishFeedbackNotificationEvent(
         ],
       }),
     );
-
-    console.log("Published feedback notification event:", response);
+    logger.info("Published feedback notification event", { response });
   } catch (error) {
-    console.error("Error publishing feedback notification event:", error);
+    logger.error("Error publishing feedback notification event", error);
     // Don't fail the main operation if notification fails
   }
 }
@@ -538,7 +539,7 @@ const routes = {
   },
 };
 
-exports.handler = async (event) => {
+exports.handler = logger.injectLambdaContext(async (event) => {
   const response = createResponse();
 
   // Initialize the database connection if not already initialized
@@ -582,9 +583,9 @@ exports.handler = async (event) => {
       response.body = JSON.stringify({ error: `Route not found: ${pathData}` });
     }
   } catch (error) {
-    console.error("Critical Handler Error:", error);
+    logger.error("Critical Handler Error:", error);
     handleError(error, response);
   }
 
   return response;
-};
+});

@@ -1,4 +1,6 @@
 const { initializeConnection } = require("../initializeConnection");
+const { Logger } = require("@aws-lambda-powertools/logger");
+const logger = new Logger({ serviceName: "HandlerUtils" });
 
 let { SM_DB_CREDENTIALS, RDS_PROXY_ENDPOINT } = process.env;
 let sqlConnection;
@@ -34,7 +36,7 @@ const parseBody = (body) => {
 
 const handleError = (error, response) => {
   response.statusCode = 500;
-  console.log(error);
+  logger.error("Request failed", error);
   response.body = JSON.stringify({
     error: error.message || "Internal server error",
   });
@@ -45,7 +47,7 @@ let userMetadataCache = {};
 
 /**
  * Retrieves user metadata from the database by IDP ID with Lambda execution context caching.
- * 
+ *
  * @param {string} idpId - The IDP user identifier (e.g., Cognito sub claim)
  * @returns {Promise<Object>} User object with user_id, email, first_name, last_name, roles
  * @throws {Error} Throws "User not found" if user doesn't exist in database
