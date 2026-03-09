@@ -479,69 +479,135 @@ export class ApiGatewayStack extends cdk.Stack {
       }),
     );
 
-    // Create IAM role for Lambda functions that access PostgreSQL
-    const lambdaRole = new iam.Role(this, `${id}-postgresLambdaRole`, {
-      roleName: `${id}-postgresLambdaRole`,
-      assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
-    });
+    // --- IAM Roles (Least Privilege) ---
+    // Instead of one shared role, each function group gets a dedicated role
+    // with only the permissions required for its specific tasks.
 
-    // Grant Lambda permission to read specific Cognito secrets from Secrets Manager
-    this.secret.grantRead(lambdaRole);
+    // --- Authorizer Roles (JWT validation + DB lookup for userId/roles) ---
 
-    // Grant Lambda permissions to read database secrets
-    db.secretPathUser.grantRead(lambdaRole);
-    db.secretPathTableCreator.grantRead(lambdaRole);
-
-    // Grant Lambda VPC networking permissions
-    lambdaRole.addToPolicy(
-      new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: [
-          "ec2:CreateNetworkInterface",
-          "ec2:DescribeNetworkInterfaces",
-          "ec2:DeleteNetworkInterface",
-          "ec2:AssignPrivateIpAddresses",
-          "ec2:UnassignPrivateIpAddresses",
-        ],
-        resources: ["*"],
-      }),
-    );
-
-    // Grant Lambda CloudWatch logging permissions
-    lambdaRole.addToPolicy(
-      new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: [
-          "logs:CreateLogGroup", // Create log groups
-          "logs:CreateLogStream", // Create log streams
-          "logs:PutLogEvents", // Write log events
-        ],
-        resources: ["arn:aws:logs:*:*:*"],
-      }),
-    );
-
-    // Grant Lambda permissions to manage Cognito user groups
-    const adminAddUserToGroupPolicyLambda = new iam.Policy(
+    const adminAuthorizerRole = new iam.Role(
       this,
-      `${id}-adminAddUserToGroupPolicyLambda`,
+      `${id}-adminAuthorizerRole`,
       {
-        statements: [
-          new iam.PolicyStatement({
-            effect: iam.Effect.ALLOW,
-            actions: [
-              "cognito-idp:AdminAddUserToGroup", // Add users to groups
-              "cognito-idp:AdminRemoveUserFromGroup", // Remove users from groups
-              "cognito-idp:AdminGetUser", // Get user details
-              "cognito-idp:AdminListGroupsForUser", // List user's groups
-            ],
-            resources: [
-              `arn:aws:cognito-idp:${this.region}:${this.account}:userpool/${this.userPool.userPoolId}`,
-            ],
-          }),
+        roleName: `${id}-adminAuthorizerRole`,
+        assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
+        managedPolicies: [
+          iam.ManagedPolicy.fromAwsManagedPolicyName(
+            "service-role/AWSLambdaVPCAccessExecutionRole",
+          ),
         ],
       },
     );
-    lambdaRole.attachInlinePolicy(adminAddUserToGroupPolicyLambda);
+    // Needs Cognito config to verify JWT tokens
+    this.secret.grantRead(adminAuthorizerRole);
+    // Needs DB user secret to query userId from DB
+    db.secretPathUser.grantRead(adminAuthorizerRole);
+
+    const studentAuthorizerRole = new iam.Role(
+      this,
+      `${id}-studentAuthorizerRole`,
+      {
+        roleName: `${id}-studentAuthorizerRole`,
+        assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
+        managedPolicies: [
+          iam.ManagedPolicy.fromAwsManagedPolicyName(
+            "service-role/AWSLambdaVPCAccessExecutionRole",
+          ),
+        ],
+      },
+    );
+    this.secret.grantRead(studentAuthorizerRole);
+    db.secretPathUser.grantRead(studentAuthorizerRole);
+
+    const instructorAuthorizerRole = new iam.Role(
+      this,
+      `${id}-instructorAuthorizerRole`,
+      {
+        roleName: `${id}-instructorAuthorizerRole`,
+        assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
+        managedPolicies: [
+          iam.ManagedPolicy.fromAwsManagedPolicyName(
+            "service-role/AWSLambdaVPCAccessExecutionRole",
+          ),
+        ],
+      },
+    );
+    this.secret.grantRead(instructorAuthorizerRole);
+    db.secretPathUser.grantRead(instructorAuthorizerRole);
+
+    // --- API Handler Roles ---
+
+    // Student handler: VPC access, student DB secret, SSM read, EventBridge publish
+    const studentFunctionRole = new iam.Role(
+      this,
+      `${id}-studentFunctionRole`,
+      {
+        roleName: `${id}-studentFunctionRole`,
+        assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
+        managedPolicies: [
+          iam.ManagedPolicy.fromAwsManagedPolicyName(
+            "service-role/AWSLambdaVPCAccessExecutionRole",
+          ),
+        ],
+      },
+    );
+    db.secretPathUser.grantRead(studentFunctionRole);
+
+    // Instructor handler: VPC access, instructor DB secret, SSM read, EventBridge publish
+    const instructorFunctionRole = new iam.Role(
+      this,
+      `${id}-instructorFunctionRole`,
+      {
+        roleName: `${id}-instructorFunctionRole`,
+        assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
+        managedPolicies: [
+          iam.ManagedPolicy.fromAwsManagedPolicyName(
+            "service-role/AWSLambdaVPCAccessExecutionRole",
+          ),
+        ],
+      },
+    );
+    db.secretPathUser.grantRead(instructorFunctionRole);
+
+    // Admin handler: VPC access, elevated DB secret (Table Creator), SSM read/write
+    const adminFunctionRole = new iam.Role(this, `${id}-adminFunctionRole`, {
+      roleName: `${id}-adminFunctionRole`,
+      assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
+      managedPolicies: [
+        iam.ManagedPolicy.fromAwsManagedPolicyName(
+          "service-role/AWSLambdaVPCAccessExecutionRole",
+        ),
+      ],
+    });
+    // Admin needs the elevated table-creator DB secret (not just the user secret)
+    db.secretPathTableCreator.grantRead(adminFunctionRole);
+
+    // WebSocket authorizer: JWT validation + DB lookup for userId (same pattern as REST authorizers)
+    const wsAuthorizerRole = new iam.Role(this, `${id}-wsAuthorizerRole`, {
+      roleName: `${id}-wsAuthorizerRole`,
+      assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
+      managedPolicies: [
+        iam.ManagedPolicy.fromAwsManagedPolicyName(
+          "service-role/AWSLambdaVPCAccessExecutionRole",
+        ),
+      ],
+    });
+    db.secretPathUser.grantRead(wsAuthorizerRole);
+
+    // Notification service: No VPC access, CloudWatch Logs, DynamoDB, API Gateway WebSocket management
+    const notificationServiceRole = new iam.Role(
+      this,
+      `${id}-notificationServiceRole`,
+      {
+        roleName: `${id}-notificationServiceRole`,
+        assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
+        managedPolicies: [
+          iam.ManagedPolicy.fromAwsManagedPolicyName(
+            "service-role/AWSLambdaBasicExecutionRole",
+          ),
+        ],
+      },
+    );
 
     // Attach single authenticated role to identity pool
     // All authenticated users receive the same IAM role
@@ -575,12 +641,11 @@ export class ApiGatewayStack extends cdk.Stack {
         functionName: `${id}-adminLambdaAuthorizer`,
         memorySize: 256,
         layers: [jwt, postgres], // JWT verification library + PostgreSQL client
-        role: lambdaRole,
+        role: adminAuthorizerRole,
       },
     );
 
-    // Grant database access to admin authorizer
-    db.secretPathUser.grantRead(adminAuthorizationFunction);
+    // Grant RDS Proxy connect permission to admin authorizer
     db.dbInstance.grantConnect(
       adminAuthorizationFunction,
       "applicationUsername",
@@ -611,7 +676,7 @@ export class ApiGatewayStack extends cdk.Stack {
         securityGroups: [db.dbInstance.connections.securityGroups[0]],
         memorySize: 256,
         layers: [jwt, postgres], // JWT verification library + PostgreSQL client
-        role: lambdaRole,
+        role: studentAuthorizerRole,
         environment: {
           SM_IDP_CREDENTIALS: this.secret.secretName, // IDP config from Secrets Manager (Cognito initially)
           SM_DB_CREDENTIALS: db.secretPathUser.secretName, // Database credentials
@@ -621,8 +686,7 @@ export class ApiGatewayStack extends cdk.Stack {
       },
     );
 
-    // Grant database access to student authorizer
-    db.secretPathUser.grantRead(studentAuthFunction);
+    // Grant RDS Proxy connect permission to student authorizer
     db.dbInstance.grantConnect(studentAuthFunction, "applicationUsername");
 
     // Grant API Gateway permission to invoke the student authorizer
@@ -652,7 +716,7 @@ export class ApiGatewayStack extends cdk.Stack {
         securityGroups: [db.dbInstance.connections.securityGroups[0]],
         memorySize: 256,
         layers: [jwt, postgres], // JWT verification library + PostgreSQL client
-        role: lambdaRole,
+        role: instructorAuthorizerRole,
         environment: {
           SM_IDP_CREDENTIALS: this.secret.secretName, // IDP config from Secrets Manager (Cognito initially)
           SM_DB_CREDENTIALS: db.secretPathUser.secretName, // Database credentials
@@ -662,8 +726,7 @@ export class ApiGatewayStack extends cdk.Stack {
       },
     );
 
-    // Grant database access to instructor authorizer
-    db.secretPathUser.grantRead(instructorAuthFunction);
+    // Grant database connect to instructor authorizer (secret already granted via role)
     db.dbInstance.grantConnect(instructorAuthFunction, "applicationUsername");
 
     // Grant API Gateway permission to invoke the instructor authorizer
@@ -1175,9 +1238,12 @@ export class ApiGatewayStack extends cdk.Stack {
         functionName: `${id}-studentFunction`,
         memorySize: 512,
         layers: [postgres],
-        role: lambdaRole,
+        role: studentFunctionRole,
       },
     );
+
+    // Grant RDS Proxy connect permission to student function
+    db.dbInstance.grantConnect(lambdaStudentFunction, "applicationUsername");
 
     // Allow access to DynamoDB Table for reading chat history
     chatHistoryTable.grantReadData(lambdaStudentFunction);
@@ -1226,9 +1292,12 @@ export class ApiGatewayStack extends cdk.Stack {
         functionName: `${id}-adminFunction`,
         memorySize: 512,
         layers: [postgres],
-        role: lambdaRole,
+        role: adminFunctionRole,
       },
     );
+
+    // Grant RDS Proxy connect permission to admin function
+    db.dbInstance.grantConnect(lambdaAdminFunction, "tableCreator");
 
     // Add the permission to the Lambda function's policy to allow API Gateway access
     lambdaAdminFunction.addPermission("AllowApiGatewayInvoke", {
@@ -1274,13 +1343,17 @@ export class ApiGatewayStack extends cdk.Stack {
           USER_POOL: this.userPool.userPoolId,
           MESSAGE_LIMIT: messageLimitParameter.parameterName,
           FILE_SIZE_LIMIT: fileSizeLimitParameter.parameterName,
+          NOTIFICATION_EVENT_BUS_NAME: notificationEventBus.eventBusName,
         },
         functionName: `${id}-instructorFunction`,
         memorySize: 512,
         layers: [postgres],
-        role: lambdaRole,
+        role: instructorFunctionRole,
       },
     );
+
+    // Grant RDS Proxy connect permission to instructor function
+    db.dbInstance.grantConnect(lambdaInstructorFunction, "applicationUsername");
 
     // Add the permission to the Lambda function's policy to allow API Gateway access
     lambdaInstructorFunction.addPermission("AllowApiGatewayInvoke", {
@@ -1294,6 +1367,15 @@ export class ApiGatewayStack extends cdk.Stack {
 
     // Allow access for lambda to read file size limit parameter
     fileSizeLimitParameter.grantRead(lambdaInstructorFunction);
+
+    // Grant EventBridge PutEvents for feedback notification publishing (send_feedback route)
+    lambdaInstructorFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["events:PutEvents"],
+        resources: [notificationEventBus.eventBusArn],
+      }),
+    );
 
     // Override logical ID to reference from OpenAPI document
     const cfnLambda_Instructor = lambdaInstructorFunction.node
@@ -1890,7 +1972,7 @@ export class ApiGatewayStack extends cdk.Stack {
         vpc: vpcStack.vpc, // VPC access for database connectivity
         vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
         securityGroups: [db.dbInstance.connections.securityGroups[0]],
-        role: lambdaRole, // Use existing Lambda role with database permissions
+        role: wsAuthorizerRole, // Dedicated least-privilege role for WebSocket authorizer
         environment: {
           JWT_ISSUER_ID: this.userPool.userPoolId, // IDP-agnostic: Cognito User Pool ID initially
           JWT_CLIENT_ID: this.appClient.userPoolClientId, // IDP-agnostic: Cognito Client ID initially
@@ -1900,8 +1982,7 @@ export class ApiGatewayStack extends cdk.Stack {
       },
     );
 
-    // Grant database access to WebSocket authorizer
-    db.secretPathUser.grantRead(wsAuthorizerFunction);
+    // Grant database connect to WS authorizer (secret already granted via wsAuthorizerRole)
     db.dbInstance.grantConnect(wsAuthorizerFunction, "applicationUsername");
 
     // Lambda for $disconnect route - cleanup/logging
@@ -2105,7 +2186,7 @@ export class ApiGatewayStack extends cdk.Stack {
         timeout: Duration.seconds(29),
         memorySize: 512,
         functionName: `${id}-NotificationService`,
-        role: lambdaRole,
+        role: notificationServiceRole, // Dedicated least-privilege role for notification service
         environment: {
           NOTIFICATION_TABLE_NAME: notificationTable.tableName,
           CONNECTION_TABLE_NAME: connectionTable.tableName,
@@ -2125,6 +2206,7 @@ export class ApiGatewayStack extends cdk.Stack {
     );
 
     // Grant notification service permissions
+    // Grant granular DynamoDB access to notification service (Notifications table)
     notificationServiceFunction.addToRolePolicy(
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
@@ -2140,6 +2222,7 @@ export class ApiGatewayStack extends cdk.Stack {
         ],
       }),
     );
+    // Grant granular DynamoDB access to notification service (Connections table)
     notificationServiceFunction.addToRolePolicy(
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
