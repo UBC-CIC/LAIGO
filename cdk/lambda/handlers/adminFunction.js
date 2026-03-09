@@ -1271,7 +1271,8 @@ const routes = {
   },
 };
 
-exports.handler = logger.injectLambdaContext(async (event) => {
+exports.handler = async (event, context) => {
+  logger.addContext(context);
   const response = createResponse();
 
   // Initialize the database connection if not already initialized
@@ -1337,4 +1338,4 @@ exports.handler = logger.injectLambdaContext(async (event) => {
   }
   logger.info("Admin Response", { statusCode: response.statusCode });
   return response;
-});
+};

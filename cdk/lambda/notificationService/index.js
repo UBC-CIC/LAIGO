@@ -23,7 +23,8 @@ const dynamodb = new DynamoDBClient({});
  * 1. EventBridge events for notification creation and delivery
  * 2. REST API requests for notification queries and updates
  */
-exports.handler = logger.injectLambdaContext(async (event, context) => {
+exports.handler = async (event, context) => {
+  logger.addContext(context);
   logger.info("Notification Service invoked", {
     source: event.source || "API",
     eventType: event["detail-type"] || event.httpMethod,
@@ -49,7 +50,7 @@ exports.handler = logger.injectLambdaContext(async (event, context) => {
       body: JSON.stringify({ error: "Internal server error" }),
     };
   }
-});
+};
 
 /**
  * Handle EventBridge notification events

@@ -8,7 +8,8 @@ const logger = new Logger({ serviceName: "WsDefault" });
 
 const lambda = new LambdaClient({});
 
-exports.handler = logger.injectLambdaContext(async (event) => {
+exports.handler = async (event, context) => {
+  logger.addContext(context);
   const connectionId = event.requestContext.connectionId;
   const domainName = event.requestContext.domainName;
   const stage = event.requestContext.stage;
@@ -23,6 +24,7 @@ exports.handler = logger.injectLambdaContext(async (event) => {
   logger.info("WebSocket message received", {
     connectionId,
     routeKey: event.requestContext.routeKey,
+    timestamp: new Date().toISOString(),
     userId,
   });
 
@@ -369,4 +371,4 @@ exports.handler = logger.injectLambdaContext(async (event) => {
       body: JSON.stringify({ error: "Internal server error" }),
     };
   }
-});
+};

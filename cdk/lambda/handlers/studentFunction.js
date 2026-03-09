@@ -1423,7 +1423,8 @@ const routes = {
   },
 };
 
-exports.handler = logger.injectLambdaContext(async (event) => {
+exports.handler = async (event, context) => {
+  logger.addContext(context);
   logger.info(event);
 
   // Extract userId and user metadata from authorization context
@@ -1488,4 +1489,4 @@ exports.handler = logger.injectLambdaContext(async (event) => {
   logger.info("Student Response", { statusCode: response.statusCode });
 
   return response;
-});
+};
