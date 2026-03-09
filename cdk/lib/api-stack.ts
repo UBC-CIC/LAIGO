@@ -1,6 +1,7 @@
 // AWS CDK core imports
 import * as cdk from "aws-cdk-lib";
 import * as apigateway from "aws-cdk-lib/aws-apigateway";
+import * as cr from "aws-cdk-lib/custom-resources";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as ec2 from "aws-cdk-lib/aws-ec2";
@@ -1433,6 +1434,7 @@ export class ApiGatewayStack extends cdk.Stack {
         timeout: cdk.Duration.seconds(30),
         vpc: vpcStack.vpc,
         functionName: `${id}-CaseLambdaDockerFunction`,
+        tracing: lambda.Tracing.ACTIVE,
         environment: {
           SM_DB_CREDENTIALS: db.secretPathUser.secretName,
           RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint,
@@ -1444,8 +1446,8 @@ export class ApiGatewayStack extends cdk.Stack {
           BEDROCK_TOP_P_PARAM: bedrockTopPParameter.parameterName,
           BEDROCK_MAX_TOKENS_PARAM: bedrockMaxTokensParameter.parameterName,
           TABLE_NAME: `${id}-Conversation-Table`,
-          GUARDRAIL_ID: caseGenGuardrail.attrGuardrailId,
-          GUARDRAIL_VERSION: caseGenGuardrailVersion.attrVersion,
+          GUARDRAIL_ID: textGenGuardrail.attrGuardrailId,
+          GUARDRAIL_VERSION: textGenGuardrailVersion.attrVersion,
         },
       },
     );
@@ -1469,7 +1471,7 @@ export class ApiGatewayStack extends cdk.Stack {
       new iam.PolicyStatement({
         effect: iam.Effect.ALLOW,
         actions: ["bedrock:InvokeGuardrail", "bedrock:ApplyGuardrail"],
-        resources: [caseGenGuardrail.attrGuardrailArn],
+        resources: [textGenGuardrail.attrGuardrailArn],
       }),
     );
 
@@ -1506,6 +1508,7 @@ export class ApiGatewayStack extends cdk.Stack {
         timeout: cdk.Duration.seconds(120),
         vpc: vpcStack.vpc,
         functionName: `${id}-TextGenLambdaDockerFunction`,
+        tracing: lambda.Tracing.ACTIVE,
         environment: {
           SM_DB_CREDENTIALS: db.secretPathAdmin.secretName,
           RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint,
@@ -1596,6 +1599,7 @@ export class ApiGatewayStack extends cdk.Stack {
         timeout: cdk.Duration.seconds(120),
         vpc: vpcStack.vpc,
         functionName: `${id}-PlaygroundTextGenLambdaDockerFunction`,
+        tracing: lambda.Tracing.ACTIVE,
         environment: {
           SM_DB_CREDENTIALS: db.secretPathUser.secretName,
           RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint,
@@ -1607,6 +1611,8 @@ export class ApiGatewayStack extends cdk.Stack {
           BEDROCK_TOP_P_PARAM: bedrockTopPParameter.parameterName,
           BEDROCK_MAX_TOKENS_PARAM: bedrockMaxTokensParameter.parameterName,
           TABLE_NAME: `${id}-Playground-Table`,
+          GUARDRAIL_ID: textGenGuardrail.attrGuardrailId,
+          GUARDRAIL_VERSION: textGenGuardrailVersion.attrVersion,
         },
       },
     );
@@ -1671,6 +1677,7 @@ export class ApiGatewayStack extends cdk.Stack {
         timeout: Duration.seconds(30),
         memorySize: 1024,
         vpc: vpcStack.vpc,
+        tracing: lambda.Tracing.ACTIVE,
         environment: {
           SM_DB_CREDENTIALS: db.secretPathUser.secretName,
           REGION: this.region,
@@ -1896,6 +1903,7 @@ export class ApiGatewayStack extends cdk.Stack {
         timeout: Duration.seconds(120),
         memorySize: 1024,
         vpc: vpcStack.vpc,
+        tracing: lambda.Tracing.ACTIVE,
         environment: {
           SM_DB_CREDENTIALS: db.secretPathUser.secretName,
           REGION: this.region,
@@ -2316,6 +2324,77 @@ export class ApiGatewayStack extends cdk.Stack {
     lambdaInstructorFunction.addEnvironment(
       "NOTIFICATION_EVENT_BUS_NAME",
       notificationEventBus.eventBusName,
+    );
+
+    // Custom Resource for Bedrock Logging
+    const bedrockLoggingRole = new iam.Role(this, `${id}-BedrockLoggingRole`, {
+      assumedBy: new iam.ServicePrincipal("bedrock.amazonaws.com"),
+      managedPolicies: [
+        iam.ManagedPolicy.fromAwsManagedPolicyName("CloudWatchLogsFullAccess"),
+      ],
+    });
+
+    const bedrockLogGroup = new logs.LogGroup(
+      this,
+      `${id}-BedrockModelInvocations`,
+      {
+        retention: logs.RetentionDays.ONE_MONTH,
+        removalPolicy: cdk.RemovalPolicy.DESTROY,
+      },
+    );
+
+    const enableBedrockLogging = new cr.AwsCustomResource(
+      this,
+      `${id}-EnableBedrockLogging`,
+      {
+        onCreate: {
+          service: "Bedrock",
+          action: "putModelInvocationLoggingConfiguration",
+          parameters: {
+            loggingConfig: {
+              cloudWatchConfig: {
+                logGroupName: bedrockLogGroup.logGroupName,
+                roleArn: bedrockLoggingRole.roleArn,
+              },
+              textDataDeliveryEnabled: true,
+              imageDataDeliveryEnabled: false,
+              embeddingDataDeliveryEnabled: false,
+            },
+          },
+          physicalResourceId: cr.PhysicalResourceId.of("BedrockLoggingConfig"),
+        },
+        onUpdate: {
+          service: "Bedrock",
+          action: "putModelInvocationLoggingConfiguration",
+          parameters: {
+            loggingConfig: {
+              cloudWatchConfig: {
+                logGroupName: bedrockLogGroup.logGroupName,
+                roleArn: bedrockLoggingRole.roleArn,
+              },
+              textDataDeliveryEnabled: true,
+              imageDataDeliveryEnabled: false,
+              embeddingDataDeliveryEnabled: false,
+            },
+          },
+          physicalResourceId: cr.PhysicalResourceId.of("BedrockLoggingConfig"),
+        },
+        policy: cr.AwsCustomResourcePolicy.fromSdkCalls({
+          resources: cr.AwsCustomResourcePolicy.ANY_RESOURCE,
+        }),
+      },
+    );
+    enableBedrockLogging.node.addDependency(
+      bedrockLogGroup,
+      bedrockLoggingRole,
+    );
+
+    enableBedrockLogging.grantPrincipal.addToPrincipalPolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["iam:PassRole"],
+        resources: [bedrockLoggingRole.roleArn],
+      }),
     );
 
     // Store EventBridge bus reference for other constructs

@@ -15,10 +15,12 @@ from helpers.chat import (
     generate_full_case_summary,
     generate_full_case_summary_streaming
 )
-from aws_lambda_powertools import Logger
+from aws_lambda_powertools import Logger, Metrics
+from aws_lambda_powertools.metrics import MetricUnit
 
-# Set up logging for the Lambda function
+# Set up logging and metrics for the Lambda function
 logger = Logger(service="SummaryGeneration")
+metrics = Metrics(namespace="LAIGO", service="SummaryGeneration")
 
 # Environment variables
 DB_SECRET_NAME = os.environ["SM_DB_CREDENTIALS"]
@@ -454,6 +456,7 @@ def publish_notification_event(event_type, case_id, user_id, success=True, error
         logger.error(f"Error publishing notification event: {e}")
         # Don't fail the main operation if notification fails
 
+@metrics.log_metrics(capture_cold_start_metric=True)
 @logger.inject_lambda_context(log_event=True)
 def handler(event, context):
     """

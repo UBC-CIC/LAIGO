@@ -171,14 +171,60 @@ def handler(event, context):
             'body': json.dumps("Missing message_content for playground")
         }
     
+    # Apply guardrail to test message input
     try:
-        # Create LLM with custom configuration
-        logger.info(f"Playground: Creating LLM with model={custom_model_id}, temp={custom_temperature}, top_p={custom_top_p}, max_tokens={custom_max_tokens}")
+        guardrail_id = os.environ.get("GUARDRAIL_ID")
+        guardrail_version = os.environ.get("GUARDRAIL_VERSION")
+        
+        if guardrail_id and guardrail_version:
+            logger.info(f"Applying guardrail to playground input - ID: {guardrail_id}, version: {guardrail_version}")
+            guard_response = bedrock_runtime.apply_guardrail(
+                guardrailIdentifier=guardrail_id,
+                guardrailVersion=guardrail_version,
+                source="INPUT",
+                content=[{"text": {"text": test_message, "qualifiers": ["guard_content"]}}]
+            )
+            
+            if guard_response.get("action") == "GUARDRAIL_INTERVENED":
+                logger.info(f"Guardrail blocked playground input: {guard_response}")
+                
+                # Determine error message based on guardrail assessment
+                error_message = "Sorry, I cannot process your request."
+                for assessment in guard_response.get('assessments', []):
+                    if 'sensitiveInformationPolicy' in assessment:
+                        error_message = ("Sorry, I cannot process your request because it appears to contain personal information. "
+                                        "Please submit your query without including personal identifiable information (Names, Phone Numbers, Addresses, etc.).")
+                        break
+                    else:
+                        error_message = ("Sorry, I cannot process your request because it appears to contain prompt manipulation attempts. "
+                                        "Please submit a query without any instructions attempting to manipulate the system.")
+                
+                # Send error via WebSocket
+                websocket_endpoint = os.environ.get("WEBSOCKET_API_ENDPOINT", f"https://{domain_name}/{stage}")
+                apigw_client = boto3.client('apigatewaymanagementapi', endpoint_url=websocket_endpoint)
+                apigw_client.post_to_connection(
+                    ConnectionId=connection_id,
+                    Data=json.dumps({"type": "error", "requestId": request_id, "content": error_message}).encode('utf-8')
+                )
+                return {"statusCode": 200}
+        else:
+            logger.warning("Guardrail environment variables not set for playground")
+    except Exception as guardrail_error:
+        logger.error(f"Error applying guardrail to playground input: {guardrail_error}")
+        # Continue processing even if guardrail check fails (fail open for admins/instructors)
+    
+    try:
+        # Create LLM with custom configuration and guardrails
+        guardrail_id = os.environ.get("GUARDRAIL_ID")
+        guardrail_version = os.environ.get("GUARDRAIL_VERSION")
+        logger.info(f"Playground: Creating LLM with model={custom_model_id}, temp={custom_temperature}, top_p={custom_top_p}, max_tokens={custom_max_tokens}, guardrail={guardrail_id}")
         llm = get_bedrock_llm(
             bedrock_llm_id=custom_model_id,
             temperature=custom_temperature,
             top_p=custom_top_p,
-            max_tokens=custom_max_tokens
+            max_tokens=custom_max_tokens,
+            guardrail_id=guardrail_id,
+            guardrail_version=guardrail_version
         )
         
         websocket_endpoint = os.environ.get("WEBSOCKET_API_ENDPOINT")

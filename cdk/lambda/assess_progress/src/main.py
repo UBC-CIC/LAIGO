@@ -5,10 +5,12 @@ import logging
 import psycopg
 import time
 from botocore.exceptions import ClientError
-from aws_lambda_powertools import Logger
+from aws_lambda_powertools import Logger, Metrics
+from aws_lambda_powertools.metrics import MetricUnit
 
-# Set up logging for the Lambda function
+# Set up logging and metrics for the Lambda function
 logger = Logger(service="AssessProgress")
+metrics = Metrics(namespace="LAIGO", service="AssessProgress")
 
 # Environment variables
 DB_SECRET_NAME = os.environ["SM_DB_CREDENTIALS"]
@@ -85,6 +87,7 @@ def _extract_text_from_invoke_response(model_id, response):
 
 def invoke_model_text(system_instructions, human_context):
     request_body = _build_invoke_body(BEDROCK_LLM_ID, system_instructions, human_context)
+    
     response = bedrock_runtime.invoke_model(
         modelId=BEDROCK_LLM_ID,
         body=json.dumps(request_body),
@@ -392,6 +395,7 @@ def send_to_websocket(connection_id, endpoint, request_id, msg_type, content=Non
     except Exception as e:
         logger.error(f"Error sending to WebSocket: {e}")
 
+@metrics.log_metrics(capture_cold_start_metric=True)
 @logger.inject_lambda_context(log_event=True)
 def handler(event, context):
     logger.info("Assess Progress Lambda function started")

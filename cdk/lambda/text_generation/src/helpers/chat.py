@@ -15,6 +15,8 @@ def get_bedrock_llm(
     temperature: float = 0,
     max_tokens: int = 4096,
     top_p: float = 0.9,
+    guardrail_id: str = None,
+    guardrail_version: str = None,
 ) -> ChatBedrockConverse:
     """
     Retrieve a Bedrock LLM instance based on the provided model ID.
@@ -24,15 +26,25 @@ def get_bedrock_llm(
     temperature (float, optional): The temperature parameter for the LLM. Defaults to 0.
     max_tokens (int, optional): The maximum number of tokens to generate. Defaults to 4096.
     top_p (float, optional): The top_p parameter for the LLM. Defaults to 0.9.
+    guardrail_id (str, optional): The Bedrock Guardrail ID. Defaults to None.
+    guardrail_version (str, optional): The Bedrock Guardrail version. Defaults to None.
 
     Returns:
     ChatBedrockConverse: An instance of the Bedrock LLM corresponding to the provided model ID.
     """
+    guardrail_config = {}
+    if guardrail_id and guardrail_version:
+        guardrail_config = {
+            "guardrailIdentifier": guardrail_id,
+            "guardrailVersion": guardrail_version,
+        }
+    
     return ChatBedrockConverse(
         model=bedrock_llm_id,
         temperature=temperature,
         max_tokens=max_tokens,
         top_p=top_p,
+        guardrail_config=guardrail_config if guardrail_config else None,
     )
 
 

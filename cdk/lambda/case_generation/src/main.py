@@ -8,12 +8,14 @@ import time
 import boto3
 import psycopg
 from botocore.exceptions import ClientError
-from aws_lambda_powertools import Logger
+from aws_lambda_powertools import Logger, Metrics
+from aws_lambda_powertools.metrics import MetricUnit
 
 from helpers.chat import get_bedrock_llm, get_response
 
-# Set up logging for the Lambda function
+# Set up logging and metrics for the Lambda function
 logger = Logger(service="CaseGeneration")
+metrics = Metrics(namespace="LAIGO", service="CaseGeneration")
 
 # Environment variables
 DB_SECRET_NAME = os.environ["SM_DB_CREDENTIALS"]
@@ -182,6 +184,7 @@ def _handle_guardrail_error(resp):
 #         return _response(400, {"error": "Missing or invalid 'action' query parameter"})
 
 
+@metrics.log_metrics(capture_cold_start_metric=True)
 @logger.inject_lambda_context(log_event=True)
 def handler(event, context):
     try:

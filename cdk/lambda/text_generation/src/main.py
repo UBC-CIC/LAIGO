@@ -8,14 +8,16 @@ import time
 import uuid
 import functools
 from langchain_aws import BedrockEmbeddings
-from aws_lambda_powertools import Logger
+from aws_lambda_powertools import Logger, Metrics
+from aws_lambda_powertools.metrics import MetricUnit
 
 from helpers.vectorstore import get_vectorstore_retriever
 from helpers.chat import get_bedrock_llm, get_initial_student_query, get_response, get_streaming_response
 from helpers.usage import check_and_increment_usage
  
-# Set up logging for the Lambda function
+# Set up logging and metrics for the Lambda function
 logger = Logger(service="TextGeneration")
+metrics = Metrics(namespace="LAIGO", service="TextGeneration")
 
 # Environment variables
 DB_SECRET_NAME = os.environ["SM_DB_CREDENTIALS"]
@@ -302,6 +304,7 @@ def get_case_details(case_id):
         return None, None, None, None
 
 
+@metrics.log_metrics(capture_cold_start_metric=True)
 @logger.inject_lambda_context(log_event=True)
 def handler(event, context):
     #logger.info("Text Generation Lambda function is called!")
@@ -445,7 +448,9 @@ def handler(event, context):
             bedrock_llm_id=BEDROCK_LLM_ID,
             temperature=BEDROCK_TEMP,
             top_p=BEDROCK_TOP_P,
-            max_tokens=BEDROCK_MAX_TOKENS
+            max_tokens=BEDROCK_MAX_TOKENS,
+            guardrail_id=GUARDRAIL_ID,
+            guardrail_version=GUARDRAIL_VERSION
         )
     except Exception as e:
         logger.error(f"Error getting LLM from Bedrock: {e}")
