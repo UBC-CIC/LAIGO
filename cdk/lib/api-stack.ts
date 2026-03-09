@@ -1963,6 +1963,7 @@ export class ApiGatewayStack extends cdk.Stack {
         functionName: `${id}-WsConnect`,
         environment: {
           CONNECTION_TABLE_NAME: connectionTable.tableName,
+          MAX_CONNECTIONS_PER_USER: "5",
         },
       },
     );
@@ -2044,7 +2045,7 @@ export class ApiGatewayStack extends cdk.Stack {
     playgroundGenLambdaDockerFunc.grantInvoke(wsDefaultFunction);
 
     // Grant WebSocket functions permission to access DynamoDB connection table
-    connectionTable.grantWriteData(wsConnectFunction);
+    connectionTable.grantReadWriteData(wsConnectFunction);
     connectionTable.grantWriteData(wsDisconnectFunction);
 
     // Create Lambda Authorizer for WebSocket connections

@@ -1,5 +1,8 @@
-const { DynamoDBClient, PutItemCommand } = require("@aws-sdk/client-dynamodb");
-const { marshall } = require("@aws-sdk/util-dynamodb");
+const {
+  DynamoDBClient,
+  PutItemCommand,
+  QueryCommand,
+} = require("@aws-sdk/client-dynamodb");
 const { Logger } = require("@aws-lambda-powertools/logger");
 const logger = new Logger({ serviceName: "WsConnect" });
 
@@ -20,32 +23,62 @@ exports.handler = async (event) => {
   // Store connection-to-user mapping in DynamoDB for notification targeting
   if (userId) {
     try {
-      const ttl = Math.floor(Date.now() / 1000) + 24 * 60 * 60; // 24 hours from now
+      // Check current connection count for this user
+      const existingConnections = await dynamodb.send(
+        new QueryCommand({
+          TableName: process.env.CONNECTION_TABLE_NAME,
+          IndexName: "GSI1",
+          KeyConditionExpression: "GSI1PK = :pk",
+          ExpressionAttributeValues: {
+            ":pk": { S: `USER#${userId}` },
+          },
+          Select: "COUNT",
+        }),
+      );
+
+      const maxConnections = parseInt(
+        process.env.MAX_CONNECTIONS_PER_USER || "5",
+      );
+
+      if (existingConnections.Count >= maxConnections) {
+        logger.warn("WebSocket connection limit reached", {
+          userId,
+          currentCount: existingConnections.Count,
+          maxConnections,
+        });
+
+        return {
+          statusCode: 429,
+          body: "Too many concurrent connections. Please close another session.",
+        };
+      }
+
+      const ttl = Math.floor(Date.now() / 1000) + 2 * 60 * 60; // 2 hours from now
       const connectedAt = new Date().toISOString();
 
-      const item = {
-        TableName: process.env.CONNECTION_TABLE_NAME,
-        Item: {
-          PK: { S: `CONNECTION#${connectionId}` },
-          SK: { S: `USER#${userId}` },
-          GSI1PK: { S: `USER#${userId}` },
-          GSI1SK: { S: `CONNECTION#${connectionId}` },
-          connectionId: { S: connectionId },
-          userId: { S: userId },
-          connectedAt: { S: connectedAt },
-          lastActivity: { S: connectedAt },
-          ttl: { N: ttl.toString() },
-        },
-      };
-
-      await dynamodb.send(new PutItemCommand(item));
+      await dynamodb.send(
+        new PutItemCommand({
+          TableName: process.env.CONNECTION_TABLE_NAME,
+          Item: {
+            PK: { S: `CONNECTION#${connectionId}` },
+            SK: { S: `USER#${userId}` },
+            GSI1PK: { S: `USER#${userId}` },
+            GSI1SK: { S: `CONNECTION#${connectionId}` },
+            connectionId: { S: connectionId },
+            userId: { S: userId },
+            connectedAt: { S: connectedAt },
+            lastActivity: { S: connectedAt },
+            ttl: { N: ttl.toString() },
+          },
+        }),
+      );
 
       logger.info("WebSocket connection stored in DynamoDB", {
         connectionId,
         userId,
       });
     } catch (error) {
-      logger.error("Failed to store connection in DynamoDB", error);
+      logger.error("Failed to process WebSocket connection in DynamoDB", error);
       // Don't fail the connection for this error
     }
   }
