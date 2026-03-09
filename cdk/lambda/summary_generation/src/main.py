@@ -126,47 +126,47 @@ def connect_to_db():
 
 def check_authorization(user_id, case_id):
     """
-    Verify that the user (identified by database user_id) owns the specified case.
+    Verify that the user (identified by user_id) owns the specified case 
+    or is an instructor for the case owner.
     Prevents IDOR attacks by checking case ownership.
     
     Args:
-        user_id: Database user ID (already translated at boundary)
+        user_id: Database user ID from authorizer context
         case_id: Case ID from the request
     
     Returns:
         bool: True if authorized, False otherwise
     """
+    if not user_id:
+        logger.warning("Authorization failed: Missing user_id")
+        return False
+
     try:
         conn = connect_to_db()
-        cursor = conn.cursor()
-
-        if not user_id:
-            logger.warning("Authorization failed: Missing user_id")
-            cursor.close()
-            return False
-        
-        # Verify case ownership
-        cursor.execute(
-            'SELECT student_id FROM "cases" WHERE case_id = %s',
-            (case_id,)
-        )
-        case_row = cursor.fetchone()
-        
-        if not case_row:
-            logger.warning(f"Authorization failed: Case not found case_id={case_id}")
-            cursor.close()
-            return False
-        
-        student_id = case_row[0]
-        cursor.close()
-        
-        # Check if user owns the case
-        if str(student_id) != str(user_id):
-            logger.warning(f"Authorization failed: User {user_id} does not own case {case_id}")
-            return False
-        
-        return True
-        
+        # Use context manager for automatic cursor cleanup
+        with conn.cursor() as cursor:
+            # Single query to check both ownership and instructor relationship
+            query = """
+                SELECT 1 FROM "cases" c
+                WHERE c.case_id = %s
+                AND (
+                    c.student_id = %s
+                    OR EXISTS (
+                        SELECT 1 FROM instructor_students 
+                        WHERE instructor_id = %s AND student_id = c.student_id
+                    )
+                );
+            """
+            cursor.execute(query, (case_id, user_id, user_id))
+            is_authorized = cursor.fetchone() is not None
+            
+            if is_authorized:
+                logger.info(f"Authorization successful: User {user_id} authorized for case {case_id}")
+            else:
+                logger.warning(f"Authorization failed: User {user_id} attempted unauthorized access to case {case_id}")
+                
+            return is_authorized
+            
     except Exception as e:
         logger.error(f"Authorization check failed: {e}")
         return False
