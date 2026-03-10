@@ -281,6 +281,9 @@ const routes = {
       const { category, block_type, prompt_text, version_name, author_id } =
         parseBody(event.body);
 
+      // Trust authenticated user identity when author_id is not provided by client.
+      const promptAuthorId = author_id || user_id;
+
       if (!category || !block_type || !prompt_text)
         throw new Error(
           "Missing required fields: category, block_type, and prompt_text are required",
@@ -300,7 +303,7 @@ const routes = {
             INSERT INTO "prompt_versions" (category, block_type, version_number, version_name, prompt_text, author_id, is_active)
             VALUES (${category}, ${block_type}, ${nextVersion}, ${
               version_name || null
-            }, ${prompt_text}, ${author_id || null}, false)
+            }, ${prompt_text}, ${promptAuthorId || null}, false)
             RETURNING *;
           `;
 
@@ -375,7 +378,7 @@ const routes = {
                 pv.author_id,
                 pv.time_created,
                 pv.is_active,
-                CONCAT(u.first_name, ' ', u.last_name) AS author_name
+                NULLIF(TRIM(CONCAT(u.first_name, ' ', u.last_name)), '') AS author_name
               FROM "prompt_versions" pv
               LEFT JOIN "users" u ON pv.author_id = u.user_id
               WHERE pv.category = ${category} AND pv.block_type = ${block_type}
@@ -394,7 +397,7 @@ const routes = {
                 pv.author_id,
                 pv.time_created,
                 pv.is_active,
-                CONCAT(u.first_name, ' ', u.last_name) AS author_name
+                NULLIF(TRIM(CONCAT(u.first_name, ' ', u.last_name)), '') AS author_name
               FROM "prompt_versions" pv
               LEFT JOIN "users" u ON pv.author_id = u.user_id
               ORDER BY pv.category, pv.block_type, pv.version_number DESC;
