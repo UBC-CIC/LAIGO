@@ -1336,6 +1336,7 @@ export class ApiGatewayStack extends cdk.Stack {
     });
 
     // Allow access for lambda to read and write to message limit parameter
+    messageLimitParameter.grantRead(lambdaAdminFunction);
     messageLimitParameter.grantWrite(lambdaAdminFunction);
 
     // Allow access for lambda to read and write to file size limit parameter

@@ -568,7 +568,7 @@ const SystemPromptSection: React.FC<{
               flexWrap: compareMode ? "wrap" : "nowrap",
               justifyContent: compareMode ? "flex-start" : "flex-end",
               flex: compareMode ? "none" : 1,
-              overflow: "hidden",
+              overflow: "visible",
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -576,8 +576,8 @@ const SystemPromptSection: React.FC<{
             <FormControl
               size="small"
               sx={{
-                width: compareMode ? "calc(50% - 4px)" : 160,
-                minWidth: compareMode ? 0 : 160,
+                width: compareMode ? "calc(50% - 4px)" : 200,
+                minWidth: compareMode ? 0 : 200,
                 flexShrink: 0,
               }}
             >
@@ -608,8 +608,8 @@ const SystemPromptSection: React.FC<{
             <FormControl
               size="small"
               sx={{
-                width: compareMode ? "calc(50% - 4px)" : 160,
-                minWidth: compareMode ? 0 : 160,
+                width: compareMode ? "calc(50% - 4px)" : 200,
+                minWidth: compareMode ? 0 : 200,
                 flexShrink: 0,
               }}
             >
@@ -812,7 +812,7 @@ const AssessmentPromptSection: React.FC<{
               flexWrap: compareMode ? "wrap" : "nowrap",
               justifyContent: compareMode ? "flex-start" : "flex-end",
               flex: compareMode ? "none" : 1,
-              overflow: "hidden",
+              overflow: "visible",
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -820,8 +820,8 @@ const AssessmentPromptSection: React.FC<{
             <FormControl
               size="small"
               sx={{
-                width: compareMode ? "calc(50% - 4px)" : 160,
-                minWidth: compareMode ? 0 : 160,
+                width: compareMode ? "calc(50% - 4px)" : 200,
+                minWidth: compareMode ? 0 : 200,
                 flexShrink: 0,
               }}
             >
@@ -852,8 +852,8 @@ const AssessmentPromptSection: React.FC<{
             <FormControl
               size="small"
               sx={{
-                width: compareMode ? "calc(50% - 4px)" : 160,
-                minWidth: compareMode ? 0 : 160,
+                width: compareMode ? "calc(50% - 4px)" : 200,
+                minWidth: compareMode ? 0 : 200,
                 flexShrink: 0,
               }}
             >
