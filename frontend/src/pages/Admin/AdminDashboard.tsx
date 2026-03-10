@@ -298,8 +298,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                 <TableBody>
                   {users.map((user) => {
                     const primaryRole = getPrimaryRole(user.roles);
-                    const isInstructorType =
-                      primaryRole === "instructor" || primaryRole === "admin";
                     return (
                       <TableRow
                         key={user.user_id}
