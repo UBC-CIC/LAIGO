@@ -251,6 +251,13 @@ const routes = {
             LIMIT 1;
           `;
 
+      const userRecord = await sqlConnection`
+            SELECT accepted_disclaimer
+            FROM users
+            WHERE user_id = ${user_id}
+            LIMIT 1;
+          `;
+
       if (!disclaimer.length) {
         response.statusCode = 404;
         response.body = JSON.stringify({
@@ -262,7 +269,7 @@ const routes = {
       response.statusCode = 200;
       response.body = JSON.stringify({
         ...disclaimer[0],
-        has_accepted: user.accepted_disclaimer || false,
+        has_accepted: Boolean(userRecord[0]?.accepted_disclaimer),
       });
     } catch (err) {
       logger.error("Error fetching disclaimer:", err);
