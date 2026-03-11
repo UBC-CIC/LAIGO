@@ -1,15 +1,22 @@
-
 # Project Modification Guide
 
 This guide provides instructions on how to modify and extend the project.
 
 ## Modifying Colors and Styles
 
-The `frontend` folder contains an index.css file CSS (shown in the filepath below) with several different CSS variables throughout the file that can be changed at will, with the most integral ones to the UI at the top of the file, shown below. 
+The `frontend` folder contains `frontend/src/index.css`, which defines the global theme tokens used throughout the app (via CSS variables and component styles).
 
-Two configurations exist; one for light mode, and one for dark mode; changing the variables within first `:root` will change colours for light mode, while variables within the `:root` under `@media (prefers-color-scheme: dark)` will alter the appearence of the dark mode of the app.
+Two configurations exist; one for light mode and one for dark mode. Changing variables in the first `:root` updates light mode, while variables inside `@media (prefers-color-scheme: dark) { :root { ... } }` update dark mode.
 
-*Note: the UI theme is synced to your OS theme; if your system is it light mode, the website will automatically be in light mode, and vice versa.*
+_Note: the UI theme is synced to your OS theme. If your system is in light mode, the site renders in light mode; if your system is in dark mode, the site renders in dark mode._
+
+Frontend implementation details:
+
+- Global styles and tokens are in `frontend/src/index.css`.
+- Route-level layout and auth bootstrap are in `frontend/src/App.tsx`.
+- Most UI pages live in `frontend/src/pages/**` (for example `Case/`, `Admin/`, `Supervisor/`, `Advocate/`).
+- Shared reusable UI blocks are in `frontend/src/components/**`.
+- Shared API helpers are in `frontend/src/services/**` and shared state is in `frontend/src/contexts/**`.
 
 ```css
 /* Filepath: ./frontend/src/index.css */
@@ -40,7 +47,7 @@ Two configurations exist; one for light mode, and one for dark mode; changing th
   color-scheme: light dark;
   color: #213547;
   background-color: #ffffff;
-  
+
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -75,26 +82,36 @@ Two configurations exist; one for light mode, and one for dark mode; changing th
 ```
 
 ## Customizing the Verification Email
+
 ### Modifying Visual Aspects
-To modify the user verification email on sign-up, navigate to `cdk/lib/api-gateway-stack.ts`, and look for a line including `this.userPool = new cognito.UserPool`. A few lines below this line, the verification email's appearence is configured, in HTML. To change the verification email, simply change this HTML to that of your desired verification email. More specifically, the HTML to be altered is within the `emailBody` attribute of `userVerification`.
+
+To modify the user verification email on sign-up, navigate to `cdk/lib/api-stack.ts`, and look for `this.userPool = new cognito.UserPool(...)`. A few lines below, the verification email appearance is configured in HTML.
+
+To update the template, modify the `emailBody` attribute inside `userVerification`.
+
+Backend notes:
+
+- Subject line is controlled by `userVerification.emailSubject`.
+- Verification code placeholder must remain `{####}` for Cognito code delivery.
+- Authentication policy details in this same block (`passwordPolicy`, `autoVerify`, recovery options) impact user sign-up/login behavior across frontend and backend.
+- After editing this block, redeploy CDK so Cognito updates are applied.
 
 For reference, the full code is shown below (as it is at the time this documentation was written).
 
-``` javascript
+```javascript
 const userPoolName = `${id}-UserPool`;
-    this.userPool = new cognito.UserPool(this, `${id}-pool`, {
-      userPoolName: userPoolName,
-      signInAliases: {
-        email: true,
-      },
-      selfSignUpEnabled: true,
-      autoVerify: {
-        email: true,
-      },
-      userVerification: {
-        emailSubject: "Legal Aid Tool - Confirmation Code",
-        emailBody:
-          `
+this.userPool = new cognito.UserPool(this, `${id}-pool`, {
+  userPoolName: userPoolName,
+  signInAliases: {
+    email: true,
+  },
+  selfSignUpEnabled: true,
+  autoVerify: {
+    email: true,
+  },
+  userVerification: {
+    emailSubject: "Legal Aid Tool - Confirmation Code",
+    emailBody: `
     <html>
       <head>
         <style>
@@ -172,32 +189,54 @@ const userPoolName = `${id}-UserPool`;
       </body>
     </html>
           `,
-        emailStyle: cognito.VerificationEmailStyle.CODE,
-      },
-      passwordPolicy: {
-        minLength: 8,
-        requireLowercase: true,
-        requireUppercase: true,
-        requireDigits: true,
-        requireSymbols: false,
-      },
-      accountRecovery: cognito.AccountRecovery.EMAIL_ONLY,
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
-    });
-
+    emailStyle: cognito.VerificationEmailStyle.CODE,
+  },
+  passwordPolicy: {
+    minLength: 8,
+    requireLowercase: true,
+    requireUppercase: true,
+    requireDigits: true,
+    requireSymbols: false,
+  },
+  accountRecovery: cognito.AccountRecovery.EMAIL_ONLY,
+  removalPolicy: cdk.RemovalPolicy.DESTROY,
+});
 ```
 
 ## Extending the API
 
 ### Adding New Endpoints
 
-1. **Implement the Lambda Function**: Create a new Lambda function in the `lambda` folder within the `cdk` directory. This function should handle the logic of the new endpoint.
-2. **Edit the Api Stack**: In cdk/lib/api-gateway-stack.ts add the lambda function and override the logical id
-3. **Define the Endpoint**: Update the `OpenAPI_Swagger_Definition.yaml` file with the new endpoint's specifications, request parameters, and responses. Use the new logical id for the `x-amazon-apigateway-integration:
-uri:
-  Fn::Sub:` field. Also ensure that the httpMethod field is POST even if the endpoint uses a different http method.
-4. **Deploy**: Use AWS CDK to deploy changes to your infrastructure. Confirm that the new endpoint and Lambda function are correctly set up in your environment.
+To add a new REST API endpoint, follow these steps:
 
+1. Add the Lambda handler code in `cdk/lambda/handlers/<your-handler>.js` or `cdk/lambda/<functionName>/src/main.py` depending on runtime.
+2. Add a new function resource in `cdk/lib/api-stack.ts` (for example `lambda.Function` or `lambda.DockerImageFunction`).
+3. Add or update the Lambda permissions and integration references in `cdk/lib/api-stack.ts` as needed.
+4. Modify `cdk/OpenAPI_Swagger_Definition.yaml` to reflect the new endpoint.
+5. Run `cdk deploy` to deploy the change.
+
+Make changes to these steps as required for the specific endpoint.
+
+Example (`NodeJS` lambda):
+
+```typescript
+const myHandler = new lambda.Function(this, `${id}-MyHandler`, {
+  runtime: lambda.Runtime.NODEJS_22_X,
+  code: lambda.Code.fromAsset("lambda"),
+  handler: "handlers/myHandler.handler",
+  environment: {
+    SM_DB_CREDENTIALS: db.secretPathUser.secretName,
+    RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint,
+  },
+});
+
+const cfnMyHandler = myHandler.node.defaultChild as lambda.CfnFunction;
+cfnMyHandler.overrideLogicalId("myHandler");
+```
+
+Then update `cdk/OpenAPI_Swagger_Definition.yaml` to add the endpoint and point `x-amazon-apigateway-integration` at the Lambda logical id.
+
+Note: The project has existing handlers under `cdk/lambda/handlers/` such as `adminFunction.js`, `studentFunction.js`, and `instructorFunction.js` which can serve as examples for patterns to follow.
 
 ## Modifying Frontend Text, Icons, and Logo
 
@@ -206,52 +245,49 @@ uri:
    - For the main application UI, update components in `frontend/src/components`.
    - For the main pages, update the files in `frontend/src/pages`.
 
-2. **Modify Logo**: To change the logo used throughout the app, navigate to the `frontend/public/` folder, and replace the `logo_dark.svg` AND the `logo_light.svg` files respectively. *If you do not replace both (ideally with one made for light mode, and one made for dark mode) the logo will not update for certain system themes.*
+2. **Modify Logo/Icon Asset**: To change the icon used by the app, navigate to `frontend/public/` and replace `favicon.svg`.
 
-3. **Modify App Icon**: If you wish to change the app icon shown in your browser tabs when the page is open, navigate to `frontend/public/` and replace `icon.svg` with whichever picture file you desire.
+3. **Modify Browser Tab Icon**: The browser tab icon is configured in `frontend/index.html` via `<link rel="icon" type="image/svg+xml" href="/favicon.svg" />`. Replacing `frontend/public/favicon.svg` updates this icon.
 
 4. **Modify Text and UI Icons**: Update specific text and icon configurations in each component file. Each component has its unique structure, so locate the relevant text or icon section within the component and make your changes.
 
-For example, to alter the interview assistant page, modify `frontend/src/pages/CasePage/InterviewAssistant.jsx`.
+For example, to alter the interview assistant page, modify `frontend/src/pages/Case/InterviewAssistant.tsx`.
 
-After making the required changes in the fork created in the [Deployment Guide](./docs/deploymentGuide.md), the amplify deployment should automatically redeploy.
+After making the required changes in the fork created in the [Deployment Guide](./docs/deploymentGuide.md), commit and push those changes to the branch connected to Amplify. Once the changes are pushed, the Amplify deployment should automatically redeploy.
 
 ## Modifying the LLM
 
-- **Change the model used in the application**:
-  - Find `bedrockLLMParameter` in api-gateway-stack.ts
-  - Change stringValue to the model ID of the model you would like to use. A list of thee available models and their IDs are listed [here](https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html)
-    For example to change the model to meta llama3 8b instruct, change `bedrockLLMParameter` to:
-  ```typescript
-  const bedrockLLMParameter = new ssm.StringParameter(
-    this,
-    "BedrockLLMParameter",
-    {
+- **Change the active model**:
 
-      parameterName: "/LAT/BedrockLLMId",
+  - To change the currently active model between the options already available in the application, use the admin "AI Settings" page. See the [User Guide](./userGuide.md) for the admin UI workflow.
 
-      description: "Parameter containing the Bedrock LLM ID",
-      stringValue: "meta.llama3-8b-instruct-v1:0",
-    }
-  );
-  ```
-  - Add permissions to invoke the model selected by finding `bedrockPolicyStatement` and changing the model id. 
-  For example to change the model to meta llama3 8b instruct, change `bedrockPolicyStatement` to:
+- **Change the available models**:
+
+  - To change which model options are available in the admin UI, you will need to modify the codebase and redeploy.
+  - Update the allowed Bedrock model permissions in `cdk/lib/api-stack.ts` so the application can invoke the model.
+  - Update the frontend admin model option list so the model appears in the "AI Settings" page.
+  - A list of the available Bedrock models and their IDs is listed [here](https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html).
+  - For example, if you are introducing Meta Llama 3 8B Instruct, update `bedrockPolicyStatement` so the application is allowed to invoke it:
+
   ```typescript
   const bedrockPolicyStatement = new iam.PolicyStatement({
     effect: iam.Effect.ALLOW,
-    actions: ["bedrock:InvokeModel", "bedrock:InvokeEndpoint"],
+    actions: ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"],
     resources: [
       "arn:aws:bedrock:" +
         this.region +
         "::foundation-model/meta.llama3-8b-instruct-v1:0",
-      "arn:aws:bedrock:" +
-        this.region +
-        "::foundation-model/amazon.titan-embed-text-v2:0",
     ],
   });
   ```
-  - redeploy the application by using the cdk deploy command in the deployment guide.
 
-  - The `system_prompt` in `cdk/text_generation/src/helpers/chat.py` may require updates when switching models. *Note: temporarily, this can also be changed without a redeployment for debugging purposes from the admin page on the deployed app; simply navigate to the "AI Settings" page and alter the system prompt from the UI. However this will only change the prompt for the specific deployment you alter it from.*
+  - After making these changes, redeploy the application by using the `cdk deploy` command in the deployment guide.
 
+  - If you update generation behavior beyond model selection, review Python Lambda prompt/orchestration logic in:
+
+    - `cdk/lambda/text_generation/src/helpers/chat.py`
+    - `cdk/lambda/playground_generation/src/helpers/chat.py`
+    - `cdk/lambda/*/src/main.py` entrypoints where model/config parameters are consumed.
+
+  - **Reasoning and assessment prompts** are managed from the admin "AI Settings" page and stored in RDS (for example in `prompt_versions`). Update these through the UI.
+  - **Summary-generation prompts** are currently hardcoded in the summary Lambda and are not currently exposed in the admin UI. Update these in `cdk/lambda/summary_generation/src/helpers/chat.py`.
