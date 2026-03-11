@@ -2,159 +2,223 @@
 
 ## Overview
 
-This document explains how Python dependencies are locked and managed across Lambda functions in this project to ensure reproducible builds and security.
+This document explains how dependencies are locked and managed across Lambda functions and Lambda layers in this project to ensure reproducible builds and security.
 
 ## Lambda Functions with Locked Dependencies
 
-The following Lambda functions have their dependencies locked using pip-tools:
+The following Lambda functions have their Python dependencies locked using `uv`:
 
-| Lambda Function | Location | Requirements File |
-|----------------|----------|-------------------|
-| `case_generation` | `cdk/lambda/case_generation/` | `requirements.txt` |
-| `text_generation` | `cdk/lambda/text_generation/` | `requirements.txt` |
-| `summary_generation` | `cdk/lambda/summary_generation/` | `requirements.txt` |
-| `audioToText` | `cdk/lambda/audioToText/` | `requirements.txt` |
+| Lambda Function         | Location                            | Lock File          |
+| ----------------------- | ----------------------------------- | ------------------ |
+| `text_generation`       | `cdk/lambda/text_generation/`       | `requirements.txt` |
+| `playground_generation` | `cdk/lambda/playground_generation/` | `requirements.txt` |
+
+## Lambda Layers with Locked Dependencies
+
+The following Lambda layers have locked dependencies:
+
+| Layer Name        | Location                      | Language | Lock File           |
+| ----------------- | ----------------------------- | -------- | ------------------- |
+| `psycopg3`        | `cdk/layers/psycopg3/`        | Python   | `requirements.txt`  |
+| `aws-jwt-verify`  | `cdk/layers/aws-jwt-verify/`  | Node.js  | `package-lock.json` |
+| `postgres`        | `cdk/layers/postgres/`        | Node.js  | `package-lock.json` |
+| `node-pg-migrate` | `cdk/layers/node-pg-migrate/` | Node.js  | `package-lock.json` |
 
 ## How Dependencies Were Locked
 
 ### 1. Requirements Structure
 
-Each Lambda function uses a two-file approach:
+Python Lambda functions and Python layers use a two-file approach:
+
 - `requirements.in` - Contains high-level dependencies (what we directly need)
-- `requirements.txt` - Contains all dependencies with exact versions (generated from requirements.in)
+- `requirements.txt` - Contains all dependencies with exact versions (generated from `requirements.in`)
+
+Node.js layers use:
+
+- `package.json` - Declares direct dependencies
+- `package-lock.json` - Locks the full dependency tree with exact versions
 
 ### 2. Locking Process
 
-Dependencies were locked using pip-tools within locally built Docker containers to ensure consistency. 
+Python dependencies are locked using `uv pip compile`.
 
-Steps: 
+Steps:
 
 ```bash
-# Navigate to the Lambda function directory
-cd cdk/lambda/case_generation
+# From the repository root, compile a Lambda requirements lock file
+uv pip compile cdk/lambda/text_generation/requirements.in \
+  -o cdk/lambda/text_generation/requirements.txt
 
-# Build the Docker image
-docker build -t case-gen-image .
+# Compile another Lambda requirements lock file
+uv pip compile cdk/lambda/playground_generation/requirements.in \
+  -o cdk/lambda/playground_generation/requirements.txt
 
-# Run pip-tools inside the container
-docker run --rm -v ${PWD}:/app -w /app case-gen-image bash -c "
-  pip install pip-tools &&
-  pip-compile requirements.in
-"
+# Compile the Python layer lock file (run inside the layer folder)
+cd cdk/layers/psycopg3
+uv pip compile requirements.in -o requirements.txt
 ```
+
+For Node.js layers, lock files are generated/updated by npm:
+
+```bash
+# Example for a Node.js layer
+cd cdk/layers/postgres
+npm install
+```
+
+This updates `package-lock.json` to lock all transitive dependencies.
 
 ### 3. Key Locked Dependencies
 
-**LangChain Ecosystem:**
+**Python (LLM Lambda Functions):**
+
 ```
-langchain==0.3.25
-langchain-aws==0.2.25
-langchain-community==0.3.25
-langchain-core==0.3.65
-langchain-postgres==0.0.14
+langchain==1.2.10
+langchain-aws==1.3.0
+langchain-community==0.4.1
+langchain-core==1.2.16
+langgraph==1.0.9
 ```
 
-**Database Connectivity:**
+**Python (Database Connectivity):**
+
+(`psycopg` and `psycopg-binary` are used in Lambda functions; `psycopg-pool` is locked in the `psycopg3` layer.)
+
 ```
-psycopg[binary]==3.2.9
+psycopg==3.3.3
+psycopg-binary==3.3.3
+psycopg-pool==3.3.0
 ```
 
-**AWS Services:**
+**Python (AWS Services):**
+
 ```
-boto3==1.38.37
-botocore==1.38.37
+boto3==1.42.56 (text_generation)
+boto3==1.42.57 (playground_generation)
+botocore==1.42.56 (text_generation)
+botocore==1.42.57 (playground_generation)
+```
+
+**Node.js Layers:**
+
+```
+aws-jwt-verify==4.0.1
+postgres==3.4.7
+node-pg-migrate==7.9.1
+pg==8.13.3
 ```
 
 ## How to Modify Dependencies
 
 ### Adding New Dependencies
 
-1. **Add to requirements.in:**
-   Add the new package to requirements.in. You may optionally specify a version (e.g., langchain==1.3.5 or just langchain).
+1. **Add to dependency source file:**
 
-2. **Build Docker image locally:**
-   Open the Docker Desktop app and keep it running during this process. 
-   In the terminal run the following commands in order to build the Docker image locally.
+   - Python Lambda/Layer: add package to `requirements.in`
+   - Node.js Layer: add package to `package.json` (or use `npm install <package>`)
 
-   ```bash
-   # Navigate to the Lambda function directory
-   cd cdk/lambda/case_generation
-   
-   # Build the Docker image locally
-   docker build -t case-gen-image .
-   ```
-
-
-
-3. **Regenerate requirements.txt:**
-   Once the image has been built, run this command in the terminal to compile the requirements and regenerate the requirements.txt version:
+2. **Regenerate lock file:**
+   In the terminal run the following commands depending on target:
 
    ```bash
-   # Run pip-compile inside the built container
-   docker run --rm -v ${PWD}:/app -w /app case-gen-image bash -c "
-     pip install pip-tools && 
-     pip-compile requirements.in
-   "
+   # Python Lambda (example)
+   uv pip compile cdk/lambda/text_generation/requirements.in \
+     -o cdk/lambda/text_generation/requirements.txt
+
+   # Python Layer (example)
+   cd cdk/layers/psycopg3
+   uv pip compile requirements.in -o requirements.txt
+
+   # Node.js Layer (example)
+   cd cdk/layers/node-pg-migrate
+   npm install
    ```
 
-4. **Commit and Push Changes:**
-   After regenerating requirements.txt, commit and push the updated files to trigger the deployment pipeline.
+3. **Commit and Push Changes:**
+   After regenerating lock files, commit and push the updated files to trigger the deployment pipeline.
 
-   **Option 1: Using Git in the Terminal**
-   ```bash
-   # Stage the updated files
-   git add requirements.in requirements.txt
+   - For Python Dockerized Lambda functions (for example `text_generation` and `playground_generation`), commit + push is sufficient. The CI/CD pipeline rebuilds and redeploys those functions.
 
-   # Commit with a descriptive message
-   git commit -m "Add new dependency to case_generation Lambda"
+   - For Lambda layers, after updating dependencies/lock files, keep Docker Desktop running and run:
 
-   # Push to your working branch (e.g., main or dev)
-   git push origin <branch-name>
-   ```
+     ```bash
+     cd cdk
+     npx cdk deploy --all \
+       --context StackPrefix=<YOUR-STACK-PREFIX> \
+       --context GithubRepo=<YOUR-GITHUB-REPO> \
+       --profile <YOUR-PROFILE-NAME>
+     ```
 
-   **Option 2: Using Git in Your IDE (e.g., VS Code)**
-   1. Go to the Source Control tab.
+     This updates the layer assets in AWS.
 
-   2. You’ll see requirements.in and requirements.txt listed under Changes.
+   - **Option 1: Using Git in the Terminal**
 
-   3. Write a commit message (e.g., “Add new dependency to case_generation Lambda”).
+     ```bash
+     # Stage updated dependency files
+     git add requirements.in requirements.txt package.json package-lock.json
 
-   4. Click ✓ Commit.
+     # Commit with a descriptive message
+     git commit -m "Update Lambda/Lambda layer dependencies"
 
-   5. Click the … menu or right-click → Push to send your changes to the remote repository.
+     # Push to your working branch (e.g., main or dev)
+     git push origin <branch-name>
+     ```
 
-Once the push is complete, CodePipeline will automatically detect the change, rebuild the Docker image, and redeploy the Lambda function.
+   - **Option 2: Using Git in Your IDE (e.g., VS Code)**
+
+     1. Go to the Source Control tab.
+
+     2. You’ll see updated dependency files under Changes.
+
+     3. Write a commit message (e.g., “Update Lambda dependencies”).
+
+     4. Click ✓ Commit.
+
+     5. Click the … menu or right-click → Push to send your changes to the remote repository.
+
+Once the push is complete, CodePipeline will automatically detect and redeploy affected Python Dockerized Lambda functions. Layer updates are applied when you run `cdk deploy`.
 
 ### Updating Existing Dependencies
 
-1. **Update version in requirements.in:**
+1. **Use upgrade commands (recommended):**
+
    ```bash
-   # Change from: langchain
-   # To: langchain==0.4.0
+   # Python: upgrade one package and regenerate lock file
+   uv pip compile cdk/lambda/text_generation/requirements.in \
+     -o cdk/lambda/text_generation/requirements.txt \
+     --upgrade-package langchain
+
+   # Python: upgrade all packages in a lock file
+   uv pip compile cdk/lambda/playground_generation/requirements.in \
+     -o cdk/lambda/playground_generation/requirements.txt \
+     --upgrade
+
+   # Node.js layer: upgrade according to package.json ranges
+   cd cdk/layers/postgres
+   npm update
+
+   # Node.js layer: force latest major for a specific package
+   npm install postgres@latest
    ```
 
-2. **Build Docker image locally:**
-   Make sure to keep Docker Desktop running during this process. 
-   
-   ```bash
-   # Navigate to the Lambda function directory
-   cd cdk/lambda/case_generation
-   
-   # Build the Docker image locally
-   docker build -t case-gen-image .
-   ```
+2. **Manual pinning (optional):**
 
-3. **Regenerate requirements.txt:**
-   ```bash
-   # Run pip-compile inside the built container
-   docker run --rm -v ${PWD}:/app -w /app case-gen-image bash -c "
-     pip install pip-tools && 
-     pip-compile requirements.in
-   "
-   ```
+   If you need an exact version, update the source dependency file directly:
 
-4. **Commit and Push Changes:**
+   - Python: pin in `requirements.in`, then run `uv pip compile ...`
+   - Node.js: pin in `package.json` (or run `npm install <package>@<version>`)
 
-Once `requirements.txt` has been updated, commit and push the changes to trigger the CI/CD pipeline and redeploy the updated Lambda function.
+3. **Commit and Push Changes:**
 
+Once lock files (`requirements.txt` and/or `package-lock.json`) have been updated:
 
+- Python Dockerized Lambda functions: commit and push to trigger CI/CD redeployment.
+- Lambda layers: run `cdk deploy` (with Docker Desktop running) to publish updated layer assets:
+
+  ```bash
+  cd cdk
+  npx cdk deploy --all \
+    --context StackPrefix=<YOUR-STACK-PREFIX> \
+    --context GithubRepo=<YOUR-GITHUB-REPO> \
+    --profile <YOUR-PROFILE-NAME>
+  ```
