@@ -3,25 +3,34 @@
 ## Architecture
 
 ![Architecture Diagram](./media/architecture.png)
-_TODO: update diagram to reflect current services (WebSocket API, EventBridge notifications, Docker case-gen, etc.)_
 
-1. **Edge and security** – all traffic passes through AWS WAF, CloudFront and Shield before reaching APIs. This layer provides IP filtering, rate‑limiting and basic bot protection.
-2. **Frontend** – a React single‑page application hosted on Amplify (S3/CloudFront). Cognito manages authentication and issues JWTs which the frontend uses when calling backend services.
-3. **API layer** – the backend surface consists of two main endpoints:
-   - A REST API implemented with API Gateway that routes requests to a suite of backend compute services. Each path is protected by Cognito‑aware authorizers enforcing role/group permissions (student, instructor, admin, supervisor).
-   - A WebSocket API (API Gateway with custom authorizer) used for low‑latency streaming interactions such as AI chat, and real‑time notifications.
-4. **Audio workflow** – when a user uploads audio for transcription:
-   1. The frontend obtains a presigned URL for the protected S3 bucket.
-   2. The file is uploaded directly to S3, triggering backend processing that validates the file and starts an Amazon Transcribe job.
-   3. Transcription output is post‑processed (speaker diarization, PII masking) and stored in the relational database.
-   4. An EventBridge event is emitted; downstream notification logic delivers a real‑time update to the user via the WebSocket channel.
-5. **Case management** – all operations around cases, feedback, reviewers, prompts and related entities traverse the REST API and persist changes in an Amazon RDS PostgreSQL database accessed through an RDS Proxy. This relational store holds the canonical application data.
-6. **AI services** – backend compute components retrieve context from RDS and conversational history from a DynamoDB table, then call Amazon Bedrock (using models such as Llama‑3) to generate summaries, reasoning output or full‑case drafts. Some of these services run in Docker images built by the CI/CD pipeline.
-7. **Conversation streaming** – chat messages flow over the WebSocket API into a compute handler that writes to DynamoDB and streams requests to Bedrock. Responses are pipelined back over the same socket for real‑time interaction.
-8. **Notifications & events** – an EventBridge bus transports domain events (transcriptions completed, summaries ready, case reviewed, etc.). A notification service consumes these events, persists records in DynamoDB, and pushes updates to connected clients via WebSocket or other channels.
-9. **Supporting services** – additional backend routines handle user onboarding and role changes, progress tracking, supervisor/admin utilities, and other ancillary workflows. These services leverage the same API/compute infrastructure.
-10. **Infrastructure & deployment** – AWS CDK defines all resources. CI/CD is provided by CodePipeline/CodeBuild; Docker images for case‑generation and text‑generation are built, tagged, and deployed to Lambda or ECR automatically.
-11. **Database access & performance** – most Lambdas run inside a VPC and connect via RDS Proxy for efficient pooling. DynamoDB tables back transient data (chat history, notifications, playground / case generation caches).
+
+1. **Edge and security** – All incoming traffic passes through **AWS Shield**, **Amazon CloudFront**, and **AWS WAF** to provide Layer 3, 4, and 7 protection. This layer flags potential threats, manages rate-limiting, and ensures secure content delivery before requests reach the application.
+
+2. **Frontend** – The React web application is hosted and deployed via **AWS Amplify**. **AWS Cognito** serves as the authentication provider, managing user sign-up, sign-in, and secure access control to the backend services.
+
+3. **API layer** – The backend surface is managed by **Amazon API Gateway**, which handles two primary communication patterns:
+    - A **REST API** endpoint that routes CRUD operations and requests for pre-signed URLs to backend Lambda functions.
+    - A **WebSocket API** (Streaming) that facilitates real-time, low-latency communication for chat interactions and live updates.
+
+4. **Audio processing workflow** – When a user initiates an audio upload:
+    1. A pre-signed URL is generated when the user uploads an audio file.
+    2. The pre-signed URL is stored in an **Amazon S3** bucket.
+    3. An **AWS Lambda** function monitors the bucket, retrieves the audio file, and prepares it for transcription processing.
+    4. **Amazon Transcribe** processes the uploaded audio file and converts it into text.
+
+5. **Data persistence** – Meta data related to the audio file and its transcription, such as timestamps and case id, alongside primary application data, including such as cases and users, is stored in an **Amazon RDS SQL Database**. An **AWS RDS Proxy** is utilized to manage a high volume of concurrent connections efficiently and improve database scalability.
+
+
+6. **Notifications** – **Amazon EventBridge** receives domain events and routes them to a **Notification Service Lambda**, which stores notification and connection state data in **DynamoDB**.
+
+7. **Standard CRUD endpoints** – The **Amazon API Gateway REST API** exposes standard CRUD endpoints for core resources (for example, users, cases, feedback, and summaries) through role-aware Lambda handlers.
+
+8. **AI services** – For intelligent text generation, summarization, and related assessments, dedicated Lambda functions retrieve context from persistence layers and invoke **Amazon Bedrock** models.
+
+9. **Notifications and AI streaming to frontend** – The backend pushes real-time notification and AI generation updates to the frontend through the **Amazon API Gateway WebSocket API**, enabling low-latency status and response streaming.
+
+10. **Infrastructure & CI/CD pipeline** – The backend uses **AWS CodePipeline** and **AWS CodeBuild** to automate build and deployment workflows, with container images stored in **Amazon ECR** for Lambda-based services.
 
 ### Database Schema
 
