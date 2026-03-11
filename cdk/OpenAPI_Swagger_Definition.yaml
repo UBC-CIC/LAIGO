@@ -1556,13 +1556,6 @@ paths:
         - Instructor
       summary: List students for an instructor
       operationId: instructor_list_students_GET
-      parameters:
-        - in: query
-          name: cognito_id
-          required: true
-          schema:
-            type: string
-          description: The cognito ID of the instructor
       responses:
         "200":
           description: List of students
@@ -1624,13 +1617,6 @@ paths:
         - Instructor
       summary: List cases pending review
       operationId: instructor_cases_to_review_GET
-      parameters:
-        - in: query
-          name: cognito_id
-          required: true
-          schema:
-            type: string
-          description: The cognito ID of the instructor
       responses:
         "200":
           description: List of cases to review
@@ -1747,13 +1733,6 @@ paths:
         - Instructor
       summary: View student cases
       operationId: instructor_view_students_GET
-      parameters:
-        - in: query
-          name: cognito_id
-          required: true
-          schema:
-            type: string
-          description: The cognito ID of the instructor
       responses:
         "200":
           description: List of student cases
@@ -2291,7 +2270,7 @@ paths:
         - in: query
           name: user_id
           required: true
-          description: id of the student (cognito_id)
+          description: ID of the student
           schema:
             type: string
       requestBody:
@@ -2501,11 +2480,6 @@ paths:
       parameters:
         - in: query
           name: case_id
-          required: true
-          schema:
-            type: string
-        - in: query
-          name: cognito_id
           required: true
           schema:
             type: string
@@ -2731,11 +2705,6 @@ paths:
       parameters:
         - in: query
           name: case_id
-          required: true
-          schema:
-            type: string
-        - in: query
-          name: cognito_id
           required: true
           schema:
             type: string
@@ -3275,11 +3244,6 @@ paths:
           required: true
           schema:
             type: string
-        - in: query
-          name: cognito_id
-          required: true
-          schema:
-            type: string
       requestBody:
         required: false
         content:
@@ -3343,11 +3307,6 @@ paths:
           required: true
           schema:
             type: string
-        - in: query
-          name: cognito_id
-          required: true
-          schema:
-            type: string
       responses:
         "200":
           description: Case archived
@@ -3397,11 +3356,6 @@ paths:
       parameters:
         - in: query
           name: case_id
-          required: true
-          schema:
-            type: string
-        - in: query
-          name: cognito_id
           required: true
           schema:
             type: string
@@ -3775,11 +3729,6 @@ paths:
           schema:
             type: string
         - in: query
-          name: cognito_id
-          required: true
-          schema:
-            type: string
-        - in: query
           name: case_id
           required: true
           schema:
@@ -3905,11 +3854,6 @@ paths:
       parameters:
         - in: query
           name: audio_file_id
-          required: true
-          schema:
-            type: string
-        - in: query
-          name: cognito_id
           required: true
           schema:
             type: string
