@@ -3,11 +3,9 @@ import json
 import boto3
 import logging
 import uuid
-from langchain_aws import BedrockEmbeddings
 from aws_lambda_powertools import Logger
 
 from helpers.chat import get_bedrock_llm, get_playground_streaming_response
-from helpers.vectorstore import get_noop_history_aware_retriever
 
 # Set up logging for the Lambda function
 logger = Logger(service="PlaygroundGeneration")
@@ -18,7 +16,6 @@ REGION = os.environ["REGION"]
 # RDS_PROXY_ENDPOINT is availble but maybe not needed if we don't connect to Postgres for cases
 RDS_PROXY_ENDPOINT = os.environ.get("RDS_PROXY_ENDPOINT") 
 BEDROCK_LLM_PARAM = os.environ["BEDROCK_LLM_PARAM"]
-EMBEDDING_MODEL_PARAM = os.environ["EMBEDDING_MODEL_PARAM"]
 TABLE_NAME_PARAM = os.environ["TABLE_NAME_PARAM"]
 BEDROCK_TEMP_PARAM = os.environ.get("BEDROCK_TEMP_PARAM")
 BEDROCK_TOP_P_PARAM = os.environ.get("BEDROCK_TOP_P_PARAM")
@@ -31,12 +28,10 @@ bedrock_runtime = boto3.client("bedrock-runtime", region_name=REGION)
 
 # Cached resources
 BEDROCK_LLM_ID = None
-EMBEDDING_MODEL_ID = None
 TABLE_NAME = None
 BEDROCK_TEMP = 0.5
 BEDROCK_TOP_P = 0.9
 BEDROCK_MAX_TOKENS = 2048
-embeddings = None
 
 def get_parameter(param_name, cached_var):
     if cached_var is None:
@@ -49,9 +44,8 @@ def get_parameter(param_name, cached_var):
     return cached_var
 
 def initialize_constants():
-    global BEDROCK_LLM_ID, EMBEDDING_MODEL_ID, TABLE_NAME, embeddings, BEDROCK_TEMP, BEDROCK_TOP_P, BEDROCK_MAX_TOKENS
+    global BEDROCK_LLM_ID, TABLE_NAME, BEDROCK_TEMP, BEDROCK_TOP_P, BEDROCK_MAX_TOKENS
     BEDROCK_LLM_ID = get_parameter(BEDROCK_LLM_PARAM, BEDROCK_LLM_ID)
-    EMBEDDING_MODEL_ID = get_parameter(EMBEDDING_MODEL_PARAM, EMBEDDING_MODEL_ID)
     # TABLE_NAME might be passed as env var directly for playground to point to specific table
     # But current code tries to fetch from param. 
     # Logic change: Use env var TABLE_NAME directly if available (set in CDK), otherwise param.
@@ -74,12 +68,6 @@ def initialize_constants():
         if max_tokens_val:
             BEDROCK_MAX_TOKENS = int(max_tokens_val)
 
-    if embeddings is None:
-        embeddings = BedrockEmbeddings(
-            model_id=EMBEDDING_MODEL_ID,
-            client=bedrock_runtime,
-            region_name=REGION,
-        )
 
 def get_default_system_prompt():
     return '''You are a helpful assistant to me, a law student, who answers with kindness while being concise, so that it is easy to read your responses quickly yet still get valuable information from them. No need to be conversational, just skip to talking about the content. Refer to me, the law student, in the second person. I will provide you with context to a legal case I am interviewing my client about, and you exist to help provide legal context and analysis, relevant issues, possible strategies to defend the client, and other important details in a structured natural language response.
@@ -234,14 +222,10 @@ def handler(event, context):
         # Extract mock case context for playground
         mock_case_context = body.get("case_context", {})
         
-        # Create a no-op history-aware retriever
-        history_aware_retriever = get_noop_history_aware_retriever(llm)
-        
         # Use playground streaming response
         get_playground_streaming_response(
             query=test_message,
             llm=llm,
-            history_aware_retriever=history_aware_retriever,
             table_name=TABLE_NAME,
             session_id=playground_session_id,
             system_prompt=custom_prompt,

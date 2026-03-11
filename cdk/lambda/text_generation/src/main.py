@@ -7,11 +7,9 @@ import psycopg
 import time
 import uuid
 import functools
-from langchain_aws import BedrockEmbeddings
 from aws_lambda_powertools import Logger, Metrics
 from aws_lambda_powertools.metrics import MetricUnit
 
-from helpers.vectorstore import get_vectorstore_retriever
 from helpers.chat import get_bedrock_llm, get_initial_student_query, get_response, get_streaming_response
 from helpers.usage import check_and_increment_usage
  
@@ -24,7 +22,6 @@ DB_SECRET_NAME = os.environ["SM_DB_CREDENTIALS"]
 REGION = os.environ["REGION"]
 RDS_PROXY_ENDPOINT = os.environ["RDS_PROXY_ENDPOINT"]
 BEDROCK_LLM_PARAM = os.environ["BEDROCK_LLM_PARAM"]
-EMBEDDING_MODEL_PARAM = os.environ["EMBEDDING_MODEL_PARAM"]
 TABLE_NAME_PARAM = os.environ["TABLE_NAME_PARAM"]
 BEDROCK_TEMP_PARAM = os.environ.get("BEDROCK_TEMP_PARAM")
 BEDROCK_TOP_P_PARAM = os.environ.get("BEDROCK_TOP_P_PARAM")
@@ -41,15 +38,11 @@ bedrock_runtime = boto3.client("bedrock-runtime", region_name=REGION)
 connection = None
 db_secret = None
 BEDROCK_LLM_ID = None
-EMBEDDING_MODEL_ID = None
 TABLE_NAME = None
 BEDROCK_TEMP = 0.5
 BEDROCK_TOP_P = 0.9
 BEDROCK_MAX_TOKENS = 2048
 MESSAGE_LIMIT = None
-
-# Cached embeddings instance
-embeddings = None
 
 
 
@@ -82,9 +75,8 @@ def get_parameter(param_name, cached_var):
     return cached_var
 
 def initialize_constants():
-    global BEDROCK_LLM_ID, EMBEDDING_MODEL_ID, TABLE_NAME, embeddings, BEDROCK_TEMP, BEDROCK_TOP_P, BEDROCK_MAX_TOKENS, MESSAGE_LIMIT
+    global BEDROCK_LLM_ID, TABLE_NAME, BEDROCK_TEMP, BEDROCK_TOP_P, BEDROCK_MAX_TOKENS, MESSAGE_LIMIT
     BEDROCK_LLM_ID = get_parameter(BEDROCK_LLM_PARAM, BEDROCK_LLM_ID)
-    EMBEDDING_MODEL_ID = get_parameter(EMBEDDING_MODEL_PARAM, EMBEDDING_MODEL_ID)
     TABLE_NAME = get_parameter(TABLE_NAME_PARAM, TABLE_NAME)
     logger.info(f"Using DynamoDB conversation history table: {TABLE_NAME}")
     
@@ -106,13 +98,6 @@ def initialize_constants():
     MESSAGE_LIMIT = get_parameter(MESSAGE_LIMIT_PARAM, MESSAGE_LIMIT)
     if MESSAGE_LIMIT is None:
         MESSAGE_LIMIT = "Infinity"
-
-    if embeddings is None:
-        embeddings = BedrockEmbeddings(
-            model_id=EMBEDDING_MODEL_ID,
-            client=bedrock_runtime,
-            region_name=REGION,
-        )
     
     # Table is managed by CDK; Lambda should only read/write existing table.
 
@@ -470,59 +455,6 @@ def handler(event, context):
         }
 
     try:
-        logger.info("Retrieving vectorstore config.")
-        db_secret = get_secret(DB_SECRET_NAME)
-        vectorstore_config_dict = {
-            'collection_name': case_id,
-            'dbname': db_secret["dbname"],
-            'user': db_secret["username"],
-            'password': db_secret["password"],
-            'host': RDS_PROXY_ENDPOINT,
-            'port': db_secret["port"]
-        }
-    except Exception as e:
-        logger.error(f"Error retrieving vectorstore config: {e}")
-        return {
-            'statusCode': 500,
-            "headers": {
-                "Content-Type": "application/json",
-                "Access-Control-Allow-Headers": "*",
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "*",
-                "X-Content-Type-Options": "nosniff",
-                "X-Frame-Options": "DENY",
-                "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none';",
-                "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
-            },
-            'body': json.dumps('Error retrieving vectorstore config')
-        }
-
-    try:
-        logger.info("Creating history-aware retriever.")
-
-        history_aware_retriever = get_vectorstore_retriever(
-            llm=llm,
-            vectorstore_config_dict=vectorstore_config_dict,
-            embeddings=embeddings
-        )
-    except Exception as e:
-        logger.error(f"Error creating history-aware retriever: {e}")
-        return {
-            'statusCode': 500,
-            "headers": {
-                "Content-Type": "application/json",
-                "Access-Control-Allow-Headers": "*",
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "*",
-                "X-Content-Type-Options": "nosniff",
-                "X-Frame-Options": "DENY",
-                "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none';",
-                "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
-            },
-            'body': json.dumps('Error creating history-aware retriever')
-        }
-
-    try:
         logger.info("Generating response from the LLM.")
                 
         # Unified Identity Extraction
@@ -631,7 +563,6 @@ def handler(event, context):
                 province=province,
                 statute=statute,
                 llm=llm,
-                history_aware_retriever=history_aware_retriever,
                 table_name=TABLE_NAME,
                 case_id=session_id,
                 system_prompt=system_prompt,
@@ -655,7 +586,6 @@ def handler(event, context):
                 province=province,
                 statute=statute,
                 llm=llm,
-                history_aware_retriever=history_aware_retriever,
                 table_name=TABLE_NAME,
                 case_id=session_id,
                 system_prompt=system_prompt,

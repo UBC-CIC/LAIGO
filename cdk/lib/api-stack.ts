@@ -1034,7 +1034,7 @@ export class ApiGatewayStack extends cdk.Stack {
       },
     );
 
-    // Create parameters for Bedrock LLM ID, Embedding Model ID, and Table Name in Parameter Store
+    // Create parameters for Bedrock LLM ID and Table Name in Parameter Store
     const bedrockLLMParameter = new ssm.StringParameter(
       this,
       "BedrockLLMParameter",
@@ -1042,16 +1042,6 @@ export class ApiGatewayStack extends cdk.Stack {
         parameterName: `/${id}/LAIGO/BedrockLLMId`,
         description: "Parameter containing the Bedrock LLM ID",
         stringValue: "meta.llama3-70b-instruct-v1:0",
-      },
-    );
-
-    const embeddingModelParameter = new ssm.StringParameter(
-      this,
-      "EmbeddingModelParameter",
-      {
-        parameterName: `/${id}/LAIGO/EmbeddingModelId`,
-        description: "Parameter containing the Embedding Model ID",
-        stringValue: "amazon.titan-embed-text-v2:0",
       },
     );
 
@@ -1418,7 +1408,6 @@ export class ApiGatewayStack extends cdk.Stack {
       resources: [
         `arn:aws:bedrock:${this.region}::foundation-model/meta.llama3-70b-instruct-v1`,
         `arn:aws:bedrock:${this.region}::foundation-model/meta.llama3-70b-instruct-v1:0`, // Explicitly add the versioned model
-        `arn:aws:bedrock:${this.region}::foundation-model/amazon.titan-embed-text-v2:0`, // If using Titan
         `arn:aws:bedrock:${this.region}::foundation-model/anthropic.claude-3-sonnet-20240229-v1:0`, // Add Claude 3 Sonnet
       ],
     });
@@ -1441,7 +1430,6 @@ export class ApiGatewayStack extends cdk.Stack {
           RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint,
           REGION: this.region,
           BEDROCK_LLM_PARAM: bedrockLLMParameter.parameterName,
-          EMBEDDING_MODEL_PARAM: embeddingModelParameter.parameterName,
           TABLE_NAME_PARAM: tableNameParameter.parameterName,
           BEDROCK_TEMP_PARAM: bedrockTemperatureParameter.parameterName,
           BEDROCK_TOP_P_PARAM: bedrockTopPParameter.parameterName,
@@ -1486,7 +1474,6 @@ export class ApiGatewayStack extends cdk.Stack {
         actions: ["ssm:GetParameter"],
         resources: [
           bedrockLLMParameter.parameterArn,
-          embeddingModelParameter.parameterArn,
           tableNameParameter.parameterArn,
           bedrockTemperatureParameter.parameterArn,
           bedrockTopPParameter.parameterArn,
@@ -1515,7 +1502,6 @@ export class ApiGatewayStack extends cdk.Stack {
           RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint,
           REGION: this.region,
           BEDROCK_LLM_PARAM: bedrockLLMParameter.parameterName,
-          EMBEDDING_MODEL_PARAM: embeddingModelParameter.parameterName,
           TABLE_NAME_PARAM: tableNameParameter.parameterName,
           BEDROCK_TEMP_PARAM: bedrockTemperatureParameter.parameterName,
           BEDROCK_TOP_P_PARAM: bedrockTopPParameter.parameterName,
@@ -1575,7 +1561,6 @@ export class ApiGatewayStack extends cdk.Stack {
         actions: ["ssm:GetParameter"],
         resources: [
           bedrockLLMParameter.parameterArn,
-          embeddingModelParameter.parameterArn,
           tableNameParameter.parameterArn,
           bedrockTemperatureParameter.parameterArn,
           bedrockTopPParameter.parameterArn,
@@ -1606,7 +1591,6 @@ export class ApiGatewayStack extends cdk.Stack {
           RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint,
           REGION: this.region,
           BEDROCK_LLM_PARAM: bedrockLLMParameter.parameterName,
-          EMBEDDING_MODEL_PARAM: embeddingModelParameter.parameterName,
           TABLE_NAME_PARAM: tableNameParameter.parameterName, // Fallback/Reference
           BEDROCK_TEMP_PARAM: bedrockTemperatureParameter.parameterName,
           BEDROCK_TOP_P_PARAM: bedrockTopPParameter.parameterName,
@@ -1647,7 +1631,6 @@ export class ApiGatewayStack extends cdk.Stack {
         actions: ["ssm:GetParameter"],
         resources: [
           bedrockLLMParameter.parameterArn,
-          embeddingModelParameter.parameterArn,
           tableNameParameter.parameterArn,
           bedrockTemperatureParameter.parameterArn,
           bedrockTopPParameter.parameterArn,
@@ -1684,7 +1667,6 @@ export class ApiGatewayStack extends cdk.Stack {
           REGION: this.region,
           RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint,
           BEDROCK_LLM_PARAM: bedrockLLMParameter.parameterName,
-          EMBEDDING_MODEL_PARAM: embeddingModelParameter.parameterName,
           TABLE_NAME_PARAM: tableNameParameter.parameterName,
           BEDROCK_TEMP_PARAM: bedrockTemperatureParameter.parameterName,
           BEDROCK_TOP_P_PARAM: bedrockTopPParameter.parameterName,
@@ -1717,7 +1699,6 @@ export class ApiGatewayStack extends cdk.Stack {
         actions: ["ssm:GetParameter"],
         resources: [
           bedrockLLMParameter.parameterArn,
-          embeddingModelParameter.parameterArn,
           tableNameParameter.parameterArn,
           bedrockTemperatureParameter.parameterArn,
           bedrockTopPParameter.parameterArn,
