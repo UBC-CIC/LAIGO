@@ -1,7 +1,6 @@
 boto3
 langchain
 langchain-aws
-langchain-postgres
 langchain_community
 langchain-classic
 psycopg[binary]
