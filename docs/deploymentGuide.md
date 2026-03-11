@@ -1,6 +1,7 @@
 # Deployment Guide
 
 ## Table of Contents
+
 - [Deployment Guide](#deployment-guide)
   - [Table of Contents](#table-of-contents)
   - [Requirements](#requirements)
@@ -18,90 +19,89 @@
     - [Taking down the deployed stack](#taking-down-the-deployed-stack)
 
 ## Requirements
-Before you deploy, you must have the following installed on your device:
+
+Before you deploy, ensure the following are available locally:
+
 - [git](https://git-scm.com/downloads)
 - [AWS Account](https://aws.amazon.com/account/)
 - [GitHub Account](https://github.com/)
-- [AWS CLI](https://aws.amazon.com/cli/)
-- [AWS CDK](https://docs.aws.amazon.com/cdk/v2/guide/cli.html) *(v2.146.0 > required)*
+- [AWS CLI v2](https://aws.amazon.com/cli/)
+- [Node.js](https://nodejs.org/en/download) _(20.x or newer recommended)_
 - [npm](https://docs.npmjs.com/downloading-and-installing-node-js-and-npm)
-- [node](https://nodejs.org/en/ln/getting-started/how-to-install-nodejs) *(v20.0.0 > required)*
+- [Docker](https://docs.docker.com/get-docker/) _(required for CDK asset bundling; Docker Desktop must be running in the background during first deployment)_
+
+You also need AWS credentials configured (`aws configure` or SSO profile), and permissions to create IAM roles, VPC, RDS, API Gateway, Cognito, Lambda, Amplify, CodePipeline, CodeBuild, ECR, WAF, SSM, Secrets Manager, and CloudWatch resources.
 
 ## Pre-Deployment
+
 ### Create GitHub Personal Access Token
-To deploy this solution, you will need to generate a GitHub personal access token. Please visit [here](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens#creating-a-personal-access-token-classic) for detailed instruction to create a personal access token.
 
-*Note: when selecting the scopes to grant the token (step 8 of the instruction), make sure you select `repo` scope.*
+This deployment creates:
 
-**Once you create a token, please note down its value as you will use it later in the deployment process.**
+- an Amplify app connected to GitHub, and
+- a CodePipeline source stage connected to GitHub.
+
+You must create a GitHub personal access token (classic) with the `repo` scope. Follow GitHub instructions [here](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens#creating-a-personal-access-token-classic).
+
+**Save the token value securely. You will upload it to AWS Secrets Manager in Step 2.**
 
 ### Enable Models in Bedrock
 
-First, navigate to Amazon Bedrock in the AWS Console. From the home page, click on model access under Bedrock configurations:
-![](./images/bedrockhome.png)
+This project provisions Bedrock guardrails and invokes foundation models from Lambda. In Amazon Bedrock Model access, enable at least:
 
-Then click on "Modify model access":
-![](./images/modifymodels.png)
+- `meta.llama3-70b-instruct-v1:0`
+- `anthropic.claude-3-sonnet-20240229-v1:0`
 
-Finally, enable the relevant models, click next and on the next page click submit. Amazon Titan Embeddings V2 and Meta Llama 3 70B Instruct are required for this project.
-![](./images/enablemodels.png)
+If either model is not enabled in the deployment region, model invocation calls will fail at runtime.
 
-The relevant models are now enabled in Bedrock.
 ## Deployment
+
 ### Step 1: Fork & Clone The Repository
-First, you need to fork the repository. To create a fork, navigate to the [main branch](https://github.com/UBC-CIC/Legal-Aid-Tool) of this repository. Then, in the top-right corner, click `Fork`.
 
-![](./media/fork.jpeg)
+First, fork the repository from the [main branch](https://github.com/UBC-CIC/Legal-Aid-Tool), then clone your fork:
 
-You will be directed to the page where you can customize owner, repository name, etc, but you do not have to change any option. Simply click `Create fork` in the bottom right corner.
-
-Now let's clone the GitHub repository onto your machine. To do this:
-1. Create a folder on your computer to contain the project code.
-2. For an Apple computer, open Terminal. If on a Windows machine, open Command Prompt or Windows Terminal. Enter into the folder you made using the command `cd path/to/folder`. To find the path to a folder on a Mac, right click on the folder and press `Get Info`, then select the whole text found under `Where:` and copy with ⌘C. On Windows (not WSL), enter into the folder on File Explorer and click on the path box (located to the left of the sch bar), then copy the whole text that shows up.
-3. Clone the GitHub repository by entering the following command. Be sure to replace `<YOUR-GITHUB-USERNAME>` with your own username.
-```
+```bash
 git clone https://github.com/<YOUR-GITHUB-USERNAME>/Legal-Aid-Tool.git
-```
-The code should now be in the folder you created. Navigate into the root folder containing the entire codebase by running the command:
-```
 cd Legal-Aid-Tool
 ```
 
 #### Install Dependencies
 
-Go into the cdk folder which can be done with the following command:
+Install dependencies for both CDK infrastructure and frontend build:
 
-```
+```bash
 cd cdk
-```
-
-Now that you are in the cdk directory, install the core dependencies with the following command:
-
-```
 npm install
-```
-
-Go into the frontend folder which can be done with the following command:
-
-```
 cd ../frontend
-```
-
-Now that you are in the frontend directory, install the core dependencies with the following command:
-
-```
 npm install
+cd ../cdk
 ```
 
 ### Step 2: Upload Secrets
-You would have to supply your GitHub personal access token you created earlier when deploying the solution. Run the following command and ensure you replace `<YOUR-GITHUB-TOKEN>` and `<YOUR-PROFILE-NAME>` with your actual GitHub token and the appropriate AWS profile name.
+
+The current CDK code expects exact secret/parameter names and keys. Use the exact values below.
+
+For every command in this section:
+
+- Keep fixed names exactly as shown (for example `github-personal-access-token`, `laigo-owner-name`, `LAIGOSecrets`, `/LAIGO/AllowedEmailDomains`).
+- Replace only values inside angled brackets (`<...>`) with your real values.
+
+#### 1) GitHub token secret (required by Amplify + CodePipeline)
+
+Create a secret named `github-personal-access-token` with JSON key `my-github-token`.
+
+Before running the command, replace:
+
+- `<YOUR-GITHUB-TOKEN>` with your actual GitHub Personal Access Token (classic) value.
+- `<YOUR-PROFILE-NAME>` with your AWS CLI profile name.
+
 <details>
 <summary>macOS</summary>
 
 ```bash
 aws secretsmanager create-secret \
     --name github-personal-access-token \
-    --secret-string '{"my-github-token": "<YOUR-GITHUB-TOKEN>"}' \
+    --secret-string '{"my-github-token":"<YOUR-GITHUB-TOKEN>"}' \
     --profile <YOUR-PROFILE-NAME>
 ```
 
@@ -113,7 +113,7 @@ aws secretsmanager create-secret \
 ```cmd
 aws secretsmanager create-secret ^
     --name github-personal-access-token ^
-    --secret-string "{\"my-github-token\": \"<YOUR-GITHUB-TOKEN>\"}" ^
+    --secret-string "{\"my-github-token\":\"<YOUR-GITHUB-TOKEN>\"}" ^
     --profile <YOUR-PROFILE-NAME>
 ```
 
@@ -125,25 +125,32 @@ aws secretsmanager create-secret ^
 ```powershell
 aws secretsmanager create-secret `
     --name github-personal-access-token `
-    --secret-string '{"my-github-token": "<YOUR-GITHUB-TOKEN>"}' `
+    --secret-string '{"my-github-token":"<YOUR-GITHUB-TOKEN>"}' `
     --profile <YOUR-PROFILE-NAME>
 ```
+
 </details>
 
-&nbsp;
+#### 2) GitHub owner SSM parameter (required by Amplify + CodePipeline)
 
-Moreover, you will need to upload your github username to Amazon SSM Parameter Store. You can do so by running the following command. Make sure you replace `<YOUR-GITHUB-USERNAME>` and `<YOUR-PROFILE-NAME>` with your actual username and the appropriate AWS profile name.
+Create SSM parameter `laigo-owner-name` with your GitHub username.
+
+Before running the command, replace:
+
+- `<YOUR-GITHUB-USERNAME>` with your GitHub username only (do not include `@`).
+- `<YOUR-PROFILE-NAME>` with your AWS CLI profile name.
 
 <details>
 <summary>macOS</summary>
 
 ```bash
 aws ssm put-parameter \
-    --name "lat-owner-name" \
+    --name "laigo-owner-name" \
     --value "<YOUR-GITHUB-USERNAME>" \
     --type String \
     --profile <YOUR-PROFILE-NAME>
 ```
+
 </details>
 
 <details>
@@ -151,7 +158,7 @@ aws ssm put-parameter \
 
 ```cmd
 aws ssm put-parameter ^
-    --name "lat-owner-name" ^
+    --name "laigo-owner-name" ^
     --value "<YOUR-GITHUB-USERNAME>" ^
     --type String ^
     --profile <YOUR-PROFILE-NAME>
@@ -164,26 +171,33 @@ aws ssm put-parameter ^
 
 ```powershell
 aws ssm put-parameter `
-    --name "lat-owner-name" `
+    --name "laigo-owner-name" `
     --value "<YOUR-GITHUB-USERNAME>" `
     --type String `
     --profile <YOUR-PROFILE-NAME>
 ```
+
 </details>
 
-&nbsp;
+#### 3) Database bootstrap secret (required by Database stack)
 
-You would have to supply a custom database username when deploying the solution to increase security. Run the following command and ensure you replace `<YOUR-DB-USERNAME>` with the custom name of your choice.
+Create a secret named `LAIGOSecrets` with JSON key `DB_Username`.
+
+Before running the command, replace:
+
+- `<YOUR-DB-USERNAME>` with the database admin username you want to use for this deployment.
+- `<YOUR-PROFILE-NAME>` with your AWS CLI profile name.
 
 <details>
 <summary>macOS</summary>
 
 ```bash
 aws secretsmanager create-secret \
-    --name LATSecrets \
-    --secret-string "{\"DB_Username\":\"<YOUR-DB-USERNAME>\"}" 
-    --profile <your-profile-name>
+    --name LAIGOSecrets \
+    --secret-string '{"DB_Username":"<YOUR-DB-USERNAME>"}' \
+    --profile <YOUR-PROFILE-NAME>
 ```
+
 </details>
 
 <details>
@@ -191,9 +205,9 @@ aws secretsmanager create-secret \
 
 ```cmd
 aws secretsmanager create-secret ^
-    --name LATSecrets ^
-    --secret-string "{\"DB_Username\":\"<YOUR-DB-USERNAME>\"}"^
-    --profile <your-profile-name>
+    --name LAIGOSecrets ^
+    --secret-string "{\"DB_Username\":\"<YOUR-DB-USERNAME>\"}" ^
+    --profile <YOUR-PROFILE-NAME>
 ```
 
 </details>
@@ -203,33 +217,39 @@ aws secretsmanager create-secret ^
 
 ```powershell
 aws secretsmanager create-secret `
-    --name LATSecrets `
-    --secret-string "{\"DB_Username\":\"<YOUR-DB-USERNAME>\"}"`
-    --profile <your-profile-name>
+    --name LAIGOSecrets `
+    --secret-string '{"DB_Username":"<YOUR-DB-USERNAME>"}' `
+    --profile <YOUR-PROFILE-NAME>
 ```
+
 </details>
 
-&nbsp;
+For example:
 
-For example,
-
-```
-aws secretsmanager create-secret --name LATSecrets --secret-string "{\"DB_Username\":\"LATDatabaseUser\"}" --profile <your-profile-name>
+```bash
+aws secretsmanager create-secret --name LAIGOSecrets --secret-string '{"DB_Username":"LAIGODatabaseUser"}' --profile <YOUR-PROFILE-NAME>
 ```
 
+#### 4) Allowed signup domains (required by Cognito pre-signup Lambda)
 
-Finally, in order to restrict user sign up to specific email domains, you will need to upload a comma separated list of allowed email domains to Amazon SSM Parameter Store. You can do so by running the following command. Make sure you replace `<YOUR-ALLOWED-EMAIL-DOMAIN-LIST>` and `<YOUR-PROFILE-NAME>` with your actual list and the appropriate AWS profile name.
+Create secure SSM parameter `/LAIGO/AllowedEmailDomains` with a comma-separated domain list.
+
+Before running the command, replace:
+
+- `<YOUR-ALLOWED-EMAIL-DOMAIN-LIST>` with a comma-separated list like `example.com,school.edu`.
+- `<YOUR-PROFILE-NAME>` with your AWS CLI profile name.
 
 <details>
 <summary>macOS</summary>
 
 ```bash
 aws ssm put-parameter \
-    --name "/LAT/AllowedEmailDomains" \
+    --name "/LAIGO/AllowedEmailDomains" \
     --value "<YOUR-ALLOWED-EMAIL-DOMAIN-LIST>" \
     --type SecureString \
     --profile <YOUR-PROFILE-NAME>
 ```
+
 </details>
 
 <details>
@@ -237,7 +257,7 @@ aws ssm put-parameter \
 
 ```cmd
 aws ssm put-parameter ^
-    --name "/LAT/AllowedEmailDomains" ^
+    --name "/LAIGO/AllowedEmailDomains" ^
     --value "<YOUR-ALLOWED-EMAIL-DOMAIN-LIST>" ^
     --type SecureString ^
     --profile <YOUR-PROFILE-NAME>
@@ -250,82 +270,111 @@ aws ssm put-parameter ^
 
 ```powershell
 aws ssm put-parameter `
-    --name "/LAT/AllowedEmailDomains" `
+    --name "/LAIGO/AllowedEmailDomains" `
     --value "<YOUR-ALLOWED-EMAIL-DOMAIN-LIST>" `
     --type SecureString `
     --profile <YOUR-PROFILE-NAME>
 ```
+
 </details>
 
-&nbsp;
+Example:
 
-For example, an email domain list we reccommend for this specific project is:
-```
+```bash
 aws ssm put-parameter \
-    --name "/LAT/AllowedEmailDomains" \
+    --name "/LAIGO/AllowedEmailDomains" \
     --value "gmail.com,ubc.ca,student.ubc.ca,allard.ubc.ca" \
     --type SecureString \
     --profile <YOUR-PROFILE-NAME>
 ```
+
 ### Step 3: CDK Deployment
-It's time to set up everything that goes on behind the scenes! For more information on how the backend works, feel free to refer to the Architecture Deep Dive, but an understanding of the backend is not necessary for deployment.
 
-Open a terminal in the `/cdk` directory.
+It's time to set up everything that goes on behind the scenes. For more detail on the backend architecture, see the [Architecture Deep Dive](architectureDeepDive.md), but backend knowledge is not required for deployment.
 
-**Download Requirements**: Install requirements with npm by running `npm install` command.
+Open a terminal in the `cdk/` directory.
 
+#### 3.1 Download requirements
 
-**Initialize the CDK stack**(required only if you have not deployed any resources with CDK in this region before). Please replace `<your-profile-name>` with the appropriate AWS profile used earlier.
-```
-cdk synth --profile <your-profile-name>
-cdk bootstrap aws://<YOUR_AWS_ACCOUNT_ID>/<YOUR_ACCOUNT_REGION> --profile <your-profile-name>
-```
+Install requirements with npm:
 
-**Deploy CDK stack**
-You may run the following command to deploy the stacks all at once. Again, replace `<your-profile-name>` with the appropriate AWS profile used earlier. Also replace `<your-stack-prefix>` with the appropriate stack prefix.
-
-The stack prefix will be prefixed onto the physical names of the resources created during deployment. The `environment` parameter specifies the deployment environment (dev, test, prod), and the `version` parameter indicates the application version being deployed.
-
-If you have trouble running the above command, try removing all the \ and run it in one line.
-```
-cdk deploy --all \
- --parameters <your-stack-prefix>-Amplify:githubRepoName=Legal-Aid-Tool \
- --context StackPrefix=<your-stack-prefix> \
- --context environment=dev \ 
- --context version=1.2.0 \ 
- --context githubRepo=Legal-Aid-Tool \ 
- --profile <your-profile-name>
+```bash
+npm install
 ```
 
-For example: 
+#### 3.2 Initialize the CDK stack (only if needed)
 
+Before running these commands for first deployment, make sure Docker Desktop is open and running in the background so CDK can bundle assets and layers properly.
+
+Run this only if you have not deployed resources with CDK in this account/region before (or us-east-1).
+
+Replace:
+
+- `<YOUR-PROFILE-NAME>` with the AWS CLI profile used earlier.
+- `<YOUR_AWS_ACCOUNT_ID>` with your AWS account ID.
+- `<YOUR_PRIMARY_REGION>` with your primary deployment region.
+
+```bash
+npx cdk synth --profile <YOUR-PROFILE-NAME>
+npx cdk bootstrap aws://<YOUR_AWS_ACCOUNT_ID>/<YOUR_PRIMARY_REGION> --profile <YOUR-PROFILE-NAME>
+npx cdk bootstrap aws://<YOUR_AWS_ACCOUNT_ID>/us-east-1 --profile <YOUR-PROFILE-NAME>
 ```
-cdk deploy --all --parameters LegalAidTool-Amplify:githubRepoName=Legal-Aid-Tool --context StackPrefix=LegalAidTool --context environment=dev --context version=1.2.0 --context githubRepo=Legal-Aid-Tool --profile <your-profile-name>
+
+#### 3.3 Deploy CDK stacks
+
+Deploy all stacks at once. Replace:
+
+- `<YOUR-PROFILE-NAME>` with the AWS CLI profile used earlier.
+- `<YOUR-STACK-PREFIX>` with your stack prefix.
+
+The stack prefix is added to physical resource names. `Environment` specifies the deployment environment (`dev`, `test`, `prod`), and `Version` specifies the application version.
+
+```bash
+npx cdk deploy --all \
+    --parameters <YOUR-STACK-PREFIX>-Amplify:githubRepoName=Legal-Aid-Tool \
+    --context StackPrefix=<YOUR-STACK-PREFIX> \
+    --context Environment=dev \
+    --context Version=1.2.0 \
+    --context GithubRepo=Legal-Aid-Tool \
+    --profile <YOUR-PROFILE-NAME>
+```
+
+If you have trouble running the command with `\`, remove the line breaks and run it as one line.
+
+Example:
+
+```bash
+npx cdk deploy --all --parameters LegalAidTool-Amplify:githubRepoName=Legal-Aid-Tool --context StackPrefix=LegalAidTool --context Environment=dev --context Version=1.2.0 --context GithubRepo=Legal-Aid-Tool --profile <YOUR-PROFILE-NAME>
 ```
 
 ## Post-Deployment
+
 ### Step 1: Build AWS Amplify App
 
-1. Log in to AWS console, and navigate to **AWS Amplify**. You can do so by typing `Amplify` in the search bar at the top.
-2. From `All apps`, click `<stack-prefix>-Amplify-admin`.
-3. Then click `main` under `branches`
-4. Click `run job` and wait for the build to complete.
-5. You now have access to the `Amplify App ID` and the public domain name to use the web app.
-6. From `All apps`, click `<stack-prefix>-Amplify-public` and repeat steps 3-5.
+1. Log in to AWS console, and navigate to AWS Amplify. You can do so by typing Amplify in the search bar at the top.
+2. From All apps, click `<stack-prefix>-Amplify-admin`.
+3. Then click `main` under branches.
+4. Click **Run job** and wait for the build to complete.
+5. You now have access to the Amplify App ID and the public domain name to use the web app.
+
 ### Step 2: Visit Web App
+
 You can now navigate to the web app URL to see your application in action.
 
 ## Cleanup
+
 ### Taking down the deployed stack
-To take down the deployed stack for a fresh redeployment in the future, navigate to AWS Cloudformation on the AWS Console, click on the stack and hit Delete.
+
+To take down the deployed stack for a fresh redeployment in the future, navigate to AWS CloudFormation on the AWS Console, click on the stack and hit Delete.
 
 Please wait for the stacks in each step to be properly deleted before deleting the stack downstream.
 
 Also make sure to delete secrets in Secrets Manager.
 
 ### Troubleshooting Stack Deletion
+
 Sometimes stack deletion can fail. If you encounter issues while taking down your stacks:
 
-1. **Aurora Database**: Disable delete protection in Aurora for the database before attempting stack deletion, specifically when deleting the Database stack
-2. **ECR Repository**: Ensure that nothing is present in ECR (Elastic Container Registry). Sometimes the stacks fail deletion due to remaining container images.
-3. **Manual Cleanup**: If stacks continue to fail deletion, you may need to manually delete resources from ECR and other services before retrying the stack deletion.
+1. **Aurora Database**: disable delete protection in Aurora for the database before attempting stack deletion, specifically when deleting the Database stack.
+2. **ECR Repository**: ensure that nothing is present in ECR (Elastic Container Registry). Sometimes the stacks fail deletion due to remaining container images.
+3. **Manual Cleanup**: if stacks continue to fail deletion, you may need to manually delete resources from ECR and other services before retrying the stack deletion.
