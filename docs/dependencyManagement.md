@@ -15,14 +15,16 @@ The following Lambda functions have their Python dependencies locked using `uv`:
 
 ## Lambda Layers with Locked Dependencies
 
-The following Lambda layers have locked dependencies:
+The following Lambda layers have locked dependencies. Each layer is deployed as a **pre-built zip file** stored in `cdk/layers/`. CDK reads the zip directly — no Docker-based bundling is performed at deploy time.
 
-| Layer Name        | Location                      | Language | Lock File           |
-| ----------------- | ----------------------------- | -------- | ------------------- |
-| `psycopg3`        | `cdk/layers/psycopg3/`        | Python   | `requirements.txt`  |
-| `aws-jwt-verify`  | `cdk/layers/aws-jwt-verify/`  | Node.js  | `package-lock.json` |
-| `postgres`        | `cdk/layers/postgres/`        | Node.js  | `package-lock.json` |
-| `node-pg-migrate` | `cdk/layers/node-pg-migrate/` | Node.js  | `package-lock.json` |
+| Layer Name        | Source Directory              | Zip File                         | Language | Lock File           |
+| ----------------- | ----------------------------- | -------------------------------- | -------- | ------------------- |
+| `psycopg3`        | `cdk/layers/psycopg3/`        | `cdk/layers/psycopg3-layer.zip`  | Python   | `requirements.txt`  |
+| `aws-jwt-verify`  | `cdk/layers/aws-jwt-verify/`  | `cdk/layers/aws-jwt-verify.zip`  | Node.js  | `package-lock.json` |
+| `postgres`        | `cdk/layers/postgres/`        | `cdk/layers/postgres.zip`        | Node.js  | `package-lock.json` |
+| `node-pg-migrate` | `cdk/layers/node-pg-migrate/` | `cdk/layers/node-pg-migrate.zip` | Node.js  | `package-lock.json` |
+
+> **Important:** When you update a layer's dependencies, you must rebuild and re-zip the layer before running `cdk deploy`. The zip file is what gets uploaded to AWS.
 
 ## How Dependencies Were Locked
 
@@ -68,7 +70,49 @@ npm install
 
 This updates `package-lock.json` to lock all transitive dependencies.
 
-### 3. Key Locked Dependencies
+### 3. Building Layer Zip Files
+
+After updating a layer's lock file, you must rebuild the zip so CDK can deploy the updated layer.
+
+#### Node.js Layers
+
+Lambda layers for Node.js must contain a `nodejs/node_modules/` directory structure inside the zip. Run the following from the repository root, replacing `<layer-name>` and `<zip-name>` as appropriate:
+
+| Layer | `<layer-name>` | `<zip-name>` |
+| --- | --- | --- |
+| aws-jwt-verify | `aws-jwt-verify` | `aws-jwt-verify` |
+| postgres | `postgres` | `postgres` |
+| node-pg-migrate | `node-pg-migrate` | `node-pg-migrate` |
+
+```bash
+cd cdk/layers/<layer-name>
+npm install
+mkdir -p /tmp/<layer-name>-build/nodejs
+cp -r node_modules /tmp/<layer-name>-build/nodejs/
+cd /tmp/<layer-name>-build
+zip -r /path/to/repo/cdk/layers/<zip-name>.zip nodejs/
+```
+
+No Docker is required for Node.js layers.
+
+#### Python Layer — `psycopg3` (Requires Docker)
+
+`psycopg3` includes binary C extensions (`psycopg-binary`) that must be compiled for the Lambda Linux environment. Docker is required to produce a compatible build.
+
+With Docker Desktop running, execute:
+
+```bash
+docker run --rm \
+  -v "$(pwd)/cdk/layers/psycopg3":/var/task \
+  -v "$(pwd)/cdk/layers":/output \
+  public.ecr.aws/lambda/python:3.12 \
+  bash -c "pip install -r /var/task/requirements.txt -t /tmp/python && \
+           cd /tmp && zip -r /output/psycopg3-layer.zip python/"
+```
+
+This produces `cdk/layers/psycopg3-layer.zip` compiled for the Amazon Linux 2023 runtime used by Lambda Python 3.12.
+
+### 4. Key Locked Dependencies
 
 **Python (LLM Lambda Functions):**
 
@@ -208,17 +252,21 @@ Once the push is complete, CodePipeline will automatically detect and redeploy a
    - Python: pin in `requirements.in`, then run `uv pip compile ...`
    - Node.js: pin in `package.json` (or run `npm install <package>@<version>`)
 
-3. **Commit and Push Changes:**
+3. **Rebuild the layer zip** (Lambda layers only — see [Building Layer Zip Files](#3-building-layer-zip-files) for the exact commands):
 
-Once lock files (`requirements.txt` and/or `package-lock.json`) have been updated:
+   - **Node.js layers**: run `npm install` in the layer directory, then re-zip into `cdk/layers/<name>.zip` with the `nodejs/node_modules/` structure. No Docker required.
+   - **`psycopg3` layer**: run the Docker build command to produce a Linux-compatible `cdk/layers/psycopg3-layer.zip`. Docker Desktop must be running.
 
-- Python Dockerized Lambda functions: commit and push to trigger CI/CD redeployment.
-- Lambda layers: run `cdk deploy` (with Docker Desktop running) to publish updated layer assets:
+4. **Deploy and push:**
 
-  ```bash
-  cd cdk
-  npx cdk deploy --all \
-    --context StackPrefix=<YOUR-STACK-PREFIX> \
-    --context GithubRepo=<YOUR-GITHUB-REPO> \
-    --profile <YOUR-PROFILE-NAME>
-  ```
+   Run `cdk deploy` to publish the updated zip as a new layer version:
+
+   ```bash
+   cd cdk
+   npx cdk deploy --all \
+     --context StackPrefix=<YOUR-STACK-PREFIX> \
+     --context GithubRepo=<YOUR-GITHUB-REPO> \
+     --profile <YOUR-PROFILE-NAME>
+   ```
+
+   Then commit and push the updated lock files and zip file to keep the repository in sync.
