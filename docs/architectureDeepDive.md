@@ -2,7 +2,7 @@
 
 ## Architecture
 
-![Architecture Diagram](./media/architecture.png)
+<img src="./media/architecture.png" alt="Architecture Diagram" style="width:100%;" />
 
 
 1. **Edge and security** – All incoming traffic passes through **AWS Shield**, **Amazon CloudFront**, and **AWS WAF** to provide Layer 3, 4, and 7 protection. This layer flags potential threats, manages rate-limiting, and ensures secure content delivery before requests reach the application.
