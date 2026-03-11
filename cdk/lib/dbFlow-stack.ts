@@ -68,16 +68,7 @@ export class DBFlowStack extends Stack {
       this,
       "nodePgMigrateLayer",
       {
-        code: lambda.Code.fromAsset("./layers/node-pg-migrate", {
-          bundling: {
-            image: lambda.Runtime.NODEJS_22_X.bundlingImage,
-            command: [
-              "bash",
-              "-c",
-              "npm install && mkdir -p /asset-output/nodejs && cp -r node_modules /asset-output/nodejs/",
-            ],
-          },
-        }),
+        code: lambda.Code.fromAsset("./layers/node-pg-migrate.zip"),
         compatibleRuntimes: [lambda.Runtime.NODEJS_22_X],
         description: "Lambda layer with node-pg-migrate and pg",
       },

@@ -92,48 +92,21 @@ export class ApiGatewayStack extends cdk.Stack {
 
     // Create Lambda layer for JWT verification (Node.js)
     const jwt = new lambda.LayerVersion(this, "aws-jwt-verify", {
-      code: lambda.Code.fromAsset("./layers/aws-jwt-verify", {
-        bundling: {
-          image: lambda.Runtime.NODEJS_22_X.bundlingImage,
-          command: [
-            "bash",
-            "-c",
-            "npm install && mkdir -p /asset-output/nodejs && cp -r node_modules /asset-output/nodejs/",
-          ],
-        },
-      }),
+      code: lambda.Code.fromAsset("./layers/aws-jwt-verify.zip"),
       compatibleRuntimes: [lambda.Runtime.NODEJS_22_X],
       description: "Contains the aws-jwt-verify library for JS",
     });
 
     // Create Lambda layer for PostgreSQL client (Node.js)
     const postgres = new lambda.LayerVersion(this, "postgres", {
-      code: lambda.Code.fromAsset("./layers/postgres", {
-        bundling: {
-          image: lambda.Runtime.NODEJS_22_X.bundlingImage,
-          command: [
-            "bash",
-            "-c",
-            "npm install && mkdir -p /asset-output/nodejs && cp -r node_modules /asset-output/nodejs/",
-          ],
-        },
-      }),
+      code: lambda.Code.fromAsset("./layers/postgres.zip"),
       compatibleRuntimes: [lambda.Runtime.NODEJS_22_X],
       description: "Contains the postgres library for JS",
     });
 
     // Create Lambda layer for psycopg3 (Python 3.12) - for simple Lambda functions
     const psycopg3Layer = new lambda.LayerVersion(this, `${id}-Psycopg3Layer`, {
-      code: lambda.Code.fromAsset("./layers/psycopg3", {
-        bundling: {
-          image: lambda.Runtime.PYTHON_3_12.bundlingImage,
-          command: [
-            "bash",
-            "-c",
-            "pip install -r requirements.txt -t /asset-output/python",
-          ],
-        },
-      }),
+      code: lambda.Code.fromAsset("./layers/psycopg3-layer.zip"),
       compatibleRuntimes: [lambda.Runtime.PYTHON_3_12],
       description: "psycopg3 with binary and pool support for Python 3.12",
     });
