@@ -28,7 +28,6 @@ Before you deploy, ensure the following are available locally:
 - [AWS CLI v2](https://aws.amazon.com/cli/)
 - [Node.js](https://nodejs.org/en/download) _(20.x or newer recommended)_
 - [npm](https://docs.npmjs.com/downloading-and-installing-node-js-and-npm)
-- [Docker](https://docs.docker.com/get-docker/) _(required for CDK asset bundling; Docker Desktop must be running in the background during first deployment)_
 
 You also need AWS credentials configured (`aws configure` or SSO profile), and permissions to create IAM roles, VPC, RDS, API Gateway, Cognito, Lambda, Amplify, CodePipeline, CodeBuild, ECR, WAF, SSM, Secrets Manager, and CloudWatch resources.
 
@@ -303,8 +302,6 @@ npm install
 ```
 
 #### 3.2 Initialize the CDK stack (only if needed)
-
-Before running these commands for first deployment, make sure Docker Desktop is open and running in the background so CDK can bundle assets and layers properly.
 
 Run this only if you have not deployed resources with CDK in this account/region before (or us-east-1).
 
