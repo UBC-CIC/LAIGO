@@ -215,6 +215,38 @@ const routes = {
       handleError(err, response);
     }
   },
+  "GET /student/role_labels": async (event, env) => {
+    const { response, sqlConnection } = env;
+    const defaults = {
+      student:    { singular: "Advocate",   plural: "Advocates"   },
+      instructor: { singular: "Supervisor", plural: "Supervisors" },
+      admin:      { singular: "Admin",      plural: "Admins"      },
+    };
+    try {
+      const rows = await sqlConnection`
+        SELECT role_key, singular_label, plural_label
+        FROM role_labels
+        ORDER BY role_key
+      `;
+      if (rows.length === 0) {
+        response.statusCode = 200;
+        response.body = JSON.stringify(defaults);
+        return;
+      }
+      const labels = { ...defaults };
+      for (const row of rows) {
+        labels[row.role_key] = {
+          singular: row.singular_label,
+          plural:   row.plural_label,
+        };
+      }
+      response.statusCode = 200;
+      response.body = JSON.stringify(labels);
+    } catch (err) {
+      console.error("Failed to fetch role labels:", err);
+      handleError(err, response);
+    }
+  },
   "GET /student/get_cases": async (event, env) => {
     const { response, user, user_id, userEmail, sqlConnection } = env;
     // Use user_id from database user metadata

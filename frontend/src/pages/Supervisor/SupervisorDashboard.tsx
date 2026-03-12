@@ -21,6 +21,7 @@ import SearchIcon from "@mui/icons-material/Search";
 import SupervisorHeader from "../../components/SupervisorHeader";
 import CaseCard from "../../components/CaseCard";
 import CaseDeleteConfirmationDialog from "../../components/Case/CaseDeleteConfirmationDialog";
+import { useRoleLabels } from "../../contexts/RoleLabelsContext";
 
 interface UserInfo {
   userId: string;
@@ -50,6 +51,7 @@ interface Case {
 
 const SupervisorDashboard = ({ userInfo }: SupervisorDashboardProps) => {
   const navigate = useNavigate();
+  const { plural } = useRoleLabels();
   const [activeTab, setActiveTab] = useState(0);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -366,7 +368,7 @@ const SupervisorDashboard = ({ userInfo }: SupervisorDashboardProps) => {
                   aria-controls="tabpanel-0"
                 />
                 <Tab
-                  label={`All Advocate Cases (${visibleAllStudentCases.length})`}
+                  label={`All ${plural("student")} Cases (${visibleAllStudentCases.length})`}
                   id="tab-1"
                   aria-controls="tabpanel-1"
                 />
@@ -526,7 +528,7 @@ const SupervisorDashboard = ({ userInfo }: SupervisorDashboardProps) => {
                       >
                         {stats.associatesAssigned}
                       </Box>{" "}
-                      Advocates Assigned
+                      {plural("student")} Assigned
                     </Typography>
                   </Box>
                 </Box>
@@ -535,7 +537,7 @@ const SupervisorDashboard = ({ userInfo }: SupervisorDashboardProps) => {
                   {visibleAllStudentCases.length === 0 ? (
                     <Grid size={{ xs: 12 }}>
                       <Typography sx={{ color: "var(--text-secondary)" }}>
-                        No advocate cases found matching current filters.
+                        No {plural("student").toLowerCase()} cases found matching current filters.
                       </Typography>
                     </Grid>
                   ) : (

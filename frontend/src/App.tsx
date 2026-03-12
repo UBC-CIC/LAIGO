@@ -21,6 +21,7 @@ import InterviewAssistant from "./pages/Case/InterviewAssistant";
 import { UserProvider } from "./contexts/UserContext";
 import type { UserInfo } from "./contexts/UserContext";
 import { NotificationProvider } from "./contexts/NotificationContext";
+import { RoleLabelsProvider } from "./contexts/RoleLabelsContext";
 import DisclaimerModal from "./components/DisclaimerModal";
 import { signOut } from "aws-amplify/auth";
 
@@ -251,6 +252,7 @@ function App() {
 
   return (
     <UserProvider value={{ userInfo, setUserInfo }}>
+      <RoleLabelsProvider>
       <NotificationProvider>
         <div className="app">
           <Routes>
@@ -284,6 +286,7 @@ function App() {
           />
         </div>
       </NotificationProvider>
+      </RoleLabelsProvider>
     </UserProvider>
   );
 }

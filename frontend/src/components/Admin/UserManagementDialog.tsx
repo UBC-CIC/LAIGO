@@ -21,6 +21,7 @@ import {
   Divider,
 } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
+import { useRoleLabels } from "../../contexts/RoleLabelsContext";
 
 interface User {
   user_id: string;
@@ -43,6 +44,7 @@ const UserManagementDialog: React.FC<UserManagementDialogProps> = ({
   onSuccess,
   user,
 }) => {
+  const { singular } = useRoleLabels();
   // Role management state
   const [role, setRole] = useState("student");
   const [roleLoading, setRoleLoading] = useState(false);
@@ -316,9 +318,9 @@ const UserManagementDialog: React.FC<UserManagementDialogProps> = ({
                   },
                 }}
               >
-                <MenuItem value="admin">Admin</MenuItem>
-                <MenuItem value="instructor">Instructor</MenuItem>
-                <MenuItem value="student">Student</MenuItem>
+                <MenuItem value="admin">{singular("admin")}</MenuItem>
+                <MenuItem value="instructor">{singular("instructor")}</MenuItem>
+                <MenuItem value="student">{singular("student")}</MenuItem>
               </Select>
             </FormControl>
             <Button

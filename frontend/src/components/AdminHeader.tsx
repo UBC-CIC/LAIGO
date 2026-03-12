@@ -7,6 +7,7 @@ import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
 import AccountCircleOutlinedIcon from "@mui/icons-material/AccountCircleOutlined";
 import { signOut } from "aws-amplify/auth";
 import { useUser } from "../contexts/UserContext";
+import { useRoleLabels } from "../contexts/RoleLabelsContext";
 
 const iconStyle = { color: "var(--text-secondary)", fontSize: "1.5rem" };
 const labelStyle = {
@@ -49,6 +50,7 @@ const HeaderItem: React.FC<HeaderItemProps> = ({ icon, label, onClick }) => (
 const AdminHeader: React.FC = () => {
   const navigate = useNavigate();
   const { userInfo } = useUser();
+  const { plural } = useRoleLabels();
   const [profileMenuAnchor, setProfileMenuAnchor] =
     useState<null | HTMLElement>(null);
 
@@ -84,7 +86,7 @@ const AdminHeader: React.FC = () => {
       <Box sx={{ display: "flex" }}>
         <HeaderItem
           icon={<PeopleAltOutlinedIcon sx={iconStyle} />}
-          label="Supervisors"
+          label={plural("instructor")}
           onClick={() => navigate("/")}
         />
         <HeaderItem

@@ -12,6 +12,7 @@ import AdminHeader from "../../components/AdminHeader";
 import ModelConfig from "../../components/Admin/ModelConfig";
 import PromptEditor from "../../components/Admin/PromptEditor";
 import PromptPlayground from "../../components/Admin/PromptPlayground";
+import RoleLabelsConfig from "../../components/Admin/RoleLabelsConfig";
 
 // --- Types based on DB Schema & Requirements ---
 
@@ -72,6 +73,12 @@ const SECTIONS: SidebarSection[] = [
         label: "Prompt Playground",
         description:
           "Test and refine prompts in-place. Note: Create new versions in specific reasoning/assessment blocks first.",
+      },
+      {
+        id: "role-labels",
+        label: "Role Labels",
+        description:
+          "Customise the display names shown in the UI for each user role (e.g. change \"Advocate\" to \"Client\").",
       },
     ],
   },
@@ -282,6 +289,8 @@ const AIConfiguration = () => {
               <ModelConfig />
             ) : selectedBlockId === "playground" ? (
               <PromptPlayground />
+            ) : selectedBlockId === "role-labels" ? (
+              <RoleLabelsConfig />
             ) : target && target.block_type ? (
               <PromptEditor
                 // Key forces remount when category/block changes, ensuring fresh state

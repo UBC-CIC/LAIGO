@@ -23,6 +23,7 @@ import ArchiveIcon from "@mui/icons-material/Archive";
 import UnarchiveIcon from "@mui/icons-material/Unarchive";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import type { CaseOutletContext } from "./CaseLayout";
+import { useRoleLabels } from "../../contexts/RoleLabelsContext";
 
 interface CaseData {
   case_id: string;
@@ -59,6 +60,7 @@ interface EditedCase {
 const CaseOverview: React.FC = () => {
   const { caseId } = useParams();
   const { refreshCaseData } = useOutletContext<CaseOutletContext>();
+  const { plural } = useRoleLabels();
   const [caseData, setCaseData] = useState<CaseData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [editMode, setEditMode] = useState<boolean>(false);
@@ -641,7 +643,7 @@ const CaseOverview: React.FC = () => {
                     mb: 1,
                   }}
                 >
-                  Supervisors Available for Review
+                  {plural("instructor")} Available for Review
                 </Typography>
 
                 <Box
@@ -714,7 +716,7 @@ const CaseOverview: React.FC = () => {
                     {supervisors.length === 0 && (
                       <Box sx={{ p: 3, width: "100%", textAlign: "center" }}>
                         <Typography color="textSecondary">
-                          No supervisors available.
+                          No {plural("instructor").toLowerCase()} available.
                         </Typography>
                       </Box>
                     )}

@@ -1272,6 +1272,61 @@ const routes = {
       response.body = JSON.stringify({ error: "Request body is missing" });
     }
   },
+  "PUT /admin/role_labels": async (event, env) => {
+    const { response, user_id, sqlConnection } = env;
+    if (!event.body) {
+      response.statusCode = 400;
+      response.body = JSON.stringify({ error: "Request body is missing" });
+      return;
+    }
+    let body;
+    try {
+      body = JSON.parse(event.body);
+    } catch {
+      response.statusCode = 400;
+      response.body = JSON.stringify({ error: "Invalid JSON body" });
+      return;
+    }
+    const validKeys = ["student", "instructor", "admin"];
+    for (const key of validKeys) {
+      const entry = body[key];
+      if (
+        !entry ||
+        typeof entry.singular !== "string" ||
+        typeof entry.plural !== "string" ||
+        entry.singular.trim() === "" ||
+        entry.plural.trim() === "" ||
+        entry.singular.length > 64 ||
+        entry.plural.length > 64
+      ) {
+        response.statusCode = 400;
+        response.body = JSON.stringify({
+          error: `Invalid or missing labels for role: ${key}`,
+        });
+        return;
+      }
+    }
+    try {
+      for (const key of validKeys) {
+        const { singular, plural } = body[key];
+        await sqlConnection`
+          INSERT INTO role_labels (role_key, singular_label, plural_label, updated_by, updated_at)
+          VALUES (${key}, ${singular.trim()}, ${plural.trim()}, ${user_id}, now())
+          ON CONFLICT (role_key) DO UPDATE
+            SET singular_label = EXCLUDED.singular_label,
+                plural_label   = EXCLUDED.plural_label,
+                updated_by     = EXCLUDED.updated_by,
+                updated_at     = now()
+        `;
+      }
+      response.statusCode = 200;
+      response.body = JSON.stringify({ message: "Role labels updated successfully" });
+    } catch (err) {
+      console.error("Error updating role labels:", err);
+      response.statusCode = 500;
+      response.body = JSON.stringify({ error: "Failed to update role labels" });
+    }
+  },
 };
 
 exports.handler = async (event, context) => {

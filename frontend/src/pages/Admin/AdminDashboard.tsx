@@ -26,6 +26,7 @@ import EditIcon from "@mui/icons-material/Edit";
 import AdminHeader from "../../components/AdminHeader";
 import UserManagementDialog from "../../components/Admin/UserManagementDialog";
 import { fetchAuthSession } from "aws-amplify/auth";
+import { useRoleLabels } from "../../contexts/RoleLabelsContext";
 
 interface UserInfo {
   userId: string;
@@ -48,6 +49,7 @@ interface User {
 }
 
 const AdminDashboard: React.FC<AdminDashboardProps> = () => {
+  const { singular } = useRoleLabels();
   const [users, setUsers] = useState<User[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -124,19 +126,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = () => {
     if (roles.includes("admin")) return "admin";
     if (roles.includes("instructor")) return "instructor";
     return roles[0];
-  };
-
-  const formatRoleDisplay = (role: string) => {
-    switch (role) {
-      case "admin":
-        return "Admin";
-      case "instructor":
-        return "Instructor";
-      case "student":
-        return "Student";
-      default:
-        return role.charAt(0).toUpperCase() + role.slice(1);
-    }
   };
 
   return (
@@ -229,9 +218,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = () => {
               }}
             >
               <MenuItem value="all">All Roles</MenuItem>
-              <MenuItem value="admin">Admin</MenuItem>
-              <MenuItem value="instructor">Instructor</MenuItem>
-              <MenuItem value="student">Student</MenuItem>
+              <MenuItem value="admin">{singular("admin")}</MenuItem>
+              <MenuItem value="instructor">{singular("instructor")}</MenuItem>
+              <MenuItem value="student">{singular("student")}</MenuItem>
             </Select>
           </FormControl>
         </Box>
@@ -297,7 +286,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                 </TableHead>
                 <TableBody>
                   {users.map((user) => {
-                    const primaryRole = getPrimaryRole(user.roles);
                     return (
                       <TableRow
                         key={user.user_id}
@@ -343,7 +331,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = () => {
                             borderBottom: "1px solid var(--border)",
                           }}
                         >
-                          {formatRoleDisplay(primaryRole)}
+                          {singular(getPrimaryRole(user.roles))}
                         </TableCell>
                         <TableCell
                           align="right"

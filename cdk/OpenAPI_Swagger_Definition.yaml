@@ -1508,6 +1508,88 @@ paths:
         httpMethod: "POST"
         type: "aws_proxy"
 
+  /admin/role_labels:
+    options:
+      summary: CORS support
+      description: |
+        Enable CORS by returning correct headers
+      responses:
+        200:
+          $ref: "#/components/responses/Success"
+      x-amazon-apigateway-integration:
+        type: mock
+        requestTemplates:
+          application/json: |
+            {
+              "statusCode" : 200
+            }
+        responses:
+          default:
+            statusCode: "200"
+            responseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key'"
+              method.response.header.Access-Control-Allow-Methods: "'PUT,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            responseTemplates:
+              application/json: |
+                {}
+    put:
+      tags:
+        - Admin
+      summary: Update configurable role display labels
+      operationId: admin_role_labels_PUT
+      security:
+        - adminAuthorizer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - student
+                - instructor
+                - admin
+              properties:
+                student:
+                  type: object
+                  required: [singular, plural]
+                  properties:
+                    singular: { type: string, maxLength: 64 }
+                    plural:   { type: string, maxLength: 64 }
+                instructor:
+                  type: object
+                  required: [singular, plural]
+                  properties:
+                    singular: { type: string, maxLength: 64 }
+                    plural:   { type: string, maxLength: 64 }
+                admin:
+                  type: object
+                  required: [singular, plural]
+                  properties:
+                    singular: { type: string, maxLength: 64 }
+                    plural:   { type: string, maxLength: 64 }
+      responses:
+        "200":
+          description: Role labels updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        "400":
+          description: Invalid request body
+        "500":
+          description: Internal Server Error
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${adminFunction.Arn}/invocations"
+        passthroughBehavior: "when_no_match"
+        httpMethod: "POST"
+        type: "aws_proxy"
+
   /instructor/health:
     get:
       summary: Instructor health check
@@ -2946,6 +3028,61 @@ paths:
                 properties:
                   value:
                     type: string
+        "500":
+          description: Internal Server Error
+      security:
+        - studentAuthorizer: []
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${studentFunction.Arn}/invocations"
+        passthroughBehavior: "when_no_match"
+        httpMethod: "POST"
+        type: "aws_proxy"
+
+  /student/role_labels:
+    options:
+      summary: CORS support
+      description: |
+        Enable CORS by returning correct headers
+      responses:
+        200:
+          $ref: "#/components/responses/Success"
+      x-amazon-apigateway-integration:
+        type: mock
+        requestTemplates:
+          application/json: |
+            {
+              "statusCode" : 200
+            }
+        responses:
+          default:
+            statusCode: "200"
+            responseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            responseTemplates:
+              application/json: |
+                {}
+    get:
+      tags:
+        - Student
+      summary: Get configurable role display labels
+      operationId: get_role_labels_GET
+      responses:
+        "200":
+          description: Role label map retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+                  properties:
+                    singular:
+                      type: string
+                    plural:
+                      type: string
         "500":
           description: Internal Server Error
       security:
