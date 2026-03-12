@@ -247,7 +247,6 @@ const AdvocateDashboard: React.FC = () => {
       <Container maxWidth="lg" sx={{ mt: 8, mb: 4, flexGrow: 1 }}>
         <Typography
           variant="h4"
-          align="center"
           gutterBottom
           sx={{ fontWeight: "bold", mb: 4 }}
         >

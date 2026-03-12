@@ -17,9 +17,9 @@ const ROLE_KEYS = ["student", "instructor", "admin"] as const;
 type RoleKey = (typeof ROLE_KEYS)[number];
 
 const DEFAULT_DISPLAY: Record<RoleKey, string> = {
-  student:    "Advocate / Student",
-  instructor: "Supervisor / Instructor",
-  admin:      "Admin",
+  student:    "student",
+  instructor: "instructor",
+  admin:      "admin",
 };
 
 const RoleLabelsConfig = () => {
@@ -114,7 +114,7 @@ const RoleLabelsConfig = () => {
   };
 
   return (
-    <Box>
+    <Box sx={{ textAlign: "left" }}>
       <Typography variant="h6" sx={{ mb: 1, color: "var(--text)" }}>
         Role Display Labels
       </Typography>
@@ -140,9 +140,15 @@ const RoleLabelsConfig = () => {
               onChange={(e) => handleChange(key, "singular", e.target.value)}
               inputProps={{ maxLength: 64 }}
               size="small"
-              sx={{ minWidth: 200 }}
-              InputLabelProps={{ style: { color: "var(--text-secondary)" } }}
-              InputProps={{ style: { color: "var(--text)" } }}
+              sx={{
+                minWidth: 200,
+                "& .MuiOutlinedInput-root": {
+                  color: "var(--text)",
+                  backgroundColor: "var(--background)",
+                  "& fieldset": { borderColor: "var(--border)" },
+                },
+                "& .MuiInputLabel-root": { color: "var(--text-secondary)" },
+              }}
             />
             <TextField
               label="Plural label"
@@ -150,9 +156,15 @@ const RoleLabelsConfig = () => {
               onChange={(e) => handleChange(key, "plural", e.target.value)}
               inputProps={{ maxLength: 64 }}
               size="small"
-              sx={{ minWidth: 200 }}
-              InputLabelProps={{ style: { color: "var(--text-secondary)" } }}
-              InputProps={{ style: { color: "var(--text)" } }}
+              sx={{
+                minWidth: 200,
+                "& .MuiOutlinedInput-root": {
+                  color: "var(--text)",
+                  backgroundColor: "var(--background)",
+                  "& fieldset": { borderColor: "var(--border)" },
+                },
+                "& .MuiInputLabel-root": { color: "var(--text-secondary)" },
+              }}
             />
           </Box>
         </Box>
@@ -177,6 +189,7 @@ const RoleLabelsConfig = () => {
         open={snackbar.open}
         autoHideDuration={4000}
         onClose={() => setSnackbar((s) => ({ ...s, open: false }))}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
       >
         <Alert
           severity={snackbar.severity}
