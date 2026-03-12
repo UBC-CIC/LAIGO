@@ -24,7 +24,8 @@ async function putSecret(name, secret) {
   );
 }
 
-async function runMigrations(db) {
+
+async function runMigrations(db, direction = "up", count = Infinity) {
   // Use SSL with relaxed certificate validation for RDS Proxy self-signed certificates
   const dbUrl = `postgresql://${encodeURIComponent(
     db.username
@@ -36,8 +37,8 @@ async function runMigrations(db) {
     await migrate({
       databaseUrl: dbUrl,
       dir: path.join(__dirname, "migrations"),
-      direction: "up",
-      count: Infinity,
+      direction,
+      count,
       migrationsTable: "pgmigrations",
       logger: console,
       createSchema: false,
@@ -59,8 +60,8 @@ async function runMigrations(db) {
   }
 }
 
-async function ensureBaselineOrMigrate(db) {
-  await runMigrations(db);
+async function ensureBaselineOrMigrate(db, direction, count) {
+  await runMigrations(db, direction, count);
 }
 
 async function createAppUsers(
@@ -176,16 +177,26 @@ async function createAppUsers(
   });
 }
 
-exports.handler = async function () {
+exports.handler = async function (event = {}) {
   const { DB_SECRET_NAME, DB_USER_SECRET_NAME, DB_TABLE_CREATOR_SECRET_NAME } =
-    process.env; // Table creator secret name
+    process.env;
   const adminDb = await getSecret(DB_SECRET_NAME);
-  await ensureBaselineOrMigrate(adminDb);
+
+  // Allow manual invocation with { "direction": "down", "count": 1 } for rollbacks.
+  // Normal CDK-triggered runs omit these fields and default to up/all.
+  const direction = event.direction || "up";
+  const count = event.count !== undefined ? event.count : Infinity;
+
+  await ensureBaselineOrMigrate(adminDb, direction, count);
+
+  // Only re-create app users on "up" runs; no-op for rollbacks.
+  if (direction !== "down") {
   await createAppUsers(
     adminDb,
     DB_SECRET_NAME,
     DB_USER_SECRET_NAME,
     DB_TABLE_CREATOR_SECRET_NAME
   );
-  return { status: "ok" };
+  }
+  return { status: "ok", direction, count };
 };
