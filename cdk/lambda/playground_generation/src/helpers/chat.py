@@ -1,5 +1,6 @@
 import boto3, re, time
 from langchain_aws import ChatBedrock
+from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_community.chat_message_histories import DynamoDBChatMessageHistory
@@ -284,15 +285,12 @@ def get_streaming_response(
             ("human", "{input}"),
         ]
     )
-    conversational_chain = RunnableWithMessageHistory(
-        qa_prompt | llm,
-        lambda _: DynamoDBChatMessageHistory(
-            table_name=table_name, 
-            session_id=case_id
-        ),
-        input_messages_key="input",
-        history_messages_key="chat_history",
+    history = DynamoDBChatMessageHistory(
+        table_name=table_name,
+        session_id=case_id,
     )
+    conversational_chain = qa_prompt | llm
+    chat_history = history.messages
     
     # Send start message
     send_to_websocket("start")
@@ -301,13 +299,20 @@ def get_streaming_response(
     try:
         # Stream the response
         for chunk in conversational_chain.stream(
-            {"input": query},
-            config={"configurable": {"session_id": case_id}}
+            {"input": query, "chat_history": chat_history}
         ):
             chunk_content = _extract_chunk_text(chunk)
             if chunk_content:
                 full_response += chunk_content
                 send_to_websocket("chunk", content=chunk_content)
+
+        # Persist only complete messages to avoid storing stream chunk message types.
+        history.add_messages(
+            [
+                HumanMessage(content=query),
+                AIMessage(content=full_response),
+            ]
+        )
         
         # Send complete message
         send_to_websocket("complete", data={"llm_output": full_response})
@@ -389,16 +394,12 @@ def get_playground_streaming_response(
             ("human", "{input}"),
         ]
     )
-    # Wrap with message history for multi-turn conversation
-    conversational_chain = RunnableWithMessageHistory(
-        qa_prompt | llm,
-        lambda _: DynamoDBChatMessageHistory(
-            table_name=table_name, 
-            session_id=session_id,
-        ),
-        input_messages_key="input",
-        history_messages_key="chat_history",
+    history = DynamoDBChatMessageHistory(
+        table_name=table_name,
+        session_id=session_id,
     )
+    conversational_chain = qa_prompt | llm
+    chat_history = history.messages
     
     # Send start message
     send_to_websocket("start")
@@ -407,13 +408,20 @@ def get_playground_streaming_response(
     try:
         # Stream the response
         for chunk in conversational_chain.stream(
-            {"input": query},
-            config={"configurable": {"session_id": session_id}}
+            {"input": query, "chat_history": chat_history}
         ):
             chunk_content = _extract_chunk_text(chunk)
             if chunk_content:
                 full_response += chunk_content
                 send_to_websocket("chunk", content=chunk_content)
+
+        # Persist only complete messages to avoid storing stream chunk message types.
+        history.add_messages(
+            [
+                HumanMessage(content=query),
+                AIMessage(content=full_response),
+            ]
+        )
 
         
         # Send complete message
