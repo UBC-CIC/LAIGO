@@ -11,6 +11,9 @@ export interface UserInfo {
 interface UserContextType {
   userInfo: UserInfo | null;
   setUserInfo: (user: UserInfo | null) => void;
+  activePerspective: string | null;
+  setActivePerspective: (perspective: string | null) => void;
+  availablePerspectives: string[];
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);

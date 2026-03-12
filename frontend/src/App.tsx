@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Amplify } from "aws-amplify";
 import { getCurrentUser, fetchAuthSession } from "aws-amplify/auth";
 import { Routes, Route, Navigate } from "react-router-dom";
@@ -62,6 +62,7 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [showDisclaimer, setShowDisclaimer] = useState(false);
   const [disclaimerText, setDisclaimerText] = useState("");
+  const [activePerspective, setActivePerspectiveState] = useState<string | null>(null);
 
   useEffect(() => {
     const checkAuthState = async () => {
@@ -108,6 +109,17 @@ function App() {
 
           setUserInfo(userInfo);
           setIsAuthenticated(true);
+
+          // Restore saved perspective or fall back to highest-priority available role
+          const savedPerspective = localStorage.getItem("activePerspective");
+          const roles: string[] = profile.roles;
+          const priorityOrder = ["admin", "instructor", "student"];
+          const defaultPerspective = priorityOrder.find((r) => roles.includes(r)) ?? null;
+          const resolvedPerspective =
+            savedPerspective && roles.includes(savedPerspective)
+              ? savedPerspective
+              : defaultPerspective;
+          setActivePerspectiveState(resolvedPerspective);
 
           if (
             userInfo.groups.includes("student") ||
@@ -185,18 +197,21 @@ function App() {
     }
   };
 
-  const getUserRole = (groups: string[]): string => {
-    if (groups.includes("admin")) return "admin";
-    if (groups.includes("instructor")) return "supervisor";
-    return "advocate";
-  };
+  const setActivePerspective = useCallback((perspective: string | null) => {
+    setActivePerspectiveState(perspective);
+    if (perspective) {
+      localStorage.setItem("activePerspective", perspective);
+    } else {
+      localStorage.removeItem("activePerspective");
+    }
+  }, []);
+
+  const availablePerspectives = userInfo?.groups ?? [];
 
   const RoleBasedRoutes = () => {
     if (!userInfo) return null;
 
-    const role = getUserRole(userInfo.groups);
-
-    switch (role) {
+    switch (activePerspective) {
       case "admin":
         return (
           <Routes>
@@ -206,7 +221,7 @@ function App() {
             <Route path="*" element={<AdminDashboard userInfo={userInfo} />} />
           </Routes>
         );
-      case "supervisor":
+      case "instructor":
         return (
           <Routes>
             <Route
@@ -221,7 +236,7 @@ function App() {
             />
           </Routes>
         );
-      case "advocate":
+      case "student":
       default:
         return (
           <Routes>
@@ -251,7 +266,7 @@ function App() {
   }
 
   return (
-    <UserProvider value={{ userInfo, setUserInfo }}>
+    <UserProvider value={{ userInfo, setUserInfo, activePerspective, setActivePerspective, availablePerspectives }}>
       <RoleLabelsProvider>
       <NotificationProvider>
         <div className="app">

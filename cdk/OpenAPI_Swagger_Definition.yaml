@@ -354,7 +354,7 @@ paths:
     put:
       tags:
         - Admin
-      summary: Update a user's role
+      summary: Add or remove a single role from a user
       operationId: admin_user_role_PUT
       security:
         - adminAuthorizer: []
@@ -366,18 +366,22 @@ paths:
               type: object
               required:
                 - email
-                - new_role
+                - operation
+                - role
               properties:
                 email:
                   type: string
-                new_role:
+                operation:
+                  type: string
+                  enum: [add, remove]
+                role:
                   type: string
                   enum: [admin, instructor, student]
       responses:
         "200":
           description: Role updated successfully
         "400":
-          description: Bad request
+          description: Bad request (invalid fields, or would leave user with no roles)
         "404":
           description: User not found
         "500":

@@ -8,6 +8,7 @@ import NotificationButton from "./Notifications/NotificationButton";
 import AccountCircleOutlinedIcon from "@mui/icons-material/AccountCircleOutlined";
 import { signOut } from "aws-amplify/auth";
 import { useUser } from "../contexts/UserContext";
+import { useRoleLabels } from "../contexts/RoleLabelsContext";
 import HelpButton from "./Help/HelpButton";
 
 const iconStyle = { color: "var(--text-secondary)", fontSize: "1.5rem" };
@@ -50,7 +51,8 @@ const HeaderItem: React.FC<HeaderItemProps> = ({ icon, label, onClick }) => (
 
 const SupervisorHeader: React.FC = () => {
   const navigate = useNavigate();
-  const { userInfo } = useUser();
+  const { userInfo, setActivePerspective, availablePerspectives } = useUser();
+  const { singular } = useRoleLabels();
   const [profileMenuAnchor, setProfileMenuAnchor] =
     useState<null | HTMLElement>(null);
 
@@ -144,6 +146,30 @@ const SupervisorHeader: React.FC = () => {
           },
         }}
       >
+        {availablePerspectives
+          .filter((p) => p !== "instructor")
+          .map((p) => (
+            <MenuItem
+              key={p}
+              onClick={() => {
+                setActivePerspective(p);
+                navigate("/");
+                handleProfileClose();
+              }}
+              sx={{
+                color: "var(--text)",
+                backgroundColor: "inherit",
+                fontSize: "0.7rem",
+                fontFamily: "var(--font-family)",
+                "&:hover": {
+                  color: "var(--text-secondary)",
+                  backgroundColor: "inherit",
+                },
+              }}
+            >
+              Switch to {singular(p)}
+            </MenuItem>
+          ))}
         <MenuItem
           onClick={handleSignOut}
           sx={{

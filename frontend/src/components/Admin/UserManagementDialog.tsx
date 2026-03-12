@@ -1,24 +1,22 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
+  Alert,
+  Box,
   Button,
+  Checkbox,
+  CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Divider,
+  FormControlLabel,
+  IconButton,
   List,
   ListItem,
   ListItemText,
-  IconButton,
+  TextField,
   Typography,
-  Box,
-  CircularProgress,
-  Alert,
-  MenuItem,
-  Select,
-  FormControl,
-  InputLabel,
-  Divider,
 } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
 import { useRoleLabels } from "../../contexts/RoleLabelsContext";
@@ -38,6 +36,10 @@ interface UserManagementDialogProps {
   user: User | null;
 }
 
+const ROLE_KEYS = ["admin", "instructor", "student"] as const;
+
+type RoleKey = (typeof ROLE_KEYS)[number];
+
 const UserManagementDialog: React.FC<UserManagementDialogProps> = ({
   open,
   onClose,
@@ -45,44 +47,23 @@ const UserManagementDialog: React.FC<UserManagementDialogProps> = ({
   user,
 }) => {
   const { singular } = useRoleLabels();
-  // Role management state
-  const [role, setRole] = useState("student");
-  const [roleLoading, setRoleLoading] = useState(false);
-  const [roleError, setRoleError] = useState<string | null>(null);
-  const [roleSuccess, setRoleSuccess] = useState<boolean>(false);
 
-  // Student assignment state
+  const [pendingRoles, setPendingRoles] = useState<string[]>([]);
+  const [roleLoading, setRoleLoading] = useState<RoleKey | null>(null);
+  const [roleError, setRoleError] = useState<string | null>(null);
+  const [roleSuccess, setRoleSuccess] = useState<string | null>(null);
+
   const [assignedStudents, setAssignedStudents] = useState<any[]>([]);
   const [studentsLoading, setStudentsLoading] = useState(false);
   const [studentEmailInput, setStudentEmailInput] = useState("");
   const [assignmentActionLoading, setAssignmentActionLoading] = useState(false);
   const [assignmentError, setAssignmentError] = useState<string | null>(null);
 
-  const isInstructor = user && user.roles.includes("instructor");
-
-  useEffect(() => {
-    if (open && user) {
-      // Determine primary role for display
-      const primaryRole = user.roles.includes("admin")
-        ? "admin"
-        : user.roles.includes("instructor")
-          ? "instructor"
-          : "student";
-
-      setRole(primaryRole);
-      setRoleError(null);
-      setRoleSuccess(false);
-      setAssignmentError(null);
-      setStudentEmailInput("");
-
-      if (isInstructor) {
-        fetchAssignedStudents();
-      }
-    }
-  }, [open, user]);
+  const isInstructor = pendingRoles.includes("instructor");
 
   const fetchAssignedStudents = async () => {
     if (!user) return;
+
     setStudentsLoading(true);
     try {
       const { fetchAuthSession } = await import("aws-amplify/auth");
@@ -94,9 +75,7 @@ const UserManagementDialog: React.FC<UserManagementDialogProps> = ({
       const response = await fetch(
         `${import.meta.env.VITE_API_ENDPOINT}/admin/instructorStudents?instructor_id=${user.user_id}`,
         {
-          headers: {
-            Authorization: token,
-          },
+          headers: { Authorization: token },
         },
       );
 
@@ -114,17 +93,33 @@ const UserManagementDialog: React.FC<UserManagementDialogProps> = ({
     }
   };
 
-  const handleUpdateRole = async () => {
+  useEffect(() => {
+    if (open && user) {
+      setPendingRoles(user.roles ?? []);
+      setRoleError(null);
+      setRoleSuccess(null);
+      setAssignmentError(null);
+      setStudentEmailInput("");
+
+      if (user.roles.includes("instructor")) {
+        fetchAssignedStudents();
+      }
+    }
+  }, [open, user]);
+
+  const handleToggleRole = async (toggledRole: RoleKey, newChecked: boolean) => {
     if (!user) return;
-    setRoleLoading(true);
+
+    if (!newChecked && pendingRoles.length === 1) return;
+
+    setRoleLoading(toggledRole);
     setRoleError(null);
-    setRoleSuccess(false);
+    setRoleSuccess(null);
 
     try {
       const { fetchAuthSession } = await import("aws-amplify/auth");
       const session = await fetchAuthSession();
       const token = session.tokens?.idToken?.toString();
-
       if (!token) throw new Error("No auth token");
 
       const response = await fetch(
@@ -137,29 +132,45 @@ const UserManagementDialog: React.FC<UserManagementDialogProps> = ({
           },
           body: JSON.stringify({
             email: user.user_email,
-            new_role: role,
+            operation: newChecked ? "add" : "remove",
+            role: toggledRole,
           }),
         },
       );
 
       const data = await response.json();
-
       if (!response.ok) {
         throw new Error(data.error || "Failed to update role");
       }
 
-      setRoleSuccess(true);
-      onSuccess(); // Refresh user list in dashboard
+      const updatedRoles = newChecked
+        ? [...pendingRoles, toggledRole]
+        : pendingRoles.filter((r) => r !== toggledRole);
+      setPendingRoles(updatedRoles);
+
+      if (newChecked && toggledRole === "instructor") {
+        fetchAssignedStudents();
+      }
+
+      setRoleSuccess(
+        `${singular(toggledRole)} role ${newChecked ? "added" : "removed"}.`,
+      );
+      onSuccess();
     } catch (err) {
       console.error("Error updating role:", err);
       setRoleError(err instanceof Error ? err.message : "An error occurred.");
     } finally {
-      setRoleLoading(false);
+      setRoleLoading(null);
     }
   };
 
   const handleAssignStudent = async () => {
     if (!user || !studentEmailInput.trim()) return;
+
+    if (studentEmailInput.trim().toLowerCase() === user.user_email.toLowerCase()) {
+      setAssignmentError("An instructor cannot be assigned as their own student.");
+      return;
+    }
 
     setAssignmentActionLoading(true);
     setAssignmentError(null);
@@ -185,7 +196,6 @@ const UserManagementDialog: React.FC<UserManagementDialogProps> = ({
       );
 
       const data = await response.json();
-
       if (!response.ok) {
         throw new Error(data.error || "Failed to assign student");
       }
@@ -205,8 +215,9 @@ const UserManagementDialog: React.FC<UserManagementDialogProps> = ({
   const handleRemoveStudent = async (studentId: string) => {
     if (!user) return;
 
-    if (!window.confirm("Are you sure you want to remove this assignment?"))
+    if (!window.confirm("Are you sure you want to remove this assignment?")) {
       return;
+    }
 
     setAssignmentActionLoading(true);
     setAssignmentError(null);
@@ -258,10 +269,7 @@ const UserManagementDialog: React.FC<UserManagementDialogProps> = ({
         },
       }}
     >
-      <DialogTitle
-        component="div"
-        sx={{ borderBottom: "1px solid var(--border)", pb: 1 }}
-      >
+      <DialogTitle component="div" sx={{ borderBottom: "1px solid var(--border)", pb: 1 }}>
         <Typography variant="h6">
           Manage User: {user.first_name} {user.last_name}
         </Typography>
@@ -271,13 +279,8 @@ const UserManagementDialog: React.FC<UserManagementDialogProps> = ({
       </DialogTitle>
 
       <DialogContent sx={{ pt: 3 }}>
-        {/* Role Section */}
         <Box sx={{ mb: 4 }}>
-          <Typography
-            variant="subtitle1"
-            gutterBottom
-            sx={{ fontWeight: "bold" }}
-          >
+          <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: "bold" }}>
             Role Management
           </Typography>
 
@@ -288,84 +291,48 @@ const UserManagementDialog: React.FC<UserManagementDialogProps> = ({
           )}
           {roleSuccess && (
             <Alert severity="success" sx={{ mb: 2 }}>
-              Role updated successfully.
+              {roleSuccess}
             </Alert>
           )}
 
-          <Box display="flex" gap={2} alignItems="center">
-            <FormControl fullWidth size="small">
-              <InputLabel
-                id="role-select-label"
-                sx={{ color: "var(--text-secondary)" }}
-              >
-                Role
-              </InputLabel>
-              <Select
-                labelId="role-select-label"
-                value={role}
-                label="Role"
-                onChange={(e) => setRole(e.target.value)}
-                sx={{
-                  color: "var(--text)",
-                  "& .MuiOutlinedInput-notchedOutline": {
-                    borderColor: "var(--border)",
-                  },
-                  "&:hover .MuiOutlinedInput-notchedOutline": {
-                    borderColor: "var(--text-secondary)",
-                  },
-                  "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
-                    borderColor: "var(--primary)",
-                  },
-                }}
-              >
-                <MenuItem value="admin">{singular("admin")}</MenuItem>
-                <MenuItem value="instructor">{singular("instructor")}</MenuItem>
-                <MenuItem value="student">{singular("student")}</MenuItem>
-              </Select>
-            </FormControl>
-            <Button
-              variant="contained"
-              onClick={handleUpdateRole}
-              disabled={
-                roleLoading ||
-                role ===
-                  (user.roles.includes("admin")
-                    ? "admin"
-                    : user.roles.includes("instructor")
-                      ? "instructor"
-                      : "student")
-              }
-              sx={{
-                width: 100,
-                whiteSpace: "nowrap",
-                backgroundColor: "var(--primary)",
-                color: "var(--text)",
-                "&:hover": { backgroundColor: "var(--primary)", opacity: 0.9 },
-                "&.Mui-disabled": {
-                  backgroundColor: "var(--border)",
-                  color: "var(--text-secondary)",
-                },
-              }}
-            >
-              {roleLoading ? (
-                <CircularProgress size={20} color="inherit" />
-              ) : (
-                "Update"
-              )}
-            </Button>
+          <Box display="flex" flexDirection="column" gap={1}>
+            {ROLE_KEYS.map((role) => {
+              const checked = pendingRoles.includes(role);
+              const isLast = checked && pendingRoles.length === 1;
+              const inFlight = roleLoading === role;
+              return (
+                <Box key={role} display="flex" alignItems="center" gap={1}>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={checked}
+                        disabled={inFlight || isLast}
+                        onChange={(e) => handleToggleRole(role, e.target.checked)}
+                        sx={{
+                          color: "var(--text-secondary)",
+                          "&.Mui-checked": { color: "var(--primary)" },
+                        }}
+                      />
+                    }
+                    label={<Typography sx={{ color: "var(--text)" }}>{singular(role)}</Typography>}
+                  />
+                  {inFlight && <CircularProgress size={16} sx={{ color: "var(--primary)" }} />}
+                  {isLast && (
+                    <Typography variant="caption" sx={{ color: "var(--text-secondary)" }}>
+                      (last role)
+                    </Typography>
+                  )}
+                </Box>
+              );
+            })}
           </Box>
         </Box>
 
-        {/* Students Section - Only for instructors */}
         {isInstructor && (
           <>
             <Divider sx={{ my: 3, borderColor: "var(--border)" }} />
             <Box>
-              <Typography
-                variant="subtitle1"
-                gutterBottom
-                sx={{ fontWeight: "bold" }}
-              >
+              <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: "bold" }}>
                 Assigned Students
               </Typography>
 
@@ -387,34 +354,23 @@ const UserManagementDialog: React.FC<UserManagementDialogProps> = ({
                     "& .MuiOutlinedInput-root": {
                       color: "var(--text)",
                       "& fieldset": { borderColor: "var(--border)" },
-                      "&:hover fieldset": {
-                        borderColor: "var(--text-secondary)",
-                      },
+                      "&:hover fieldset": { borderColor: "var(--text-secondary)" },
                     },
                   }}
                 />
                 <Button
                   variant="contained"
                   onClick={handleAssignStudent}
-                  disabled={
-                    assignmentActionLoading || !studentEmailInput.trim()
-                  }
+                  disabled={assignmentActionLoading || !studentEmailInput.trim()}
                   sx={{
                     width: 100,
                     whiteSpace: "nowrap",
                     backgroundColor: "var(--primary)",
                     color: "var(--text)",
-                    "&:hover": {
-                      backgroundColor: "var(--primary)",
-                      opacity: 0.9,
-                    },
+                    "&:hover": { backgroundColor: "var(--primary)", opacity: 0.9 },
                   }}
                 >
-                  {assignmentActionLoading ? (
-                    <CircularProgress size={20} color="inherit" />
-                  ) : (
-                    "Assign"
-                  )}
+                  {assignmentActionLoading ? <CircularProgress size={20} color="inherit" /> : "Assign"}
                 </Button>
               </Box>
 

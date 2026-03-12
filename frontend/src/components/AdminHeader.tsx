@@ -49,8 +49,8 @@ const HeaderItem: React.FC<HeaderItemProps> = ({ icon, label, onClick }) => (
 
 const AdminHeader: React.FC = () => {
   const navigate = useNavigate();
-  const { userInfo } = useUser();
-  const { plural } = useRoleLabels();
+  const { userInfo, setActivePerspective, availablePerspectives } = useUser();
+  const { plural, singular } = useRoleLabels();
   const [profileMenuAnchor, setProfileMenuAnchor] =
     useState<null | HTMLElement>(null);
 
@@ -142,6 +142,30 @@ const AdminHeader: React.FC = () => {
           },
         }}
       >
+        {availablePerspectives
+          .filter((p) => p !== "admin")
+          .map((p) => (
+            <MenuItem
+              key={p}
+              onClick={() => {
+                setActivePerspective(p);
+                navigate("/");
+                handleProfileClose();
+              }}
+              sx={{
+                color: "var(--text)",
+                backgroundColor: "inherit",
+                fontSize: "0.7rem",
+                fontFamily: "var(--font-family)",
+                "&:hover": {
+                  color: "var(--text-secondary)",
+                  backgroundColor: "inherit",
+                },
+              }}
+            >
+              Switch to {singular(p)}
+            </MenuItem>
+          ))}
         <MenuItem
           onClick={handleSignOut}
           sx={{

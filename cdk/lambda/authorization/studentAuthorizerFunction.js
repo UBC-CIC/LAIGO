@@ -53,9 +53,9 @@ let userMetadataCache = {};
  * Query database to resolve idpId to userId and retrieve user metadata
  * Implements execution context caching to avoid repeated queries
  */
-async function getUserMetadataFromDatabase(idpId) {
+async function getUserMetadataFromDatabase(idpId, forceRefresh = false) {
   // Check cache first
-  if (userMetadataCache[idpId]) {
+  if (!forceRefresh && userMetadataCache[idpId]) {
     logger.info("Using cached user metadata", { idpId });
     return userMetadataCache[idpId];
   }
@@ -168,9 +168,37 @@ exports.handler = async (event) => {
       throw new Error("Unauthorized");
     }
 
+    const parts = event.methodArn.split("/");
+    const method = parts[2] || "";
+    const routePath = `/${parts.slice(3).join("/")}`;
+    const requestKey = `${method} ${routePath}`;
+
+    // Shared endpoints under /student/* that are intentionally available to
+    // any authenticated user, regardless of whether they hold the student role.
+    const sharedRoutes = new Set([
+      "GET /student/profile",
+      "GET /student/role_labels",
+      "GET /student/get_disclaimer",
+      "POST /student/accept_disclaimer",
+    ]);
+
+    // Enforce student role for all non-shared /student/* endpoints.
+    if ((!user.roles || !user.roles.includes("student")) && !sharedRoutes.has(requestKey)) {
+      // Roles can be stale in warm Lambda cache right after admin updates.
+      // Re-fetch once from DB before denying.
+      user = await getUserMetadataFromDatabase(idpId, true);
+
+      if (!user.roles || !user.roles.includes("student")) {
+        logger.warn("Access denied: user does not have student role", {
+          userId: user.user_id,
+          requestKey,
+        });
+        throw new Error("Unauthorized");
+      }
+    }
+
     // Use a scoped wildcard to allow caching across all endpoints within this role's scope
     // This allows the authorizer to be cached while ensuring the policy doesn't leak access to other roles.
-    const parts = event.methodArn.split("/");
     const resource = parts.slice(0, 2).join("/") + "/*/student/*";
 
     // Build IAM policy allowing access

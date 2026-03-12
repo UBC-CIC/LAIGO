@@ -53,9 +53,9 @@ let userMetadataCache = {};
  * Query database to resolve idpId to userId and retrieve user metadata
  * Implements execution context caching to avoid repeated queries
  */
-async function getUserMetadataFromDatabase(idpId) {
+async function getUserMetadataFromDatabase(idpId, forceRefresh = false) {
   // Check cache first
-  if (userMetadataCache[idpId]) {
+  if (!forceRefresh && userMetadataCache[idpId]) {
     logger.info("Using cached user metadata", { idpId });
     return userMetadataCache[idpId];
   }
@@ -166,6 +166,19 @@ exports.handler = async (event) => {
         errorMessage: error.message,
       });
       throw new Error("Unauthorized");
+    }
+
+    // Enforce role membership — user must hold the admin role in the database.
+    // Re-fetch once from DB before deny to avoid stale warm-cache role misses.
+    if (!user.roles || !user.roles.includes("admin")) {
+      user = await getUserMetadataFromDatabase(idpId, true);
+
+      if (!user.roles || !user.roles.includes("admin")) {
+        logger.warn("Access denied: user does not have admin role", {
+          userId: user.user_id,
+        });
+        throw new Error("Unauthorized");
+      }
     }
 
     // Use a scoped wildcard to allow caching across all endpoints within this role's scope

@@ -71,6 +71,15 @@ const routes = {
 
         const student = studentLookup[0];
 
+        // Prevent self-assignment (a user with both roles assigning themselves)
+        if (instructor_id === student.user_id) {
+          response.statusCode = 400;
+          response.body = JSON.stringify({
+            error: "An instructor cannot be assigned as their own student.",
+          });
+          return;
+        }
+
         // Perform the database insertion
         const assignment = await sqlConnection`
                 INSERT INTO "instructor_students" (instructor_id, student_id)
@@ -218,20 +227,28 @@ const routes = {
     const { response, user, user_id, sqlConnection } = env;
     try {
       if (!event.body) throw new Error("Request body is missing");
-      const { email: userEmail, new_role } = parseBody(event.body);
+      const { email: userEmail, operation, role } = parseBody(event.body);
 
-      if (!userEmail || !new_role) {
+      if (!userEmail || !operation || !role) {
         response.statusCode = 400;
         response.body = JSON.stringify({
-          error: "email and new_role are required",
+          error: "email, operation, and role are required",
         });
         return;
       }
 
       const validRoles = ["admin", "instructor", "student"];
-      if (!validRoles.includes(new_role)) {
+      const validOperations = ["add", "remove"];
+
+      if (!validRoles.includes(role)) {
         response.statusCode = 400;
         response.body = JSON.stringify({ error: "Invalid role" });
+        return;
+      }
+
+      if (!validOperations.includes(operation)) {
+        response.statusCode = 400;
+        response.body = JSON.stringify({ error: "Invalid operation. Use 'add' or 'remove'" });
         return;
       }
 
@@ -248,17 +265,45 @@ const routes = {
       const userIdToUpdate = existingUser[0].user_id;
       const currentRoles = existingUser[0].roles || [];
 
-      await sqlConnection`
-            UPDATE "users"
-            SET roles = ARRAY[${new_role}]::user_role[]
-            WHERE user_id = ${userIdToUpdate};
-          `;
+      if (operation === "add") {
+        // Append role only if not already present
+        if (!currentRoles.includes(role)) {
+          await sqlConnection`
+                UPDATE "users"
+                SET roles = array_append(roles, ${role}::user_role)
+                WHERE user_id = ${userIdToUpdate};
+              `;
+        }
+      } else {
+        // Remove role only if present
+        if (!currentRoles.includes(role)) {
+          response.statusCode = 400;
+          response.body = JSON.stringify({ error: "User does not have this role" });
+          return;
+        }
 
-      if (new_role !== "instructor" && currentRoles.includes("instructor")) {
+        // Prevent empty role set
+        if (currentRoles.length === 1) {
+          response.statusCode = 400;
+          response.body = JSON.stringify({
+            error: "Cannot remove the user's only role",
+          });
+          return;
+        }
+
         await sqlConnection`
-              DELETE FROM "instructor_students"
-              WHERE instructor_id = ${userIdToUpdate};
+              UPDATE "users"
+              SET roles = array_remove(roles, ${role}::user_role)
+              WHERE user_id = ${userIdToUpdate};
             `;
+
+        // Clean up instructor assignments when instructor role is removed
+        if (role === "instructor") {
+          await sqlConnection`
+                DELETE FROM "instructor_students"
+                WHERE instructor_id = ${userIdToUpdate};
+              `;
+        }
       }
 
       response.statusCode = 200;
