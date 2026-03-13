@@ -721,8 +721,9 @@ const InterviewAssistant: React.FC = () => {
               <Typography
                 variant="caption"
                 sx={{
-                  color: "var(--text-secondary)",
+                  color: "var(--text)",
                   fontSize: "0.75rem",
+                  fontWeight: 600,
                   whiteSpace: "nowrap",
                   fontFamily: "Outfit",
                 }}
@@ -734,12 +735,19 @@ const InterviewAssistant: React.FC = () => {
                   variant="determinate"
                   value={progress}
                   sx={{
-                    height: 4,
-                    borderRadius: 2,
-                    backgroundColor: "var(--border)",
+                    color: "var(--feedback)",
+                    height: 6,
+                    borderRadius: 999,
+                    backgroundColor: "var(--feedback-bg)",
+                    boxShadow: "0 0 0 1px var(--feedback-bg)",
+                    "&.MuiLinearProgress-root": {
+                      backgroundColor: "var(--feedback-bg)",
+                    },
                     "& .MuiLinearProgress-bar": {
-                      backgroundColor: "var(--primary)",
-                      borderRadius: 2,
+                      backgroundColor: "var(--feedback) !important",
+                      backgroundImage:
+                        "linear-gradient(90deg, var(--feedback), rgba(var(--primary-rgb), 1))",
+                      borderRadius: 999,
                     },
                   }}
                 />
