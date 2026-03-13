@@ -179,4 +179,14 @@
 | `last_updated`    | Timestamp of the last modification to the disclaimer          |
 | `is_active`       | Indicates whether this disclaimer is the currently active one |
 
+##### `role_labels`
+
+| Column           | Description                                                                 |
+| ---------------- | --------------------------------------------------------------------------- |
+| `role_key`       | PK using `user_role` enum (`student`/`instructor`/`admin`)                 |
+| `singular_label` | Configurable singular display label for a role (e.g., Student, Instructor) |
+| `plural_label`   | Configurable plural display label for a role (e.g., Students, Instructors) |
+| `updated_by`     | FK→`users`; user who last updated the role label pair                       |
+| `updated_at`     | Timestamp of the most recent role label update                              |
+
 ---
