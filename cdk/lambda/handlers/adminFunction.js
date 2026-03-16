@@ -866,9 +866,9 @@ const routes = {
 
       if (!event.body) throw new Error("Request body is missing");
 
-      const { disclaimer_text, version_name, author_id } = parseBody(
-        event.body,
-      );
+      const { disclaimer_text, version_name, author_id } = parseBody(event.body);
+      // Prefer the authenticated user as author, but allow explicit override when provided
+      const disclaimerAuthorId = author_id || user_id;
 
       if (!disclaimer_text)
         throw new Error("Missing 'disclaimer_text' in request body");
@@ -884,7 +884,7 @@ const routes = {
       // Insert new disclaimer with versioning
       const insertResult = await sqlConnection`
             INSERT INTO "disclaimers" (disclaimer_text, version_number, version_name, author_id, is_active)
-            VALUES (${disclaimer_text}, ${nextVersion}, ${version_name || null}, ${author_id || null}, false)
+            VALUES (${disclaimer_text}, ${nextVersion}, ${version_name || null}, ${disclaimerAuthorId || null}, false)
             RETURNING *;
           `;
 
@@ -908,7 +908,7 @@ const routes = {
               d.time_created,
               d.last_updated,
               d.is_active,
-              CONCAT(u.first_name, ' ', u.last_name) AS author_name
+              NULLIF(TRIM(CONCAT(u.first_name, ' ', u.last_name)), '') AS author_name
             FROM "disclaimers" d
             LEFT JOIN "users" u ON d.author_id = u.user_id
             ORDER BY d.version_number DESC;
