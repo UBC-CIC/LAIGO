@@ -86,7 +86,7 @@ const AdminHeader: React.FC = () => {
       <Box sx={{ display: "flex" }}>
         <HeaderItem
           icon={<PeopleAltOutlinedIcon sx={iconStyle} />}
-          label={plural("instructor")}
+          label={"Users"}
           onClick={() => navigate("/")}
         />
         <HeaderItem
