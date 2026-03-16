@@ -2,8 +2,10 @@ import React, { useEffect, useState, useCallback } from "react";
 import { Box, CssBaseline } from "@mui/material";
 import { Outlet, useParams } from "react-router-dom";
 import { fetchAuthSession } from "aws-amplify/auth";
+import { useUser } from "../../contexts/UserContext";
 
 import AdvocateHeader from "../../components/AdvocateHeader";
+import SupervisorHeader from "../../components/SupervisorHeader";
 import SideMenu from "./SideMenu";
 import Notepad from "../../components/Case/Notepad";
 
@@ -19,6 +21,8 @@ export interface CaseOutletContext {
 
 const CaseLayout: React.FC = () => {
   const { caseId } = useParams();
+  const { activePerspective } = useUser();
+  const isInstructor = activePerspective === "instructor" || activePerspective === "admin";
   const [caseTitle, setCaseTitle] = useState<string>("");
   const [caseStatus, setCaseStatus] = useState<string>("");
   const [unlockedBlocks, setUnlockedBlocks] = useState<string[]>([]);
@@ -78,9 +82,6 @@ const CaseLayout: React.FC = () => {
       const session = await fetchAuthSession();
       const token = session.tokens?.idToken?.toString();
       const cId = session.tokens?.idToken?.payload?.sub;
-      const groups = session.tokens?.idToken?.payload?.[
-        "cognito:groups"
-      ] as string[];
 
       if (cId) setCognitoId(cId);
 
@@ -121,7 +122,7 @@ const CaseLayout: React.FC = () => {
       }
 
       // Update view_case if student
-      if (!groups?.includes("instructor") && !groups?.includes("admin")) {
+      if (!isInstructor) {
         const viewRes = await fetch(
           `${
             import.meta.env.VITE_API_ENDPOINT
@@ -198,7 +199,7 @@ const CaseLayout: React.FC = () => {
         zIndex={1201}
         bgcolor="var(--header)"
       >
-        <AdvocateHeader />
+        {isInstructor ? <SupervisorHeader /> : <AdvocateHeader />}
       </Box>
 
       {/* Side Menu */}
