@@ -21,24 +21,19 @@ interface HelpDialogProps {
 
 const FAQ_ITEMS = [
   {
-    question: "How does the progression work?",
+    question: "How do the stages work?",
     answer:
-      "You begin restricted to the Intake & Facts stage. Complete it to unlock Legal Analysis. After completing Legal Analysis, both Contrarian Analysis and Policy Context will unlock simultaneously.",
-  },
-  {
-    question: "How do I unlock the next stage?",
-    answer:
-      "Engage naturally with the Assistant by asking questions and exploring the topics relevant to the specific stage. The system analyzes your conversation depth and coverage of key legal concepts to determine when you are ready to advance.",
+      "All stages are available from the start. Each stage represents a different part of the case process, and you can move between them freely. Your progress bar reflects how thoroughly you've explored the case within and across stages.",
   },
   {
     question: "How can I track my progress?",
     answer:
-      "A progress bar at the top of the chat visualizes your standing. As you cover more ground in your conversation, this bar will fill up. Reaching 100% will trigger a notification that the next stage is unlocked.",
+      "A progress bar at the top of the chat shows how thorough your thinking has been. It fills as you cover more ground and explore more relevant concepts; higher percentages mean you've covered more of what the system expects.",
   },
   {
     question: "What is the feedback panel for?",
     answer:
-      "The feedback panel on the right is your real-time coach. It offers specific insights into what information you might be missing or which topics require further exploration. You will only receive feedback while the next stage is locked.",
+      "The feedback panel on the right is your real-time coach. It suggests missing information and areas to explore more deeply, and it updates continuously as you interact with the assistant.",
   },
 ];
 
