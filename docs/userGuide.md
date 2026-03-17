@@ -17,113 +17,134 @@ All users start by filling their information at the sign up page.
 You then get a confirmation email to verify your email and are registered as a user. 
 
 ## Administrator View
-Once you have an account, to become an adminstrator, you need to change your user group with Cognito through the AWS Console:
-![image](./media/user-pool.png)
+### Manage Users Page
+The first user that signs up will automatically be assigned an administrator role. Upon logging in as an administrator, they will see the following home page where they can view all the users in the application, their names, emails, and highest privilege role. Administrators can browse for specific users using the searchbar, or filter to view certain roles using the role dropdown menu.:
+![image](./media/admin-home.png)
 
-After clicking the user pool of the project, navigate to "Users" on the left navigation bar and find your email:
-![image](./media/users.png)
+Clicking the pencil icon for a user opens the user management panel, where administrators can assign/remove different roles for a user:
+![image](./media/admin-manage-user.png)
 
-After clicking your email, you can add the 'admin' user group. Start by scrolling down to "Group memberships" and selecting "Add user to group".  
-Select the "admin" group from available options. And lastly, confirm that the user has been added to the admin group by checking the "group attributes" of the user:
+If the selected user is an instructor/supervisor, administrators can also assign students to the instructor by entering the student's email, and remove existing students by clicking the red trash icon. 
+![image](./media/admin-manage-instructor.png)
 
-<p>
-  <img src="./media/add-user-group.png" width="45%" style="display:inline-block; margin-right:10px;" />
-  <img src="./media/select-admin.png" width="45%" style="display:inline-block;" />
-</p>
+### Settings Page
+Clickin on the settings icon in the header opens the main settings page. The left hand-side shows a sidebar to swap between several different settings and panels, the right-hand side shows the setting configuration options.
 
-![image](./media/admin-added.png)
+TODO: INSERT IMAGE OF OVERALL SETTINGS PAGE HERE
+#### General Configurations
+The General Configurations tab allows administrators to modify the configuration of the default model used across the application, message limits for users, and file upload limits:
+![image](media/admin-general-configs.png)
 
+#### Role Labels
+The Role Labels tab allows administrators to modify the user terminology displayed across the application. 
+![image](media/admin-role-labels.png)
 
-Once the 'admin' user group is added, delete the 'student' user group:
+#### Prompt Management 
 
-<p>
-  <img src="./media/delete-student.png" width="45%" style="display:inline-block; margin-right:10px;" />
-  <img src="./media/admin-only.png" width="45%" style="display:inline-block;" />
-</p>
+Administrators can edit the system prompts that run various parts of the application. 
 
+The Version History panel allows admins to view existing versions of a particular system prompt, change the current active prompt for the application, delete versions, and also load versions into the Prompt Workspace to make modifications.
 
-Upon logging in as an administrator, they see the following home page:
-![image](./media/admin-home-page.png)
-
-Clicking the "ADD INSTRUCTOR" button opens a pop-up where the administrator can enter the email address of a user with an account to add them as an instructor:
-![image](./media/admin-add-instructor.png)
-
-The administrator can also click an instructor in the list which opens a pop-up of instructor details including their name, email and students they have been assigned to. 
-![image](./media/admin-instructor-details.png)
-
-From here, administrators can assign students to the instructor by selecting "Add Student" dropdown and selecting the Student to be assigned. 
-![image](./media/admin-select-student.png)
-Once selected, click on "Assign Student" and student will be assigned to Instructor. Once assigned, the student's name will appear under the Instructor details. To unassign a student click on the "x" mark next to the student's name :
-
-![image](./media/admin-unassign-student.png)
-
-In the "AI Settings" page, the administrator can set a daily message limit for each user which will alter how many times a user can send messages to the AI Assistant:
-![image](./media/admin-message-limit.png)
-
-In this page, the administrator can also edit the current system prompt and view previous system prompts which will be fed to the AI Assistant.
-![image](./media/admin-prompt.png)
-
-On the Waiver Page, the admin can update the waiver which will be shown to students upon first sign up:
-![image](./media/admin-waiver.png)
+![image](media/admin-version-history.png)
 
 
 
-## Instructor View
 
-Upon logging in as an instructor, you’re greeted with a homepage that displays the cases submitted for review, the total number of assigned students, and a breakdown of reviewed and pending cases.
+The Prompt Workspace allows administrators to:
+-  Create new prompt versions by clicking the "Start new Draft" button in the top right
+-  Overwrite previous versions with new modifications by loading a previous prompt and clicking "Save".
+- Use a previous version as a template by loading a previous prompt, making modifications, and clicking "Save as New Version"
 
-![image](./media/instructor-home-page.png)
+![image](media/admin-prompt-editor.png)
 
-The instructor can click on total students assigned to see the names of all students. 
 
-![image](./media/instructor-students.png)
+#### Prompt Playground
+The Prompt Playground allows administrators to test out different system prompts and LLM configurations in a chat interface that mimicks the main application. Administrators can:
+- Change model configuration through the Model Configuration Panel
+- Select which system prompt to test using the dropdown menus in the System Prompt Panel
+- Change the Mock Case context to simulate with the AI
+
+![image](./media/admin-prompt-playground-config.png)
+
+At the bottom, a chat interface allows administrators to chat with the AI, which will use all the configurations that were set above.
+
+![image](./media/admin-prompt-playground-chat.png)
+
+Clicking "Compare" in the top right duplicates all configuation options, allowing administrators to compare 2 separate configurations side by side.
+
+![image](./media/admin-prompt-playground-compare-config.png)
+
+### Disclaimer Page
+The Disclaimer page allows administrators to edit the waiver and disclaimer text that students must agree to before using the application. It features all the same version control options administrators have with the system prompts.
+
+![image](./media/admin-disclaimer-editor.png)
+![image](./media/admin-disclaimer-version-history.png)
+
+
+## Supervisor View
+
+### Cases Page
+
+Upon logging in as a supervisor, they will be greeted with a homepage that displays their own cases, and the cases of the advocates assigned to them. Instructors can search for a case using the searchbar, and filter the visible cases based on status using the dropdown menu: 
+
+![image](./media/instructor-home-page.png) 
+
+Instructors have the ability to archive and delete their own cases, or their advocates cases by clicking on the ellipsis on a case:
+
+TODO: replace with a bigger image 
+
+![image](./media/instructor-delete-archive-case.png)
 
 Upon clicking on any of the cases, the instructor can see all interactions of the student with the AI Assistant as well as all the summaries, notes and transcriptions. The instructor can then give feed back from the "Case Feedback" tab:
 ![image](./media/instructor-feedback.png)
 
-On the "All Cases" Page, the instructor can search through cases and filter cases of the students assigned to them by Student Name and Status:
-![image](./media/instructor-all-cases.png)
+### Prompts
+
+Clicking the prompts icon in the header allows instructors to view all the active prompts across the application. 
+
+TODO: update when we have added the new prompt options for summary prompts
 
 
-## Student View
-Upon logging in as a student, they see this home page with their most recent cases and the statuses of these cases (i.e. In Progress, Sent to Review or Review Feedback)
+## Advocate View
+### Cases Page
+Upon logging in as a advocate, they see this home page with their most recent cases and the statuses of these cases (i.e. In Progress, Submitted for review or Reviewed by Supervisor)
 
-![image](./media/student-home-page.jpg)
+![image](./media/student-all-cases.png)
 
 Students can click on a case and see the overview, summaries, transcriptions, notes as well as interact with the AI Assistant. 
 
-To start a new case, students can click on the "New Case" button at the top of the screen. This page opens up a form with information the students can fill out about the jurisdiction, broad area of law and give a short description of the case which will then be sent to the AI Assistant. 
+### New Case Page
+To start a new case, students can click on the "New Case" button at the top of the screen. This page opens up a form with information the students can fill out about the jurisdiction, broad area of law and give a description of the case which will then be sent to the AI Assistant. 
 
-![image](./media/student-new-case.jpg)
+![image](./media/student-new-case.png)
 
-Upon creating a new case, the AI Assistant gives the student a first general summary of the case with possible next steps and follow-up questions to ask:
+### Case Page
+Upon creating a new case, users will be redirected to the Case Overview panel. Here, they can see the details of their case, edit the case title & description, and also submit the case for a review to an available supervisor by selecting their name and clicking "Submit for Review":
 
-![image](./media/student-ai-assistant.png)
+![image](./media/student-case-overview.jpg)
 
-The student can also click on the notes icon at the bottom left corner, which opens up a yellow legal pad moveable notes pop-up where the students can note significant details of the particular case:
 
-![image](./media/student-notes.jpg)
+The Interview Assistant panel is where users can interact with the AI. The main panel is where users can ask questions and receive responses. A progress bar is shown above to indicate the thoroughness of the user's analysis, and a feedback panel on the right-hand side continuously updates with suggestions for improvement.
+
+A **Guide** icon is available in the header (top-right). Clicking it opens a help dialog that explains what the progress bar represents, how the feedback panel works, and what the system expects as you explore different parts of the case.
+
+![image](./media/student-interview-assistant.png)
 
 Upon interacting with the AI Assistant, the student can choose to generate a downloadable summary pdf of the information and insights from the LLM by clicking on the "Generate Summary" button below the AI message. This button then generates a downloadable pdf version of a summary which is viewable from the "Case Summaries" page:
 
-<p>
-  <img src="./media/student-generate-summary.png" width="45%" style="display:inline-block; margin-right:10px;" />
-  <img src="./media/student-case-summaries.png" width="45%" style="display:inline-block; margin-right:10px;" />
-</p>
+- Users may also generate a full case summary by generating individual summaries across the 4 stages first, then clicking "Generate Full Case Summary".
 
-![image](./media/student-summary.png)
+![image](./media/student-case-summaries.png)
 
-The student can also navigate to the "Case Transcriptions" tab to upload audio and transrcibe. 
+The student can also navigate to the "Case Transcriptions" tab to upload audio and transcribe. Click on the "Upload Audio" button to upload an audio file, and when done,  Transcriptions will be viewable and downloadable in the main page.
 
-<p>
-  <img src="./media/student-upload-audio.png" width="45%" style="display:inline-block; margin-right:10px;" />
-  <img src="./media/student-transcriptions.png" width="45%" style="display:inline-block;" />
-</p>
+![image](./media/student-transcriptions.png)
 
-The student can choose to delete or archive a case by clicking on the 3 dots on the bottom right corner of the case box:
 
-![image](./media/student-delete-archive-case.png)
 
-On the all cases page, students can search through cases by description or titles and view all cases including archived cases:
 
-![image](./media/student-all-cases.png)
+
+
+The user can also click on the Notepad button in the bottom left corner, which opens up a resizable and movable yellow legal pad where the user can note significant details of the particular case:
+
+![image](./media/student-notes.jpg)
