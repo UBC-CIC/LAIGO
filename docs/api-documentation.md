@@ -1954,6 +1954,165 @@ curl -X PUT "https://api-id.execute-api.us-east-1.amazonaws.com/prod/admin/role_
 }'
 ```
 
+---
+
+## Signup Access Configuration
+
+### Get Signup Mode
+
+Retrieve the current signup mode from SSM.
+
+**Endpoint:** `GET /admin/signup_mode`
+
+**Query Parameters:** None
+
+**Response:**
+```json
+{
+  "mode": "public"
+}
+```
+
+*Modes: `public` (anyone can sign up) or `whitelist` (only whitelisted emails can sign up).*
+
+**Example (cURL):**
+```bash
+curl -X GET "https://api-id.execute-api.us-east-1.amazonaws.com/prod/admin/signup_mode" \
+  -H "Authorization: eyJraWQiOiJ..."
+```
+
+---
+
+### Update Signup Mode
+
+Set the signup mode in SSM.
+
+**Endpoint:** `PUT /admin/signup_mode`
+
+**Request Body:**
+```json
+{
+  "mode": "whitelist"
+}
+```
+
+**Parameters:**
+- `mode` (string, required): Either `public` or `whitelist`.
+
+**Response:**
+```json
+{
+  "mode": "whitelist"
+}
+```
+
+**Example (cURL):**
+```bash
+curl -X PUT "https://api-id.execute-api.us-east-1.amazonaws.com/prod/admin/signup_mode" \
+  -H "Authorization: eyJraWQiOiJ..." \
+  -H "Content-Type: application/json" \
+  -d '{
+  "mode": "whitelist"
+}'
+```
+
+---
+
+### Get Whitelist Entries
+
+Retrieve all emails currently in the whitelist.
+
+**Endpoint:** `GET /admin/whitelist`
+
+**Query Parameters:** None
+
+**Response:**
+```json
+{
+  "count": 1,
+  "entries": [
+    {
+      "email": "student@example.com",
+      "canonical_role": "student",
+      "uploaded_label": "Law Student"
+    }
+  ]
+}
+```
+
+**Example (cURL):**
+```bash
+curl -X GET "https://api-id.execute-api.us-east-1.amazonaws.com/prod/admin/whitelist" \
+  -H "Authorization: eyJraWQiOiJ..."
+```
+
+---
+
+### Upload Whitelist CSV
+
+Upload a CSV file of emails to whitelist.
+
+**Endpoint:** `POST /admin/whitelist/upload`
+
+**Request Body:**
+```json
+{
+  "csv": "email,role\nstudent1@example.com,student\ninstructor1@example.com,instructor"
+}
+```
+
+**CSV Format:**
+- Column 1: Email address
+- Column 2: Role (either canonical name or singular label defined in Role Label Configuration)
+- Header row is optional (skipped if second column is literally "role")
+
+**Response:**
+```json
+{
+  "processed": 2,
+  "invalid": 0,
+  "invalidRows": []
+}
+```
+
+**Example (cURL):**
+```bash
+curl -X POST "https://api-id.execute-api.us-east-1.amazonaws.com/prod/admin/whitelist/upload" \
+  -H "Authorization: eyJraWQiOiJ..." \
+  -H "Content-Type: application/json" \
+  -d '{
+  "csv": "email,role\nstudent1@example.com,student\ninstructor1@example.com,instructor"
+}'
+```
+
+---
+
+### Delete Whitelist Entry
+
+Remove an email from the whitelist.
+
+**Endpoint:** `DELETE /admin/whitelist`
+
+**Query Parameters:**
+- `email` (string, required): The email to remove
+
+**Response:**
+```json
+{
+  "message": "Entry removed",
+  "email": "student1@example.com"
+}
+```
+
+**Example (cURL):**
+```bash
+curl -X DELETE "https://api-id.execute-api.us-east-1.amazonaws.com/prod/admin/whitelist?email=student1@example.com" \
+  -H "Authorization: eyJraWQiOiJ..."
+```
+
+---
+
+
 ## Complete Usage Examples
 
 ### Complete Case Creation Flow (JavaScript)
