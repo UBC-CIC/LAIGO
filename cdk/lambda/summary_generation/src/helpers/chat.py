@@ -173,6 +173,7 @@ def retrieve_dynamodb_history(table_name: str, session_id: str) -> str:
 def generate_lawyer_summary(
     conversation_history: str, 
     llm: dict, 
+    prompt_instruction: str,
     case_type: str = None, 
     case_description: str = None, 
     jurisdiction: str = None,
@@ -193,132 +194,11 @@ def generate_lawyer_summary(
         str: Formatted lawyer-friendly summary.
     """
 
-    prompts = {
-        "intake": """
-You are a legal summarization assistant helping organize the factual record of a case.
-
-Summarize ONLY information explicitly discussed in the conversation. Do NOT invent or infer facts.
-
-Structure your summary with these sections:
-
-## Established Facts
-- Facts confirmed with supporting evidence or documentation.
-
-## Facts Requiring Further Evidence
-- Facts stated but not yet substantiated.
-
-## Weak Points in Evidence
-- Facts where evidence is contested, incomplete, or missing.
-
-## Parties & Relationships
-- Key parties and their roles/relationships as discussed.
-
-## Client Objectives & Concerns
-- The client's stated goals and worries.
-
-## Critical Gaps
-- Important information not yet obtained.
-
-Use markdown formatting. Only include sections where content was discussed.
-        """,
-        "legal_analysis": """
-You are a legal summarization assistant helping identify legal issues in a case.
-
-Summarize ONLY the issues explicitly identified in the conversation. Do NOT add your own analysis or spot new issues.
-
-Structure your summary with these sections:
-
-## Primary Legal Issues
-- The main legal questions identified in the discussion.
-
-## Applicable Legal Tests or Standards
-- Canadian common law tests or statutory standards mentioned.
-
-## Relevant Statutes or Legislation
-- Specific statutes, regulations, or sections referenced.
-
-## Factual vs. Legal Disputes
-- Distinctions made between questions of fact and questions of law.
-
-## Elements to Establish
-- Key elements that must be proven for each cause of action or defense.
-
-Use markdown formatting. Only include sections where content was discussed.
-        """,
-        "contrarian": """
-You are a legal summarization assistant helping document contrarian analysis.
-
-Summarize ONLY the weaknesses and counterarguments identified in the conversation. Do NOT invent new vulnerabilities.
-
-Structure your summary with these sections:
-
-## Identified Weaknesses
-- Vulnerabilities in the legal position as discussed.
-
-## Counterarguments from Opposing Party
-- Arguments the other side is likely to make.
-
-## Evidence Gaps or Risks
-- Evidentiary problems that could undermine the case.
-
-## Authority Challenges
-- Potential distinctions or limitations of relied-upon cases/statutes.
-
-## Hidden Assumptions
-- Unstated premises that may be challenged.
-
-## Mitigation Strategies
-- Approaches discussed for addressing these concerns.
-
-Use markdown formatting. Only include sections where content was discussed.
-        """,
-        "policy": """
-You are a legal summarization assistant helping document policy context analysis.
-
-Summarize ONLY the policy considerations discussed in the conversation. Do NOT add external policy analysis.
-
-Structure your summary with these sections:
-
-## Policy Rationales
-- Underlying policy purposes of relevant laws or doctrines.
-
-## Competing Values
-- Tensions between different policy objectives discussed.
-
-## Charter Implications
-- Any Charter of Rights and Freedoms considerations mentioned.
-
-## Rule of Law / Duty of Fairness
-- Procedural fairness or rule of law concerns raised.
-
-## Administrative Law Considerations
-- Relevant administrative law principles discussed.
-
-## Comparative Approaches
-- References to other jurisdictions or international law.
-
-## Systemic Issues
-- Broader social, economic, or institutional factors noted.
-
-Use markdown formatting. Only include sections where content was discussed.
-        """
-    }
-
-    # Fallback for unknown block types
-    default_prompt = """
-        You are a professional legal summarization assistant. 
-        Create a concise, objective 1-page summary of the conversation.
-        Focus on:
-        1. Legal Analysis
-        2. Key facts and timeline
-        3. Critical details and potential legal implications
-        4. Actionable items or recommendations
-    """
-
-    selected_prompt_instruction = prompts.get(block_type, default_prompt)
+    if not prompt_instruction:
+        raise ValueError(f"Missing active summary prompt for block_type: {block_type}")
 
     system_prompt = f"""
-{selected_prompt_instruction}
+{prompt_instruction}
 
 --- CASE METADATA ---
 Case Type: {case_type or 'Not Specified'}
@@ -343,6 +223,7 @@ Jurisdiction: {jurisdiction or 'Not Specified'}
 def generate_lawyer_summary_streaming(
     conversation_history: str, 
     llm: dict, 
+    prompt_instruction: str,
     case_type: str = None, 
     case_description: str = None, 
     jurisdiction: str = None,
@@ -365,132 +246,11 @@ def generate_lawyer_summary_streaming(
         str: Formatted lawyer-friendly summary.
     """
 
-    prompts = {
-        "intake": """
-You are a legal summarization assistant helping organize the factual record of a case.
-
-Summarize ONLY information explicitly discussed in the conversation. Do NOT invent or infer facts.
-
-Structure your summary with these sections:
-
-## Established Facts
-- Facts confirmed with supporting evidence or documentation.
-
-## Facts Requiring Further Evidence
-- Facts stated but not yet substantiated.
-
-## Weak Points in Evidence
-- Facts where evidence is contested, incomplete, or missing.
-
-## Parties & Relationships
-- Key parties and their roles/relationships as discussed.
-
-## Client Objectives & Concerns
-- The client's stated goals and worries.
-
-## Critical Gaps
-- Important information not yet obtained.
-
-Use markdown formatting. Only include sections where content was discussed.
-        """,
-        "legal_analysis": """
-You are a legal summarization assistant helping identify legal issues in a case.
-
-Summarize ONLY the issues explicitly identified in the conversation. Do NOT add your own analysis or spot new issues.
-
-Structure your summary with these sections:
-
-## Primary Legal Issues
-- The main legal questions identified in the discussion.
-
-## Applicable Legal Tests or Standards
-- Canadian common law tests or statutory standards mentioned.
-
-## Relevant Statutes or Legislation
-- Specific statutes, regulations, or sections referenced.
-
-## Factual vs. Legal Disputes
-- Distinctions made between questions of fact and questions of law.
-
-## Elements to Establish
-- Key elements that must be proven for each cause of action or defense.
-
-Use markdown formatting. Only include sections where content was discussed.
-        """,
-        "contrarian": """
-You are a legal summarization assistant helping document contrarian analysis.
-
-Summarize ONLY the weaknesses and counterarguments identified in the conversation. Do NOT invent new vulnerabilities.
-
-Structure your summary with these sections:
-
-## Identified Weaknesses
-- Vulnerabilities in the legal position as discussed.
-
-## Counterarguments from Opposing Party
-- Arguments the other side is likely to make.
-
-## Evidence Gaps or Risks
-- Evidentiary problems that could undermine the case.
-
-## Authority Challenges
-- Potential distinctions or limitations of relied-upon cases/statutes.
-
-## Hidden Assumptions
-- Unstated premises that may be challenged.
-
-## Mitigation Strategies
-- Approaches discussed for addressing these concerns.
-
-Use markdown formatting. Only include sections where content was discussed.
-        """,
-        "policy": """
-You are a legal summarization assistant helping document policy context analysis.
-
-Summarize ONLY the policy considerations discussed in the conversation. Do NOT add external policy analysis.
-
-Structure your summary with these sections:
-
-## Policy Rationales
-- Underlying policy purposes of relevant laws or doctrines.
-
-## Competing Values
-- Tensions between different policy objectives discussed.
-
-## Charter Implications
-- Any Charter of Rights and Freedoms considerations mentioned.
-
-## Rule of Law / Duty of Fairness
-- Procedural fairness or rule of law concerns raised.
-
-## Administrative Law Considerations
-- Relevant administrative law principles discussed.
-
-## Comparative Approaches
-- References to other jurisdictions or international law.
-
-## Systemic Issues
-- Broader social, economic, or institutional factors noted.
-
-Use markdown formatting. Only include sections where content was discussed.
-        """
-    }
-
-    # Fallback for unknown block types
-    default_prompt = """
-        You are a professional legal summarization assistant. 
-        Create a concise, objective 1-page summary of the conversation.
-        Focus on:
-        1. Legal Analysis
-        2. Key facts and timeline
-        3. Critical details and potential legal implications
-        4. Actionable items or recommendations
-    """
-
-    selected_prompt_instruction = prompts.get(block_type, default_prompt)
+    if not prompt_instruction:
+        raise ValueError(f"Missing active summary prompt for block_type: {block_type}")
 
     system_prompt = f"""
-{selected_prompt_instruction}
+{prompt_instruction}
 
 --- CASE METADATA ---
 Case Type: {case_type or 'Not Specified'}
@@ -520,6 +280,7 @@ Jurisdiction: {jurisdiction or 'Not Specified'}
 def generate_full_case_summary(
     block_summaries: list,  # [{block_type, content, title}, ...]
     llm: dict,
+    prompt_instruction: str,
     case_type: str = None,
     case_description: str = None,
     jurisdiction: str = None
@@ -543,29 +304,8 @@ def generate_full_case_summary(
         for item in block_summaries
     ])
 
-    prompt_instruction = """
-You are a legal case analyst. Your task is to synthesize the provided block summaries into a cohesive, comprehensive case summary.
-
-YOUR VALUE-ADD:
-1. IDENTIFY CONNECTIONS between blocks - how do the facts inform the issues? How does the research support the arguments? How do contrarian concerns relate to evidence weaknesses?
-2. ADD TRANSITIONAL ANALYSIS - explain how insights from one block relate to or build upon another
-3. CREATE NARRATIVE FLOW - help the reader understand the overall legal strategy and how the pieces fit together
-4. HIGHLIGHT CROSS-BLOCK THEMES - if a concern appears in multiple blocks (e.g., a weak fact affecting both arguments and contrarian analysis), note this relationship
-
-WHAT YOU MUST PRESERVE:
-- ALL specific details from each block (facts, cases, statutes, arguments, etc.)
-- ALL bullet points and analytical elements
-- The substantive findings and conclusions from each block
-
-STRUCTURE:
-- Begin with a 3-4 sentence Executive Summary of the overall case approach
-- Organize content by block in order: Intake → Issues → Research → Arguments → Contrarian → Policy
-- Use block titles as section headers
-- Include transitional paragraphs between sections explaining how blocks connect
-- Only include blocks that are provided - do NOT create content for missing blocks
-
-OUTPUT: Respond with ONLY the case summary in markdown format. No preamble.
-    """
+    if not prompt_instruction:
+        raise ValueError("Missing active summary prompt for block_type: full_case")
 
     system_prompt = f"""
 {prompt_instruction}
@@ -582,6 +322,7 @@ Start directly with the summary content and end with the last content point. No 
 def generate_full_case_summary_streaming(
     block_summaries: list,  # [{block_type, content, title}, ...]
     llm: dict,
+    prompt_instruction: str,
     case_type: str = None,
     case_description: str = None,
     jurisdiction: str = None,
@@ -607,29 +348,8 @@ def generate_full_case_summary_streaming(
         for item in block_summaries
     ])
 
-    prompt_instruction = """
-You are a legal case analyst. Your task is to synthesize the provided block summaries into a cohesive, comprehensive case summary.
-
-YOUR VALUE-ADD:
-1. IDENTIFY CONNECTIONS between blocks - how do the facts inform the issues? How does the research support the arguments? How do contrarian concerns relate to evidence weaknesses?
-2. ADD TRANSITIONAL ANALYSIS - explain how insights from one block relate to or build upon another
-3. CREATE NARRATIVE FLOW - help the reader understand the overall legal strategy and how the pieces fit together
-4. HIGHLIGHT CROSS-BLOCK THEMES - if a concern appears in multiple blocks (e.g., a weak fact affecting both arguments and contrarian analysis), note this relationship
-
-WHAT YOU MUST PRESERVE:
-- ALL specific details from each block (facts, cases, statutes, arguments, etc.)
-- ALL bullet points and analytical elements
-- The substantive findings and conclusions from each block
-
-STRUCTURE:
-- Begin with a 3-4 sentence Executive Summary of the overall case approach
-- Organize content by block in order: Intake → Issues → Research → Arguments → Contrarian → Policy
-- Use block titles as section headers
-- Include transitional paragraphs between sections explaining how blocks connect
-- Only include blocks that are provided - do NOT create content for missing blocks
-
-OUTPUT: Respond with ONLY the case summary in markdown format. No preamble.
-    """
+    if not prompt_instruction:
+        raise ValueError("Missing active summary prompt for block_type: full_case")
 
     system_prompt = f"""
 {prompt_instruction}

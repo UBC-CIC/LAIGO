@@ -50,7 +50,7 @@ const HeaderItem: React.FC<HeaderItemProps> = ({ icon, label, onClick }) => (
 const AdminHeader: React.FC = () => {
   const navigate = useNavigate();
   const { userInfo, setActivePerspective, availablePerspectives } = useUser();
-  const { plural, singular } = useRoleLabels();
+  const { singular } = useRoleLabels();
   const [profileMenuAnchor, setProfileMenuAnchor] =
     useState<null | HTMLElement>(null);
 

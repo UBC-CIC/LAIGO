@@ -16,14 +16,18 @@ import RoleLabelsConfig from "../../components/Admin/RoleLabelsConfig";
 
 // --- Types based on DB Schema & Requirements ---
 
-type PromptCategory = "General Settings" | "reasoning" | "assessment";
+type PromptCategory = "General Settings" | "reasoning" | "assessment" | "summary";
 
-type BlockType = "intake" | "legal_analysis" | "contrarian" | "policy";
+type BlockType =
+  | "intake"
+  | "legal_analysis"
+  | "contrarian"
+  | "policy";
 
 // Mapping from Sidebar ID to Backend Enums
 const SIDEBAR_TO_BACKEND: Record<
   string,
-  { category: PromptCategory; block_type: BlockType | null }
+  { category: PromptCategory; block_type: BlockType | null; prompt_scope?: "full_case" }
 > = {
   // General
   "model-configs": { category: "General Settings", block_type: null },
@@ -43,6 +47,16 @@ const SIDEBAR_TO_BACKEND: Record<
   },
   "contrarian-assessment": { category: "assessment", block_type: "contrarian" },
   "policy-assessment": { category: "assessment", block_type: "policy" },
+
+  // Summary
+  "intake-summary": { category: "summary", block_type: "intake" },
+  "legal-analysis-summary": {
+    category: "summary",
+    block_type: "legal_analysis",
+  },
+  "contrarian-summary": { category: "summary", block_type: "contrarian" },
+  "policy-summary": { category: "summary", block_type: "policy" },
+  "full-case-summary": { category: "summary", block_type: null, prompt_scope: "full_case" },
 };
 
 interface SidebarItem {
@@ -140,6 +154,41 @@ const SECTIONS: SidebarSection[] = [
       },
     ],
   },
+  {
+    category: "summary",
+    items: [
+      {
+        id: "intake-summary",
+        label: "Intake Summary",
+        description:
+          "Defines how intake-stage conversation history should be summarized for legal review.",
+      },
+      {
+        id: "legal-analysis-summary",
+        label: "Legal Analysis Summary",
+        description:
+          "Defines how legal analysis-stage discussion should be summarized for legal review.",
+      },
+      {
+        id: "contrarian-summary",
+        label: "Contrarian Summary",
+        description:
+          "Defines how contrarian-stage discussion should be summarized for legal review.",
+      },
+      {
+        id: "policy-summary",
+        label: "Policy Summary",
+        description:
+          "Defines how policy-stage discussion should be summarized for legal review.",
+      },
+      {
+        id: "full-case-summary",
+        label: "Full Case Synthesis",
+        description:
+          "Defines how block summaries should be synthesized into a single full-case summary.",
+      },
+    ],
+  },
 ];
 
 const AIConfiguration = () => {
@@ -221,6 +270,8 @@ const AIConfiguration = () => {
                     ? "Reasoning Stages"
                     : section.category === "assessment"
                       ? "Assessment Prompts"
+                      : section.category === "summary"
+                        ? "Summary Prompts"
                       : section.category}
                 </Typography>
                 <Box
@@ -291,12 +342,17 @@ const AIConfiguration = () => {
               <PromptPlayground />
             ) : selectedBlockId === "role-labels" ? (
               <RoleLabelsConfig />
-            ) : target && target.block_type ? (
+            ) : target && (target.block_type || target.prompt_scope) ? (
               <PromptEditor
                 // Key forces remount when category/block changes, ensuring fresh state
-                key={`${target.category}-${target.block_type}`}
+                key={
+                  target.prompt_scope === "full_case"
+                    ? `${target.category}-full_case`
+                    : `${target.category}-${target.block_type}`
+                }
                 category={target.category}
-                blockType={target.block_type}
+                blockType={target.block_type ?? null}
+                promptScope={target.prompt_scope}
                 title={activeItem?.label || "Prompt Editor"}
                 description={activeItem?.description || ""}
               />

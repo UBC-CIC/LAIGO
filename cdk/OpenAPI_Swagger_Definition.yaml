@@ -649,16 +649,19 @@ paths:
               type: object
               required:
                 - category
-                - block_type
                 - prompt_text
-                - version_name
               properties:
                 category:
                   type: string
                   description: Prompt category (e.g., "student_chat", "case_summary")
+                prompt_scope:
+                  type: string
+                  enum: [block, full_case]
+                  description: Optional scope. Use "full_case" for synthesis prompts, otherwise defaults to "block".
                 block_type:
                   type: string
-                  description: Block type for the prompt
+                  nullable: true
+                  description: Block type for block-scope prompts. Omit for full_case scope.
                 prompt_text:
                   type: string
                   minLength: 1
@@ -682,8 +685,11 @@ paths:
                     type: integer
                   category:
                     type: string
+                  prompt_scope:
+                    type: string
                   block_type:
                     type: string
+                    nullable: true
                   version_number:
                     type: integer
                   version_name:
@@ -712,6 +718,26 @@ paths:
       operationId: admin_list_prompts_GET
       security:
         - adminAuthorizer: []
+      parameters:
+        - in: query
+          name: category
+          required: false
+          schema:
+            type: string
+          description: Optional category filter.
+        - in: query
+          name: block_type
+          required: false
+          schema:
+            type: string
+          description: Optional block filter for block-scope prompts.
+        - in: query
+          name: prompt_scope
+          required: false
+          schema:
+            type: string
+            enum: [block, full_case]
+          description: Optional scope filter. Use full_case to fetch full-case synthesis prompts.
       responses:
         "200":
           description: List of prompt versions
@@ -726,8 +752,11 @@ paths:
                       type: integer
                     category:
                       type: string
+                    prompt_scope:
+                      type: string
                     block_type:
                       type: string
+                      nullable: true
                     version_number:
                       type: integer
                     version_name:
@@ -824,8 +853,11 @@ paths:
                     type: string
                   category:
                     type: string
+                  prompt_scope:
+                    type: string
                   block_type:
                     type: string
+                    nullable: true
         "400":
           description: Cannot delete active prompt or invalid request
         "404":
@@ -885,8 +917,11 @@ paths:
                       type: integer
                     category:
                       type: string
+                    prompt_scope:
+                      type: string
                     block_type:
                       type: string
+                      nullable: true
                     version_number:
                       type: integer
                     version_name:
@@ -960,8 +995,11 @@ paths:
                     type: string
                   category:
                     type: string
+                  prompt_scope:
+                    type: string
                   block_type:
                     type: string
+                    nullable: true
         "400":
           description: Invalid value
         "500":

@@ -13,7 +13,7 @@ import ReadOnlyPromptViewer from "../../components/Supervisor/ReadOnlyPromptView
 
 // --- Types based on DB Schema & Requirements ---
 
-type PromptCategory = "General Settings" | "reasoning" | "assessment";
+type PromptCategory = "General Settings" | "reasoning" | "assessment" | "summary";
 
 type BlockType =
   | "intake"

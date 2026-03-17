@@ -28,7 +28,7 @@ import { fetchAuthSession } from "aws-amplify/auth";
 import DeleteConfirmationDialog from "./DeleteConfirmationDialog";
 
 // Types
-type PromptCategory = "General Settings" | "reasoning" | "assessment";
+type PromptCategory = "General Settings" | "reasoning" | "assessment" | "summary";
 
 type BlockType =
   | "intake"
@@ -39,7 +39,7 @@ type BlockType =
 interface PromptVersion {
   prompt_version_id: string;
   category: PromptCategory;
-  block_type: BlockType;
+  block_type: BlockType | null;
   version_number: number;
   version_name: string;
   prompt_text: string;
@@ -51,7 +51,8 @@ interface PromptVersion {
 
 interface PromptEditorProps {
   category: PromptCategory;
-  blockType: BlockType;
+  blockType: BlockType | null;
+  promptScope?: "full_case";
   title: string;
   description: string;
 }
@@ -61,6 +62,7 @@ const DRAFT_ID = "new_draft";
 const PromptEditor: React.FC<PromptEditorProps> = ({
   category,
   blockType,
+  promptScope,
   title,
   description,
 }) => {
@@ -94,10 +96,14 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
       const token = session.tokens?.idToken?.toString();
       if (!token) throw new Error("No auth token");
 
+      const queryParam =
+        promptScope === "full_case"
+          ? `prompt_scope=full_case`
+          : `block_type=${blockType}`;
       const response = await fetch(
         `${
           import.meta.env.VITE_API_ENDPOINT
-        }/admin/prompt?category=${category}&block_type=${blockType}`,
+        }/admin/prompt?category=${category}&${queryParam}`,
         { headers: { Authorization: token } },
       );
       if (!response.ok) throw new Error("Failed to fetch prompts");
@@ -109,11 +115,12 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
     } finally {
       setIsLoading(false);
     }
-  }, [category, blockType]);
+  }, [category, blockType, promptScope]);
 
   const createPromptVersion = async (promptData: {
     category: string;
-    block_type: string;
+    block_type?: string | null;
+    prompt_scope?: string;
     prompt_text: string;
     version_name?: string;
   }) => {
@@ -222,7 +229,9 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
     try {
       const newPrompt = await createPromptVersion({
         category: category,
-        block_type: blockType,
+        ...(promptScope === "full_case"
+          ? { prompt_scope: "full_case" }
+          : { block_type: blockType }),
         prompt_text: editorContent,
         version_name: versionName || undefined,
       });

@@ -11,7 +11,7 @@ import {
 import { fetchAuthSession } from "aws-amplify/auth";
 
 // Types matching the Admin component structure
-type PromptCategory = "General Settings" | "reasoning" | "assessment";
+type PromptCategory = "General Settings" | "reasoning" | "assessment" | "summary";
 
 type BlockType =
   | "intake"

@@ -289,6 +289,67 @@ def get_completed_blocks(case_id):
         connection.rollback()
         return []
 
+def get_summary_prompt_template(prompt_scope, block_type=None):
+    """
+    Retrieve the active summary prompt from prompt_versions.
+
+    For block summaries:       prompt_scope='block',     block_type=<block name>
+    For full-case synthesis:   prompt_scope='full_case',  block_type=None
+    """
+    connection = connect_to_db()
+    if connection is None:
+        logger.error("DB connection is None when trying to fetch summary prompt")
+        return None
+
+    try:
+        cur = connection.cursor()
+        if prompt_scope == "full_case":
+            logger.info("Fetching full-case summary prompt")
+            cur.execute(
+                """
+                SELECT prompt_text
+                FROM prompt_versions
+                WHERE prompt_scope = 'full_case'
+                  AND category = 'summary'
+                  AND is_active = true
+                ORDER BY version_number DESC
+                LIMIT 1;
+            """
+            )
+        else:
+            logger.info(f"Fetching summary prompt for block_type: {block_type}")
+            cur.execute(
+                """
+                SELECT prompt_text
+                FROM prompt_versions
+                WHERE prompt_scope = 'block'
+                  AND block_type = %s
+                  AND category = 'summary'
+                  AND is_active = true
+                ORDER BY version_number DESC
+                LIMIT 1;
+            """,
+                (block_type,),
+            )
+
+        result = cur.fetchone()
+        cur.close()
+
+        if result:
+            return result[0]
+
+        label = "full_case" if prompt_scope == "full_case" else block_type
+        logger.warning(f"No active summary prompt found for scope: {label}")
+        return None
+    except Exception as e:
+        label = "full_case" if prompt_scope == "full_case" else block_type
+        logger.exception(f"Error fetching summary prompt for scope '{label}': {e}")
+        try:
+            connection.rollback()
+        except Exception:
+            pass
+        return None
+
 def get_latest_block_summaries(case_id, block_types):
     """
     Retrieve the most recent summary for each requested block type.
@@ -546,6 +607,17 @@ def handler(event, context):
     if sub_route == "full-case":
         logger.info(f"Generating full case summary for case_id: {case_id}")
 
+        full_case_prompt = get_summary_prompt_template("full_case")
+        if not full_case_prompt:
+            return _error_response(
+                500,
+                "No active full-case summary prompt configured",
+                is_websocket,
+                connection_id,
+                ws_endpoint,
+                request_id,
+            )
+
         # 1. Get latest summaries for the canonical interview blocks
         block_summaries = get_latest_block_summaries(case_id, FULL_CASE_BLOCK_TYPES)
         if not block_summaries:
@@ -564,6 +636,7 @@ def handler(event, context):
                 response = generate_full_case_summary_streaming(
                     block_summaries=block_summaries,
                     llm=llm,
+                    prompt_instruction=full_case_prompt,
                     case_type=case_type,
                     case_description=case_description,
                     jurisdiction=jurisdiction,
@@ -576,6 +649,7 @@ def handler(event, context):
                 response = generate_full_case_summary(
                     block_summaries=block_summaries,
                     llm=llm,
+                    prompt_instruction=full_case_prompt,
                     case_type=case_type,
                     case_description=case_description,
                     jurisdiction=jurisdiction
@@ -630,6 +704,16 @@ def handler(event, context):
         }
         
         block_type = subroute_map.get(sub_route, "intake")  # Default to intake
+        summary_prompt = get_summary_prompt_template("block", block_type=block_type)
+        if not summary_prompt:
+            return _error_response(
+                500,
+                f"No active summary prompt configured for block_type: {block_type}",
+                is_websocket,
+                connection_id,
+                ws_endpoint,
+                request_id,
+            )
         
         # Construct unique session ID based on case and block type
         session_id = f"{case_id}-{block_type}"
@@ -651,6 +735,7 @@ def handler(event, context):
                 response = generate_lawyer_summary_streaming(
                     conversation_history=conversation_history,
                     llm=llm,
+                    prompt_instruction=summary_prompt,
                     case_type=case_type,
                     case_description=case_description,
                     jurisdiction=jurisdiction,
@@ -664,6 +749,7 @@ def handler(event, context):
                 response = generate_lawyer_summary(
                     conversation_history=conversation_history,
                     llm=llm,
+                    prompt_instruction=summary_prompt,
                     case_type=case_type,
                     case_description=case_description,
                     jurisdiction=jurisdiction,

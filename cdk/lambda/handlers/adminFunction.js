@@ -323,30 +323,45 @@ const routes = {
 
       if (!event.body) throw new Error("Request body is missing");
 
-      const { category, block_type, prompt_text, version_name, author_id } =
+      const { category, block_type, prompt_text, version_name, author_id, prompt_scope } =
         parseBody(event.body);
 
       // Trust authenticated user identity when author_id is not provided by client.
       const promptAuthorId = author_id || user_id;
+      const resolvedScope = prompt_scope || 'block';
 
-      if (!category || !block_type || !prompt_text)
+      if (!category || !prompt_text)
         throw new Error(
-          "Missing required fields: category, block_type, and prompt_text are required",
+          "Missing required fields: category and prompt_text are required",
         );
 
-      // Get the next version number for this category/block_type combination
-      const versionCheck = await sqlConnection`
-            SELECT COALESCE(MAX(version_number), 0) + 1 as next_version
-            FROM "prompt_versions"
-            WHERE category = ${category} AND block_type = ${block_type};
-          `;
+      if (resolvedScope === 'block' && !block_type)
+        throw new Error(
+          "Missing required field: block_type is required for block-scope prompts",
+        );
+
+      // Get the next version number for this category/block_type/scope combination
+      let versionCheck;
+      if (resolvedScope === 'full_case') {
+        versionCheck = await sqlConnection`
+              SELECT COALESCE(MAX(version_number), 0) + 1 as next_version
+              FROM "prompt_versions"
+              WHERE category = ${category} AND prompt_scope = 'full_case';
+            `;
+      } else {
+        versionCheck = await sqlConnection`
+              SELECT COALESCE(MAX(version_number), 0) + 1 as next_version
+              FROM "prompt_versions"
+              WHERE category = ${category} AND block_type = ${block_type} AND prompt_scope = 'block';
+            `;
+      }
 
       const nextVersion = versionCheck[0].next_version;
 
       // Insert new prompt into prompt_versions table
       const insertPrompt = await sqlConnection`
-            INSERT INTO "prompt_versions" (category, block_type, version_number, version_name, prompt_text, author_id, is_active)
-            VALUES (${category}, ${block_type}, ${nextVersion}, ${
+            INSERT INTO "prompt_versions" (category, block_type, prompt_scope, version_number, version_name, prompt_text, author_id, is_active)
+            VALUES (${category}, ${block_type || null}, ${resolvedScope}, ${nextVersion}, ${
               version_name || null
             }, ${prompt_text}, ${promptAuthorId || null}, false)
             RETURNING *;
@@ -407,16 +422,37 @@ const routes = {
   "GET /admin/prompt": async (event, env) => {
     const { response, user, user_id, sqlConnection } = env;
     try {
-      const { category, block_type } = event.queryStringParameters || {};
+      const { category, block_type, prompt_scope } = event.queryStringParameters || {};
 
       let prompts;
-      if (category && block_type) {
+      if (category && prompt_scope === 'full_case') {
+        // Fetch full-case prompts for this category
+        prompts = await sqlConnection`
+              SELECT 
+                pv.prompt_version_id,
+                pv.category,
+                pv.block_type,
+                pv.prompt_scope,
+                pv.version_number,
+                pv.version_name,
+                pv.prompt_text,
+                pv.author_id,
+                pv.time_created,
+                pv.is_active,
+                NULLIF(TRIM(CONCAT(u.first_name, ' ', u.last_name)), '') AS author_name
+              FROM "prompt_versions" pv
+              LEFT JOIN "users" u ON pv.author_id = u.user_id
+              WHERE pv.category = ${category} AND pv.prompt_scope = 'full_case'
+              ORDER BY pv.version_number DESC;
+            `;
+      } else if (category && block_type) {
         // Fetch prompts for specific block
         prompts = await sqlConnection`
               SELECT 
                 pv.prompt_version_id,
                 pv.category,
                 pv.block_type,
+                pv.prompt_scope,
                 pv.version_number,
                 pv.version_name,
                 pv.prompt_text,
@@ -464,6 +500,7 @@ const routes = {
               prompt_version_id,
               category,
               block_type,
+              prompt_scope,
               version_number,
               version_name,
               prompt_text,
@@ -489,9 +526,9 @@ const routes = {
       if (!prompt_version_id)
         throw new Error("Missing required field: prompt_version_id");
 
-      // Get the category and block_type of the prompt to activate
+      // Get the category, block_type, and prompt_scope of the prompt to activate
       const promptToActivate = await sqlConnection`
-            SELECT category, block_type
+            SELECT category, block_type, prompt_scope
             FROM "prompt_versions"
             WHERE prompt_version_id = ${prompt_version_id};
           `;
@@ -500,18 +537,29 @@ const routes = {
         throw new Error("Prompt version not found");
       }
 
-      const { category, block_type } = promptToActivate[0];
+      const { category, block_type, prompt_scope } = promptToActivate[0];
 
       // Begin transaction: deactivate current active prompt and activate new one
       await sqlConnection.begin(async (sql) => {
-        // Deactivate any currently active prompt for this category/block_type
-        await sql`
-              UPDATE "prompt_versions"
-              SET is_active = false
-              WHERE category = ${category} 
-                AND block_type = ${block_type} 
-                AND is_active = true;
-            `;
+        // Deactivate any currently active prompt for this category/scope slot
+        if (prompt_scope === 'full_case') {
+          await sql`
+                UPDATE "prompt_versions"
+                SET is_active = false
+                WHERE category = ${category}
+                  AND prompt_scope = 'full_case'
+                  AND is_active = true;
+              `;
+        } else {
+          await sql`
+                UPDATE "prompt_versions"
+                SET is_active = false
+                WHERE category = ${category}
+                  AND block_type = ${block_type}
+                  AND prompt_scope = 'block'
+                  AND is_active = true;
+              `;
+        }
 
         // Activate the selected prompt
         await sql`
@@ -525,6 +573,7 @@ const routes = {
         message: "Prompt activated successfully",
         category,
         block_type,
+        prompt_scope,
       });
     } catch (err) {
       console.error("Error activating prompt:", err);
