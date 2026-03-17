@@ -93,8 +93,9 @@
 | Column              | Description                                                       |
 | ------------------- | ----------------------------------------------------------------- |
 | `prompt_version_id` | UUID PK                                                           |
-| `category`          | Classification of the prompt (reasoning or assessment)            |
-| `block_type`        | Section type the prompt applies to (intake, legal_analysis, etc.) |
+| `category`          | Classification of the prompt (reasoning, assessment, or summary)  |
+| `prompt_scope`      | Prompt scope (`block` for block-specific prompts, `full_case` for synthesis prompts) |
+| `block_type`        | Section type for block-scope prompts (nullable for `full_case` scope) |
 | `version_number`    | Sequential version index for the prompt                           |
 | `version_name`      | Optional human‑readable name for the prompt version               |
 | `prompt_text`       | Prompt content used when generating AI responses                  |

@@ -1329,8 +1329,9 @@ Get only the currently active prompt versions.
 ```json
 [
   {
-    "prompt_version_id": 1,
-    "category": "student_chat",
+    "prompt_version_id": "uuid",
+    "category": "reasoning",
+    "prompt_scope": "block",
     "block_type": "intake",
     "version_number": 1,
     "version_name": "Initial Version",
@@ -1357,30 +1358,44 @@ Create a new prompt version.
 **Request Body:**
 ```json
 {
-  "category": "student_chat",
+  "category": "summary",
+  "prompt_scope": "full_case",
+  "block_type": null,
+  "prompt_text": "Synthesize all block summaries into one full-case legal summary...",
+  "version_name": "Full Case Synthesis v1",
+  "author_id": "uuid"
+}
+```
+
+```json
+{
+  "category": "summary",
+  "prompt_scope": "block",
   "block_type": "intake",
-  "prompt_text": "You are a helpful legal assistant...",
-  "version_name": "Version 2.0",
+  "prompt_text": "Generate an intake summary from interview notes...",
+  "version_name": "Intake Summary v2",
   "author_id": "uuid"
 }
 ```
 
 **Parameters:**
-- `category` (string, required): Prompt category (e.g., "student_chat", "case_summary")
-- `block_type` (string, required): Block type for the prompt
+- `category` (string, required): Prompt category (`reasoning`, `assessment`, or `summary`)
+- `prompt_scope` (string, optional): Prompt scope (`block` or `full_case`). Defaults to `block`.
+- `block_type` (string, conditionally required): Required when `prompt_scope=block`; omit/null when `prompt_scope=full_case`
 - `prompt_text` (string, required): The prompt content
-- `version_name` (string, required): Human-friendly version name
+- `version_name` (string, optional): Human-friendly version name
 - `author_id` (string, optional): Author's user ID
 
 **Response:**
 ```json
 {
-  "prompt_version_id": 2,
-  "category": "student_chat",
-  "block_type": "intake",
+  "prompt_version_id": "uuid",
+  "category": "summary",
+  "prompt_scope": "full_case",
+  "block_type": null,
   "version_number": 2,
-  "version_name": "Version 2.0",
-  "prompt_text": "You are a helpful legal assistant...",
+  "version_name": "Full Case Synthesis v1",
+  "prompt_text": "Synthesize all block summaries into one full-case legal summary...",
   "author_id": "uuid",
   "is_active": false
 }
@@ -1392,10 +1407,11 @@ curl -X POST "https://api-id.execute-api.us-east-1.amazonaws.com/prod/admin/prom
   -H "Authorization: eyJraWQiOiJ..." \
   -H "Content-Type: application/json" \
   -d '{
-  "category": "student_chat",
-  "block_type": "intake",
-  "prompt_text": "You are a helpful legal assistant...",
-  "version_name": "Version 2.0",
+  "category": "summary",
+  "prompt_scope": "full_case",
+  "block_type": null,
+  "prompt_text": "Synthesize all block summaries into one full-case legal summary...",
+  "version_name": "Full Case Synthesis v1",
   "author_id": "uuid"
 }'
 ```
@@ -1441,7 +1457,10 @@ curl -X PUT "https://api-id.execute-api.us-east-1.amazonaws.com/prod/admin/promp
 
 ### Activate Prompt Version
 
-Set a prompt version as the active version for its category and block type.
+Set a prompt version as the active version for its scope slot.
+
+- For `prompt_scope=block`: one active prompt per `(category, block_type)`.
+- For `prompt_scope=full_case`: one active prompt per `category`.
 
 **Endpoint:** `POST /admin/prompt/activate`
 
@@ -1456,8 +1475,9 @@ Set a prompt version as the active version for its category and block type.
 ```json
 {
   "message": "Prompt activated successfully",
-  "category": "student_chat",
-  "block_type": "intake"
+  "category": "summary",
+  "prompt_scope": "full_case",
+  "block_type": null
 }
 ```
 
@@ -1486,8 +1506,9 @@ Delete a prompt version (cannot delete active prompts).
 ```json
 {
   "message": "Prompt deleted successfully",
-  "category": "student_chat",
-  "block_type": "intake"
+  "category": "summary",
+  "prompt_scope": "full_case",
+  "block_type": null
 }
 ```
 
@@ -1504,14 +1525,18 @@ Get all prompt versions across all categories and block types.
 
 **Endpoint:** `GET /admin/prompt`
 
-**Query Parameters:** None
+**Query Parameters:**
+- `category` (string, optional): Filter by prompt category
+- `block_type` (string, optional): Filter by block type (for block-scope prompts)
+- `prompt_scope` (string, optional): Filter by scope (`block` or `full_case`)
 
 **Response:**
 ```json
 [
   {
-    "prompt_version_id": 1,
-    "category": "student_chat",
+    "prompt_version_id": "uuid",
+    "category": "reasoning",
+    "prompt_scope": "block",
     "block_type": "intake",
     "version_number": 1,
     "version_name": "Initial Version",
@@ -1526,6 +1551,12 @@ Get all prompt versions across all categories and block types.
 **Example (cURL):**
 ```bash
 curl -X GET "https://api-id.execute-api.us-east-1.amazonaws.com/prod/admin/prompt" \
+  -H "Authorization: eyJraWQiOiJ..."
+```
+
+**Example (full-case summary prompt):**
+```bash
+curl -X GET "https://api-id.execute-api.us-east-1.amazonaws.com/prod/admin/prompt?category=summary&prompt_scope=full_case" \
   -H "Authorization: eyJraWQiOiJ..."
 ```
 
