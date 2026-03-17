@@ -8,9 +8,9 @@ Once you have deployed the solution, the following user guide will help you navi
 
 | Index                               | Description                                                                                                 |
 | ----------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| [Administrator View](#admin-view)   | The administrator can register instructors, change system prompts and waiver.                               |
-| [Instructor View](#instructor-view) | The instructor can view students cases and provide feedback.                                                |
-| [Student View](#student-view)       | The student can start a case, interact with AI Assistant, create summaries and transcribe audio interviews. |
+| [Administrator View](#admin-view)   | The administrator can register supervisors, change system prompts and waiver.                               |
+| [Supervisor View](#supervisor-view) | The supervisor can view advocates cases and provide feedback.                                                |
+| [Advocate View](#advocate-view)       | The advocate can start a case, interact with AI Assistant, create summaries and transcribe audio interviews. |
 
 All users start by filling their information at the sign up page.  
 ![image](./media/create-account.png)
@@ -27,8 +27,8 @@ The first user that signs up will automatically be assigned an administrator rol
 Clicking the pencil icon for a user opens the user management panel, where administrators can assign/remove different roles for a user:
 ![image](./media/admin-manage-user.png)
 
-If the selected user is an instructor/supervisor, administrators can also assign students to the instructor by entering the student's email, and remove existing students by clicking the red trash icon.
-![image](./media/admin-manage-instructor.png)
+If the selected user is a supervisor, administrators can also assign advocates to the supervisor by entering the advocate's email, and remove existing advocates by clicking the red trash icon.
+![image](./media/admin-manage-supervisor.png)
 
 ### Settings Page
 
@@ -82,7 +82,7 @@ Clicking "Compare" in the top right duplicates all configuation options, allowin
 
 ### Disclaimer Page
 
-The Disclaimer page allows administrators to edit the waiver and disclaimer text that students must agree to before using the application. It features all the same version control options administrators have with the system prompts.
+The Disclaimer page allows administrators to edit the waiver and disclaimer text that advocates must agree to before using the application. It features all the same version control options administrators have with the system prompts.
 
 ![image](./media/admin-disclaimer-editor.png)
 ![image](./media/admin-disclaimer-version-history.png)
@@ -91,22 +91,22 @@ The Disclaimer page allows administrators to edit the waiver and disclaimer text
 
 ### Cases Page
 
-Upon logging in as a supervisor, they will be greeted with a homepage that displays their own cases, and the cases of the advocates assigned to them. Instructors can search for a case using the searchbar, and filter the visible cases based on status using the dropdown menu:
+Upon logging in as a supervisor, they will be greeted with a homepage that displays their own cases, and the cases of the advocates assigned to them. Supervisors can search for a case using the searchbar, and filter the visible cases based on status using the dropdown menu:
 
-![image](./media/instructor-home-page.png)
+![image](./media/supervisor-home-page.png)
 
-Instructors have the ability to archive and delete their own cases, or their advocates cases by clicking on the ellipsis on a case:
+Supervisors have the ability to archive and delete their own cases, or their advocates cases by clicking on the ellipsis on a case:
 
-![image](./media/instructor-delete-archive-case.png)
+![image](./media/supervisor-delete-archive-case.png)
 
-Upon clicking on any of the cases, the instructor can see all interactions of the student with the AI Assistant as well as all the summaries, notes and transcriptions. The instructor can then give feed back from the "Case Feedback" tab:
-![image](./media/instructor-feedback.png)
+Upon clicking on any of the cases, the supervisor can see all interactions of the advocate with the AI Assistant as well as all the summaries, notes and transcriptions. The supervisor can then give feed back from the "Case Feedback" tab:
+![image](./media/supervisor-feedback.png)
 
 ### Prompts
 
-Clicking the prompts icon in the header allows instructors to view all the active prompts across the application.
+Clicking the prompts icon in the header allows supervisors to view all the active prompts across the application.
 
-![image](./media/instructor-prompts.png)
+![image](./media/supervisor-prompts.png)
 
 ## Advocate View
 
@@ -114,38 +114,38 @@ Clicking the prompts icon in the header allows instructors to view all the activ
 
 Upon logging in as a advocate, they see this home page with their most recent cases and the statuses of these cases (i.e. In Progress, Submitted for review or Reviewed by Supervisor)
 
-![image](./media/student-all-cases.png)
+![image](./media/advocate-all-cases.png)
 
-Students can click on a case and see the overview, summaries, transcriptions, notes as well as interact with the AI Assistant.
+Advocates can click on a case and see the overview, summaries, transcriptions, notes as well as interact with the AI Assistant.
 
 ### New Case Page
 
-To start a new case, students can click on the "New Case" button at the top of the screen. This page opens up a form with information the students can fill out about the jurisdiction, broad area of law and give a description of the case which will then be sent to the AI Assistant.
+To start a new case, advocates can click on the "New Case" button at the top of the screen. This page opens up a form with information the advocates can fill out about the jurisdiction, broad area of law and give a description of the case which will then be sent to the AI Assistant.
 
-![image](./media/student-new-case.png)
+![image](./media/advocate-new-case.png)
 
 ### Case Page
 
 Upon creating a new case, users will be redirected to the Case Overview panel. Here, they can see the details of their case, edit the case title & description, and also submit the case for a review to an available supervisor by selecting their name and clicking "Submit for Review":
 
-![image](./media/student-case-overview.jpg)
+![image](./media/advocate-case-overview.jpg)
 
 The Interview Assistant panel is where users can interact with the AI. The main panel is where users can ask questions and receive responses. A progress bar is shown above to indicate the thoroughness of the user's analysis, and a feedback panel on the right-hand side continuously updates with suggestions for improvement.
 
 A Guide icon is available in the header (top-right). Clicking it opens a help dialog that explains what the progress bar represents, how the feedback panel works, and what the system expects as you explore different parts of the case.
 
-![image](./media/student-interview-assistant.png)
+![image](./media/advocate-interview-assistant.png)
 
-Upon interacting with the AI Assistant, the student can choose to generate a downloadable summary pdf of the information and insights from the LLM by clicking on the "Generate Summary" button below the AI message. This button then generates a downloadable pdf version of a summary which is viewable from the "Case Summaries" page:
+Upon interacting with the AI Assistant, the advocate can choose to generate a downloadable summary pdf of the information and insights from the LLM by clicking on the "Generate Summary" button below the AI message. This button then generates a downloadable pdf version of a summary which is viewable from the "Case Summaries" page:
 
 - Users may also generate a full case summary by generating individual summaries across the 4 stages first, then clicking "Generate Full Case Summary".
 
-![image](./media/student-case-summaries.png)
+![image](./media/advocate-case-summaries.png)
 
-The student can also navigate to the "Case Transcriptions" tab to upload audio and transcribe. Click on the "Upload Audio" button to upload an audio file, and when done, Transcriptions will be viewable and downloadable in the main page.
+The advocate can also navigate to the "Case Transcriptions" tab to upload audio and transcribe. Click on the "Upload Audio" button to upload an audio file, and when done, Transcriptions will be viewable and downloadable in the main page.
 
-![image](./media/student-transcriptions.png)
+![image](./media/advocate-transcriptions.png)
 
 The user can also click on the Notepad button in the bottom left corner, which opens up a resizable and movable yellow legal pad where the user can note significant details of the particular case:
 
-![image](./media/student-notes.jpg)
+![image](./media/advocate-notes.jpg)
