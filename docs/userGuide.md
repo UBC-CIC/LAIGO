@@ -28,7 +28,7 @@ If the selected user is an instructor/supervisor, administrators can also assign
 ![image](./media/admin-manage-instructor.png)
 
 ### Settings Page
-Clickin on the settings icon in the header opens the main settings page. The left hand-side shows a sidebar to swap between several different settings and panels, the right-hand side shows the setting configuration options.
+Clicking on the settings icon in the header opens the main settings page. The left hand-side shows a sidebar to swap between several different settings and panels, the right-hand side shows the setting configuration options.
 
 TODO: INSERT IMAGE OF OVERALL SETTINGS PAGE HERE
 #### General Configurations
@@ -102,7 +102,7 @@ Upon clicking on any of the cases, the instructor can see all interactions of th
 
 Clicking the prompts icon in the header allows instructors to view all the active prompts across the application. 
 
-TODO: update when we have added the new prompt options for summary prompts
+![image](./media/instructor-prompts.png)
 
 
 ## Advocate View
