@@ -9,6 +9,13 @@ const logger = new Logger({ serviceName: "PreSignup" });
 const ssmClient = new SSMClient();
 const dynamoClient = new DynamoDBClient();
 
+class UserError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "UserError";
+  }
+}
+
 /**
  * Cognito Pre-Signup Lambda Trigger
  *
@@ -50,12 +57,12 @@ exports.handler = async (event) => {
 
     const email = event?.request?.userAttributes?.email;
     if (!email) {
-      throw new Error("Email attribute is required for signup");
+      throw new UserError("Email attribute is required for signup");
     }
 
     const parts = email.split("@");
     if (parts.length < 2) {
-      throw new Error(`Invalid email address provided: ${email}`);
+      throw new UserError(`Invalid email address provided: ${email}`);
     }
     const emailDomain = parts.slice(1).join("@").trim().toLowerCase();
     logger.info("Signup request", { email, emailDomain });
@@ -67,7 +74,7 @@ exports.handler = async (event) => {
 
     if (!isDomainAllowed) {
       logger.error("Domain not allowed", { emailDomain, allowedDomains });
-      throw new Error(`Signup not allowed for email domain: ${emailDomain}`);
+      throw new UserError(`Signup not allowed for email domain: ${emailDomain}`);
     }
 
     // ── Stage 2: Whitelist check (new) ───────────────────────────────────────
@@ -89,7 +96,7 @@ exports.handler = async (event) => {
 
         if (!whitelistResult.Item) {
           logger.error("Email not in whitelist", { email });
-          throw new Error(
+          throw new UserError(
             `Signup not allowed: your email (${email}) is not on the access list. Please contact an administrator.`,
           );
         }
@@ -105,6 +112,13 @@ exports.handler = async (event) => {
     return event;
   } catch (error) {
     logger.error("PreSignUp error", error);
-    throw error;
+    // If it's an intentional validation error (UserError), show it to the user.
+    // Otherwise, mask it as a generic internal error.
+    if (error instanceof UserError) {
+      throw error;
+    }
+    throw new Error(
+      "An error occurred during signup. Please try again later or contact an administrator.",
+    );
   }
 };

@@ -74,6 +74,12 @@ const Login = () => {
     });
   };
 
+  const cleanErrorMessage = (message: string) => {
+    // Strips common Cognito Lambda trigger error prefixes
+    // Format: "[TriggerName] failed with error [Real Message]"
+    return message.replace(/^\w+ failed with error\s+/, "");
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -114,7 +120,7 @@ const Login = () => {
     } catch (err) {
       setSnackbar({
         open: true,
-        message: (err as Error).message || "Something went wrong",
+        message: cleanErrorMessage((err as Error).message) || "Something went wrong",
         severity: "error",
       });
     } finally {
@@ -144,7 +150,7 @@ const Login = () => {
     } catch (err) {
       setSnackbar({
         open: true,
-        message: (err as Error).message,
+        message: cleanErrorMessage((err as Error).message),
         severity: "error",
       });
     } finally {
@@ -175,7 +181,7 @@ const Login = () => {
     } catch (err) {
       setSnackbar({
         open: true,
-        message: (err as Error).message,
+        message: cleanErrorMessage((err as Error).message),
         severity: "error",
       });
     }
@@ -202,7 +208,7 @@ const Login = () => {
     } catch (err) {
       setSnackbar({
         open: true,
-        message: (err as Error).message,
+        message: cleanErrorMessage((err as Error).message),
         severity: "error",
       });
     }
@@ -254,7 +260,7 @@ const Login = () => {
         <Alert
           onClose={() => setSnackbar({ ...snackbar, open: false })}
           severity={snackbar.severity}
-          sx={{ width: "100%" }}
+          sx={{ width: "100%", maxWidth: 400, whiteSpace: "pre-line" }}
         >
           {snackbar.message}
         </Alert>

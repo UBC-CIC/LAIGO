@@ -61,6 +61,13 @@ async function getWhitelistRole(email) {
   }
 }
 
+class UserError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "UserError";
+  }
+}
+
 /**
  * Cognito Post-Confirmation Lambda Trigger
  * Creates or updates user records in RDS database after email verification
@@ -70,14 +77,23 @@ async function getWhitelistRole(email) {
 exports.handler = async (event) => {
   // Initialize database connection if not already established
   if (!sqlConnection) {
-    await initializeConnection(SM_DB_CREDENTIALS, RDS_PROXY_ENDPOINT);
-    sqlConnection = global.sqlConnection;
+    try {
+      await initializeConnection(SM_DB_CREDENTIALS, RDS_PROXY_ENDPOINT);
+      sqlConnection = global.sqlConnection;
+    } catch (err) {
+      logger.error("Failed to initialize database connection in post-confirmation", err);
+      // We don't throw yet, we'll hit the catch at the bottom if needed
+    }
   }
 
   const { userName, userPoolId } = event;
   const client = new CognitoIdentityProviderClient();
 
   try {
+    if (!sqlConnection) {
+      throw new Error("Database connection not established");
+    }
+
     // Retrieve user attributes from Cognito
     const getUserCommand = new AdminGetUserCommand({
       UserPoolId: userPoolId,
@@ -97,7 +113,7 @@ exports.handler = async (event) => {
     // Return error if email attribute is missing
     if (!email) {
       logger.error("Email attribute missing from Cognito");
-      throw new Error("Email attribute not found in Cognito user");
+      throw new UserError("Email attribute not found in Cognito user");
     }
 
     // Check if user already exists in database
@@ -176,8 +192,16 @@ exports.handler = async (event) => {
     return event;
   } catch (err) {
     logger.error("Error in post-confirmation trigger", err);
-    // Don't throw error - this would block user confirmation
-    // Database errors are logged but don't prevent authentication (graceful degradation)
+    
+    // In PostConfirmation, Cognito generally doesn't pass back our error message to the UI.
+    // However, we still distinguish them here for better logging logs.
+    if (err instanceof UserError) {
+      return event; 
+    }
+
+    // Database or internal errors:
+    // We return the event so the user is confirmed in Cognito, but we've logged the failure.
+    // The frontend handles the profile-missing case when the user tries to log in.
     return event;
   }
 };

@@ -224,7 +224,7 @@ export class ApiGatewayStack extends cdk.Stack {
         emailStyle: cognito.VerificationEmailStyle.CODE,
       },
       passwordPolicy: {
-        minLength: 10, // Minimum password length
+        minLength: 12, // Minimum password length aligned with frontend
         requireLowercase: true, // Require lowercase letters
         requireUppercase: true, // Require uppercase letters
         requireDigits: true, // Require numbers
