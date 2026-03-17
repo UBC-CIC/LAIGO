@@ -6,11 +6,11 @@
 
 Once you have deployed the solution, the following user guide will help you navigate the functions available.
 
-| Index                               | Description                                                                                                 |
-| ----------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| [Administrator View](#admin-view)   | The administrator can register supervisors, change system prompts and waiver.                               |
+| Index                               | Description                                                                                                  |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| [Administrator View](#admin-view)   | The administrator can register supervisors, change system prompts and waiver.                                |
 | [Supervisor View](#supervisor-view) | The supervisor can view advocates cases and provide feedback.                                                |
-| [Advocate View](#advocate-view)       | The advocate can start a case, interact with AI Assistant, create summaries and transcribe audio interviews. |
+| [Advocate View](#advocate-view)     | The advocate can start a case, interact with AI Assistant, create summaries and transcribe audio interviews. |
 
 All users start by filling their information at the sign up page.  
 ![image](./media/create-account.png)
@@ -45,6 +45,14 @@ The General Configurations tab allows administrators to modify the configuration
 
 The Role Labels tab allows administrators to modify the user terminology displayed across the application.
 ![image](media/admin-role-labels.png)
+
+#### Signup Access
+
+The Signup Access tab allows administrators to control whether the application allows anyone to sign up, or only certain emails can sign up. Administrators can toggle public signup on and off, and upload a csv whitelist formatted as "email,role" to allow specific users to sign up.
+
+- Users that signup when public signup is disabled, will be given the role based on the whitelist.
+
+![image](./media/admin-whitelist.png)
 
 #### Prompt Management
 
