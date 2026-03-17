@@ -277,7 +277,8 @@ const routes = {
     const { response, user, user_id, sqlConnection } = env;
     // SECURITY: Use trusted cognito_id from authorizer
     try {
-      const { category, block_type } = event.queryStringParameters || {};
+      const { category, block_type, prompt_scope } =
+        event.queryStringParameters || {};
 
       // Base query for active prompts
       let query = `
@@ -285,6 +286,7 @@ const routes = {
               prompt_version_id,
               category,
               block_type,
+              prompt_scope,
               version_number,
               version_name,
               prompt_text,
@@ -302,8 +304,12 @@ const routes = {
         query += ` AND block_type = $${params.length + 1}`;
         params.push(block_type);
       }
+      if (prompt_scope) {
+        query += ` AND prompt_scope = $${params.length + 1}`;
+        params.push(prompt_scope);
+      }
 
-      query += ` ORDER BY category, block_type`;
+      query += ` ORDER BY category, prompt_scope, block_type`;
 
       // Using 'unsafe' for dynamic query construction appropriately with parameters
       const prompts = await sqlConnection.unsafe(query, params);

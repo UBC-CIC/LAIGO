@@ -24,7 +24,11 @@ type BlockType =
 // Mapping from Sidebar ID to Backend Enums
 const SIDEBAR_TO_BACKEND: Record<
   string,
-  { category: PromptCategory; block_type: BlockType | null }
+  {
+    category: PromptCategory;
+    block_type: BlockType | null;
+    prompt_scope?: "full_case";
+  }
 > = {
   // Reasoning
   "intake-facts": { category: "reasoning", block_type: "intake" },
@@ -34,7 +38,26 @@ const SIDEBAR_TO_BACKEND: Record<
 
   // Assessment
   "intake-assessment": { category: "assessment", block_type: "intake" },
-  "legal-analysis-assessment": { category: "assessment", block_type: "legal_analysis" },
+  "legal-analysis-assessment": {
+    category: "assessment",
+    block_type: "legal_analysis",
+  },
+  "contrarian-assessment": { category: "assessment", block_type: "contrarian" },
+  "policy-assessment": { category: "assessment", block_type: "policy" },
+
+  // Summary
+  "intake-summary": { category: "summary", block_type: "intake" },
+  "legal-analysis-summary": {
+    category: "summary",
+    block_type: "legal_analysis",
+  },
+  "contrarian-summary": { category: "summary", block_type: "contrarian" },
+  "policy-summary": { category: "summary", block_type: "policy" },
+  "full-case-summary": {
+    category: "summary",
+    block_type: null,
+    prompt_scope: "full_case",
+  },
 };
 
 interface SidebarItem {
@@ -94,6 +117,53 @@ const SECTIONS: SidebarSection[] = [
         label: "Legal Analysis Assessment",
         description:
           "Establishes standards for assessing legal analysis comprehension. Success unlocks advanced stages (Contrarian, Policy).",
+      },
+      {
+        id: "contrarian-assessment",
+        label: "Contrarian Assessment",
+        description:
+          "Defines criteria to evaluate whether contrarian analysis adequately stress-tests assumptions and legal strategy.",
+      },
+      {
+        id: "policy-assessment",
+        label: "Policy Assessment",
+        description:
+          "Defines criteria to evaluate policy context, implications, and quality of broader legal reasoning.",
+      },
+    ],
+  },
+  {
+    category: "summary",
+    items: [
+      {
+        id: "intake-summary",
+        label: "Intake Summary",
+        description:
+          "Controls how intake interviews are summarized into a clear legal work product.",
+      },
+      {
+        id: "legal-analysis-summary",
+        label: "Legal Analysis Summary",
+        description:
+          "Controls how legal analysis discussions are summarized into concise doctrinal output.",
+      },
+      {
+        id: "contrarian-summary",
+        label: "Contrarian Summary",
+        description:
+          "Controls how contrarian-stage analysis is summarized, emphasizing weaknesses and counterarguments.",
+      },
+      {
+        id: "policy-summary",
+        label: "Policy Summary",
+        description:
+          "Controls how policy-stage discussion is summarized, including implications and tradeoffs.",
+      },
+      {
+        id: "full-case-summary",
+        label: "Full Case Synthesis",
+        description:
+          "Controls the final synthesis prompt that combines all block summaries into a full-case summary.",
       },
     ],
   },
@@ -178,6 +248,8 @@ const SupervisorPrompts = () => {
                     ? "Reasoning Stages"
                     : section.category === "assessment"
                       ? "Assessment Prompts"
+                      : section.category === "summary"
+                        ? "Summary Prompts"
                       : section.category}
                 </Typography>
                 <Box
@@ -240,12 +312,17 @@ const SupervisorPrompts = () => {
               minWidth: 0,
             }}
           >
-            {target && target.block_type ? (
+            {target && (target.block_type || target.prompt_scope) ? (
               <ReadOnlyPromptViewer
                 // Key forces remount when category/block changes, ensuring fresh active fetch
-                key={`${target.category}-${target.block_type}`}
+                key={
+                  target.prompt_scope === "full_case"
+                    ? `${target.category}-full_case`
+                    : `${target.category}-${target.block_type}`
+                }
                 category={target.category}
                 blockType={target.block_type}
+                promptScope={target.prompt_scope}
                 title={activeItem?.label || "Prompt Viewer"}
                 description={activeItem?.description || ""}
               />

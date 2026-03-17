@@ -22,7 +22,8 @@ type BlockType =
 interface PromptVersion {
   prompt_version_id: string;
   category: PromptCategory;
-  block_type: BlockType;
+  block_type: BlockType | null;
+  prompt_scope?: "block" | "full_case";
   version_number: number;
   version_name: string;
   prompt_text: string;
@@ -31,7 +32,8 @@ interface PromptVersion {
 
 interface ReadOnlyPromptViewerProps {
   category: PromptCategory;
-  blockType: BlockType;
+  blockType: BlockType | null;
+  promptScope?: "full_case";
   title: string;
   description: string;
 }
@@ -39,6 +41,7 @@ interface ReadOnlyPromptViewerProps {
 const ReadOnlyPromptViewer: React.FC<ReadOnlyPromptViewerProps> = ({
   category,
   blockType,
+  promptScope,
   title,
   description,
 }) => {
@@ -54,8 +57,13 @@ const ReadOnlyPromptViewer: React.FC<ReadOnlyPromptViewerProps> = ({
       const token = session.tokens?.idToken?.toString();
       if (!token) throw new Error("No auth token");
 
+      const queryParam =
+        promptScope === "full_case"
+          ? "prompt_scope=full_case"
+          : `block_type=${blockType}`;
+
       const response = await fetch(
-        `${import.meta.env.VITE_API_ENDPOINT}/instructor/prompts?category=${category}&block_type=${blockType}`,
+        `${import.meta.env.VITE_API_ENDPOINT}/instructor/prompts?category=${category}&${queryParam}`,
         { headers: { Authorization: token } },
       );
       if (!response.ok) throw new Error("Failed to fetch active prompt");
@@ -73,7 +81,7 @@ const ReadOnlyPromptViewer: React.FC<ReadOnlyPromptViewerProps> = ({
     } finally {
       setIsLoading(false);
     }
-  }, [category, blockType]);
+  }, [category, blockType, promptScope]);
 
   useEffect(() => {
     fetchActivePrompt();
@@ -168,7 +176,7 @@ const ReadOnlyPromptViewer: React.FC<ReadOnlyPromptViewerProps> = ({
             flexDirection="column"
           >
             <Typography color="textSecondary">
-              No active prompt configured for this block.
+              No active prompt configured for this selection.
             </Typography>
           </Box>
         ) : (
