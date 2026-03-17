@@ -1631,6 +1631,257 @@ paths:
         passthroughBehavior: "when_no_match"
         httpMethod: "POST"
         type: "aws_proxy"
+ 
+  /admin/signup_mode:
+    options:
+      summary: CORS support
+      responses:
+        200:
+          $ref: "#/components/responses/Success"
+      x-amazon-apigateway-integration:
+        type: mock
+        requestTemplates:
+          application/json: '{"statusCode": 200}'
+        responses:
+          default:
+            statusCode: "200"
+            responseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,PUT,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            responseTemplates:
+              application/json: "{}"
+    get:
+      tags:
+        - Admin
+      summary: Get signup mode
+      description: "Returns the current signup mode from SSM (public or whitelist)."
+      operationId: admin_signup_mode_GET
+      security:
+        - adminAuthorizer: []
+      responses:
+        "200":
+          description: Current signup mode
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  mode:
+                    type: string
+                    enum: [public, whitelist]
+                    description: "The current signup mode (public allows anyone to sign up, whitelist restricts to the email list)"
+        "500":
+          description: Internal Server Error
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${adminFunction.Arn}/invocations"
+        passthroughBehavior: "when_no_match"
+        httpMethod: "POST"
+        type: "aws_proxy"
+    put:
+      tags:
+        - Admin
+      summary: Update signup mode
+      description: "Sets the signup mode in SSM."
+      operationId: admin_signup_mode_PUT
+      security:
+        - adminAuthorizer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mode]
+              properties:
+                mode:
+                  type: string
+                  enum: [public, whitelist]
+                  description: "The signup mode to set (public or whitelist)"
+      responses:
+        "200":
+          description: Success
+        "400":
+          description: Invalid mode
+        "500":
+          description: Internal Server Error
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${adminFunction.Arn}/invocations"
+        passthroughBehavior: "when_no_match"
+        httpMethod: "POST"
+        type: "aws_proxy"
+
+  /admin/whitelist:
+    options:
+      summary: CORS support
+      responses:
+        200:
+          $ref: "#/components/responses/Success"
+      x-amazon-apigateway-integration:
+        type: mock
+        requestTemplates:
+          application/json: '{"statusCode": 200}'
+        responses:
+          default:
+            statusCode: "200"
+            responseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,DELETE,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            responseTemplates:
+              application/json: "{}"
+    get:
+      tags:
+        - Admin
+      summary: List whitelist entries
+      description: "Scans and returns all entries from the email whitelist DynamoDB table."
+      operationId: admin_whitelist_GET
+      security:
+        - adminAuthorizer: []
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  entries:
+                    type: array
+                    description: "List of whitelisted email entries"
+                    items:
+                      type: object
+                      properties:
+                        email:
+                          type: string
+                          description: "Whitelisted email address"
+                        canonical_role:
+                          type: string
+                          description: "The canonical role assigned to this email (e.g., student, instructor, admin)"
+                        uploaded_label:
+                          type: string
+                          description: "The original role label uploaded via CSV for reference"
+                  count:
+                    type: integer
+                    description: "Total number of entries found"
+        "500":
+          description: Internal Server Error
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${adminFunction.Arn}/invocations"
+        passthroughBehavior: "when_no_match"
+        httpMethod: "POST"
+        type: "aws_proxy"
+    delete:
+      tags:
+        - Admin
+      summary: Delete whitelist entry
+      description: "Removes an entry from the email whitelist DynamoDB table given an email address."
+      operationId: admin_whitelist_DELETE
+      security:
+        - adminAuthorizer: []
+      parameters:
+        - in: query
+          name: email
+          required: true
+          description: "The email address to remove from the whitelist"
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+        "500":
+          description: Internal Server Error
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${adminFunction.Arn}/invocations"
+        passthroughBehavior: "when_no_match"
+        httpMethod: "POST"
+        type: "aws_proxy"
+
+  /admin/whitelist/upload:
+    options:
+      summary: CORS support
+      responses:
+        200:
+          $ref: "#/components/responses/Success"
+      x-amazon-apigateway-integration:
+        type: mock
+        requestTemplates:
+          application/json: '{"statusCode": 200}'
+        responses:
+          default:
+            statusCode: "200"
+            responseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key'"
+              method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            responseTemplates:
+              application/json: "{}"
+    post:
+      tags:
+        - Admin
+      summary: Bulk upload whitelist CSV
+      description: "Parses a CSV file containing email/role mappings and upserts them into DynamoDB. Case-insensitively resolves labels to canonical roles via Postgres."
+      operationId: admin_whitelist_upload_POST
+      security:
+        - adminAuthorizer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [csv]
+              properties:
+                csv:
+                  type: string
+                  description: "Full content of the CSV file as a string (Format: email,role_label)"
+
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  processed:
+                    type: integer
+                    description: "Number of successfully whitelisted emails"
+                  invalid:
+                    type: integer
+                    description: "Number of invalid rows in the CSV"
+                  invalidRows:
+                    type: array
+                    description: "Details on each invalid row (reason and position)"
+                    items:
+                      type: object
+                      properties:
+                        row:
+                          type: integer
+                          description: "Row number in the original CSV"
+                        email:
+                          type: string
+                          description: "Email value found in this row"
+                        label:
+                          type: string
+                          description: "Role label found in this row"
+                        reason:
+                          type: string
+                          description: "Reason why this row failed validation (e.g., unknown role label or invalid email)"
+        "400":
+          description: Bad request
+        "500":
+          description: Internal Server Error
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${adminFunction.Arn}/invocations"
+        passthroughBehavior: "when_no_match"
+        httpMethod: "POST"
+        type: "aws_proxy"
 
   /instructor/health:
     get:

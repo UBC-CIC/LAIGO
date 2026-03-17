@@ -824,6 +824,17 @@ export class ApiGatewayStack extends cdk.Stack {
       }),
     );
 
+    // Grant cognitoRole (preSignup + postConfirmation) read access to the email whitelist table
+    cognitoRole.addToPolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["dynamodb:GetItem"],
+        resources: [
+          `arn:aws:dynamodb:${this.region}:${this.account}:table/${id}-email-whitelist`,
+        ],
+      }),
+    );
+
     // Cognito Pre-Signup Lambda Trigger
     // Validates email domains and prevents unauthorized registrations
     // Cognito Pre-Signup Lambda Trigger
@@ -835,6 +846,8 @@ export class ApiGatewayStack extends cdk.Stack {
       timeout: Duration.seconds(10),
       environment: {
         ALLOWED_EMAIL_DOMAINS: "/LAIGO/AllowedEmailDomains", // SSM parameter with allowed domains
+        SIGNUP_MODE_PARAM: "/LAIGO/SignupMode",
+        WHITELIST_TABLE_NAME: `${id}-email-whitelist`,
       },
       functionName: `${id}-preSignupLambda`,
       memorySize: 128,
@@ -856,6 +869,8 @@ export class ApiGatewayStack extends cdk.Stack {
         environment: {
           SM_DB_CREDENTIALS: db.secretPathUser.secretName, // Database user credentials
           RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint, // RDS Proxy for connection pooling
+          SIGNUP_MODE_PARAM: "/LAIGO/SignupMode",
+          WHITELIST_TABLE_NAME: `${id}-email-whitelist`,
         },
         functionName: `${id}-addStudentOnSignUp`,
         memorySize: 256,
@@ -1199,6 +1214,35 @@ export class ApiGatewayStack extends cdk.Stack {
       },
     });
 
+    // Email Whitelist table for signup access control
+    // Partition key: email. Stores canonical_role (student/instructor/admin) and uploaded_label.
+    // RETAIN on delete to prevent accidental data loss.
+    const emailWhitelistTable = new dynamodb.Table(
+      this,
+      `${id}-EmailWhitelistTable`,
+      {
+        tableName: `${id}-email-whitelist`,
+        partitionKey: {
+          name: "email",
+          type: dynamodb.AttributeType.STRING,
+        },
+        billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+        encryption: dynamodb.TableEncryption.AWS_MANAGED,
+        removalPolicy: cdk.RemovalPolicy.RETAIN,
+      },
+    );
+
+    // SSM parameter to control signup mode: 'public' (default) or 'whitelist'
+    const signupModeParameter = new ssm.StringParameter(
+      this,
+      "SignupModeParameter",
+      {
+        parameterName: "/LAIGO/SignupMode",
+        description: "Controls signup access: 'public' allows all, 'whitelist' restricts to email_whitelist table",
+        stringValue: "public",
+      },
+    );
+
     // --- Student Cases Lambda (GET /student/cases) ---
     // Defined early so other constructs can reference it
     const notificationEventBus = new events.EventBus(
@@ -1280,6 +1324,8 @@ export class ApiGatewayStack extends cdk.Stack {
           BEDROCK_TOP_P_PARAM: bedrockTopPParameter.parameterName,
           BEDROCK_MAX_TOKENS_PARAM: bedrockMaxTokensParameter.parameterName,
           BEDROCK_LLM_PARAM: bedrockLLMParameter.parameterName,
+          SIGNUP_MODE_SSM_PARAM: "/LAIGO/SignupMode",
+          WHITELIST_TABLE_NAME: `${id}-email-whitelist`,
         },
         functionName: `${id}-adminFunction`,
         memorySize: 512,
@@ -1315,6 +1361,35 @@ export class ApiGatewayStack extends cdk.Stack {
     bedrockMaxTokensParameter.grantWrite(lambdaAdminFunction);
     bedrockLLMParameter.grantRead(lambdaAdminFunction);
     bedrockLLMParameter.grantWrite(lambdaAdminFunction);
+
+    // Grant admin function read/write access to the email whitelist DynamoDB table
+    // Note: emailWhitelistTable is defined later in the constructor but CDK resolves this at synth time
+    lambdaAdminFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: [
+          "dynamodb:Scan",
+          "dynamodb:PutItem",
+          "dynamodb:DeleteItem",
+          "dynamodb:BatchWriteItem",
+          "dynamodb:GetItem",
+        ],
+        resources: [
+          `arn:aws:dynamodb:${this.region}:${this.account}:table/${id}-email-whitelist`,
+        ],
+      }),
+    );
+
+    // Grant admin function read/write access to the signup mode SSM parameter
+    lambdaAdminFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["ssm:GetParameter", "ssm:PutParameter"],
+        resources: [
+          `arn:aws:ssm:${this.region}:${this.account}:parameter/LAIGO/SignupMode`,
+        ],
+      }),
+    );
 
     const cfnLambda_Admin = lambdaAdminFunction.node
       .defaultChild as lambda.CfnFunction;

@@ -1,52 +1,55 @@
 const { SSMClient, GetParameterCommand } = require("@aws-sdk/client-ssm");
+const {
+  DynamoDBClient,
+  GetItemCommand,
+} = require("@aws-sdk/client-dynamodb");
 const { Logger } = require("@aws-lambda-powertools/logger");
 const logger = new Logger({ serviceName: "PreSignup" });
 
+const ssmClient = new SSMClient();
+const dynamoClient = new DynamoDBClient();
+
 /**
  * Cognito Pre-Signup Lambda Trigger
- * Validates user email domain against allowed domains list stored in SSM Parameter Store
- * Prevents signup for unauthorized email domains
+ *
+ * Two-stage validation:
+ * 1. Email domain check (existing) — validates against allowed domains in SSM.
+ * 2. Whitelist check (new) — if signup mode is 'whitelist', the exact email
+ *    must exist in the DynamoDB email-whitelist table.
  */
 exports.handler = async (event) => {
-  // Initialize SSM client for parameter retrieval
-  const ssmClient = new SSMClient();
-  const parameterName = process.env.ALLOWED_EMAIL_DOMAINS;
+  const domainParamName = process.env.ALLOWED_EMAIL_DOMAINS;
+  const signupModeParamName = process.env.SIGNUP_MODE_PARAM;
+  const whitelistTableName = process.env.WHITELIST_TABLE_NAME;
 
   try {
-    if (!parameterName) {
+    if (!domainParamName) {
       throw new Error("Environment variable ALLOWED_EMAIL_DOMAINS is not set");
     }
 
-    // Retrieve allowed email domains from SSM Parameter Store
-    const getParameterCommand = new GetParameterCommand({
-      Name: parameterName,
-      WithDecryption: true, // Decrypt if parameter is encrypted
-    });
-    const data = await ssmClient.send(getParameterCommand);
+    // ── Stage 1: Domain allowlist check (unchanged) ──────────────────────────
+    const domainData = await ssmClient.send(
+      new GetParameterCommand({ Name: domainParamName, WithDecryption: true }),
+    );
 
-    if (!data || !data.Parameter || !data.Parameter.Value) {
+    if (!domainData?.Parameter?.Value) {
       throw new Error(
-        `SSM parameter ${parameterName} not found or has no value`,
+        `SSM parameter ${domainParamName} not found or has no value`,
       );
     }
 
-    // Parse comma-separated list of allowed domains (trim and lowercase for robust comparison)
-    const allowedDomains = data.Parameter.Value.split(",")
+    const allowedDomains = domainData.Parameter.Value.split(",")
       .map((d) => d.trim().toLowerCase())
       .filter(Boolean);
-    logger.info("Allowed domains retrieved", { allowedDomains });
 
     if (allowedDomains.length === 0) {
       throw new Error(
-        `SSM parameter ${parameterName} contains no allowed domains`,
+        `SSM parameter ${domainParamName} contains no allowed domains`,
       );
     }
 
-    // Extract email and domain from user attributes
     const email = event?.request?.userAttributes?.email;
-
     if (!email) {
-      logger.error("No email attribute provided; rejecting signup");
       throw new Error("Email attribute is required for signup");
     }
 
@@ -55,25 +58,53 @@ exports.handler = async (event) => {
       throw new Error(`Invalid email address provided: ${email}`);
     }
     const emailDomain = parts.slice(1).join("@").trim().toLowerCase();
-    logger.info("Signup request details", { email, emailDomain });
+    logger.info("Signup request", { email, emailDomain });
 
-    // Accept only exact domain matches (no subdomain matching)
-    const isAllowed = allowedDomains.some((allowed) => {
-      if (allowed === "*") return true; // wildcard allows all
-      return allowed === emailDomain; // exact match only
+    const isDomainAllowed = allowedDomains.some((allowed) => {
+      if (allowed === "*") return true;
+      return allowed === emailDomain;
     });
 
-    // Reject signup if email domain is not allowed
-    if (!isAllowed) {
+    if (!isDomainAllowed) {
       logger.error("Domain not allowed", { emailDomain, allowedDomains });
       throw new Error(`Signup not allowed for email domain: ${emailDomain}`);
     }
 
-    // All good — continue signup
+    // ── Stage 2: Whitelist check (new) ───────────────────────────────────────
+    if (signupModeParamName && whitelistTableName) {
+      const modeData = await ssmClient.send(
+        new GetParameterCommand({ Name: signupModeParamName }),
+      );
+      const signupMode = modeData?.Parameter?.Value || "public";
+      logger.info("Signup mode", { signupMode });
+
+      if (signupMode === "whitelist") {
+        // Verify the exact email exists in the whitelist table
+        const whitelistResult = await dynamoClient.send(
+          new GetItemCommand({
+            TableName: whitelistTableName,
+            Key: { email: { S: email.toLowerCase().trim() } },
+          }),
+        );
+
+        if (!whitelistResult.Item) {
+          logger.error("Email not in whitelist", { email });
+          throw new Error(
+            `Signup not allowed: your email (${email}) is not on the access list. Please contact an administrator.`,
+          );
+        }
+
+        logger.info("Email found in whitelist", {
+          email,
+          role: whitelistResult.Item.canonical_role?.S,
+        });
+      }
+    }
+
+    // All checks passed — continue signup
     return event;
   } catch (error) {
     logger.error("PreSignUp error", error);
-    // Rethrow the original error so CloudWatch/Cognito get the specific message
     throw error;
   }
 };

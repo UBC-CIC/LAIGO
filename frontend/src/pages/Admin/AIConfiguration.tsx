@@ -13,6 +13,7 @@ import ModelConfig from "../../components/Admin/ModelConfig";
 import PromptEditor from "../../components/Admin/PromptEditor";
 import PromptPlayground from "../../components/Admin/PromptPlayground";
 import RoleLabelsConfig from "../../components/Admin/RoleLabelsConfig";
+import SignupAccessConfig from "../../components/Admin/SignupAccessConfig";
 
 // --- Types based on DB Schema & Requirements ---
 
@@ -32,6 +33,7 @@ const SIDEBAR_TO_BACKEND: Record<
   // General
   "model-configs": { category: "General Settings", block_type: null },
   playground: { category: "General Settings", block_type: null },
+  "signup-access": { category: "General Settings", block_type: null },
 
   // Reasoning
   "intake-facts": { category: "reasoning", block_type: "intake" },
@@ -93,6 +95,12 @@ const SECTIONS: SidebarSection[] = [
         label: "Role Labels",
         description:
           "Customise the display names shown in the UI for each user role (e.g. change \"Advocate\" to \"Client\").",
+      },
+      {
+        id: "signup-access",
+        label: "Signup Access",
+        description:
+          "Toggle between open signups and restricted whitelist-based access. Upload a CSV to control which emails can register and which role they receive.",
       },
     ],
   },
@@ -342,6 +350,8 @@ const AIConfiguration = () => {
               <PromptPlayground />
             ) : selectedBlockId === "role-labels" ? (
               <RoleLabelsConfig />
+            ) : selectedBlockId === "signup-access" ? (
+              <SignupAccessConfig />
             ) : target && (target.block_type || target.prompt_scope) ? (
               <PromptEditor
                 // Key forces remount when category/block changes, ensuring fresh state

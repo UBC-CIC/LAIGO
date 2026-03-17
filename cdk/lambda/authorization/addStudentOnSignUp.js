@@ -5,12 +5,61 @@ const {
   CognitoIdentityProviderClient,
   AdminGetUserCommand,
 } = require("@aws-sdk/client-cognito-identity-provider");
+const { SSMClient, GetParameterCommand } = require("@aws-sdk/client-ssm");
+const {
+  DynamoDBClient,
+  GetItemCommand,
+} = require("@aws-sdk/client-dynamodb");
 const { Logger } = require("@aws-lambda-powertools/logger");
 const logger = new Logger({ serviceName: "AddStudentOnSignUp" });
 
 // Environment variables for database connection
-const { SM_DB_CREDENTIALS, RDS_PROXY_ENDPOINT } = process.env;
+const {
+  SM_DB_CREDENTIALS,
+  RDS_PROXY_ENDPOINT,
+  SIGNUP_MODE_PARAM,
+  WHITELIST_TABLE_NAME,
+} = process.env;
+
 let sqlConnection = global.sqlConnection;
+const ssmClient = new SSMClient();
+const dynamoClient = new DynamoDBClient();
+
+/**
+ * Looks up the signup mode from SSM. Returns 'public' if not configured.
+ */
+async function getSignupMode() {
+  if (!SIGNUP_MODE_PARAM) return "public";
+  try {
+    const result = await ssmClient.send(
+      new GetParameterCommand({ Name: SIGNUP_MODE_PARAM }),
+    );
+    return result?.Parameter?.Value || "public";
+  } catch (err) {
+    logger.warn("Could not read SignupMode SSM param, defaulting to public", { err });
+    return "public";
+  }
+}
+
+/**
+ * Looks up the canonical role for an email from DynamoDB whitelist.
+ * Returns null if not found or table not configured.
+ */
+async function getWhitelistRole(email) {
+  if (!WHITELIST_TABLE_NAME) return null;
+  try {
+    const result = await dynamoClient.send(
+      new GetItemCommand({
+        TableName: WHITELIST_TABLE_NAME,
+        Key: { email: { S: email.toLowerCase().trim() } },
+      }),
+    );
+    return result?.Item?.canonical_role?.S || null;
+  } catch (err) {
+    logger.warn("Could not read whitelist entry from DynamoDB", { email, err });
+    return null;
+  }
+}
 
 /**
  * Cognito Post-Confirmation Lambda Trigger
@@ -72,13 +121,40 @@ exports.handler = async (event) => {
 
       console.log(`User ${email} updated in database`);
     } else {
-      // Check if this is the first user in the system
+      // Determine the role for the new user
+      let defaultRole;
+
+      // Check if this is the first user — always gets admin regardless of mode
       const userCount = await sqlConnection`
         SELECT COUNT(*) as count FROM "users";
       `;
-
       const isFirstUser = parseInt(userCount[0].count, 10) === 0;
-      const defaultRole = isFirstUser ? "admin" : "student";
+
+      if (isFirstUser) {
+        defaultRole = "admin";
+        logger.info("First user in system, assigning admin role", { email });
+      } else {
+        // Check signup mode to determine role
+        const signupMode = await getSignupMode();
+        logger.info("New user signup", { email, signupMode });
+
+        if (signupMode === "whitelist") {
+          // Look up the canonical role from the DynamoDB whitelist
+          const whitelistRole = await getWhitelistRole(email);
+          if (whitelistRole) {
+            defaultRole = whitelistRole;
+            logger.info("Assigning role from whitelist", { email, defaultRole });
+          } else {
+            // Fallback: whitelist check in preSignup should have blocked this,
+            // but defensively default to student if something slips through
+            logger.warn("Email not in whitelist during post-confirmation, defaulting to student", { email });
+            defaultRole = "student";
+          }
+        } else {
+          // Public mode: default to student
+          defaultRole = "student";
+        }
+      }
 
       logger.info("Creating new user in database", {
         email,
@@ -86,14 +162,14 @@ exports.handler = async (event) => {
         isFirstUser,
       });
 
-      // Create new user with admin role if first user, otherwise student
-      const newUser = await sqlConnection`
+      // Create new user with the determined role
+      await sqlConnection`
         INSERT INTO "users" (idp_id, user_email, first_name, last_name, time_account_created, roles, last_sign_in)
         VALUES (${idpId}, ${email}, ${firstName}, ${lastName}, CURRENT_TIMESTAMP, ARRAY[${defaultRole}]::user_role[], CURRENT_TIMESTAMP)
         RETURNING *;
       `;
 
-      logger.info("New user created", { email });
+      logger.info("New user created", { email, role: defaultRole });
     }
 
     // Return event to continue post-confirmation flow

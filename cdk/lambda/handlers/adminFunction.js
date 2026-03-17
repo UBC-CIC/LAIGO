@@ -1421,6 +1421,206 @@ const routes = {
       response.body = JSON.stringify({ error: "Failed to update role labels" });
     }
   },
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Signup Whitelist Routes
+  // ──────────────────────────────────────────────────────────────────────────
+
+  /** GET /admin/signup_mode — returns the current signup mode from SSM */
+  "GET /admin/signup_mode": async (event, env) => {
+    const { response } = env;
+    try {
+      const { SSMClient, GetParameterCommand } = await import("@aws-sdk/client-ssm");
+      const ssm = new SSMClient();
+      const result = await ssm.send(
+        new GetParameterCommand({ Name: process.env.SIGNUP_MODE_SSM_PARAM }),
+      );
+      response.statusCode = 200;
+      response.body = JSON.stringify({ mode: result.Parameter.Value || "public" });
+    } catch (err) {
+      console.error("Failed to get signup mode:", err);
+      response.statusCode = 500;
+      response.body = JSON.stringify({ error: "Internal server error" });
+    }
+  },
+
+  /** PUT /admin/signup_mode — sets the signup mode in SSM */
+  "PUT /admin/signup_mode": async (event, env) => {
+    const { response } = env;
+    try {
+      const body = parseBody(event.body);
+      const { mode } = body || {};
+      if (mode !== "public" && mode !== "whitelist") {
+        response.statusCode = 400;
+        response.body = JSON.stringify({ error: "mode must be 'public' or 'whitelist'" });
+        return;
+      }
+      const { SSMClient, PutParameterCommand } = await import("@aws-sdk/client-ssm");
+      const ssm = new SSMClient();
+      await ssm.send(
+        new PutParameterCommand({
+          Name: process.env.SIGNUP_MODE_SSM_PARAM,
+          Value: mode,
+          Overwrite: true,
+          Type: "String",
+        }),
+      );
+      response.statusCode = 200;
+      response.body = JSON.stringify({ mode });
+    } catch (err) {
+      console.error("Failed to set signup mode:", err);
+      response.statusCode = 500;
+      response.body = JSON.stringify({ error: "Internal server error" });
+    }
+  },
+
+  /** GET /admin/whitelist — scans and returns all whitelist entries */
+  "GET /admin/whitelist": async (event, env) => {
+    const { response } = env;
+    try {
+      const { DynamoDBClient, ScanCommand } = await import("@aws-sdk/client-dynamodb");
+      const dynamo = new DynamoDBClient();
+      const result = await dynamo.send(
+        new ScanCommand({ TableName: process.env.WHITELIST_TABLE_NAME }),
+      );
+      const items = (result.Items || []).map((item) => ({
+        email: item.email?.S,
+        canonical_role: item.canonical_role?.S,
+        uploaded_label: item.uploaded_label?.S,
+      }));
+      response.statusCode = 200;
+      response.body = JSON.stringify({ entries: items, count: items.length });
+    } catch (err) {
+      console.error("Failed to scan whitelist:", err);
+      response.statusCode = 500;
+      response.body = JSON.stringify({ error: "Internal server error" });
+    }
+  },
+
+  /**
+   * POST /admin/whitelist/upload — parses CSV and upserts entries into DynamoDB.
+   * Body: { csv: "<csv string>" }
+   * CSV format: email,role  (header row optional, skipped if 2nd col is "role")
+   * Role matched case-insensitively against role_labels in Postgres.
+   * Returns: { processed, invalid, invalidRows }
+   */
+  "POST /admin/whitelist/upload": async (event, env) => {
+    const { response, sqlConnection } = env;
+    try {
+      const body = parseBody(event.body);
+      const { csv } = body || {};
+      if (!csv || typeof csv !== "string") {
+        response.statusCode = 400;
+        response.body = JSON.stringify({ error: "Missing 'csv' field in request body" });
+        return;
+      }
+
+      // Fetch role labels from Postgres for label -> canonical_role resolution
+      const labels = await sqlConnection`
+        SELECT role_key, singular_label FROM role_labels;
+      `;
+      // Build case-insensitive lookup: "advocate" -> "student"
+      const labelToRole = {};
+      for (const row of labels) {
+        labelToRole[row.singular_label.toLowerCase()] = row.role_key;
+      }
+      // Also accept canonical names directly
+      for (const key of ["student", "instructor", "admin"]) {
+        labelToRole[key] = key;
+      }
+
+      // Parse CSV lines
+      const lines = csv.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+      const validItems = [];
+      const invalidRows = [];
+
+      for (let i = 0; i < lines.length; i++) {
+        const parts = lines[i].split(",");
+        const email = (parts[0] || "").trim().toLowerCase();
+        const label = (parts[1] || "").trim();
+
+        // Skip header row if label column literally says "role"
+        if (i === 0 && label.toLowerCase() === "role") continue;
+
+        const canonicalRole = labelToRole[label.toLowerCase()];
+
+        if (!email || !email.includes("@") || !canonicalRole) {
+          invalidRows.push({
+            row: i + 1,
+            email,
+            label,
+            reason: !canonicalRole ? "unknown role label" : "invalid email",
+          });
+          continue;
+        }
+
+        validItems.push({ email, canonical_role: canonicalRole, uploaded_label: label });
+      }
+
+      // Batch-write to DynamoDB in chunks of 25 (BatchWriteItem limit)
+      const { DynamoDBClient, BatchWriteItemCommand } = await import("@aws-sdk/client-dynamodb");
+      const dynamo = new DynamoDBClient();
+      const CHUNK_SIZE = 25;
+      let processed = 0;
+
+      for (let i = 0; i < validItems.length; i += CHUNK_SIZE) {
+        const chunk = validItems.slice(i, i + CHUNK_SIZE);
+        const putRequests = chunk.map((item) => ({
+          PutRequest: {
+            Item: {
+              email: { S: item.email },
+              canonical_role: { S: item.canonical_role },
+              uploaded_label: { S: item.uploaded_label },
+            },
+          },
+        }));
+        await dynamo.send(
+          new BatchWriteItemCommand({
+            RequestItems: { [process.env.WHITELIST_TABLE_NAME]: putRequests },
+          }),
+        );
+        processed += chunk.length;
+      }
+
+      response.statusCode = 200;
+      response.body = JSON.stringify({
+        processed,
+        invalid: invalidRows.length,
+        invalidRows,
+      });
+    } catch (err) {
+      console.error("Failed to upload whitelist:", err);
+      response.statusCode = 500;
+      response.body = JSON.stringify({ error: "Internal server error" });
+    }
+  },
+
+  /** DELETE /admin/whitelist — removes entry by ?email= query param */
+  "DELETE /admin/whitelist": async (event, env) => {
+    const { response } = env;
+    try {
+      const email = event.queryStringParameters?.email?.toLowerCase().trim();
+      if (!email) {
+        response.statusCode = 400;
+        response.body = JSON.stringify({ error: "Missing 'email' query parameter" });
+        return;
+      }
+      const { DynamoDBClient, DeleteItemCommand } = await import("@aws-sdk/client-dynamodb");
+      const dynamo = new DynamoDBClient();
+      await dynamo.send(
+        new DeleteItemCommand({
+          TableName: process.env.WHITELIST_TABLE_NAME,
+          Key: { email: { S: email } },
+        }),
+      );
+      response.statusCode = 200;
+      response.body = JSON.stringify({ message: "Entry removed", email });
+    } catch (err) {
+      console.error("Failed to delete whitelist entry:", err);
+      response.statusCode = 500;
+      response.body = JSON.stringify({ error: "Internal server error" });
+    }
+  },
 };
 
 exports.handler = async (event, context) => {
