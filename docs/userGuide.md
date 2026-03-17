@@ -1,65 +1,71 @@
 # User Guide
 
 **Please ensure the application is deployed, instructions in the deployment guide here:**
+
 - [Deployment Guide](./deploymentGuide.md)
 
 Once you have deployed the solution, the following user guide will help you navigate the functions available.
 
-| Index    | Description |
-| -------- | ------- |
-| [Administrator View](#admin-view)  |The administrator can register instructors, change system prompts and waiver. | 
-| [Instructor View](#instructor-view)  | The instructor can view students cases and provide feedback. |
-| [Student View](#student-view)  | The student can start a case, interact with AI Assistant, create summaries and transcribe audio interviews. |
+| Index                               | Description                                                                                                 |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| [Administrator View](#admin-view)   | The administrator can register instructors, change system prompts and waiver.                               |
+| [Instructor View](#instructor-view) | The instructor can view students cases and provide feedback.                                                |
+| [Student View](#student-view)       | The student can start a case, interact with AI Assistant, create summaries and transcribe audio interviews. |
 
 All users start by filling their information at the sign up page.  
 ![image](./media/create-account.png)
 
-You then get a confirmation email to verify your email and are registered as a user. 
+You then get a confirmation email to verify your email and are registered as a user.
 
 ## Administrator View
+
 ### Manage Users Page
+
 The first user that signs up will automatically be assigned an administrator role. Upon logging in as an administrator, they will see the following home page where they can view all the users in the application, their names, emails, and highest privilege role. Administrators can browse for specific users using the searchbar, or filter to view certain roles using the role dropdown menu.:
 ![image](./media/admin-home.png)
 
 Clicking the pencil icon for a user opens the user management panel, where administrators can assign/remove different roles for a user:
 ![image](./media/admin-manage-user.png)
 
-If the selected user is an instructor/supervisor, administrators can also assign students to the instructor by entering the student's email, and remove existing students by clicking the red trash icon. 
+If the selected user is an instructor/supervisor, administrators can also assign students to the instructor by entering the student's email, and remove existing students by clicking the red trash icon.
 ![image](./media/admin-manage-instructor.png)
 
 ### Settings Page
+
 Clicking on the settings icon in the header opens the main settings page. The left hand-side shows a sidebar to swap between several different settings and panels, the right-hand side shows the setting configuration options.
 
-TODO: INSERT IMAGE OF OVERALL SETTINGS PAGE HERE
+![image](./media/admin-settings-page.png)
+
 #### General Configurations
+
 The General Configurations tab allows administrators to modify the configuration of the default model used across the application, message limits for users, and file upload limits:
 ![image](media/admin-general-configs.png)
 
 #### Role Labels
-The Role Labels tab allows administrators to modify the user terminology displayed across the application. 
+
+The Role Labels tab allows administrators to modify the user terminology displayed across the application.
 ![image](media/admin-role-labels.png)
 
-#### Prompt Management 
+#### Prompt Management
 
-Administrators can edit the system prompts that run various parts of the application. 
+Administrators can edit the system prompts that run various parts of the application.
 
 The Version History panel allows admins to view existing versions of a particular system prompt, change the current active prompt for the application, delete versions, and also load versions into the Prompt Workspace to make modifications.
 
 ![image](media/admin-version-history.png)
 
-
-
-
 The Prompt Workspace allows administrators to:
--  Create new prompt versions by clicking the "Start new Draft" button in the top right
--  Overwrite previous versions with new modifications by loading a previous prompt and clicking "Save".
+
+- Create new prompt versions by clicking the "Start new Draft" button in the top right
+- Overwrite previous versions with new modifications by loading a previous prompt and clicking "Save".
 - Use a previous version as a template by loading a previous prompt, making modifications, and clicking "Save as New Version"
 
 ![image](media/admin-prompt-editor.png)
 
-
 #### Prompt Playground
+
 The Prompt Playground allows administrators to test out different system prompts and LLM configurations in a chat interface that mimicks the main application. Administrators can:
+
 - Change model configuration through the Model Configuration Panel
 - Select which system prompt to test using the dropdown menus in the System Prompt Panel
 - Change the Mock Case context to simulate with the AI
@@ -75,23 +81,21 @@ Clicking "Compare" in the top right duplicates all configuation options, allowin
 ![image](./media/admin-prompt-playground-compare-config.png)
 
 ### Disclaimer Page
+
 The Disclaimer page allows administrators to edit the waiver and disclaimer text that students must agree to before using the application. It features all the same version control options administrators have with the system prompts.
 
 ![image](./media/admin-disclaimer-editor.png)
 ![image](./media/admin-disclaimer-version-history.png)
 
-
 ## Supervisor View
 
 ### Cases Page
 
-Upon logging in as a supervisor, they will be greeted with a homepage that displays their own cases, and the cases of the advocates assigned to them. Instructors can search for a case using the searchbar, and filter the visible cases based on status using the dropdown menu: 
+Upon logging in as a supervisor, they will be greeted with a homepage that displays their own cases, and the cases of the advocates assigned to them. Instructors can search for a case using the searchbar, and filter the visible cases based on status using the dropdown menu:
 
-![image](./media/instructor-home-page.png) 
+![image](./media/instructor-home-page.png)
 
 Instructors have the ability to archive and delete their own cases, or their advocates cases by clicking on the ellipsis on a case:
-
-TODO: replace with a bigger image 
 
 ![image](./media/instructor-delete-archive-case.png)
 
@@ -100,33 +104,35 @@ Upon clicking on any of the cases, the instructor can see all interactions of th
 
 ### Prompts
 
-Clicking the prompts icon in the header allows instructors to view all the active prompts across the application. 
+Clicking the prompts icon in the header allows instructors to view all the active prompts across the application.
 
 ![image](./media/instructor-prompts.png)
 
-
 ## Advocate View
+
 ### Cases Page
+
 Upon logging in as a advocate, they see this home page with their most recent cases and the statuses of these cases (i.e. In Progress, Submitted for review or Reviewed by Supervisor)
 
 ![image](./media/student-all-cases.png)
 
-Students can click on a case and see the overview, summaries, transcriptions, notes as well as interact with the AI Assistant. 
+Students can click on a case and see the overview, summaries, transcriptions, notes as well as interact with the AI Assistant.
 
 ### New Case Page
-To start a new case, students can click on the "New Case" button at the top of the screen. This page opens up a form with information the students can fill out about the jurisdiction, broad area of law and give a description of the case which will then be sent to the AI Assistant. 
+
+To start a new case, students can click on the "New Case" button at the top of the screen. This page opens up a form with information the students can fill out about the jurisdiction, broad area of law and give a description of the case which will then be sent to the AI Assistant.
 
 ![image](./media/student-new-case.png)
 
 ### Case Page
+
 Upon creating a new case, users will be redirected to the Case Overview panel. Here, they can see the details of their case, edit the case title & description, and also submit the case for a review to an available supervisor by selecting their name and clicking "Submit for Review":
 
 ![image](./media/student-case-overview.jpg)
 
-
 The Interview Assistant panel is where users can interact with the AI. The main panel is where users can ask questions and receive responses. A progress bar is shown above to indicate the thoroughness of the user's analysis, and a feedback panel on the right-hand side continuously updates with suggestions for improvement.
 
-A **Guide** icon is available in the header (top-right). Clicking it opens a help dialog that explains what the progress bar represents, how the feedback panel works, and what the system expects as you explore different parts of the case.
+A Guide icon is available in the header (top-right). Clicking it opens a help dialog that explains what the progress bar represents, how the feedback panel works, and what the system expects as you explore different parts of the case.
 
 ![image](./media/student-interview-assistant.png)
 
@@ -136,14 +142,9 @@ Upon interacting with the AI Assistant, the student can choose to generate a dow
 
 ![image](./media/student-case-summaries.png)
 
-The student can also navigate to the "Case Transcriptions" tab to upload audio and transcribe. Click on the "Upload Audio" button to upload an audio file, and when done,  Transcriptions will be viewable and downloadable in the main page.
+The student can also navigate to the "Case Transcriptions" tab to upload audio and transcribe. Click on the "Upload Audio" button to upload an audio file, and when done, Transcriptions will be viewable and downloadable in the main page.
 
 ![image](./media/student-transcriptions.png)
-
-
-
-
-
 
 The user can also click on the Notepad button in the bottom left corner, which opens up a resizable and movable yellow legal pad where the user can note significant details of the particular case:
 

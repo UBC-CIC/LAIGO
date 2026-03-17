@@ -245,7 +245,7 @@ const SupervisorPrompts = () => {
                   }}
                 >
                   {section.category === "reasoning"
-                    ? "Reasoning Stages"
+                    ? "Reasoning Prompts"
                     : section.category === "assessment"
                       ? "Assessment Prompts"
                       : section.category === "summary"

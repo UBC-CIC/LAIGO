@@ -258,7 +258,7 @@ const AIConfiguration = () => {
               variant="h5"
               sx={{ mb: 3, fontWeight: "bold", color: "var(--text)" }}
             >
-              AI Configuration
+              Configurations
             </Typography>
             {SECTIONS.map((section) => (
               <Box key={section.category} sx={{ mb: 3 }}>
@@ -275,7 +275,7 @@ const AIConfiguration = () => {
                   }}
                 >
                   {section.category === "reasoning"
-                    ? "Reasoning Stages"
+                    ? "Reasoning Prompts"
                     : section.category === "assessment"
                       ? "Assessment Prompts"
                       : section.category === "summary"
