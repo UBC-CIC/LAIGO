@@ -95,13 +95,13 @@ Before running the command, replace:
 - `<YOUR-PROFILE-NAME>` with your AWS CLI profile name.
 
 <details>
-<summary>macOS</summary>
+<summary>macOS/Linux</summary>
 
 ```bash
 aws secretsmanager create-secret \
-    --name github-personal-access-token \
-    --secret-string '{"my-github-token":"<YOUR-GITHUB-TOKEN>"}' \
-    --profile <YOUR-PROFILE-NAME>
+  --name github-personal-access-token \
+  --secret-string '{"my-github-token": "<YOUR-GITHUB-TOKEN>"}' \
+  --profile <YOUR-PROFILE-NAME>
 ```
 
 </details>
@@ -111,9 +111,9 @@ aws secretsmanager create-secret \
 
 ```cmd
 aws secretsmanager create-secret ^
-    --name github-personal-access-token ^
-    --secret-string "{\"my-github-token\":\"<YOUR-GITHUB-TOKEN>\"}" ^
-    --profile <YOUR-PROFILE-NAME>
+  --name github-personal-access-token ^
+  --secret-string "{\"my-github-token\": \"<YOUR-GITHUB-TOKEN>\"}" ^
+  --profile <YOUR-PROFILE-NAME>
 ```
 
 </details>
@@ -123,9 +123,9 @@ aws secretsmanager create-secret ^
 
 ```powershell
 aws secretsmanager create-secret `
-    --name github-personal-access-token `
-    --secret-string '{"my-github-token":"<YOUR-GITHUB-TOKEN>"}' `
-    --profile <YOUR-PROFILE-NAME>
+  --name github-personal-access-token `
+  --secret-string '{\"my-github-token\": \"<YOUR-GITHUB-TOKEN>\"}' `
+  --profile <YOUR-PROFILE-NAME>
 ```
 
 </details>
@@ -191,9 +191,10 @@ Before running the command, replace:
 <summary>macOS</summary>
 
 ```bash
+
 aws secretsmanager create-secret \
     --name LAIGOSecrets \
-    --secret-string '{"DB_Username":"<YOUR-DB-USERNAME>"}' \
+    --secret-string "{\"DB_Username\":\"<YOUR-DB-USERNAME>\"}" \
     --profile <YOUR-PROFILE-NAME>
 ```
 
@@ -217,7 +218,7 @@ aws secretsmanager create-secret ^
 ```powershell
 aws secretsmanager create-secret `
     --name LAIGOSecrets `
-    --secret-string '{"DB_Username":"<YOUR-DB-USERNAME>"}' `
+    --secret-string '{\"DB_Username\":\"<YOUR-DB-USERNAME>\"}' `
     --profile <YOUR-PROFILE-NAME>
 ```
 
@@ -226,7 +227,10 @@ aws secretsmanager create-secret `
 For example:
 
 ```bash
-aws secretsmanager create-secret --name LAIGOSecrets --secret-string '{"DB_Username":"LAIGODatabaseUser"}' --profile <YOUR-PROFILE-NAME>
+aws secretsmanager create-secret \
+    --name LAIGOSecrets \
+    --secret-string "{\"DB_Username\":\"<YOUR-DB-USERNAME>\"}" \
+    --profile <YOUR-PROFILE-NAME>
 ```
 
 #### 4) Allowed signup domains (required by Cognito pre-signup Lambda)
