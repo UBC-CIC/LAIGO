@@ -48,7 +48,7 @@ BEDROCK_MAX_TOKENS = 2048
 
 FULL_CASE_BLOCK_TYPES = ["intake", "legal_analysis", "contrarian", "policy"]
 
-DISCLAIMER = "\n\n---\n**Disclaimer:**\nThis summary must not be provided to the client without the review and signature of the supervising lawyer.\nThe summary is based solely on the facts inputted by the user, as gathered from the client at the time it was prepared. Should additional facts come to light, or should the facts as presented change, the applicable law and analysis may also change. In such circumstances, this summary must be revised to reflect the updated or additional information.\nThe law is also constantly evolving. All summaries more than six (6) months old must be updated.\nThis summary is subject to client-solicitor privilege."
+DISCLAIMER = "\n\n---\n**DISCLAIMER:**\nTHIS SUMMARY MUST NOT BE PROVIDED TO THE CLIENT WITHOUT THE REVIEW AND SIGNATURE OF THE SUPERVISING LAWYER.\nTHE SUMMARY IS BASED SOLELY ON THE FACTS INPUTTED BY THE USER, AS GATHERED FROM THE CLIENT AT THE TIME IT WAS PREPARED. SHOULD ADDITIONAL FACTS COME TO LIGHT, OR SHOULD THE FACTS AS PRESENTED CHANGE, THE APPLICABLE LAW AND ANALYSIS MAY ALSO CHANGE. IN SUCH CIRCUMSTANCES, THIS SUMMARY MUST BE REVISED TO REFLECT THE UPDATED OR ADDITIONAL INFORMATION.\nTHE LAW IS ALSO CONSTANTLY EVOLVING. ALL SUMMARIES MORE THAN SIX (6) MONTHS OLD MUST BE UPDATED.\nTHIS SUMMARY IS SUBJECT TO CLIENT-SOLICITOR PRIVILEGE."
 
 
 
