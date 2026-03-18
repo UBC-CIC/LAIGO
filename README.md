@@ -110,8 +110,6 @@ Please refer to the [Web App User Guide](./docs/userGuide.md) for instructions o
 
 REST API documentation: [API Documentation](./docs/api-documentation.md)
 
-WebSocket API and real-time streaming: See the [WebSocket steering guide](.kiro/steering/Websocket.md)
-
 LLM interaction details: [LLM Interaction Overview](./docs/llm_interaction/llm_interaction.md)
 
 ## Dependency Management
