@@ -24,6 +24,7 @@ import UnarchiveIcon from "@mui/icons-material/Unarchive";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import type { CaseOutletContext } from "./CaseLayout";
 import { useRoleLabels } from "../../contexts/RoleLabelsContext";
+import { useUser } from "../../contexts/UserContext";
 
 interface CaseData {
   case_id: string;
@@ -61,6 +62,8 @@ const CaseOverview: React.FC = () => {
   const { caseId } = useParams();
   const { refreshCaseData } = useOutletContext<CaseOutletContext>();
   const { plural } = useRoleLabels();
+  const { activePerspective } = useUser();
+  const isInstructor = activePerspective === "instructor" || activePerspective === "admin";
   const [caseData, setCaseData] = useState<CaseData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [editMode, setEditMode] = useState<boolean>(false);
@@ -194,7 +197,7 @@ const CaseOverview: React.FC = () => {
       if (!response.ok) throw new Error("Failed to unarchive case");
 
       setCaseData((prev: CaseData | null) =>
-        prev ? { ...prev, status: "In Progress" } : prev,
+        prev ? { ...prev, status: "in_progress" } : prev,
       );
       await refreshCaseData();
       setSnackbar({
@@ -269,6 +272,8 @@ const CaseOverview: React.FC = () => {
   }, [caseId]);
 
   useEffect(() => {
+    if (isInstructor) return;
+
     const fetchSupervisors = async () => {
       const session = await fetchAuthSession();
       const token = session.tokens?.idToken?.toString() ?? null;
@@ -294,7 +299,7 @@ const CaseOverview: React.FC = () => {
     };
 
     fetchSupervisors();
-  }, [caseId]);
+  }, [caseId, isInstructor]);
 
   const handleSaveEdit = async () => {
     try {
@@ -304,6 +309,33 @@ const CaseOverview: React.FC = () => {
       }
       const token = session.tokens?.idToken?.toString() ?? null;
       if (!token) throw new Error("Authentication required");
+
+      // Ensure we send the raw stored values (not the UI display string) for fields like jurisdiction.
+      const normalizeStatus = (rawStatus: string | undefined) => {
+        const s = (rawStatus ?? "").toString().toLowerCase();
+        if (s.includes("in progress")) return "in_progress";
+        if (s.includes("submitted")) return "submitted";
+        if (s.includes("review")) return "reviewed";
+        if (s.includes("archived")) return "archived";
+        return "in_progress";
+      };
+
+      const payload = {
+        case_title: editedCase.case_title,
+        case_description: editedCase.case_description,
+        case_type: caseData?.case_type ?? "",
+        status: normalizeStatus(caseData?.status),
+        jurisdiction: Array.isArray(caseData?.jurisdiction)
+          ? caseData?.jurisdiction
+          : typeof caseData?.jurisdiction === "string"
+          ? caseData.jurisdiction
+              .split(",")
+              .map((j) => j.trim().replace(/\s*\(.*\)$/, ""))
+              .filter(Boolean)
+          : [],
+        province: caseData?.province ?? "",
+        statute: caseData?.statute ?? "",
+      };
 
       const response = await fetch(
         `${
@@ -315,7 +347,7 @@ const CaseOverview: React.FC = () => {
             Authorization: token,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify(editedCase),
+          body: JSON.stringify(payload),
         },
       );
 
@@ -327,7 +359,7 @@ const CaseOverview: React.FC = () => {
         severity: "success",
       });
       setCaseData((prev: CaseData | null) =>
-        prev ? { ...prev, ...editedCase } : prev,
+        prev ? { ...prev, ...payload } : prev,
       );
       setEditMode(false);
     } catch (error) {
@@ -624,158 +656,160 @@ const CaseOverview: React.FC = () => {
               </CardContent>
             </Card>
 
-            <Stack direction="row" spacing={2} mb={3}>
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "flex-start",
-                  gap: "1em",
-                  width: "100%",
-                }}
-              >
-                <Typography
-                  variant="h6"
-                  sx={{
-                    fontFamily: "Outfit",
-                    fontWeight: 500,
-                    color: "var(--text)",
-                    mb: 1,
-                  }}
-                >
-                  {plural("instructor")} Available for Review
-                </Typography>
-
-                <Box
-                  sx={{
-                    border: "1px solid var(--border)",
-                    borderRadius: 1,
+            {!isInstructor && (
+              <Stack direction="row" spacing={2} mb={3}>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "flex-start",
+                    gap: "1em",
                     width: "100%",
-                    overflow: "hidden",
                   }}
                 >
-                  <Grid container>
-                    {supervisors.map((supervisor, index) => {
-                      const isSelected = selectedSupervisors.includes(
-                        supervisor.instructor_id,
-                      );
-                      return (
-                        <Grid
-                          size={{ xs: 12, md: 6 }}
-                          key={supervisor.instructor_id || index}
-                          onClick={() => {
-                            if (supervisor.instructor_id) {
-                              toggleSupervisor(supervisor.instructor_id);
-                            }
-                          }}
-                          sx={{
-                            cursor: "pointer",
-                            borderBottom: "1px solid var(--border)",
-                            borderRight: {
-                              md:
-                                index % 2 === 0
-                                  ? "1px solid var(--border)"
-                                  : "none",
-                              xs: "none",
-                            },
-                            borderColor: "var(--border)",
-                          }}
-                        >
-                          <Box
-                            sx={{
-                              p: 2,
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 1.5,
-                              color: isSelected
-                                ? "var(--primary)"
-                                : "var(--text)",
-                              transition: "all 0.2s ease",
-                              backgroundColor: isSelected
-                                ? "var(--secondary)"
-                                : "transparent",
-                              "&:hover": {
-                                backgroundColor: "var(--background2)",
-                              },
-                            }}
-                          >
-                            <PersonOutlineIcon />
-                            <Typography
-                              sx={{
-                                fontFamily: "Outfit",
-                                fontWeight: 400,
-                                fontSize: "1rem",
-                              }}
-                            >
-                              {supervisor.instructor_name}
-                            </Typography>
-                          </Box>
-                        </Grid>
-                      );
-                    })}
-                    {supervisors.length === 0 && (
-                      <Box sx={{ p: 3, width: "100%", textAlign: "center" }}>
-                        <Typography color="textSecondary">
-                          No {plural("instructor").toLowerCase()} available.
-                        </Typography>
-                      </Box>
-                    )}
-                  </Grid>
-                </Box>
-
-                <Stack
-                  direction="column"
-                  spacing={1}
-                  alignItems="flex-start"
-                  mt={2}
-                >
-                  <Button
-                    variant="contained"
-                    color="primary"
-                    startIcon={<SendIcon />}
-                    onClick={handleSendForReview}
-                    disabled={
-                      caseData.status === "Sent to Review" ||
-                      selectedSupervisors.length === 0 ||
-                      caseData.status === "archived"
-                    }
+                  <Typography
+                    variant="h6"
                     sx={{
-                      textTransform: "none",
-                      fontFamily: "Inter",
+                      fontFamily: "Outfit",
                       fontWeight: 500,
-                      px: 3,
-                      py: 1,
                       color: "var(--text)",
-                      backgroundColor: "var(--primary)",
-                      "&:hover": {
-                        backgroundColor: "var(--primary)",
-                        opacity: 0.9,
-                      },
-                      "&.Mui-disabled": {
-                        backgroundColor: "var(--border)",
-                        color: "var(--text-secondary)",
-                      },
+                      mb: 1,
                     }}
                   >
-                    Submit for Review
-                  </Button>
+                    {plural("instructor")} Available for Review
+                  </Typography>
 
-                  {caseData.status === "archived" && (
-                    <Typography
+                  <Box
+                    sx={{
+                      border: "1px solid var(--border)",
+                      borderRadius: 1,
+                      width: "100%",
+                      overflow: "hidden",
+                    }}
+                  >
+                    <Grid container>
+                      {supervisors.map((supervisor, index) => {
+                        const isSelected = selectedSupervisors.includes(
+                          supervisor.instructor_id,
+                        );
+                        return (
+                          <Grid
+                            size={{ xs: 12, md: 6 }}
+                            key={supervisor.instructor_id || index}
+                            onClick={() => {
+                              if (supervisor.instructor_id) {
+                                toggleSupervisor(supervisor.instructor_id);
+                              }
+                            }}
+                            sx={{
+                              cursor: "pointer",
+                              borderBottom: "1px solid var(--border)",
+                              borderRight: {
+                                md:
+                                  index % 2 === 0
+                                    ? "1px solid var(--border)"
+                                    : "none",
+                                xs: "none",
+                              },
+                              borderColor: "var(--border)",
+                            }}
+                          >
+                            <Box
+                              sx={{
+                                p: 2,
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 1.5,
+                                color: isSelected
+                                  ? "var(--primary)"
+                                  : "var(--text)",
+                                transition: "all 0.2s ease",
+                                backgroundColor: isSelected
+                                  ? "var(--secondary)"
+                                  : "transparent",
+                                "&:hover": {
+                                  backgroundColor: "var(--background2)",
+                                },
+                              }}
+                            >
+                              <PersonOutlineIcon />
+                              <Typography
+                                sx={{
+                                  fontFamily: "Outfit",
+                                  fontWeight: 400,
+                                  fontSize: "1rem",
+                                }}
+                              >
+                                {supervisor.instructor_name}
+                              </Typography>
+                            </Box>
+                          </Grid>
+                        );
+                      })}
+                      {supervisors.length === 0 && (
+                        <Box sx={{ p: 3, width: "100%", textAlign: "center" }}>
+                          <Typography color="textSecondary">
+                            No {plural("instructor").toLowerCase()} available.
+                          </Typography>
+                        </Box>
+                      )}
+                    </Grid>
+                  </Box>
+
+                  <Stack
+                    direction="column"
+                    spacing={1}
+                    alignItems="flex-start"
+                    mt={2}
+                  >
+                    <Button
+                      variant="contained"
+                      color="primary"
+                      startIcon={<SendIcon />}
+                      onClick={handleSendForReview}
+                      disabled={
+                        caseData.status === "Sent to Review" ||
+                        selectedSupervisors.length === 0 ||
+                        caseData.status === "archived"
+                      }
                       sx={{
-                        fontStyle: "italic",
-                        fontSize: "0.85rem",
-                        color: "var(--text-secondary)",
-                        fontFamily: "Outfit",
+                        textTransform: "none",
+                        fontFamily: "Inter",
+                        fontWeight: 500,
+                        px: 3,
+                        py: 1,
+                        color: "var(--text)",
+                        backgroundColor: "var(--primary)",
+                        "&:hover": {
+                          backgroundColor: "var(--primary)",
+                          opacity: 0.9,
+                        },
+                        "&.Mui-disabled": {
+                          backgroundColor: "var(--border)",
+                          color: "var(--text-secondary)",
+                        },
                       }}
                     >
-                      This case is archived. You must unarchive it to enable
-                      review.
-                    </Typography>
-                  )}
-                </Stack>
-              </div>
-            </Stack>
+                      Submit for Review
+                    </Button>
+
+                    {caseData.status === "archived" && (
+                      <Typography
+                        sx={{
+                          fontStyle: "italic",
+                          fontSize: "0.85rem",
+                          color: "var(--text-secondary)",
+                          fontFamily: "Outfit",
+                        }}
+                      >
+                        This case is archived. You must unarchive it to enable
+                        review.
+                      </Typography>
+                    )}
+                  </Stack>
+                </div>
+              </Stack>
+            )}
 
             <CardContent>
               <Grid container spacing={3} sx={{ textAlign: "left" }}>

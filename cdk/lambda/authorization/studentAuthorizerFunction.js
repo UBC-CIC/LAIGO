@@ -182,13 +182,40 @@ exports.handler = async (event) => {
       "POST /student/accept_disclaimer",
     ]);
 
+    // Instructor-accessible endpoints under /student/* used by case detail views.
+    // Handlers still enforce ownership/instructor-student relationship checks.
+    const instructorCaseRoutes = new Set([
+      "GET /student/case_page",
+      "GET /student/get_transcriptions",
+      "GET /student/transcription",
+      "GET /student/get_summaries",
+      "GET /student/feedback",
+      "GET /student/get_messages",
+      "GET /student/file_size_limit",
+    ]);
+
+    let roles = Array.isArray(user.roles) ? user.roles : [];
+    let hasStudentRole = roles.includes("student");
+    let hasInstructorRole = roles.includes("instructor");
+
+    const isAllowedWithoutStudentRole =
+      sharedRoutes.has(requestKey) ||
+      (hasInstructorRole && instructorCaseRoutes.has(requestKey));
+
     // Enforce student role for all non-shared /student/* endpoints.
-    if ((!user.roles || !user.roles.includes("student")) && !sharedRoutes.has(requestKey)) {
+    if (!hasStudentRole && !isAllowedWithoutStudentRole) {
       // Roles can be stale in warm Lambda cache right after admin updates.
       // Re-fetch once from DB before denying.
       user = await getUserMetadataFromDatabase(idpId, true);
+      roles = Array.isArray(user.roles) ? user.roles : [];
+      hasStudentRole = roles.includes("student");
+      hasInstructorRole = roles.includes("instructor");
 
-      if (!user.roles || !user.roles.includes("student")) {
+      const isAllowedAfterRefresh =
+        sharedRoutes.has(requestKey) ||
+        (hasInstructorRole && instructorCaseRoutes.has(requestKey));
+
+      if (!hasStudentRole && !isAllowedAfterRefresh) {
         logger.warn("Access denied: user does not have student role", {
           userId: user.user_id,
           requestKey,

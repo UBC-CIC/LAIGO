@@ -127,9 +127,8 @@ def connect_to_db():
 @functools.lru_cache(maxsize=128)
 def check_authorization(user_id, case_id):
     """
-    Verify that the user (identified by user_id) owns the specified case 
-    or is an instructor for the case owner.
-    Prevents IDOR attacks by checking case ownership.
+    Verify that the user (identified by user_id) owns the specified case.
+    Prevents sending messages on behalf of another user.
     
     Args:
         user_id: Database user ID from authorizer context
@@ -146,20 +145,13 @@ def check_authorization(user_id, case_id):
         conn = connect_to_db()
         # Use context manager for automatic cursor cleanup
         with conn.cursor() as cursor:
-            # Single query to check both ownership and instructor relationship
-            # This reduces 2-3 round trips to the database down to one.
+            # Chat send path: only the case owner can send.
             query = """
                 SELECT 1 FROM "cases" c
                 WHERE c.case_id = %s
-                AND (
-                    c.student_id = %s
-                    OR EXISTS (
-                        SELECT 1 FROM instructor_students 
-                        WHERE instructor_id = %s AND student_id = c.student_id
-                    )
-                );
+                AND c.student_id = %s;
             """
-            cursor.execute(query, (case_id, user_id, user_id))
+            cursor.execute(query, (case_id, user_id))
             is_authorized = cursor.fetchone() is not None
             
             if is_authorized:
@@ -487,8 +479,10 @@ def handler(event, context):
                 }
 
         if not check_authorization(user_id, case_id):
-            logger.error(f"Authorization failed: User {user_id} does not own case {case_id}")
-            error_body = json.dumps({"error": "Forbidden: You do not have access to this case."})
+            logger.error(
+                f"Authorization failed: User {user_id} is not permitted to send messages for case {case_id}"
+            )
+            error_body = json.dumps({"error": "Forbidden: Only advocates can send messages for their own cases."})
             if is_websocket:
                  return {"statusCode": 403, "body": "Forbidden"}
             else:

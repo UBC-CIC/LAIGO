@@ -22,6 +22,7 @@ import type { CaseOutletContext } from "./CaseLayout";
 import { useWebSocket } from "../../hooks/useWebSocket";
 import type { WebSocketMessage } from "../../types/websocket";
 import ThinkingIndicator from "../../components/Chat/ThinkingIndicator";
+import { useUser } from "../../contexts/UserContext";
 
 interface Message {
   type: "human" | "ai";
@@ -47,6 +48,9 @@ const InterviewAssistant: React.FC = () => {
   const { caseId, section } = useParams();
   const { refreshUnlockedBlocks, caseStatus, completedBlocks } =
     useOutletContext<CaseOutletContext>();
+  const { activePerspective } = useUser();
+  const isInstructorPerspective =
+    activePerspective === "instructor" || activePerspective === "admin";
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -855,10 +859,23 @@ const InterviewAssistant: React.FC = () => {
             }}
           >
             <Container maxWidth="lg" sx={{ px: { xs: 2, md: 8 } }}>
+              {isInstructorPerspective && (
+                <Typography
+                  variant="caption"
+                  sx={{
+                    display: "block",
+                    mb: 1,
+                    color: "var(--text-secondary)",
+                    fontFamily: "Outfit",
+                  }}
+                >
+                  Supervisors can review this chat history, but only advocates can send messages.
+                </Typography>
+              )}
               <ChatBar
                 onSendMessage={handleSendMessage}
                 isLoading={isLoading}
-                disabled={caseStatus === "archived"}
+                disabled={caseStatus === "archived" || isInstructorPerspective}
               />
             </Container>
           </Box>
