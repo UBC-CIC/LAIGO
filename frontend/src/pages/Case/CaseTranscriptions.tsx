@@ -626,17 +626,23 @@ const CaseTranscriptions: React.FC = () => {
             onClick={openUploadDialog}
             disabled={caseStatus === "archived"}
             sx={{
-              backgroundColor:
-                caseStatus === "archived" ? "#ccc" : "var(--secondary)",
-              color: "white",
               textTransform: "none",
+              fontFamily: "Inter",
+              fontWeight: 500,
+              px: 3,
+              py: 1,
+              color: "var(--text)",
+              backgroundColor: "var(--primary)",
               "&:hover": {
-                backgroundColor:
-                  caseStatus === "archived" ? "#ccc" : "var(--primary)",
+                backgroundColor: "var(--primary)",
+                opacity: 0.9,
+              },
+              "&.Mui-disabled": {
+                backgroundColor: "var(--border)",
+                color: "#000000",
               },
               boxShadow: "none",
               borderRadius: 5,
-              fontFamily: "Outfit",
             }}
           >
             Upload Audio
@@ -657,7 +663,10 @@ const CaseTranscriptions: React.FC = () => {
               backgroundColor: "transparent",
               backgroundImage: "none",
               boxShadow: "none",
-              border: "1px solid rgba(255, 255, 255, 0.2)",
+              border: "1px solid var(--border)",
+              "& .MuiTableBody-root .MuiTableRow-root:last-child .MuiTableCell-root": {
+                borderBottom: "none",
+              },
             }}
           >
             <Table>
@@ -666,7 +675,7 @@ const CaseTranscriptions: React.FC = () => {
                   <TableCell
                     sx={{
                       color: "var(--text)",
-                      borderColor: "rgba(255, 255, 255, 0.2)",
+                      borderColor: "var(--border)",
                     }}
                   >
                     Interview Date
@@ -674,14 +683,14 @@ const CaseTranscriptions: React.FC = () => {
                   <TableCell
                     sx={{
                       color: "var(--text)",
-                      borderColor: "rgba(255, 255, 255, 0.2)",
+                      borderColor: "var(--border)",
                     }}
                   >
                     Title
                   </TableCell>
                   <TableCell
                     align="right"
-                    sx={{ borderColor: "rgba(255, 255, 255, 0.2)" }}
+                    sx={{ borderColor: "var(--border)" }}
                   ></TableCell>
                 </TableRow>
               </TableHead>
@@ -692,7 +701,7 @@ const CaseTranscriptions: React.FC = () => {
                     <TableCell
                       sx={{
                         color: "var(--text)",
-                        borderColor: "rgba(255, 255, 255, 0.2)",
+                        borderColor: "var(--border)",
                       }}
                     >
                       {new Date(transcription.time_uploaded).toLocaleString(
@@ -710,14 +719,14 @@ const CaseTranscriptions: React.FC = () => {
                     <TableCell
                       sx={{
                         color: "var(--text)",
-                        borderColor: "rgba(255, 255, 255, 0.2)",
+                        borderColor: "var(--border)",
                       }}
                     >
                       {transcription.file_title || "Untitled"}
                     </TableCell>
                     <TableCell
                       align="right"
-                      sx={{ borderColor: "rgba(255, 255, 255, 0.2)" }}
+                      sx={{ borderColor: "var(--border)" }}
                     >
                       <Stack
                         direction="row"
@@ -725,18 +734,21 @@ const CaseTranscriptions: React.FC = () => {
                         justifyContent="flex-end"
                       >
                         <Button
-                          variant="outlined"
+                          variant="contained"
                           sx={{
-                            backgroundColor: "var(--secondary)",
-                            color: "white",
                             textTransform: "none",
+                            fontFamily: "Inter",
+                            fontWeight: 500,
+                            px: 3,
+                            py: 1,
+                            color: "var(--text)",
+                            backgroundColor: "var(--primary)",
                             "&:hover": {
                               backgroundColor: "var(--primary)",
+                              opacity: 0.9,
                             },
                             boxShadow: "none",
                             borderRadius: 5,
-                            fontFamily: "Outfit",
-                            border: "none",
                           }}
                           onClick={() => handleView(transcription)}
                         >
@@ -748,14 +760,18 @@ const CaseTranscriptions: React.FC = () => {
                           onClick={() => handleDownload(transcription)}
                           sx={{
                             textTransform: "none",
-                            backgroundColor: "var(--secondary)",
-                            color: "white",
+                            fontFamily: "Inter",
+                            fontWeight: 500,
+                            px: 3,
+                            py: 1,
+                            color: "var(--text)",
+                            backgroundColor: "var(--primary)",
                             "&:hover": {
                               backgroundColor: "var(--primary)",
+                              opacity: 0.9,
                             },
                             boxShadow: "none",
                             borderRadius: 5,
-                            fontFamily: "Outfit",
                           }}
                         >
                           Download

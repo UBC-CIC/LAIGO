@@ -460,21 +460,18 @@ const CaseOverview: React.FC = () => {
                     sx={{
                       textTransform: "none",
                       fontFamily: "Inter",
-                      fontWeight: 350,
-                      px: 2,
-                      color: "#ffffff",
+                      fontWeight: 500,
+                      px: 3,
+                      color: "var(--text)",
                       width: "fit-content",
-                      backgroundColor:
-                        caseData.status === "archived"
-                          ? "var(--border)"
-                          : "var(--secondary)",
+                      backgroundColor: "var(--primary)",
                       py: 1,
-                      borderRadius: 10,
-                      transition: "0.2s ease",
+                      borderRadius: 5,
                       boxShadow: "none",
                       "&:hover": {
-                        boxShadow: "none",
                         backgroundColor: "var(--primary)",
+                        opacity: 0.9,
+                        boxShadow: "none",
                       },
                     }}
                     onClick={handleArchive}
@@ -786,7 +783,7 @@ const CaseOverview: React.FC = () => {
                         },
                         "&.Mui-disabled": {
                           backgroundColor: "var(--border)",
-                          color: "var(--text-secondary)",
+                          color: "#000000",
                         },
                       }}
                     >

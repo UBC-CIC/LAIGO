@@ -283,7 +283,7 @@ const CaseFeedback: React.FC = () => {
                     },
                     "&.Mui-disabled": {
                       backgroundColor: "var(--secondary)",
-                      color: "rgba(255,255,255,0.5)",
+                      color: "#000000",
                     },
                   }}
                 >
