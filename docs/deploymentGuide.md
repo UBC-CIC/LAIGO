@@ -310,11 +310,24 @@ Replace:
 - `<YOUR-PROFILE-NAME>` with the AWS CLI profile used earlier.
 - `<YOUR_AWS_ACCOUNT_ID>` with your AWS account ID.
 - `<YOUR_PRIMARY_REGION>` with your primary deployment region.
+- `<YOUR-STACK-PREFIX>` with your stack prefix.
+
+Run synth:
 
 ```bash
-npx cdk synth --profile <YOUR-PROFILE-NAME>
-npx cdk bootstrap aws://<YOUR_AWS_ACCOUNT_ID>/<YOUR_PRIMARY_REGION> --profile <YOUR-PROFILE-NAME>
-npx cdk bootstrap aws://<YOUR_AWS_ACCOUNT_ID>/us-east-1 --profile <YOUR-PROFILE-NAME>
+cdk synth --all --context StackPrefix="<YOUR-STACK-PREFIX>" --context GithubRepo="LAIGO" --profile <YOUR-PROFILE-NAME>
+```
+
+Bootstrap your primary region:
+
+```bash
+npx cdk bootstrap aws://<YOUR_AWS_ACCOUNT_ID>/<YOUR_PRIMARY_REGION> --context StackPrefix="<YOUR-STACK-PREFIX>" --context GithubRepo="LAIGO" --profile <YOUR-PROFILE-NAME>
+```
+
+Bootstrap `us-east-1`:
+
+```bash
+npx cdk bootstrap aws://<YOUR_AWS_ACCOUNT_ID>/us-east-1 --context StackPrefix="<YOUR-STACK-PREFIX>" --context GithubRepo="LAIGO" --profile <YOUR-PROFILE-NAME>
 ```
 
 #### 3.3 Deploy CDK stacks
@@ -328,11 +341,10 @@ The stack prefix is added to physical resource names. `Environment` specifies th
 
 ```bash
 npx cdk deploy --all \
-    --parameters <YOUR-STACK-PREFIX>-Amplify:githubRepoName=Legal-Aid-Tool \
     --context StackPrefix=<YOUR-STACK-PREFIX> \
     --context Environment=dev \
     --context Version=1.2.0 \
-    --context GithubRepo=Legal-Aid-Tool \
+    --context GithubRepo="LAIGO" \
     --profile <YOUR-PROFILE-NAME>
 ```
 
@@ -341,7 +353,7 @@ If you have trouble running the command with `\`, remove the line breaks and run
 Example:
 
 ```bash
-npx cdk deploy --all --parameters LegalAidTool-Amplify:githubRepoName=Legal-Aid-Tool --context StackPrefix=LegalAidTool --context Environment=dev --context Version=1.2.0 --context GithubRepo=Legal-Aid-Tool --profile <YOUR-PROFILE-NAME>
+npx cdk deploy --all --context StackPrefix=LegalAidTool --context Environment=dev --context Version=1.2.0 --context GithubRepo=Legal-Aid-Tool --profile <YOUR-PROFILE-NAME>
 ```
 
 ## Post-Deployment

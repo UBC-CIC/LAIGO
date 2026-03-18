@@ -9,7 +9,6 @@ import {
   ListItem,
 } from "@mui/material";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
-import VolumeUpIcon from "@mui/icons-material/VolumeUp";
 import CheckIcon from "@mui/icons-material/Check";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -197,20 +196,6 @@ const AiResponse: React.FC<AiResponseProps> = ({
             ) : (
               <ContentCopyIcon fontSize="small" />
             )}
-          </IconButton>
-          <IconButton
-            size="small"
-            disableRipple
-            sx={{
-              color: "var(--text-secondary)",
-              "&.Mui-focusVisible, &:focus, &:focus-visible": {
-                outline: "none !important",
-                boxShadow: "none !important",
-                border: "none !important",
-              },
-            }}
-          >
-            <VolumeUpIcon fontSize="small" />
           </IconButton>
           {onGenerateSummary && (
             <Button
