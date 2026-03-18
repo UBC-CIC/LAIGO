@@ -142,6 +142,15 @@ The Interview Assistant panel is where users can interact with the AI. The main 
 
 A Guide icon is available in the header (top-right). Clicking it opens a help dialog that explains what the progress bar represents, how the feedback panel works, and what the system expects as you explore different parts of the case.
 
+The Interview Assistant is divided into 4 stages, each focusing on a different aspect of case analysis:
+
+1. **Intake & Facts** — Gather and organize the key facts of the case. The AI helps you identify relevant details, clarify the timeline, and ensure nothing important is missed.
+2. **Legal Analysis** — Identify legal issues, research applicable law, and build your arguments. This stage combines issue spotting, research strategy, and argument construction into a single workflow.
+3. **Contrarian Analysis** — Explore counterarguments and weaknesses in your position. The AI challenges your reasoning to help you prepare for opposing perspectives.
+4. **Policy Context** — Consider the broader policy implications and societal context surrounding the case, helping you understand how your arguments fit within larger legal and social frameworks.
+
+Each stage has its own progress bar. As you interact with the AI and demonstrate thorough analysis, the progress bar fills up. Once a stage is complete, the next stage unlocks automatically.
+
 ![image](./media/advocate-interview-assistant.png)
 
 Upon interacting with the AI Assistant, the advocate can choose to generate a downloadable summary pdf of the information and insights from the LLM by clicking on the "Generate Summary" button below the AI message. This button then generates a downloadable pdf version of a summary which is viewable from the "Case Summaries" page:
