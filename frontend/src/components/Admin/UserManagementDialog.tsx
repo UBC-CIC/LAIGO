@@ -215,10 +215,6 @@ const UserManagementDialog: React.FC<UserManagementDialogProps> = ({
   const handleRemoveStudent = async (studentId: string) => {
     if (!user) return;
 
-    if (!window.confirm("Are you sure you want to remove this assignment?")) {
-      return;
-    }
-
     setAssignmentActionLoading(true);
     setAssignmentError(null);
 
