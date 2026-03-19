@@ -132,6 +132,7 @@ const InterviewAssistant: React.FC = () => {
   }, [currentBlock, isCurrentBlockCompleted]);
 
   const assessProgressRef = useRef<(() => Promise<void>) | null>(null);
+  const sectionRef = useRef(section);
 
   const [token, setToken] = useState<string | null>(null);
 
@@ -239,6 +240,7 @@ const InterviewAssistant: React.FC = () => {
   const assessProgress = useCallback(async () => {
     if (!caseId || !currentBlock) return;
 
+    const capturedSection = section; // snapshot for stale-response check
     setIsAssessingProgress(true);
 
     // Try WebSocket first if connected
@@ -248,6 +250,12 @@ const InterviewAssistant: React.FC = () => {
         { case_id: caseId, block_type: currentBlock },
         {
           onComplete: async (data: Record<string, unknown>) => {
+            // Discard if user switched stages while request was in-flight
+            if (sectionRef.current !== capturedSection) {
+              setIsAssessingProgress(false);
+              return;
+            }
+
             const assessment = data as unknown as AssessmentResponse;
             const progress =
               typeof assessment.progress === "number" ? assessment.progress : 0;
@@ -294,6 +302,9 @@ const InterviewAssistant: React.FC = () => {
       );
 
       if (response.ok) {
+        // Discard if user switched stages while request was in-flight
+        if (sectionRef.current !== capturedSection) return;
+
         const data = await response.json();
         const currentScore =
           typeof data.progress === "number" ? data.progress : 0;
@@ -314,6 +325,7 @@ const InterviewAssistant: React.FC = () => {
     }
   }, [
     caseId,
+    section,
     currentBlock,
     isConnected,
     sendStreamingRequest,
@@ -424,6 +436,7 @@ const InterviewAssistant: React.FC = () => {
   useEffect(() => {
     setProgress(0); // Reset progress on new section
     setFeedback(null); // clear stale reasoning when switching blocks
+    sectionRef.current = section; // keep ref in sync for stale-response checks
 
     // Stage-specific greetings that explain the purpose and suggest starting points
     const BLOCK_GREETINGS: Record<string, string> = {
