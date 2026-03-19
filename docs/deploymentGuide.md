@@ -286,7 +286,7 @@ Example:
 ```bash
 aws ssm put-parameter \
     --name "/LAIGO/AllowedEmailDomains" \
-    --value "gmail.com,ubc.ca,student.ubc.ca,allard.ubc.ca" \
+    --value "ubc.ca,student.ubc.ca,allard.ubc.ca,amazon.com" \
     --type SecureString \
     --profile <YOUR-PROFILE-NAME>
 ```
