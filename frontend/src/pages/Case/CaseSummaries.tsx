@@ -127,6 +127,10 @@ const CaseSummaries: React.FC = () => {
   );
   const [isGenerating, setIsGenerating] = useState(false);
   const [showGenerateSnackbar, setShowGenerateSnackbar] = useState(false);
+  const [errorSnackbar, setErrorSnackbar] = useState<{
+    open: boolean;
+    message: string;
+  }>({ open: false, message: "" });
   const [leftOpen, setLeftOpen] = useState(true);
   // const [rightOpen, setRightOpen] = useState(true);
   const [openCategories, setOpenCategories] = useState<{
@@ -243,6 +247,13 @@ const CaseSummaries: React.FC = () => {
           onError: (msg) => {
             console.error("Summary generation error:", msg);
             setIsGenerating(false);
+            setShowGenerateSnackbar(false);
+            setErrorSnackbar({
+              open: true,
+              message:
+                msg ||
+                "Failed to generate summary. Please try again.",
+            });
           },
         },
       );
@@ -1205,6 +1216,21 @@ const CaseSummaries: React.FC = () => {
         >
           Summary generation started. Check back in a moment for the completed
           summary.
+        </Alert>
+      </Snackbar>
+
+      <Snackbar
+        open={errorSnackbar.open}
+        autoHideDuration={7000}
+        onClose={() => setErrorSnackbar({ open: false, message: "" })}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+      >
+        <Alert
+          onClose={() => setErrorSnackbar({ open: false, message: "" })}
+          severity="error"
+          sx={{ width: "100%" }}
+        >
+          {errorSnackbar.message}
         </Alert>
       </Snackbar>
     </Box>

@@ -589,7 +589,7 @@ def handler(event, context):
     case_title, case_type, jurisdiction, case_description = get_case_details(case_id)
     if case_title is None or case_type is None or jurisdiction is None or case_description is None:
         logger.error(f"Error fetching case details for case_id: {case_id}")
-        return _error_response(400, 'Error fetching summary details', is_websocket, connection_id, ws_endpoint, request_id)
+        return _error_response(400, 'Unable to retrieve case details. Please try again later.', is_websocket, connection_id, ws_endpoint, request_id)
 
     try:
         logger.info(f"Creating Bedrock LLM instance with ID: {BEDROCK_LLM_ID}, Temp: {BEDROCK_TEMP}, TopP: {BEDROCK_TOP_P}, MaxTokens: {BEDROCK_MAX_TOKENS}")
@@ -601,7 +601,7 @@ def handler(event, context):
         )
     except Exception as e:
         logger.error(f"Error getting LLM from Bedrock: {e}")
-        return _error_response(500, 'Error getting LLM from Bedrock', is_websocket, connection_id, ws_endpoint, request_id)
+        return _error_response(500, 'An unexpected error occurred. Please try again later or contact an administrator.', is_websocket, connection_id, ws_endpoint, request_id)
 
     # --- Full Case Summary Logic ---
     if sub_route == "full-case":
@@ -611,7 +611,7 @@ def handler(event, context):
         if not full_case_prompt:
             return _error_response(
                 500,
-                "No active full-case summary prompt configured",
+                "An unexpected error occurred. Please try again later or contact an administrator.",
                 is_websocket,
                 connection_id,
                 ws_endpoint,
@@ -658,7 +658,7 @@ def handler(event, context):
         except Exception as e:
             logger.error(f"Error generating full case summary: {e}")
             publish_notification_event("full-case", case_id, user_id, success=False, error_message=str(e))
-            return _error_response(500, 'Error generating full case summary', is_websocket, connection_id, ws_endpoint, request_id)
+            return _error_response(500, 'An unexpected error occurred. Please try again later or contact an administrator.', is_websocket, connection_id, ws_endpoint, request_id)
 
         # 3. Save summary
         try:
@@ -666,7 +666,7 @@ def handler(event, context):
         except Exception as e:
             logger.error(f"Error saving full case summary: {e}")
             publish_notification_event("full-case", case_id, user_id, success=False, error_message=str(e))
-            return _error_response(500, 'Error saving full case summary', is_websocket, connection_id, ws_endpoint, request_id)
+            return _error_response(500, 'An unexpected error occurred. Please try again later or contact an administrator.', is_websocket, connection_id, ws_endpoint, request_id)
         
         # 4. Publish success notification event
         publish_notification_event("full-case", case_id, user_id, success=True)
@@ -708,7 +708,7 @@ def handler(event, context):
         if not summary_prompt:
             return _error_response(
                 500,
-                f"No active summary prompt configured for block_type: {block_type}",
+                "An unexpected error occurred. Please try again later or contact an administrator.",
                 is_websocket,
                 connection_id,
                 ws_endpoint,
@@ -723,7 +723,7 @@ def handler(event, context):
             conversation_history = retrieve_dynamodb_history(TABLE_NAME, session_id)
         except Exception as e:
             logger.error(f"Error retrieving dynamo history: {e}")
-            return _error_response(500, 'Error retrieving dynamo history', is_websocket, connection_id, ws_endpoint, request_id)
+            return _error_response(500, 'An unexpected error occurred. Please try again later or contact an administrator.', is_websocket, connection_id, ws_endpoint, request_id)
         
         try:
             logger.info("Generating response from the LLM.")
@@ -759,7 +759,7 @@ def handler(event, context):
         except Exception as e:
             logger.error(f"Error getting response: {e}")
             publish_notification_event(sub_route, case_id, user_id, success=False, error_message=str(e))
-            return _error_response(500, 'Error getting response', is_websocket, connection_id, ws_endpoint, request_id)
+            return _error_response(500, 'An unexpected error occurred. Please try again later or contact an administrator.', is_websocket, connection_id, ws_endpoint, request_id)
             
         try:
             logger.info(f"Updating case summary for block_type: {block_type}")
@@ -768,7 +768,7 @@ def handler(event, context):
         except Exception as e:
             logger.error(f"Error updating case summary: {e}")
             publish_notification_event(sub_route, case_id, user_id, success=False, error_message=str(e))
-            return _error_response(500, 'Error updating case summary', is_websocket, connection_id, ws_endpoint, request_id)
+            return _error_response(500, 'An unexpected error occurred. Please try again later or contact an administrator.', is_websocket, connection_id, ws_endpoint, request_id)
         
         # Publish success notification event
         publish_notification_event(sub_route, case_id, user_id, success=True)
