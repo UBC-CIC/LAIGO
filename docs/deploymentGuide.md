@@ -17,6 +17,9 @@
     - [Step 2: Visit Web App](#step-2-visit-web-app)
   - [Cleanup](#cleanup)
     - [Taking down the deployed stack](#taking-down-the-deployed-stack)
+  - [Troubleshooting](#troubleshooting)
+    - [Stack Deletion](#stack-deletion)
+    - [RDS Master Username Constraints](#rds-master-username-constraints)
 
 ## Requirements
 
@@ -184,7 +187,7 @@ Create a secret named `LAIGOSecrets` with JSON key `DB_Username`.
 
 Before running the command, replace:
 
-- `<YOUR-DB-USERNAME>` with the database admin username you want to use for this deployment.
+- `<YOUR-DB-USERNAME>` with the database admin username you want to use for this deployment. See [RDS Master Username Constraints](#rds-master-username-constraints) for naming rules.
 - `<YOUR-PROFILE-NAME>` with your AWS CLI profile name.
 
 <details>
@@ -384,10 +387,25 @@ Please wait for the stacks in each step to be properly deleted before deleting t
 
 Also make sure to delete secrets in Secrets Manager.
 
-### Troubleshooting Stack Deletion
+## Troubleshooting
+
+### Stack Deletion
 
 Sometimes stack deletion can fail. If you encounter issues while taking down your stacks:
 
 1. **Aurora Database**: disable delete protection in Aurora for the database before attempting stack deletion, specifically when deleting the Database stack.
 2. **ECR Repository**: ensure that nothing is present in ECR (Elastic Container Registry). Sometimes the stacks fail deletion due to remaining container images.
 3. **Manual Cleanup**: if stacks continue to fail deletion, you may need to manually delete resources from ECR and other services before retrying the stack deletion.
+
+### RDS Master Username Constraints
+
+If the Database stack fails to create with an error related to the master username, your `DB_Username` value in the `LAIGOSecrets` secret may not meet RDS requirements. For PostgreSQL, the master username must:
+
+- Start with a letter
+- Contain only alphanumeric characters and underscores (`_`)
+- Be 1–63 characters long
+- Not be a PostgreSQL reserved word (e.g. `admin`, `postgres`, `rds_superuser`, `public`)
+
+Hyphens, spaces, periods, and other special characters are not allowed. Valid examples: `dbadmin`, `app_admin`, `laigodb`.
+
+To fix this, update the secret value in Secrets Manager with a valid username and redeploy.
