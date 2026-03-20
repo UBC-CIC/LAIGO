@@ -398,7 +398,7 @@ def handler(event, context):
                     apigw_client = boto3.client('apigatewaymanagementapi', endpoint_url=websocket_endpoint)
                     apigw_client.post_to_connection(
                         ConnectionId=connection_id,
-                        Data=json.dumps({"type": "error", "content": error_message}).encode('utf-8')  # Send as type: "error" so frontend handles it
+                        Data=json.dumps({"type": "error", "requestId": request_id, "content": error_message}).encode('utf-8')
                     )
                     return {"statusCode": 200} # Return 200 to acknowledge processing
                 except Exception as ws_error:
@@ -520,7 +520,7 @@ def handler(event, context):
                         apigw_client = boto3.client('apigatewaymanagementapi', endpoint_url=websocket_endpoint)
                         apigw_client.post_to_connection(
                             ConnectionId=connection_id,
-                            Data=json.dumps({"type": "error", "content": error_message}).encode('utf-8')
+                            Data=json.dumps({"type": "error", "requestId": request_id, "content": error_message}).encode('utf-8')
                         )
                         return {"statusCode": 200}
                     else:
@@ -598,7 +598,7 @@ def handler(event, context):
                 apigw_client = boto3.client('apigatewaymanagementapi', endpoint_url=websocket_endpoint)
                 apigw_client.post_to_connection(
                     ConnectionId=connection_id,
-                    Data=json.dumps({"type": "error", "content": str(e)}).encode('utf-8')
+                    Data=json.dumps({"type": "error", "requestId": request_id, "content": "An unexpected error occurred. Please try again later or contact an administrator."}).encode('utf-8')
                 )
             except Exception as ws_error:
                 logger.error(f"Failed to send error to WebSocket: {ws_error}")
@@ -615,7 +615,7 @@ def handler(event, context):
                 "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none';",
                 "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
             },
-            'body': json.dumps('Error getting response: '+str(e))
+            'body': json.dumps('An unexpected error occurred. Please try again later or contact an administrator.')
         }
 
 

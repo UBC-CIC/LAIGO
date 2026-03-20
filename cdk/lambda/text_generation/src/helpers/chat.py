@@ -314,7 +314,7 @@ def get_streaming_response(
         send_to_websocket("complete", data={"llm_output": full_response})
         
     except Exception as e:
-        send_to_websocket("error", content=str(e))
+        send_to_websocket("error", content="An unexpected error occurred. Please try again later or contact an administrator.")
         raise
     
     return get_llm_output(full_response)
