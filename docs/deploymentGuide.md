@@ -13,8 +13,9 @@
     - [Step 2: Upload Secrets](#step-2-upload-secrets)
     - [Step 3: CDK Deployment](#step-3-cdk-deployment)
   - [Post-Deployment](#post-deployment)
-    - [Step 1: Build AWS Amplify App](#step-1-build-aws-amplify-app)
-    - [Step 2: Visit Web App](#step-2-visit-web-app)
+    - [Step 1: Verify Bedrock Model Access](#step-1-verify-bedrock-model-access)
+    - [Step 2: Build AWS Amplify App](#step-2-build-aws-amplify-app)
+    - [Step 3: Visit Web App](#step-3-visit-web-app)
   - [Cleanup](#cleanup)
     - [Taking down the deployed stack](#taking-down-the-deployed-stack)
   - [Troubleshooting](#troubleshooting)
@@ -365,7 +366,16 @@ npx cdk deploy --all --context StackPrefix=LegalAidTool --context Environment=de
 
 ## Post-Deployment
 
-### Step 1: Build AWS Amplify App
+### Step 1: Verify Bedrock Model Access
+
+Anthropic models on Bedrock may require a use-case request before access is granted. To check:
+
+1. In the AWS Console, navigate to Amazon Bedrock > Playgrounds > Chat playground.
+2. Select an Anthropic model (e.g. `Claude 3 Sonnet`) and try sending a message.
+3. If a use-case form appears, fill it out and submit. Wait approximately 15 minutes for approval before using the application.
+4. If you can chat with the model without any prompts, you may continue.
+
+### Step 2: Build AWS Amplify App
 
 1. Log in to AWS console, and navigate to AWS Amplify. You can do so by typing Amplify in the search bar at the top.
 2. From All apps, click `<stack-prefix>-Amplify-admin`.
@@ -373,7 +383,7 @@ npx cdk deploy --all --context StackPrefix=LegalAidTool --context Environment=de
 4. Click **Run job** and wait for the build to complete.
 5. You now have access to the Amplify App ID and the public domain name to use the web app.
 
-### Step 2: Visit Web App
+### Step 3: Visit Web App
 
 You can now navigate to the web app URL to see your application in action.
 
