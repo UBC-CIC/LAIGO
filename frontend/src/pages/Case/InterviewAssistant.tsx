@@ -533,20 +533,21 @@ const InterviewAssistant: React.FC = () => {
         },
         {
           onStart: () => {
-            // Add an empty AI message that will be filled with chunks
-            setMessages((prev) => {
-              const newMessages = [
-                ...prev,
-                { type: "ai" as const, content: "", isStreaming: true },
-              ];
-              streamingIndexRef.current = newMessages.length - 1;
-              return newMessages;
-            });
+            // Start acknowledged — keep thinking dots visible until first chunk
           },
           onChunk: (content) => {
-            // Append chunk to the streaming message
+            // On first chunk, create the streaming message; on subsequent chunks, append
             setMessages((prev) => {
-              if (streamingIndexRef.current === null) return prev;
+              if (streamingIndexRef.current === null) {
+                // First chunk: add the AI message with initial content
+                const newMessages = [
+                  ...prev,
+                  { type: "ai" as const, content: content, isStreaming: true },
+                ];
+                streamingIndexRef.current = newMessages.length - 1;
+                return newMessages;
+              }
+              // Subsequent chunks: append to existing message
               const updated = [...prev];
               const idx = streamingIndexRef.current;
               if (updated[idx]) {
