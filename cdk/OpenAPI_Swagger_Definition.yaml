@@ -2106,17 +2106,51 @@ paths:
     get:
       tags:
         - Instructor
-      summary: View student cases
+      summary: View student cases with pagination, search, and status filtering
       operationId: instructor_view_students_GET
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+          description: Page number for pagination (0-indexed)
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 12
+          description: Number of cases per page
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Search term for case title, student name, jurisdiction, or case ID
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [in_progress, submitted, reviewed, archived]
+          description: Filter by case status
       responses:
         "200":
-          description: List of student cases
+          description: Paginated list of student cases with total count
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  type: object
+                type: object
+                properties:
+                  cases:
+                    type: array
+                    items:
+                      type: object
+                  totalCount:
+                    type: integer
+                    description: Total number of cases matching the filters
         "400":
           description: Invalid value
         "404":
@@ -2549,20 +2583,37 @@ paths:
 
   /student/get_cases:
     get:
-      summary: List cases for the authenticated student
+      summary: List cases for the authenticated student with pagination, search, and status filtering
       security:
         - studentAuthorizer: []
       parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+          description: Page number for pagination (0-indexed)
         - name: limit
           in: query
           required: false
           schema:
             type: integer
-        - name: offset
+            default: 12
+          description: Number of cases per page
+        - name: search
           in: query
           required: false
           schema:
-            type: integer
+            type: string
+          description: Search term for case title, jurisdiction, or case ID
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [in_progress, submitted, reviewed, archived]
+          description: Filter by case status
       x-amazon-apigateway-integration:
         uri:
           Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${studentFunction.Arn}/invocations
@@ -2580,8 +2631,9 @@ paths:
                     type: array
                     items:
                       type: object
-                  pagination:
-                    type: object
+                  totalCount:
+                    type: integer
+                    description: Total number of cases matching the filters
         "400":
           description: Bad Request
         "500":

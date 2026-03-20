@@ -353,13 +353,15 @@ curl -X PUT "https://api-id.execute-api.us-east-1.amazonaws.com/prod/student/rev
 
 ### List Cases
 
-Get all cases for the authenticated student with pagination.
+Get all cases for the authenticated student with server-side pagination, search, and status filtering.
 
 **Endpoint:** `GET /student/get_cases`
 
 **Query Parameters:**
-- `limit` (integer, optional): Number of cases per page
-- `offset` (integer, optional): Pagination offset
+- `page` (integer, optional): Page number for pagination, 0-indexed (default: 0)
+- `limit` (integer, optional): Number of cases per page (default: 12)
+- `search` (string, optional): Search term for case title, jurisdiction, or case ID
+- `status` (string, optional): Filter by case status (`in_progress`, `submitted`, `reviewed`, `archived`)
 
 **Response:**
 ```json
@@ -376,17 +378,13 @@ Get all cases for the authenticated student with pagination.
       "last_updated": "2024-01-20T14:22:00.000Z"
     }
   ],
-  "pagination": {
-    "total": 5,
-    "limit": 10,
-    "offset": 0
-  }
+  "totalCount": 5
 }
 ```
 
 **Example (cURL):**
 ```bash
-curl -X GET "https://api-id.execute-api.us-east-1.amazonaws.com/prod/student/get_cases" \
+curl -X GET "https://api-id.execute-api.us-east-1.amazonaws.com/prod/student/get_cases?page=0&limit=12&search=employment&status=in_progress" \
   -H "Authorization: eyJraWQiOiJ..."
 ```
 
@@ -893,29 +891,38 @@ curl -X GET "https://api-id.execute-api.us-east-1.amazonaws.com/prod/student/rol
 
 ### View Student Cases
 
-Get all cases for students assigned to the instructor.
+Get all cases for students assigned to the instructor with server-side pagination, search, and status filtering.
 
 **Endpoint:** `GET /instructor/view_students`
 
-**Query Parameters:** None
+**Query Parameters:**
+- `page` (integer, optional): Page number for pagination, 0-indexed (default: 0)
+- `limit` (integer, optional): Number of cases per page (default: 12)
+- `search` (string, optional): Search term for case title, student name, jurisdiction, or case ID
+- `status` (string, optional): Filter by case status (`in_progress`, `submitted`, `reviewed`, `archived`)
 
 **Response:**
 ```json
-[
-  {
-    "case_id": "uuid",
-    "case_title": "Employment Dispute",
-    "student_id": "uuid",
-    "student_name": "John Doe",
-    "status": "in_progress",
-    "time_created": "2024-01-15T10:30:00.000Z"
-  }
-]
+{
+  "cases": [
+    {
+      "case_id": "uuid",
+      "case_title": "Employment Dispute",
+      "student_id": "uuid",
+      "first_name": "John",
+      "last_name": "Doe",
+      "status": "in_progress",
+      "time_created": "2024-01-15T10:30:00.000Z",
+      "last_updated": "2024-01-20T14:22:00.000Z"
+    }
+  ],
+  "totalCount": 15
+}
 ```
 
 **Example (cURL):**
 ```bash
-curl -X GET "https://api-id.execute-api.us-east-1.amazonaws.com/prod/instructor/view_students" \
+curl -X GET "https://api-id.execute-api.us-east-1.amazonaws.com/prod/instructor/view_students?page=0&limit=12&search=john&status=submitted" \
   -H "Authorization: eyJraWQiOiJ..."
 ```
 

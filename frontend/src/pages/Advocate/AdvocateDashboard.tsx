@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Box,
@@ -20,7 +20,6 @@ import SearchIcon from "@mui/icons-material/Search";
 import AdvocateHeader from "../../components/AdvocateHeader";
 import CaseCard from "../../components/CaseCard";
 
-// Define types
 interface Case {
   id: string;
   hash: string;
@@ -40,16 +39,22 @@ interface RawCase {
   [key: string]: unknown;
 }
 
+const PAGE_SIZE = 12;
+
 const AdvocateDashboard: React.FC = () => {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
-  const [cases, setCases] = useState<Case[] | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [cases, setCases] = useState<Case[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [page, setPage] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [initialLoad, setInitialLoad] = useState(true);
 
-  // Snackbar for in-app notifications
-  const [snackbarOpen, setSnackbarOpen] = useState<boolean>(false);
-  const [snackbarMessage, setSnackbarMessage] = useState<string>("");
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState("");
   const [snackbarSeverity, setSnackbarSeverity] = useState<
     "success" | "error" | "info" | "warning"
   >("info");
@@ -63,103 +68,128 @@ const AdvocateDashboard: React.FC = () => {
     setSnackbarOpen(true);
   };
 
-  // Fetch recent cases for the logged-in user using Amplify session token
-  useEffect(() => {
-    const fetchCases = async () => {
+  const fetchCases = useCallback(
+    async (pageNum: number, append: boolean) => {
       setLoading(true);
       try {
         const session = await fetchAuthSession();
-        // ensure user attributes are available (keeps parity with older code)
         await fetchUserAttributes();
-
         const token = session.tokens?.idToken?.toString();
         const cognito_id = session.tokens?.idToken?.payload?.sub;
 
         if (!token || !cognito_id) {
-          console.warn("No token or user id available from session");
           setCases([]);
-          setLoading(false);
+          setTotalCount(0);
           return;
         }
 
-        const url = `${import.meta.env.VITE_API_ENDPOINT}/student/get_cases`;
-
-        const resp = await fetch(url, {
-          method: "GET",
-          headers: {
-            Authorization: token,
-            "Content-Type": "application/json",
-          },
+        const params = new URLSearchParams({
+          page: pageNum.toString(),
+          limit: PAGE_SIZE.toString(),
         });
-
-        if (resp.status === 404) {
-          // No cases — normalize to empty and bubble up to catch for logging
-          setCases([]);
-          throw new Error("No cases found");
+        if (query.trim()) params.append("search", query.trim());
+        if (statusFilter !== "All") {
+          const mapped =
+            statusFilter === "In Progress"
+              ? "in_progress"
+              : statusFilter === "Sent to Review"
+                ? "submitted"
+                : statusFilter.toLowerCase();
+          params.append("status", mapped);
         }
 
+        const resp = await fetch(
+          `${import.meta.env.VITE_API_ENDPOINT}/student/get_cases?${params.toString()}`,
+          {
+            method: "GET",
+            headers: { Authorization: token, "Content-Type": "application/json" },
+          },
+        );
+
         if (!resp.ok) {
-          const errText = await resp.text();
-          throw new Error(`Failed to fetch cases: ${resp.status} ${errText}`);
+          if (!append) {
+            setCases([]);
+            setTotalCount(0);
+          }
+          return;
         }
 
         const data = await resp.json();
+        const casesArray: RawCase[] = Array.isArray(data.cases) ? data.cases : [];
 
-        // Normalize API response to an array of cases
-        let casesArray: RawCase[] = [];
-        if (Array.isArray(data)) {
-          casesArray = data;
-        } else if (data && Array.isArray(data.cases)) {
-          casesArray = data.cases;
-        } else if (data && typeof data === "object") {
-          casesArray = (data.cases as RawCase[]) || [];
-        }
-
-        const normalized: Case[] = casesArray.map((c) => {
-          const id = c.case_id;
-          const hash = c.case_hash;
-          const title = c.case_title || "Untitled Case";
-          const status = c.status ?? "";
-          const jurisdiction = Array.isArray(c.jurisdiction)
+        const normalized: Case[] = casesArray.map((c) => ({
+          id: c.case_id,
+          hash: c.case_hash,
+          title: c.case_title || "Untitled Case",
+          status: c.status ?? "",
+          jurisdiction: Array.isArray(c.jurisdiction)
             ? c.jurisdiction.join(", ")
-            : (c.jurisdiction as string) || "";
-          const dateAdded = c.last_updated
+            : (c.jurisdiction as string) || "",
+          dateAdded: c.last_updated
             ? new Date(c.last_updated).toLocaleDateString(undefined, {
                 month: "long",
                 day: "numeric",
                 year: "numeric",
               })
-            : "";
+            : "",
+        }));
 
-          return { id, hash, title, status, jurisdiction, dateAdded };
-        });
-
-        setCases(normalized);
+        if (append) {
+          setCases((prev) => [...prev, ...normalized]);
+        } else {
+          setCases(normalized);
+        }
+        setTotalCount(data.totalCount || 0);
       } catch (error) {
         console.error("Error fetching cases:", error);
       } finally {
         setLoading(false);
+        setInitialLoad(false);
       }
-    };
+    },
+    [query, statusFilter],
+  );
 
-    fetchCases();
-  }, []);
+  // Reset and fetch page 0 when filters change
+  useEffect(() => {
+    setPage(0);
+    const delay = setTimeout(() => {
+      fetchCases(0, false);
+    }, 300);
+    return () => clearTimeout(delay);
+  }, [fetchCases]);
 
-  // Archive/unarchive handler
+  // Fetch next page when page increments beyond 0
+  useEffect(() => {
+    if (page === 0) return;
+    fetchCases(page, true);
+  }, [page, fetchCases]);
+
+  // Infinite scroll via IntersectionObserver
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && !loading && cases.length < totalCount) {
+          setPage((prev) => prev + 1);
+        }
+      },
+      { threshold: 0.1 },
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [loading, cases.length, totalCount]);
+
   const handleArchiveCase = async (caseId: string) => {
     try {
-      setLoading(true);
-
-      const targetCase = (cases || []).find((c) => c.id === caseId);
-      if (!targetCase) {
-        throw new Error("Case not found");
-      }
+      const targetCase = cases.find((c) => c.id === caseId);
+      if (!targetCase) throw new Error("Case not found");
 
       const isArchived = (targetCase.status || "").toLowerCase() === "archived";
-      const endpoint = isArchived
-        ? "student/unarchive_case"
-        : "student/archive_case";
-      const nextStatus = isArchived ? "in_progress" : "archived";
+      const endpoint = isArchived ? "student/unarchive_case" : "student/archive_case";
 
       const session = await fetchAuthSession();
       const token = session.tokens?.idToken?.toString();
@@ -178,64 +208,25 @@ const AdvocateDashboard: React.FC = () => {
         throw new Error(`Failed to update case status: ${resp.status} ${text}`);
       }
 
-      // Update UI: toggle case status
-      setCases((prev) =>
-        prev
-          ? prev.map((c) =>
-              c.id === caseId ? { ...c, status: nextStatus } : c,
-            )
-          : prev,
-      );
       showSnackbar(
         isArchived ? "Case unarchived successfully" : "Case archived successfully",
         "success",
       );
+      // Re-fetch from scratch to keep data consistent
+      setPage(0);
+      fetchCases(0, false);
     } catch (err) {
       console.error("Archive failed", err);
       const msg =
         err instanceof Error ? err.message : "Failed to update case archive status";
       showSnackbar(msg, "error");
-    } finally {
-      setLoading(false);
     }
   };
-
-  // Using fetched data (or empty list) for search/filtering
-  const filteredCases = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    let result = cases || [];
-
-    // Filter by query
-    if (q) {
-      result = result.filter((c) => {
-        return (
-          (c.title || "").toLowerCase().includes(q) ||
-          (c.jurisdiction || "").toLowerCase().includes(q) ||
-          (c.status || "").toLowerCase().includes(q) ||
-          (c.id || "").toLowerCase().includes(q)
-        );
-      });
-    }
-
-    // Filter by status
-    if (statusFilter !== "All") {
-      result = result.filter((c) => {
-        const s = (c.status || "").toLowerCase();
-        if (statusFilter === "In Progress") return s === "in_progress";
-        if (statusFilter === "Sent to Review") return s === "submitted";
-        if (statusFilter === "Reviewed") return s === "reviewed";
-        if (statusFilter === "Archived") return s === "archived";
-        return s === statusFilter.toLowerCase();
-      });
-    }
-
-    return result;
-  }, [query, cases, statusFilter]);
 
   return (
     <Box
       sx={{
-        backgroundColor: "var(--background)", // Deep dark background
+        backgroundColor: "var(--background)",
         minHeight: "100vh",
         color: "var(--text)",
         display: "flex",
@@ -253,7 +244,6 @@ const AdvocateDashboard: React.FC = () => {
           View All Cases
         </Typography>
 
-        {/* Search Bar & Filter */}
         <Box sx={{ display: "flex", justifyContent: "center", mb: 6, gap: 2 }}>
           <TextField
             variant="outlined"
@@ -265,15 +255,9 @@ const AdvocateDashboard: React.FC = () => {
               maxWidth: "100%",
               "& .MuiOutlinedInput-root": {
                 color: "var(--text)",
-                "& fieldset": {
-                  borderColor: "var(--border)",
-                },
-                "&:hover fieldset": {
-                  borderColor: "var(--text-secondary)",
-                },
-                "&.Mui-focused fieldset": {
-                  borderColor: "var(--primary)",
-                },
+                "& fieldset": { borderColor: "var(--border)" },
+                "&:hover fieldset": { borderColor: "var(--text-secondary)" },
+                "&.Mui-focused fieldset": { borderColor: "var(--primary)" },
               },
             }}
             InputProps={{
@@ -327,50 +311,52 @@ const AdvocateDashboard: React.FC = () => {
           </FormControl>
         </Box>
 
-        {/* Cases Grid */}
-        {loading ? (
-          <Box
-            display="flex"
-            justifyContent="center"
-            alignItems="center"
-            width="100%"
-            sx={{ mt: 4 }}
-          >
+        {initialLoad ? (
+          <Box display="flex" justifyContent="center" sx={{ mt: 4 }}>
             <CircularProgress />
           </Box>
         ) : (
-          <Grid container spacing={3}>
-            {filteredCases.length === 0 ? (
-              <Grid size={{ xs: 12 }}>
-                <Typography
-                  align="center"
-                  sx={{ color: "var(--text-secondary)", mt: 2 }}
-                >
-                  No cases found
-                </Typography>
-              </Grid>
-            ) : (
-              filteredCases.map((caseItem, index) => (
-                <Grid size={{ xs: 12, sm: 6, md: 4 }} key={index}>
-                  <CaseCard
-                    caseId={caseItem.id}
-                    caseHash={caseItem.hash}
-                    title={caseItem.title}
-                    status={caseItem.status}
-                    jurisdiction={caseItem.jurisdiction}
-                    dateAdded={caseItem.dateAdded}
-                    onArchive={handleArchiveCase}
-                    archiveLabel={
-                      caseItem.status?.toLowerCase() === "archived"
-                        ? "Unarchive"
-                        : "Archive"
-                    }
-                    onClick={(id) => navigate(`/case/${id}/overview`)}
-                  />
+          <>
+            <Grid container spacing={3}>
+              {cases.length === 0 && !loading ? (
+                <Grid size={{ xs: 12 }}>
+                  <Typography
+                    align="center"
+                    sx={{ color: "var(--text-secondary)", mt: 2 }}
+                  >
+                    No cases found
+                  </Typography>
                 </Grid>
-              ))
+              ) : (
+                cases.map((caseItem, index) => (
+                  <Grid size={{ xs: 12, sm: 6, md: 4 }} key={`case-${caseItem.id}-${index}`}>
+                    <CaseCard
+                      caseId={caseItem.id}
+                      caseHash={caseItem.hash}
+                      title={caseItem.title}
+                      status={caseItem.status}
+                      jurisdiction={caseItem.jurisdiction}
+                      dateAdded={caseItem.dateAdded}
+                      onArchive={handleArchiveCase}
+                      archiveLabel={
+                        caseItem.status?.toLowerCase() === "archived"
+                          ? "Unarchive"
+                          : "Archive"
+                      }
+                      onClick={(id) => navigate(`/case/${id}/overview`)}
+                    />
+                  </Grid>
+                ))
+              )}
+            </Grid>
+            {/* Sentinel for infinite scroll */}
+            <div ref={sentinelRef} style={{ height: 1 }} />
+            {loading && (
+              <Box display="flex" justifyContent="center" sx={{ mt: 3, mb: 2 }}>
+                <CircularProgress size={28} />
+              </Box>
             )}
-          </Grid>
+          </>
         )}
       </Container>
 

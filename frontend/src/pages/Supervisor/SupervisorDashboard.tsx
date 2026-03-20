@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Box,
@@ -37,7 +37,6 @@ interface SupervisorDashboardProps {
 
 import { fetchAuthSession } from "aws-amplify/auth";
 
-// Define Case interface
 interface Case {
   case_id: string;
   case_hash?: string;
@@ -49,19 +48,37 @@ interface Case {
   last_name?: string;
 }
 
-const SupervisorDashboard = ({ userInfo }: SupervisorDashboardProps) => {
+const PAGE_SIZE = 12;
+
+const SupervisorDashboard = ({ userInfo: _userInfo }: SupervisorDashboardProps) => {
   const navigate = useNavigate();
   const { plural } = useRoleLabels();
   const [activeTab, setActiveTab] = useState(0);
-  const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("All");
-  const [myCases, setMyCases] = useState<Case[]>([]);
-  const [allStudentCases, setAllStudentCases] = useState<Case[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
 
+  // Per-tab search & filter
+  const [myQuery, setMyQuery] = useState("");
+  const [myStatusFilter, setMyStatusFilter] = useState("All");
+  const [allQuery, setAllQuery] = useState("");
+  const [allStatusFilter, setAllStatusFilter] = useState("All");
+
+  // My Cases state
+  const [myCases, setMyCases] = useState<Case[]>([]);
+  const [myTotalCount, setMyTotalCount] = useState(0);
+  const [myPage, setMyPage] = useState(0);
+  const [myLoading, setMyLoading] = useState(false);
+  const [myInitialLoad, setMyInitialLoad] = useState(true);
+  const mySentinelRef = useRef<HTMLDivElement | null>(null);
+
+  // All Student Cases state
+  const [allStudentCases, setAllStudentCases] = useState<Case[]>([]);
+  const [allTotalCount, setAllTotalCount] = useState(0);
+  const [allPage, setAllPage] = useState(0);
+  const [allLoading, setAllLoading] = useState(false);
+  const [allInitialLoad, setAllInitialLoad] = useState(true);
+  const allSentinelRef = useRef<HTMLDivElement | null>(null);
   // Snackbar
-  const [snackbarOpen, setSnackbarOpen] = useState<boolean>(false);
-  const [snackbarMessage, setSnackbarMessage] = useState<string>("");
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState("");
   const [snackbarSeverity, setSnackbarSeverity] = useState<
     "success" | "error" | "info" | "warning"
   >("info");
@@ -78,62 +95,174 @@ const SupervisorDashboard = ({ userInfo }: SupervisorDashboardProps) => {
     setSnackbarOpen(true);
   };
 
-  // Fetch data
-  useEffect(() => {
-    const fetchSupervisorData = async () => {
-      setLoading(true);
+  const mapStatusToBackend = (filter: string): string | null => {
+    if (filter === "All") return null;
+    if (filter === "Sent to Review") return "submitted";
+    if (filter === "In Progress") return "in_progress";
+    return filter.toLowerCase();
+  };
+
+  // Fetch My Cases
+  const fetchMyCases = useCallback(
+    async (pageNum: number, append: boolean) => {
+      setMyLoading(true);
       try {
         const session = await fetchAuthSession();
         const token = session.tokens?.idToken?.toString();
-
         if (!token) throw new Error("No auth token");
 
-        const headers = {
-          Authorization: token,
-          "Content-Type": "application/json",
-        };
+        const params = new URLSearchParams({
+          page: pageNum.toString(),
+          limit: PAGE_SIZE.toString(),
+        });
+        if (myQuery.trim()) params.append("search", myQuery.trim());
+        const status = mapStatusToBackend(myStatusFilter);
+        if (status) params.append("status", status);
 
-        // 1. Fetch My Cases (created by supervisor)
-        const myCasesResp = await fetch(
-          `${import.meta.env.VITE_API_ENDPOINT}/student/get_cases`,
-          { headers },
+        const resp = await fetch(
+          `${import.meta.env.VITE_API_ENDPOINT}/student/get_cases?${params.toString()}`,
+          { headers: { Authorization: token, "Content-Type": "application/json" } },
         );
 
-        if (myCasesResp.ok) {
-          const myCasesData = await myCasesResp.json();
-          setMyCases(Array.isArray(myCasesData) ? myCasesData : []);
-        } else {
-          // If 404, it might just mean no cases created
-          if (myCasesResp.status !== 404) {
-            console.error("Failed to fetch my cases");
+        if (resp.ok) {
+          const data = await resp.json();
+          const fetched = Array.isArray(data.cases) ? data.cases : [];
+          if (append) {
+            setMyCases((prev) => [...prev, ...fetched]);
+          } else {
+            setMyCases(fetched);
           }
-          setMyCases([]);
-        }
-
-        // 3. Fetch all student cases (view_students)
-        const allCasesResp = await fetch(
-          `${import.meta.env.VITE_API_ENDPOINT}/instructor/view_students`,
-          { headers },
-        );
-
-        if (allCasesResp.ok) {
-          const allCasesData = await allCasesResp.json();
-          setAllStudentCases(Array.isArray(allCasesData) ? allCasesData : []);
+          setMyTotalCount(data.totalCount || 0);
         } else {
-          // 404 might mean no students assigned
-          console.error("Failed to fetch student cases (or none assigned)");
-          setAllStudentCases([]);
+          if (!append) {
+            setMyCases([]);
+            setMyTotalCount(0);
+          }
         }
       } catch (err) {
-        console.error("Error fetching dashboard data", err);
-        showSnackbar("Failed to load dashboard data", "error");
+        console.error("Error fetching my cases", err);
+        if (!append) {
+          setMyCases([]);
+          setMyTotalCount(0);
+        }
       } finally {
-        setLoading(false);
+        setMyLoading(false);
+        setMyInitialLoad(false);
       }
-    };
+    },
+    [myQuery, myStatusFilter],
+  );
 
-    fetchSupervisorData();
-  }, [userInfo.userId]);
+  // Fetch All Student Cases
+  const fetchAllStudentCases = useCallback(
+    async (pageNum: number, append: boolean) => {
+      setAllLoading(true);
+      try {
+        const session = await fetchAuthSession();
+        const token = session.tokens?.idToken?.toString();
+        if (!token) throw new Error("No auth token");
+
+        const params = new URLSearchParams({
+          page: pageNum.toString(),
+          limit: PAGE_SIZE.toString(),
+        });
+        if (allQuery.trim()) params.append("search", allQuery.trim());
+        const status = mapStatusToBackend(allStatusFilter);
+        if (status) params.append("status", status);
+
+        const resp = await fetch(
+          `${import.meta.env.VITE_API_ENDPOINT}/instructor/view_students?${params.toString()}`,
+          { headers: { Authorization: token, "Content-Type": "application/json" } },
+        );
+
+        if (resp.ok) {
+          const data = await resp.json();
+          const fetched = Array.isArray(data.cases) ? data.cases : [];
+          if (append) {
+            setAllStudentCases((prev) => [...prev, ...fetched]);
+          } else {
+            setAllStudentCases(fetched);
+          }
+          setAllTotalCount(data.totalCount || 0);
+        } else {
+          if (!append) {
+            setAllStudentCases([]);
+            setAllTotalCount(0);
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching student cases", err);
+        if (!append) {
+          setAllStudentCases([]);
+          setAllTotalCount(0);
+        }
+      } finally {
+        setAllLoading(false);
+        setAllInitialLoad(false);
+      }
+    },
+    [allQuery, allStatusFilter],
+  );
+
+  // Reset + fetch page 0 for My Cases when filters change
+  useEffect(() => {
+    setMyPage(0);
+    const delay = setTimeout(() => fetchMyCases(0, false), 300);
+    return () => clearTimeout(delay);
+  }, [fetchMyCases]);
+
+  // Load next page for My Cases
+  useEffect(() => {
+    if (myPage === 0) return;
+    fetchMyCases(myPage, true);
+  }, [myPage, fetchMyCases]);
+
+  // Reset + fetch page 0 for All Student Cases when filters change
+  useEffect(() => {
+    setAllPage(0);
+    const delay = setTimeout(() => fetchAllStudentCases(0, false), 300);
+    return () => clearTimeout(delay);
+  }, [fetchAllStudentCases]);
+
+  // Load next page for All Student Cases
+  useEffect(() => {
+    if (allPage === 0) return;
+    fetchAllStudentCases(allPage, true);
+  }, [allPage, fetchAllStudentCases]);
+
+  // IntersectionObserver for My Cases sentinel
+  useEffect(() => {
+    const sentinel = mySentinelRef.current;
+    if (!sentinel || activeTab !== 0) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && !myLoading && myCases.length < myTotalCount) {
+          setMyPage((prev) => prev + 1);
+        }
+      },
+      { threshold: 0.1 },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [myLoading, myCases.length, myTotalCount, activeTab]);
+
+  // IntersectionObserver for All Student Cases sentinel
+  useEffect(() => {
+    const sentinel = allSentinelRef.current;
+    if (!sentinel || activeTab !== 1) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && !allLoading && allStudentCases.length < allTotalCount) {
+          setAllPage((prev) => prev + 1);
+        }
+      },
+      { threshold: 0.1 },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [allLoading, allStudentCases.length, allTotalCount, activeTab]);
 
   // Handlers
   const handleDeleteCase = (caseId: string) => {
@@ -148,34 +277,25 @@ const SupervisorDashboard = ({ userInfo }: SupervisorDashboardProps) => {
 
   const confirmDelete = async () => {
     if (!caseToDelete) return;
-
     try {
       const session = await fetchAuthSession();
       const token = session.tokens?.idToken?.toString();
-
       if (!token) throw new Error("No auth token");
 
       const response = await fetch(
         `${import.meta.env.VITE_API_ENDPOINT}/instructor/delete_case?case_id=${caseToDelete.case_id}`,
-        {
-          method: "DELETE",
-          headers: {
-            Authorization: token,
-          },
-        },
+        { method: "DELETE", headers: { Authorization: token } },
       );
 
       if (response.ok) {
         showSnackbar("Case deleted successfully", "success");
-        // Update both lists
-        setMyCases((prev) =>
-          prev.filter((c) => c.case_id !== caseToDelete.case_id),
-        );
-        setAllStudentCases((prev) =>
-          prev.filter((c) => c.case_id !== caseToDelete.case_id),
-        );
         setDeleteDialogOpen(false);
         setCaseToDelete(null);
+        // Re-fetch both from scratch
+        setMyPage(0);
+        fetchMyCases(0, false);
+        setAllPage(0);
+        fetchAllStudentCases(0, false);
       } else {
         const data = await response.json();
         showSnackbar(data.error || "Failed to delete case", "error");
@@ -191,32 +311,21 @@ const SupervisorDashboard = ({ userInfo }: SupervisorDashboardProps) => {
       const targetCase =
         myCases.find((c) => c.case_id === caseId) ||
         allStudentCases.find((c) => c.case_id === caseId);
-
       if (!targetCase) {
         showSnackbar("Case not found", "error");
         return;
       }
 
       const isArchived = (targetCase.status || "").toLowerCase() === "archived";
-      const endpoint = isArchived
-        ? "instructor/unarchive_case"
-        : "instructor/archive_case";
-      const nextStatus = isArchived ? "in_progress" : "archived";
+      const endpoint = isArchived ? "instructor/unarchive_case" : "instructor/archive_case";
 
       const session = await fetchAuthSession();
       const token = session.tokens?.idToken?.toString();
-
       if (!token) throw new Error("No auth token");
 
       const response = await fetch(
         `${import.meta.env.VITE_API_ENDPOINT}/${endpoint}?case_id=${caseId}`,
-        {
-          method: "PUT",
-          headers: {
-            Authorization: token,
-            "Content-Type": "application/json",
-          },
-        },
+        { method: "PUT", headers: { Authorization: token, "Content-Type": "application/json" } },
       );
 
       if (response.ok) {
@@ -224,18 +333,10 @@ const SupervisorDashboard = ({ userInfo }: SupervisorDashboardProps) => {
           isArchived ? "Case unarchived successfully" : "Case archived successfully",
           "success",
         );
-
-        // Update both lists in-place
-        setMyCases((prev) =>
-          prev.map((c) =>
-            c.case_id === caseId ? { ...c, status: nextStatus } : c,
-          ),
-        );
-        setAllStudentCases((prev) =>
-          prev.map((c) =>
-            c.case_id === caseId ? { ...c, status: nextStatus } : c,
-          ),
-        );
+        setMyPage(0);
+        fetchMyCases(0, false);
+        setAllPage(0);
+        fetchAllStudentCases(0, false);
       } else {
         const data = await response.json();
         showSnackbar(data.error || "Failed to update case archive status", "error");
@@ -246,72 +347,21 @@ const SupervisorDashboard = ({ userInfo }: SupervisorDashboardProps) => {
     }
   };
 
-  // Search Filtering
-  const filterCases = useMemo(() => {
-    return (cases: Case[]) => {
-      const q = query.trim().toLowerCase();
-      if (!q) return cases;
-      return cases.filter((c) => {
-        const jurisdiction = Array.isArray(c.jurisdiction)
-          ? c.jurisdiction.join(", ")
-          : "";
-
-        return (
-          (c.case_title || "").toLowerCase().includes(q) ||
-          jurisdiction.toLowerCase().includes(q) ||
-          (c.status || "").toLowerCase().includes(q) ||
-          (c.case_id || "").toLowerCase().includes(q) ||
-          (c.first_name || "").toLowerCase().includes(q) ||
-          (c.last_name || "").toLowerCase().includes(q)
-        );
-      });
-    };
-  }, [query]);
-
-  // Derived filtered lists
-  const applyStatusFilter = useCallback(
-    (cases: Case[]): Case[] => {
-      if (statusFilter === "All") return cases;
-      return cases.filter((c) => {
-        const s = (c.status || "").toLowerCase();
-        if (statusFilter === "Sent to Review") return s === "submitted";
-        if (statusFilter === "Reviewed") return s === "reviewed";
-        if (statusFilter === "In Progress") return s === "in_progress";
-        return s === statusFilter.toLowerCase();
-      });
-    },
-    [statusFilter],
-  );
-
-  const visibleMyCases = useMemo<Case[]>(
-    () => applyStatusFilter(filterCases(myCases)),
-    [filterCases, myCases, applyStatusFilter],
-  );
-
-  const visibleAllStudentCases = useMemo<Case[]>(
-    () => applyStatusFilter(filterCases(allStudentCases)),
-    [filterCases, allStudentCases, applyStatusFilter],
-  );
-
-  // --- Dynamic Stats Calculation ---
-  const stats = useMemo(() => {
-    // 1. Associates Assigned (Unique Students)
-    const uniqueStudents = new Set();
-
-    allStudentCases.forEach((c) => {
-      if (c.first_name && c.last_name) {
-        uniqueStudents.add(`${c.first_name}|${c.last_name}`);
-      }
-    });
-
-    return {
-      associatesAssigned: uniqueStudents.size,
-    };
-  }, [allStudentCases]);
-
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setActiveTab(newValue);
-    setQuery(""); // Clear search on tab switch
+  };
+
+  const currentQuery = activeTab === 0 ? myQuery : allQuery;
+  const currentStatusFilter = activeTab === 0 ? myStatusFilter : allStatusFilter;
+
+  const handleQueryChange = (value: string) => {
+    if (activeTab === 0) setMyQuery(value);
+    else setAllQuery(value);
+  };
+
+  const handleStatusFilterChange = (value: string) => {
+    if (activeTab === 0) setMyStatusFilter(value);
+    else setAllStatusFilter(value);
   };
 
   return (
@@ -327,168 +377,137 @@ const SupervisorDashboard = ({ userInfo }: SupervisorDashboardProps) => {
       <SupervisorHeader />
 
       <Container maxWidth="lg" sx={{ mt: 8, mb: 4, flexGrow: 1 }}>
-        {loading ? (
-          <Box display="flex" justifyContent="center" sx={{ mt: 4 }}>
-            <CircularProgress />
-          </Box>
-        ) : (
-          <Box>
-            {/* Tabs for Section Selection */}
-            <Box
+        <Box
+          sx={{
+            borderBottom: 1,
+            borderColor: "divider",
+            mb: 3,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-end",
+          }}
+        >
+          <Tabs
+            value={activeTab}
+            onChange={handleTabChange}
+            textColor="inherit"
+            indicatorColor="primary"
+            sx={{
+              "& .MuiTab-root": {
+                textTransform: "none",
+                fontFamily: "Outfit",
+                fontSize: "1rem",
+                fontWeight: 500,
+                marginRight: 2,
+              },
+              "& .Mui-selected": { color: "var(--primary)" },
+            }}
+          >
+            <Tab label={`My Cases (${myTotalCount})`} id="tab-0" aria-controls="tabpanel-0" />
+            <Tab
+              label={`All ${plural("student")} Cases (${allTotalCount})`}
+              id="tab-1"
+              aria-controls="tabpanel-1"
+            />
+          </Tabs>
+
+          <Box sx={{ mb: 1, display: "flex", gap: 2, alignItems: "center" }}>
+            <TextField
+              variant="outlined"
+              size="small"
+              placeholder="Search..."
+              value={currentQuery}
+              onChange={(e) => handleQueryChange(e.target.value)}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon sx={{ color: "var(--text-secondary)", fontSize: 20 }} />
+                  </InputAdornment>
+                ),
+              }}
               sx={{
-                borderBottom: 1,
-                borderColor: "divider",
-                mb: 3,
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "flex-end",
+                minWidth: "250px",
+                backgroundColor: "var(--background)",
+                "& .MuiOutlinedInput-root": {
+                  color: "var(--text)",
+                  "& fieldset": { borderColor: "var(--border)" },
+                  "&:hover fieldset": { borderColor: "var(--text-secondary)" },
+                  "&.Mui-focused fieldset": { borderColor: "var(--primary)" },
+                },
+              }}
+            />
+
+            <FormControl
+              size="small"
+              sx={{
+                minWidth: 150,
+                "& .MuiOutlinedInput-root": {
+                  color: "var(--text)",
+                  backgroundColor: "var(--background)",
+                  "& fieldset": { borderColor: "var(--border)" },
+                  "&:hover fieldset": { borderColor: "var(--text-secondary)" },
+                  "&.Mui-focused fieldset": { borderColor: "var(--primary)" },
+                  "& .MuiSelect-select": { textAlign: "left" },
+                  "& .MuiSvgIcon-root": { color: "var(--text)" },
+                },
+                "& .MuiInputLabel-root": { color: "var(--text-secondary)" },
               }}
             >
-              <Tabs
-                value={activeTab}
-                onChange={handleTabChange}
-                textColor="inherit"
-                indicatorColor="primary"
-                sx={{
-                  "& .MuiTab-root": {
-                    textTransform: "none",
-                    fontFamily: "Outfit",
-                    fontSize: "1rem",
-                    fontWeight: 500,
-                    marginRight: 2,
-                  },
-                  "& .Mui-selected": {
-                    color: "var(--primary)",
+              <InputLabel id="status-filter-label">Status</InputLabel>
+              <Select
+                labelId="status-filter-label"
+                value={currentStatusFilter}
+                label="Status"
+                onChange={(e) => handleStatusFilterChange(e.target.value)}
+                MenuProps={{
+                  PaperProps: {
+                    sx: {
+                      backgroundColor: "var(--background)",
+                      color: "var(--text)",
+                      border: "1px solid var(--border)",
+                    },
                   },
                 }}
               >
-                <Tab
-                  label={`My Cases (${visibleMyCases.length})`}
-                  id="tab-0"
-                  aria-controls="tabpanel-0"
-                />
-                <Tab
-                  label={`All ${plural("student")} Cases (${visibleAllStudentCases.length})`}
-                  id="tab-1"
-                  aria-controls="tabpanel-1"
-                />
-              </Tabs>
+                <MenuItem value="All">All Statuses</MenuItem>
+                <MenuItem value="Sent to Review">Pending Review</MenuItem>
+                <MenuItem value="Reviewed">Reviewed</MenuItem>
+                <MenuItem value="In Progress">In Progress</MenuItem>
+              </Select>
+            </FormControl>
+          </Box>
+        </Box>
 
-              {/* Search Bar & Filter */}
-              <Box
-                sx={{ mb: 1, display: "flex", gap: 2, alignItems: "center" }}
-              >
-                <TextField
-                  variant="outlined"
-                  size="small"
-                  placeholder="Search..."
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <SearchIcon
-                          sx={{ color: "var(--text-secondary)", fontSize: 20 }}
-                        />
-                      </InputAdornment>
-                    ),
-                  }}
-                  sx={{
-                    minWidth: "250px",
-                    backgroundColor: "var(--background)",
-                    "& .MuiOutlinedInput-root": {
-                      color: "var(--text)",
-                      "& fieldset": { borderColor: "var(--border)" },
-                      "&:hover fieldset": {
-                        borderColor: "var(--text-secondary)",
-                      },
-                      "&.Mui-focused fieldset": {
-                        borderColor: "var(--primary)",
-                      },
-                    },
-                  }}
-                />
-
-                <FormControl
-                  size="small"
-                  sx={{
-                    minWidth: 150,
-                    "& .MuiOutlinedInput-root": {
-                      color: "var(--text)",
-                      backgroundColor: "var(--background)",
-                      "& fieldset": { borderColor: "var(--border)" },
-                      "&:hover fieldset": {
-                        borderColor: "var(--text-secondary)",
-                      },
-                      "&.Mui-focused fieldset": {
-                        borderColor: "var(--primary)",
-                      },
-                      "& .MuiSelect-select": {
-                        textAlign: "left",
-                      },
-                      "& .MuiSvgIcon-root": { color: "var(--text)" },
-                    },
-                    "& .MuiInputLabel-root": {
-                      color: "var(--text-secondary)",
-                    },
-                  }}
-                >
-                  <InputLabel id="status-filter-label">Status</InputLabel>
-                  <Select
-                    labelId="status-filter-label"
-                    value={statusFilter}
-                    label="Status"
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    MenuProps={{
-                      PaperProps: {
-                        sx: {
-                          backgroundColor: "var(--background)",
-                          color: "var(--text)",
-                          border: "1px solid var(--border)",
-                        },
-                      },
-                    }}
-                  >
-                    <MenuItem value="All">All Statuses</MenuItem>
-                    <MenuItem value="Sent to Review">Pending Review</MenuItem>
-                    <MenuItem value="Reviewed">Reviewed</MenuItem>
-                    <MenuItem value="In Progress">In Progress</MenuItem>
-                  </Select>
-                </FormControl>
+        {/* Tab 0: My Cases */}
+        {activeTab === 0 && (
+          <Box role="tabpanel">
+            {myInitialLoad ? (
+              <Box display="flex" justifyContent="center" sx={{ mt: 4 }}>
+                <CircularProgress />
               </Box>
-            </Box>
-
-            {/* Tab Panel 0: My Cases (formerly Pending Reviews) */}
-            {activeTab === 0 && (
-              <Box role="tabpanel" hidden={activeTab !== 0}>
+            ) : (
+              <>
                 <Grid container spacing={3}>
-                  {visibleMyCases.length === 0 ? (
+                  {myCases.length === 0 && !myLoading ? (
                     <Grid size={{ xs: 12 }}>
                       <Typography sx={{ color: "var(--text-secondary)" }}>
                         No cases created by you found.
                       </Typography>
                     </Grid>
                   ) : (
-                    visibleMyCases.map((caseItem, index) => (
-                      <Grid
-                        size={{ xs: 12, sm: 6, md: 4 }}
-                        key={`my-case-${index}`}
-                      >
+                    myCases.map((caseItem, index) => (
+                      <Grid size={{ xs: 12, sm: 6, md: 4 }} key={`my-case-${caseItem.case_id}-${index}`}>
                         <CaseCard
                           caseId={caseItem.case_id}
                           caseHash={caseItem.case_hash}
                           title={caseItem.case_title}
                           status={caseItem.status}
                           jurisdiction={caseItem.jurisdiction?.join(", ")}
-                          dateAdded={new Date(
-                            caseItem.last_updated,
-                          ).toLocaleDateString()}
+                          dateAdded={new Date(caseItem.last_updated).toLocaleDateString()}
                           onDelete={handleDeleteCase}
                           onArchive={handleArchiveCase}
                           archiveLabel={
-                            caseItem.status?.toLowerCase() === "archived"
-                              ? "Unarchive"
-                              : "Archive"
+                            caseItem.status?.toLowerCase() === "archived" ? "Unarchive" : "Archive"
                           }
                           onClick={(id) => navigate(`/case/${id}/overview`)}
                         />
@@ -496,55 +515,38 @@ const SupervisorDashboard = ({ userInfo }: SupervisorDashboardProps) => {
                     ))
                   )}
                 </Grid>
-              </Box>
-            )}
-
-            {/* Tab Panel 1: All Student Cases */}
-            {activeTab === 1 && (
-              <Box role="tabpanel" hidden={activeTab !== 1}>
-                {/* Stats & Filter Bar within Tab 1 */}
-                <Box
-                  sx={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    mb: 3,
-                    flexWrap: "wrap",
-                    gap: 2,
-                  }}
-                >
-                  <Box
-                    sx={{
-                      display: "flex",
-                      gap: 3,
-                      color: "var(--text-secondary)",
-                      alignItems: "center",
-                    }}
-                  >
-                    <Typography variant="body2" sx={{ fontFamily: "Outfit" }}>
-                      <Box
-                        component="span"
-                        sx={{ fontWeight: "bold", color: "var(--text)" }}
-                      >
-                        {stats.associatesAssigned}
-                      </Box>{" "}
-                      {plural("student")} Assigned
-                    </Typography>
+                <div ref={mySentinelRef} style={{ height: 1 }} />
+                {myLoading && (
+                  <Box display="flex" justifyContent="center" sx={{ mt: 3, mb: 2 }}>
+                    <CircularProgress size={28} />
                   </Box>
-                </Box>
+                )}
+              </>
+            )}
+          </Box>
+        )}
 
+        {/* Tab 1: All Student Cases */}
+        {activeTab === 1 && (
+          <Box role="tabpanel">
+            {allInitialLoad ? (
+              <Box display="flex" justifyContent="center" sx={{ mt: 4 }}>
+                <CircularProgress />
+              </Box>
+            ) : (
+              <>
                 <Grid container spacing={3}>
-                  {visibleAllStudentCases.length === 0 ? (
+                  {allStudentCases.length === 0 && !allLoading ? (
                     <Grid size={{ xs: 12 }}>
                       <Typography sx={{ color: "var(--text-secondary)" }}>
                         No {plural("student").toLowerCase()} cases found matching current filters.
                       </Typography>
                     </Grid>
                   ) : (
-                    visibleAllStudentCases.map((caseItem, index) => (
+                    allStudentCases.map((caseItem, index) => (
                       <Grid
                         size={{ xs: 12, sm: 6, md: 4 }}
-                        key={`student-case-${index}`}
+                        key={`student-case-${caseItem.case_id}-${index}`}
                       >
                         <CaseCard
                           caseId={caseItem.case_id}
@@ -552,18 +554,12 @@ const SupervisorDashboard = ({ userInfo }: SupervisorDashboardProps) => {
                           title={caseItem.case_title}
                           status={caseItem.status}
                           jurisdiction={caseItem.jurisdiction?.join(", ")}
-                          dateAdded={new Date(
-                            caseItem.last_updated,
-                          ).toLocaleDateString()}
-                          advocateName={`${caseItem.first_name || ""} ${
-                            caseItem.last_name || ""
-                          }`}
+                          dateAdded={new Date(caseItem.last_updated).toLocaleDateString()}
+                          advocateName={`${caseItem.first_name || ""} ${caseItem.last_name || ""}`}
                           onDelete={handleDeleteCase}
                           onArchive={handleArchiveCase}
                           archiveLabel={
-                            caseItem.status?.toLowerCase() === "archived"
-                              ? "Unarchive"
-                              : "Archive"
+                            caseItem.status?.toLowerCase() === "archived" ? "Unarchive" : "Archive"
                           }
                           onClick={(id) => navigate(`/case/${id}/overview`)}
                         />
@@ -571,7 +567,13 @@ const SupervisorDashboard = ({ userInfo }: SupervisorDashboardProps) => {
                     ))
                   )}
                 </Grid>
-              </Box>
+                <div ref={allSentinelRef} style={{ height: 1 }} />
+                {allLoading && (
+                  <Box display="flex" justifyContent="center" sx={{ mt: 3, mb: 2 }}>
+                    <CircularProgress size={28} />
+                  </Box>
+                )}
+              </>
             )}
           </Box>
         )}

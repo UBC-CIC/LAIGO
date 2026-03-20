@@ -251,19 +251,75 @@ const routes = {
     const { response, user, user_id, userEmail, sqlConnection } = env;
     // Use user_id from database user metadata
     try {
-      const data = await sqlConnection`
-            SELECT * 
-            FROM "cases" WHERE student_id = ${user_id};
-          `;
+      const params = event.queryStringParameters || {};
+      const page = parseInt(params.page || "0", 10);
+      const limit = parseInt(params.limit || "10", 10);
+      const offset = page * limit;
+      const search = params.search ? `%${params.search}%` : null;
+      const status = params.status && params.status !== "All" ? params.status.toLowerCase() : null;
 
-      // Check if data is empty and handle the case
-      if (data.length === 0) {
-        response.statusCode = 404; // Not Found
-        response.body = JSON.stringify({ message: "No cases found" });
+      let dataQuery;
+      let countQuery;
+
+      if (search && status) {
+        countQuery = sqlConnection`
+          SELECT COUNT(*) as exact_count FROM "cases"
+          WHERE student_id = ${user_id}
+          AND (case_title ILIKE ${search} OR CAST(jurisdiction AS TEXT) ILIKE ${search} OR case_id::text ILIKE ${search})
+          AND status::text = ${status};
+        `;
+        dataQuery = sqlConnection`
+          SELECT * FROM "cases"
+          WHERE student_id = ${user_id}
+          AND (case_title ILIKE ${search} OR CAST(jurisdiction AS TEXT) ILIKE ${search} OR case_id::text ILIKE ${search})
+          AND status::text = ${status}
+          ORDER BY last_updated DESC
+          LIMIT ${limit} OFFSET ${offset};
+        `;
+      } else if (search) {
+        countQuery = sqlConnection`
+          SELECT COUNT(*) as exact_count FROM "cases"
+          WHERE student_id = ${user_id}
+          AND (case_title ILIKE ${search} OR CAST(jurisdiction AS TEXT) ILIKE ${search} OR case_id::text ILIKE ${search});
+        `;
+        dataQuery = sqlConnection`
+          SELECT * FROM "cases"
+          WHERE student_id = ${user_id}
+          AND (case_title ILIKE ${search} OR CAST(jurisdiction AS TEXT) ILIKE ${search} OR case_id::text ILIKE ${search})
+          ORDER BY last_updated DESC
+          LIMIT ${limit} OFFSET ${offset};
+        `;
+      } else if (status) {
+        countQuery = sqlConnection`
+          SELECT COUNT(*) as exact_count FROM "cases"
+          WHERE student_id = ${user_id}
+          AND status::text = ${status};
+        `;
+        dataQuery = sqlConnection`
+          SELECT * FROM "cases"
+          WHERE student_id = ${user_id}
+          AND status::text = ${status}
+          ORDER BY last_updated DESC
+          LIMIT ${limit} OFFSET ${offset};
+        `;
       } else {
-        response.statusCode = 200; // OK
-        response.body = JSON.stringify(data); // Ensure the data is always valid JSON
+        countQuery = sqlConnection`
+          SELECT COUNT(*) as exact_count FROM "cases"
+          WHERE student_id = ${user_id};
+        `;
+        dataQuery = sqlConnection`
+          SELECT * FROM "cases"
+          WHERE student_id = ${user_id}
+          ORDER BY last_updated DESC
+          LIMIT ${limit} OFFSET ${offset};
+        `;
       }
+
+      const [countResult, data] = await Promise.all([countQuery, dataQuery]);
+      const totalCount = parseInt(countResult[0].exact_count, 10);
+
+      response.statusCode = 200;
+      response.body = JSON.stringify({ cases: data, totalCount });
     } catch (err) {
       response.statusCode = 500; // Internal server error
       console.error(err);

@@ -252,22 +252,92 @@ const routes = {
       const studentIds = studentIdsResult.map((row) => row.student_id);
 
       if (studentIds.length === 0) {
-        response.body = JSON.stringify([]); // No students, return empty array
+        response.body = JSON.stringify({ cases: [], totalCount: 0 });
         return;
       }
 
-      // Get cases and student names
-      const cases = await sqlConnection`
-            SELECT 
-              c.*, 
-              u.first_name, 
-              u.last_name 
-            FROM "cases" c
-            JOIN "users" u ON c.student_id = u.user_id
-            WHERE c.student_id = ANY(${studentIds});
-          `;
+      const params = event.queryStringParameters || {};
+      const page = parseInt(params.page || "0", 10);
+      const limit = parseInt(params.limit || "10", 10);
+      const offset = page * limit;
+      const search = params.search ? `%${params.search}%` : null;
+      const status = params.status && params.status !== "All" ? params.status.toLowerCase() : null;
 
-      response.body = JSON.stringify(cases);
+      let dataQuery;
+      let countQuery;
+
+      if (search && status) {
+        countQuery = sqlConnection`
+          SELECT COUNT(*) as exact_count
+          FROM "cases" c
+          JOIN "users" u ON c.student_id = u.user_id
+          WHERE c.student_id = ANY(${studentIds})
+          AND (c.case_title ILIKE ${search} OR u.first_name ILIKE ${search} OR u.last_name ILIKE ${search} OR CAST(c.jurisdiction AS TEXT) ILIKE ${search} OR c.case_id::text ILIKE ${search})
+          AND c.status::text = ${status};
+        `;
+        dataQuery = sqlConnection`
+          SELECT c.*, u.first_name, u.last_name
+          FROM "cases" c
+          JOIN "users" u ON c.student_id = u.user_id
+          WHERE c.student_id = ANY(${studentIds})
+          AND (c.case_title ILIKE ${search} OR u.first_name ILIKE ${search} OR u.last_name ILIKE ${search} OR CAST(c.jurisdiction AS TEXT) ILIKE ${search} OR c.case_id::text ILIKE ${search})
+          AND c.status::text = ${status}
+          ORDER BY c.last_updated DESC
+          LIMIT ${limit} OFFSET ${offset};
+        `;
+      } else if (search) {
+        countQuery = sqlConnection`
+          SELECT COUNT(*) as exact_count
+          FROM "cases" c
+          JOIN "users" u ON c.student_id = u.user_id
+          WHERE c.student_id = ANY(${studentIds})
+          AND (c.case_title ILIKE ${search} OR u.first_name ILIKE ${search} OR u.last_name ILIKE ${search} OR CAST(c.jurisdiction AS TEXT) ILIKE ${search} OR c.case_id::text ILIKE ${search});
+        `;
+        dataQuery = sqlConnection`
+          SELECT c.*, u.first_name, u.last_name
+          FROM "cases" c
+          JOIN "users" u ON c.student_id = u.user_id
+          WHERE c.student_id = ANY(${studentIds})
+          AND (c.case_title ILIKE ${search} OR u.first_name ILIKE ${search} OR u.last_name ILIKE ${search} OR CAST(c.jurisdiction AS TEXT) ILIKE ${search} OR c.case_id::text ILIKE ${search})
+          ORDER BY c.last_updated DESC
+          LIMIT ${limit} OFFSET ${offset};
+        `;
+      } else if (status) {
+        countQuery = sqlConnection`
+          SELECT COUNT(*) as exact_count
+          FROM "cases" c
+          WHERE c.student_id = ANY(${studentIds})
+          AND c.status::text = ${status};
+        `;
+        dataQuery = sqlConnection`
+          SELECT c.*, u.first_name, u.last_name
+          FROM "cases" c
+          JOIN "users" u ON c.student_id = u.user_id
+          WHERE c.student_id = ANY(${studentIds})
+          AND c.status::text = ${status}
+          ORDER BY c.last_updated DESC
+          LIMIT ${limit} OFFSET ${offset};
+        `;
+      } else {
+        countQuery = sqlConnection`
+          SELECT COUNT(*) as exact_count
+          FROM "cases" c
+          WHERE c.student_id = ANY(${studentIds});
+        `;
+        dataQuery = sqlConnection`
+          SELECT c.*, u.first_name, u.last_name
+          FROM "cases" c
+          JOIN "users" u ON c.student_id = u.user_id
+          WHERE c.student_id = ANY(${studentIds})
+          ORDER BY c.last_updated DESC
+          LIMIT ${limit} OFFSET ${offset};
+        `;
+      }
+
+      const [countResult, cases] = await Promise.all([countQuery, dataQuery]);
+      const totalCount = parseInt(countResult[0].exact_count, 10);
+
+      response.body = JSON.stringify({ cases, totalCount });
     } catch (err) {
       console.error("/instructor/view_students error:", err);
       handleError(err, response);
