@@ -123,8 +123,9 @@ VPC Configuration:
 
   - Provides authentication and authorization for Lambda access
   - Role-based access control via IAM roles and policies
-  - Triggers (Pre-Sign-Up, Post-Confirmation, Post-Authentication) manage user provisioning.
+  - Triggers (Pre-Sign-Up, Post-Confirmation) manage user provisioning.
   - Secures API and WebSocket access through JWT validation and Lambda authorizers
+  - Authorization is database-driven
 
 - **Amazon ECR:**
   - Lambda functions utilize Docker images stored in Amazon ECR
@@ -200,9 +201,16 @@ This diagram illustrates how our architecture handles key security aspects by le
 
 **WAF Rules Applied:** [Learn more](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/distribution-web-awswaf.html)
 
+Two separate WAF Web ACLs protect the application:
+
+**CloudFront WAF** (scoped to Amplify frontend distribution, deployed in us-east-1):
 - AWSManagedRulesCommonRuleSet (covers SQLi, XSS, and other common web exploits)
-- Rate limiting: 1 000 requests per 5 minutes per IP (CloudFront rate-based rule)
-- Web ACL is scoped to the CloudFront distribution used by the Amplify frontend
+- Rate limiting: 1 000 requests per 5 minutes per IP
+
+**Regional API Gateway WAF** (scoped to REST API stage):
+- AWSManagedRulesCommonRuleSet (OWASP Top 10 protection)
+- IP-based rate limiting: 2 000 requests per 5 minutes per IP
+- Per-user rate limiting: 200 requests per 5 minutes per authenticated user (keyed on MD5 hash of Authorization header)
 
 **Shield Standard:** [Learn more](https://docs.aws.amazon.com/waf/latest/developerguide/ddos-overview.html)
 
@@ -292,6 +300,7 @@ encryption: s3.BucketEncryption.S3_MANAGED,
 | --------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------- |
 | **RDS**                     | `DatabaseStack`   | PostgreSQL (5432) only from private/VPC CIDRs                                                                            | Restricts DB access to internal networks                      |
 | **Lambda**                  | `ApiGatewayStack` | IAM policies for Secrets and ENI management access                                                                       | Limits Lambda access to necessary resources                   |
+| **Lambda Authorizers**      | `ApiGatewayStack` | VPC-deployed with DB access; dedicated IAM roles with Secrets Manager read (IDP + DB credentials)                        | Enables database-backed identity resolution and role validation |
 | **EventBridge + WebSocket** | `ApiGatewayStack` | Scoped `events:PutEvents` (publish), EventBridge rule filtering, and scoped `execute-api:ManageConnections` for delivery | Ensures secure, authenticated real-time notification delivery |
 | **RDS Proxy**               | `DatabaseStack`   | IAM-based `rds-db:connect` permissions                                                                                   | Adds an extra layer of security between Lambda and RDS        |
 
@@ -367,9 +376,10 @@ lambdaRole.addToPolicy(
 | `PlaygroundTextGenLambdaDockerFunc` | Private          | student/instructor                         | **student or instructor** group users       |
 | `assessProgressFunction`            | Private          | student                                    | **student** group users                     |
 | `notificationServiceFunction`       | Private          | EventBridge / API Gateway                  | Internal event‑driven notification service  |
-| `adminLambdaAuthorizer`             | Private          | API Gateway Lambda Authorizer (admin)      | Internal to **API Gateway** for auth checks |
-| `studentLambdaAuthorizer`           | Private          | API Gateway Lambda Authorizer (student)    | Internal to **API Gateway** for auth checks |
-| `instructorLambdaAuthorizer`        | Private          | API Gateway Lambda Authorizer (instructor) | Internal to **API Gateway** for auth checks |
+| `adminLambdaAuthorizer`             | Private (VPC)    | API Gateway Lambda Authorizer (admin)      | Internal to **API Gateway**; validates JWT + DB role lookup |
+| `studentLambdaAuthorizer`           | Private (VPC)    | API Gateway Lambda Authorizer (student)    | Internal to **API Gateway**; validates JWT + DB role lookup |
+| `instructorLambdaAuthorizer`        | Private (VPC)    | API Gateway Lambda Authorizer (instructor) | Internal to **API Gateway**; validates JWT + DB role lookup |
+| `wsAuthorizer`                      | Private (VPC)    | API Gateway WebSocket Authorizer ($connect)| Internal to **API Gateway**; validates JWT + DB user lookup |
 
 ## 9. Cognito User Authentication
 
@@ -396,12 +406,23 @@ AWS Cognito provides user authentication and authorization, enabling **secure ac
   - **Post-Confirmation** trigger: Creates user record in database immediately after email verification
   - Authorization logic is handled by Lambda authorizers (not via Cognito triggers), ensuring real-time role/permission checks via database queries
 
-- **Lambda Authorization:**
-  Cognito-generated **JWT tokens** are validated by Lambda **authorizer functions** to ensure:
-  - Only **authorized users** can invoke specific Lambda endpoints
-  - **JWT tokens** expire 30 days after a user signs in [Learn more](https://docs.aws.amazon.com/cognito/latest/developerguide/amazon-cognito-user-pools-using-tokens-with-identity-providers.html)
-  - Access is logged and monitored via **CloudWatch**
-  - Role and permission information is fetched directly from the database, not cached in token claims
+- **Lambda Authorization (Database-Backed):**
+  Each Lambda authorizer follows an IDP-agnostic, database-backed pattern:
+
+  1. JWT token is verified for signature and expiration using IDP configuration stored in Secrets Manager
+  2. The `sub` claim is extracted as `idpId` (IDP-agnostic identifier)
+  3. The authorizer queries the PostgreSQL database to resolve `idpId` to an internal `userId` and retrieve user metadata (email, name, roles)
+  4. Role membership is enforced against the database `roles` array, not Cognito group claims
+  5. On success, the authorizer returns an IAM Allow policy with `userId` (database UUID) as `principalId` and user metadata in the authorization context
+  6. Downstream Lambda handlers receive the database `userId` directly, decoupled from the IDP
+
+  Key security properties:
+  - Roles are validated against the database as the source of truth, not JWT claims
+  - A stale-cache re-fetch mechanism queries the database a second time before denying access, preventing false rejections after recent role changes
+  - User metadata is cached within a single Lambda execution context for performance
+  - JWKS (JSON Web Key Set) is cached across warm invocations to avoid repeated fetches
+  - Access is logged and monitored via **CloudWatch** using AWS Lambda Powertools structured logging
+  - IDP credentials are retrieved from Secrets Manager, allowing IDP migration without code changes
 
 ---
 
@@ -410,19 +431,68 @@ AWS Cognito provides user authentication and authorization, enabling **secure ac
 #### **User Pool & App Client Configuration:**
 
 ```typescript
-const userPool = new cognito.UserPool(this, "UserPool", {
-  signInAliases: { email: true },
+this.userPool = new cognito.UserPool(this, `${id}-pool`, {
+  userPoolName: userPoolName,
+  signInAliases: {
+    email: true,
+  },
   selfSignUpEnabled: true,
-  userVerification: { emailStyle: cognito.VerificationEmailStyle.CODE },
+  autoVerify: {
+    email: true,
+  },
   passwordPolicy: {
-    minLength: 8,
+    minLength: 12,
     requireLowercase: true,
     requireUppercase: true,
+    requireDigits: true,
+    requireSymbols: true,
   },
+  accountRecovery: cognito.AccountRecovery.EMAIL_ONLY,
 });
 
-const appClient = userPool.addClient("AppClient", {
-  authFlows: { userPassword: true, userSrp: true },
+this.appClient = this.userPool.addClient(`${id}-pool`, {
+  userPoolClientName: userPoolName,
+  authFlows: {
+    userPassword: true,
+    custom: true,
+    userSrp: true,
+  },
+});
+```
+
+#### **Authorizer Lambda Configuration (Database-Backed):**
+
+All REST and WebSocket authorizers are deployed in the VPC with database connectivity and dedicated least-privilege IAM roles:
+
+```typescript
+// Each authorizer gets a dedicated IAM role with:
+// - Secrets Manager read access (IDP credentials + DB credentials)
+// - VPC networking (ENI management)
+// - CloudWatch Logs
+const adminAuthorizerRole = new iam.Role(this, `${id}-adminAuthorizerRole`, {
+  assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
+  managedPolicies: [
+    iam.ManagedPolicy.fromAwsManagedPolicyName("service-role/AWSLambdaVPCAccessExecutionRole"),
+  ],
+});
+this.secret.grantRead(adminAuthorizerRole);       // IDP config (JWT issuer/client)
+db.secretPathUser.grantRead(adminAuthorizerRole);  // DB credentials for user lookup
+
+// Authorizer Lambda with VPC access and PostgreSQL + JWT layers
+const adminAuthorizerFunction = new lambda.Function(this, `${id}-AdminAuthorizerFunction`, {
+  runtime: lambda.Runtime.NODEJS_22_X,
+  code: lambda.Code.fromAsset("lambda/authorization"),
+  handler: "adminAuthorizerFunction.handler",
+  timeout: Duration.seconds(10),
+  vpc: vpcStack.vpc,
+  vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+  layers: [jwt, postgres, javascriptPowertoolsLayer],
+  role: adminAuthorizerRole,
+  environment: {
+    SM_IDP_CREDENTIALS: this.secret.secretName,
+    SM_DB_CREDENTIALS: db.secretPathUser.secretName,
+    RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint,
+  },
 });
 ```
 
@@ -441,32 +511,61 @@ AWS API Gateway acts as the entry point for clients, enabling secure, scalable, 
 
 [Learn more](https://docs.aws.amazon.com/apigateway/latest/developerguide/security.html)
 
-### 10.3 Custom Lambda Authorizer for API Gateway
+### 10.3 Custom Lambda Authorizers for API Gateway
 
-Lambda Authorizers provide fine-grained access control by validating requests before they reach the API Gateway methods. This allows us to enforce custom authentication and authorization logic, such as role-based access control (RBAC) or JSON Web Token (JWT) validation
+Three role-specific Lambda authorizers protect the REST API. Each authorizer validates JWT tokens, resolves the IDP identity to a database user, and enforces role membership before granting access.
 
-```typescript
-const lambdaAuthorizer = new apigateway.TokenAuthorizer(this, "LambdaAuth", {
-  handler: myLambdaAuthorizer,
-  identitySource: "method.request.header.Authorization",
-});
+#### Authorizer Architecture
 
-const restrictedResource = api.root.addResource("restricted");
-restrictedResource.addMethod(
-  "POST",
-  new apigateway.LambdaIntegration(myLambda),
-  {
-    authorizationType: apigateway.AuthorizationType.CUSTOM,
-    authorizer: lambdaAuthorizer,
-  }
-);
+All three REST authorizers (admin, instructor, student) share the same core pattern:
+
+1. Extract JWT from the `Authorization` header
+2. Verify token signature and expiration using IDP configuration from Secrets Manager
+3. Extract `sub` claim as `idpId`
+4. Query the PostgreSQL database (via RDS Proxy) to resolve `idpId` → `userId` and retrieve roles
+5. Enforce role membership against the database `roles` array
+6. Return a scoped IAM Allow policy with `userId` as `principalId` and user metadata in context
+
+Each authorizer runs in the VPC with access to the database and uses dedicated least-privilege IAM roles.
+
+#### Role-Specific Behavior
+
+| Authorizer | Endpoints | Required Database Role | Scoped Policy Resource |
+| --- | --- | --- | --- |
+| Admin | `/admin/*` | `admin` | `*/admin/*` |
+| Instructor | `/instructor/*` | `instructor` | `*/instructor/*` |
+| Student | `/student/*` | `student` (with exceptions) | `*/student/*` |
+
+The student authorizer includes additional route-level logic:
+- **Shared routes** (e.g., `GET /student/profile`, `GET /student/get_disclaimer`) are accessible to any authenticated user regardless of role
+- **Instructor case routes** (e.g., `GET /student/case_page`, `GET /student/get_messages`) are accessible to users with the `instructor` role, enabling case detail views for supervisors
+- All other `/student/*` endpoints require the `student` role
+
+#### Stale-Cache Protection
+
+All authorizers implement a re-fetch mechanism: if the cached user metadata does not include the required role, the authorizer queries the database a second time with `forceRefresh` before denying access. This prevents false rejections when roles are updated by an admin while the authorizer Lambda is warm.
+
+#### Context Passed to Downstream Handlers
+
+```json
+{
+  "userId": "database-uuid",
+  "email": "user@example.com",
+  "firstName": "John",
+  "lastName": "Doe",
+  "roles": "[\"student\"]"
+}
 ```
 
-**Key Features of Lambda Authorizer**:
+Downstream Lambda handlers use `userId` (database UUID) from the authorizer context, fully decoupled from the IDP identity.
 
-- Custom Authentication: Uses a Lambda function to validate JWT tokens or other credentials before granting access
-- Identity Source: Extracts authentication data from the Authorization header in HTTP requests
-- Granular Access Control: Ensures that only authorized users can access specific API methods
+**Key Features**:
+
+- Database-backed authorization: Roles are validated against PostgreSQL, not JWT claims
+- IDP-agnostic: IDP configuration is stored in Secrets Manager, enabling provider migration without code changes
+- Scoped IAM policies: Each authorizer returns policies scoped to its role's endpoint prefix, preventing cross-role access leakage
+- VPC-deployed: Authorizers run in private subnets with direct database connectivity via RDS Proxy
+- Structured logging: AWS Lambda Powertools provides consistent, searchable CloudWatch logs
 
 ## 11. WebSocket API Security
 
@@ -480,11 +579,18 @@ API Gateway WebSocket API enables real-time, bidirectional communication for fea
 
 ### 11.2 WebSocket Security Controls
 
-**Authorization:**
+**Authorization (Database-Backed):**
 
-- All WebSocket connections are gated by a dedicated Lambda authorizer
-- JWT tokens are validated against Cognito configuration before connection is allowed
-- Authorization decisions are role/permission aware and follow least-privilege access
+- All WebSocket connections are gated by a dedicated Lambda authorizer (`wsAuthorizer.js`)
+- The authorizer follows the same IDP-agnostic, database-backed pattern as the REST authorizers:
+  1. Extracts JWT token from `Sec-WebSocket-Protocol` header, `Authorization` header, or `?token=` query parameter
+  2. Verifies token signature and expiration using IDP configuration (Cognito User Pool ID and Client ID from environment variables)
+  3. Extracts `sub` claim as `idpId` and queries the PostgreSQL database to resolve it to a `userId`
+  4. Returns an IAM Allow policy with `userId` (database UUID) as `principalId` and user metadata (email, name, roles) in context
+  5. On failure, returns an explicit Deny policy
+- The authorizer runs in the VPC with database connectivity via RDS Proxy
+- Downstream WebSocket handlers (`$connect`, `$default`) receive the database `userId` from the authorizer context, decoupled from the IDP
+- Role-based access checks for privileged actions (e.g., playground features) are performed by the `$default` handler using the `roles` context field
 
 **Connection Management:**
 
@@ -498,17 +604,18 @@ API Gateway WebSocket API enables real-time, bidirectional communication for fea
 
 ### 11.3 WebSocket Security Controls
 
-| **Control**                   | **Mechanism**                                                | **Purpose**                                                              |
-| ----------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------ |
-| **Authentication**            | JWT validation in WebSocket Lambda authorizer                | Only authenticated users can connect                                     |
-| **Authorization**             | Authorizer policy enforcement with least-privilege decisions | Restricts connections to authorized principals                           |
-| **Connection Limits**         | Per-user max 5 concurrent connections                        | Prevents connection exhaustion abuse                                     |
-| **Invocation Scoping**        | Scoped `lambda:InvokeFunction` permissions                   | Prevents unauthorized backend function invocation                        |
-| **Secure WebSocket Delivery** | Scoped `execute-api:ManageConnections` permissions           | Only approved services can send messages to active WebSocket connections |
+| **Control**                   | **Mechanism**                                                                  | **Purpose**                                                              |
+| ----------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
+| **Authentication**            | JWT validation + database user lookup in WebSocket Lambda authorizer            | Only authenticated, database-registered users can connect                |
+| **Authorization**             | Database role checks in `$default` handler using authorizer context             | Restricts privileged actions (playground) to admin/instructor roles       |
+| **Identity Resolution**       | `idpId` → `userId` database lookup in authorizer                               | Decouples WebSocket identity from IDP, uses database UUID                |
+| **Connection Limits**         | Per-user max 5 concurrent connections                                          | Prevents connection exhaustion abuse                                     |
+| **Invocation Scoping**        | Scoped `lambda:InvokeFunction` permissions                                     | Prevents unauthorized backend function invocation                        |
+| **Secure WebSocket Delivery** | Scoped `execute-api:ManageConnections` permissions                             | Only approved services can send messages to active WebSocket connections |
 
 ### 11.4 Attack Surface Mitigation
 
-- **DDoS / Connection Flood**: Rate limiting via CloudFront WAF (1 000 requests/5 min per IP) applies to WebSocket API Gateway
+- **DDoS / Connection Flood**: Rate limiting via Regional API Gateway WAF (2 000 requests/5 min per IP, 200/5 min per user) and CloudFront WAF (1 000 requests/5 min per IP)
 - **Unauthorized Message Injection**: Authenticated-channel enforcement and authorizer checks reduce unauthorized message submission
 - **Stale Connection Cleanup**: DynamoDB TTL automatically removes connection records older than configured retention
 - **Auditability**: Connection and invocation activity is logged in CloudWatch for investigation and incident response
