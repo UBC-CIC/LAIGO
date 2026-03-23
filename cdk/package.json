@@ -21,7 +21,7 @@
   },
   "dependencies": {
     "@aws-cdk/aws-amplify-alpha": "^2.215.0-alpha.0",
-    "aws-cdk-lib": "2.215.0",
+    "aws-cdk-lib": "2.244.0",
     "constructs": "^10.0.0",
     "yaml": "^2.8.2"
   }
