@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Lambda layer for node-pg-migrate and pg",
   "dependencies": {
-    "node-pg-migrate": "7.9.1",
+    "node-pg-migrate": "8.0.4",
     "pg": "8.13.3"
   }
 }
