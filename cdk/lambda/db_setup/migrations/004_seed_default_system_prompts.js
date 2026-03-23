@@ -502,7 +502,7 @@ Structure your summary with these sections:
 - Key parties and their roles/relationships as discussed.
 
 ## Client Objectives & Concerns
-- The client's stated goals and worries.
+- The client''s stated goals and worries.
 
 ## Critical Gaps
 - Important information not yet obtained.
