@@ -1,4 +1,5 @@
 import { Stack, StackProps } from "aws-cdk-lib";
+import * as cdk from "aws-cdk-lib";
 import { Construct } from "constructs";
 import * as ec2 from "aws-cdk-lib/aws-ec2";
 import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
@@ -35,7 +36,7 @@ export class VpcStack extends Stack {
       // VPC for application
       this.vpc = ec2.Vpc.fromVpcAttributes(this, `${id}-Vpc`, {
         vpcId: existingVpcId,
-        availabilityZones: ["ca-central-1a", "ca-central-1b", "ca-central-1d"],
+        availabilityZones: cdk.Stack.of(this).availabilityZones,
         privateSubnetIds: [
           Fn.importValue(`${AWSControlTowerStackSet}-PrivateSubnet1AID`),
           Fn.importValue(`${AWSControlTowerStackSet}-PrivateSubnet2AID`),

@@ -44,7 +44,7 @@ async function initializeConnection() {
     // Create PostgreSQL connection via RDS Proxy
     global.sqlConnection = postgres({
       host: RDS_PROXY_ENDPOINT,
-      port: 5432,
+      port: credentials.port || 5432,
       database: credentials.dbname,
       username: credentials.username,
       password: credentials.password,
