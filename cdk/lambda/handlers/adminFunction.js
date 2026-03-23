@@ -1480,14 +1480,26 @@ const routes = {
     try {
       const { DynamoDBClient, ScanCommand } = await import("@aws-sdk/client-dynamodb");
       const dynamo = new DynamoDBClient();
-      const result = await dynamo.send(
-        new ScanCommand({ TableName: process.env.WHITELIST_TABLE_NAME }),
-      );
-      const items = (result.Items || []).map((item) => ({
-        email: item.email?.S,
-        canonical_role: item.canonical_role?.S,
-        uploaded_label: item.uploaded_label?.S,
-      }));
+      const items = [];
+      let lastKey = undefined;
+
+      do {
+        const result = await dynamo.send(
+          new ScanCommand({
+            TableName: process.env.WHITELIST_TABLE_NAME,
+            ...(lastKey && { ExclusiveStartKey: lastKey }),
+          }),
+        );
+        for (const item of result.Items || []) {
+          items.push({
+            email: item.email?.S,
+            canonical_role: item.canonical_role?.S,
+            uploaded_label: item.uploaded_label?.S,
+          });
+        }
+        lastKey = result.LastEvaluatedKey;
+      } while (lastKey);
+
       response.statusCode = 200;
       response.body = JSON.stringify({ entries: items, count: items.length });
     } catch (err) {
@@ -1557,10 +1569,39 @@ const routes = {
         validItems.push({ email, canonical_role: canonicalRole, uploaded_label: label });
       }
 
-      // Batch-write to DynamoDB in chunks of 25 (BatchWriteItem limit)
-      const { DynamoDBClient, BatchWriteItemCommand } = await import("@aws-sdk/client-dynamodb");
+      // Replace mode: delete all existing entries, then write new ones
+      const { DynamoDBClient, BatchWriteItemCommand, ScanCommand } = await import("@aws-sdk/client-dynamodb");
       const dynamo = new DynamoDBClient();
+      const tableName = process.env.WHITELIST_TABLE_NAME;
       const CHUNK_SIZE = 25;
+
+      // Step 1: Scan and delete all existing entries
+      let lastKey = undefined;
+      do {
+        const scanResult = await dynamo.send(
+          new ScanCommand({
+            TableName: tableName,
+            ProjectionExpression: "email",
+            ...(lastKey && { ExclusiveStartKey: lastKey }),
+          }),
+        );
+        const items = scanResult.Items || [];
+        lastKey = scanResult.LastEvaluatedKey;
+
+        for (let i = 0; i < items.length; i += CHUNK_SIZE) {
+          const chunk = items.slice(i, i + CHUNK_SIZE);
+          const deleteRequests = chunk.map((item) => ({
+            DeleteRequest: { Key: { email: item.email } },
+          }));
+          await dynamo.send(
+            new BatchWriteItemCommand({
+              RequestItems: { [tableName]: deleteRequests },
+            }),
+          );
+        }
+      } while (lastKey);
+
+      // Step 2: Write new entries in batches of 25
       let processed = 0;
 
       for (let i = 0; i < validItems.length; i += CHUNK_SIZE) {
@@ -1576,7 +1617,7 @@ const routes = {
         }));
         await dynamo.send(
           new BatchWriteItemCommand({
-            RequestItems: { [process.env.WHITELIST_TABLE_NAME]: putRequests },
+            RequestItems: { [tableName]: putRequests },
           }),
         );
         processed += chunk.length;

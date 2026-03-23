@@ -21,7 +21,9 @@ import {
 } from "@mui/material";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import UploadFileIcon from "@mui/icons-material/UploadFile";
+import DownloadIcon from "@mui/icons-material/Download";
 import RefreshIcon from "@mui/icons-material/Refresh";
+import TablePagination from "@mui/material/TablePagination";
 import AdminHeader from "../../components/AdminHeader";
 import { fetchAuthSession } from "aws-amplify/auth";
 
@@ -50,6 +52,10 @@ const AdminWhitelist = () => {
     severity: "success" | "error" | "warning";
   }>({ open: false, message: "", severity: "success" });
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const PAGE_THRESHOLD = 50;
+  const ROWS_PER_PAGE = 25;
+  const [page, setPage] = useState(0);
 
   const getToken = async () => {
     const session = await fetchAuthSession();
@@ -117,6 +123,7 @@ const AdminWhitelist = () => {
       );
       const data = await res.json();
       setEntries(data.entries || []);
+      setPage(0);
     } catch (err) {
       console.error("Failed to load whitelist:", err);
     } finally {
@@ -211,6 +218,20 @@ const AdminWhitelist = () => {
     fetchSignupMode();
     fetchWhitelist();
   }, [fetchSignupMode, fetchWhitelist]);
+
+  const handleDownloadCsv = () => {
+    if (entries.length === 0) return;
+    const header = "email,role";
+    const rows = entries.map((e) => `${e.email},${e.uploaded_label || e.canonical_role}`);
+    const csv = [header, ...rows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `whitelist-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const roleColor = (role: string) => {
     switch (role) {
@@ -362,6 +383,23 @@ const AdminWhitelist = () => {
                   style={{ display: "none" }}
                   onChange={handleFileChange}
                 />
+                {entries.length > 0 && (
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    startIcon={<DownloadIcon />}
+                    onClick={handleDownloadCsv}
+                    sx={{
+                      color: "var(--text-secondary)",
+                      borderColor: "var(--border)",
+                      textTransform: "none",
+                      fontWeight: "bold",
+                      "&:hover": { borderColor: "var(--text-secondary)" },
+                    }}
+                  >
+                    Download CSV
+                  </Button>
+                )}
                 <Button
                   variant="contained"
                   size="small"
@@ -416,7 +454,10 @@ const AdminWhitelist = () => {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    entries.map((entry) => {
+                    (entries.length > PAGE_THRESHOLD
+                      ? entries.slice(page * ROWS_PER_PAGE, page * ROWS_PER_PAGE + ROWS_PER_PAGE)
+                      : entries
+                    ).map((entry) => {
                       const { bg, fg } = roleColor(entry.canonical_role);
                       return (
                         <TableRow
@@ -458,7 +499,20 @@ const AdminWhitelist = () => {
 
             {/* Footer */}
             {entries.length > 0 && (
-              <Box sx={{ p: 1.5, borderTop: "1px solid var(--border)", display: "flex", justifyContent: "flex-end" }}>
+              <Box sx={{ p: 1.5, borderTop: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                {entries.length > PAGE_THRESHOLD ? (
+                  <TablePagination
+                    component="div"
+                    count={entries.length}
+                    page={page}
+                    onPageChange={(_e, newPage) => setPage(newPage)}
+                    rowsPerPage={ROWS_PER_PAGE}
+                    rowsPerPageOptions={[ROWS_PER_PAGE]}
+                    sx={{ color: "var(--text-secondary)", "& .MuiTablePagination-toolbar": { minHeight: 36 } }}
+                  />
+                ) : (
+                  <Box />
+                )}
                 <Typography variant="caption" sx={{ color: "var(--text-secondary)" }}>
                   {entries.length} {entries.length === 1 ? "entry" : "entries"}
                 </Typography>
