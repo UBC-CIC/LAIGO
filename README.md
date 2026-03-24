@@ -11,6 +11,7 @@ This prototype explores how Large Language Models (LLMs) can enhance legal workf
 | [API Documentation](#api-documentation)             | Documentation on the API the project uses               |
 | [Credits](#credits)                                 | Meet the team behind the solution                       |
 | [License](#license)                                 | License details                                         |
+| [User Removal](#user-removal)                       | How to completely remove a user from the platform       |
 
 ## High-Level Architecture
 
@@ -128,6 +129,10 @@ For details on the security architecture including WAF, guardrails, authenticati
 
 Steps to implement optional modifications such as changing the colours of the application can be found
 [here](./docs/modificationGuide.md).
+
+## User Removal
+
+To completely remove a user from the platform (database records, Cognito identity, and DynamoDB data), follow the [User Removal Guide](./docs/userRemovalGuide.md).
 
 ## Credits
 
