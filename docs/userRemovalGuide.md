@@ -222,16 +222,4 @@ aws cognito-idp admin-delete-user \
 
 > The `cognito_username` is typically the user's email address. The `user_pool_id` can be found in the Cognito console or in the CDK outputs.
 
----
 
-## Summary of Affected Resources
-
-| Resource | Location | Key Identifier |
-|---|---|---|
-| User record | PostgreSQL `users` table | `user_id` |
-| Cases & related data | PostgreSQL `cases` + cascading tables | `student_id` |
-| Instructor relationships | PostgreSQL `instructor_students` | `instructor_id` / `student_id` |
-| Case reviewer assignments | PostgreSQL `case_reviewers` | `reviewer_id` |
-| Feedback & annotations | PostgreSQL `case_feedback`, `annotations` | `author_id` |
-| Messages | PostgreSQL `messages` | `instructor_id` |
-| Cognito identity | Cognito User Pool | email / username |
