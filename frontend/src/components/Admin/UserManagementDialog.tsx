@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import {
   Alert,
+  Autocomplete,
   Box,
   Button,
   Checkbox,
@@ -56,6 +57,8 @@ const UserManagementDialog: React.FC<UserManagementDialogProps> = ({
   const [assignedStudents, setAssignedStudents] = useState<any[]>([]);
   const [studentsLoading, setStudentsLoading] = useState(false);
   const [studentEmailInput, setStudentEmailInput] = useState("");
+  const [studentOptions, setStudentOptions] = useState<User[]>([]);
+  const [studentSearchLoading, setStudentSearchLoading] = useState(false);
   const [assignmentActionLoading, setAssignmentActionLoading] = useState(false);
   const [assignmentError, setAssignmentError] = useState<string | null>(null);
 
@@ -100,12 +103,66 @@ const UserManagementDialog: React.FC<UserManagementDialogProps> = ({
       setRoleSuccess(null);
       setAssignmentError(null);
       setStudentEmailInput("");
+      setStudentOptions([]);
 
       if (user.roles.includes("instructor")) {
         fetchAssignedStudents();
       }
     }
   }, [open, user]);
+
+  useEffect(() => {
+    if (!isInstructor || !studentEmailInput.trim()) {
+      setStudentOptions([]);
+      return;
+    }
+
+    const abortController = new AbortController();
+    const timeout = setTimeout(async () => {
+      setStudentSearchLoading(true);
+      try {
+        const { fetchAuthSession } = await import("aws-amplify/auth");
+        const session = await fetchAuthSession();
+        const token = session.tokens?.idToken?.toString();
+        if (!token) throw new Error("No auth token");
+
+        const params = new URLSearchParams({
+          search: studentEmailInput.trim(),
+          role: "student",
+          limit: "10",
+          page: "0",
+        });
+
+        const response = await fetch(
+          `${import.meta.env.VITE_API_ENDPOINT}/admin/users?${params.toString()}`,
+          {
+            headers: { Authorization: token },
+            signal: abortController.signal,
+          },
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch student suggestions");
+        }
+
+        const data = await response.json();
+        const options = Array.isArray(data.users) ? data.users : [];
+        setStudentOptions(options);
+      } catch (err) {
+        if ((err as any)?.name !== "AbortError") {
+          console.error("Error fetching student suggestions:", err);
+        }
+        setStudentOptions([]);
+      } finally {
+        setStudentSearchLoading(false);
+      }
+    }, 300);
+
+    return () => {
+      clearTimeout(timeout);
+      abortController.abort();
+    };
+  }, [isInstructor, studentEmailInput]);
 
   const handleToggleRole = async (toggledRole: RoleKey, newChecked: boolean) => {
     if (!user) return;
@@ -339,20 +396,64 @@ const UserManagementDialog: React.FC<UserManagementDialogProps> = ({
               )}
 
               <Box display="flex" gap={2} mb={2}>
-                <TextField
+                <Autocomplete
+                  freeSolo
+                  options={studentOptions.map((option) => option.user_email)}
+                  loading={studentSearchLoading}
+                  inputValue={studentEmailInput}
+                  onInputChange={(_event, newInputValue) => setStudentEmailInput(newInputValue)}
+                  onChange={(_event, value) => {
+                    if (typeof value === "string") {
+                      setStudentEmailInput(value);
+                    }
+                  }}
                   fullWidth
-                  size="small"
-                  placeholder="Student Email"
-                  value={studentEmailInput}
-                  onChange={(e) => setStudentEmailInput(e.target.value)}
-                  disabled={assignmentActionLoading}
-                  sx={{
-                    "& .MuiOutlinedInput-root": {
+                  PaperProps={{
+                    sx: {
+                      backgroundColor: "var(--background)",
                       color: "var(--text)",
-                      "& fieldset": { borderColor: "var(--border)" },
-                      "&:hover fieldset": { borderColor: "var(--text-secondary)" },
+                      border: "1px solid var(--border)",
+                      boxShadow: "0px 2px 8px rgba(0,0,0,0.3)",
                     },
                   }}
+                  ListboxProps={{
+                    sx: {
+                      backgroundColor: "var(--background)",
+                      color: "var(--text)",
+                      "& .MuiAutocomplete-option": {
+                        "&.Mui-focused, &.Mui-selected": {
+                          backgroundColor: "var(--border)",
+                          color: "var(--text)",
+                        },
+                      },
+                    },
+                  }}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      size="small"
+                      placeholder="Student Email"
+                      disabled={assignmentActionLoading}
+                      InputProps={{
+                        ...params.InputProps,
+                        endAdornment: (
+                          <>
+                            {studentSearchLoading ? (
+                              <CircularProgress color="inherit" size={16} />
+                            ) : null}
+                            {params.InputProps.endAdornment}
+                          </>
+                        ),
+                      }}
+                      sx={{
+                        "& .MuiOutlinedInput-root": {
+                          color: "var(--text)",
+                          "& fieldset": { borderColor: "var(--border)" },
+                          "&:hover fieldset": { borderColor: "var(--text-secondary)" },
+                        },
+                      }}
+                    />
+                  )}
                 />
                 <Button
                   variant="contained"
