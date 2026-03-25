@@ -408,22 +408,24 @@ const UserManagementDialog: React.FC<UserManagementDialogProps> = ({
                     }
                   }}
                   fullWidth
-                  PaperProps={{
-                    sx: {
-                      backgroundColor: "var(--background)",
-                      color: "var(--text)",
-                      border: "1px solid var(--border)",
-                      boxShadow: "0px 2px 8px rgba(0,0,0,0.3)",
+                  slotProps={{
+                    paper: {
+                      sx: {
+                        backgroundColor: "var(--background)",
+                        color: "var(--text)",
+                        border: "1px solid var(--border)",
+                        boxShadow: "0px 2px 8px rgba(0,0,0,0.3)",
+                      },
                     },
-                  }}
-                  ListboxProps={{
-                    sx: {
-                      backgroundColor: "var(--background)",
-                      color: "var(--text)",
-                      "& .MuiAutocomplete-option": {
-                        "&.Mui-focused, &.Mui-selected": {
-                          backgroundColor: "var(--border)",
-                          color: "var(--text)",
+                    listbox: {
+                      sx: {
+                        backgroundColor: "var(--background)",
+                        color: "var(--text)",
+                        "& .MuiAutocomplete-option": {
+                          "&.Mui-focused, &.Mui-selected": {
+                            backgroundColor: "var(--border)",
+                            color: "var(--text)",
+                          },
                         },
                       },
                     },
