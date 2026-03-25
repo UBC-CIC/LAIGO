@@ -35,6 +35,7 @@ export const useWebSocket = (
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<number | null>(null);
   const heartbeatIntervalRef = useRef<number | null>(null);
+  const tokenRotationTimeoutRef = useRef<number | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const isManualDisconnectRef = useRef(false);
   const [connectionState, setConnectionState] = useState<
@@ -60,6 +61,30 @@ export const useWebSocket = (
   useEffect(() => {
     callbacksRef.current = options;
   }, [options]);
+
+  const clearTokenRotationTimer = useCallback(() => {
+    if (tokenRotationTimeoutRef.current) {
+      window.clearTimeout(tokenRotationTimeoutRef.current);
+      tokenRotationTimeoutRef.current = null;
+    }
+  }, []);
+
+  const parseJwtExpiryMs = useCallback((token: string): number | null => {
+    try {
+      const parts = token.split(".");
+      if (parts.length < 2) return null;
+
+      const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+      const padding = "=".repeat((4 - (base64.length % 4)) % 4);
+      const payload = JSON.parse(window.atob(base64 + padding)) as {
+        exp?: number;
+      };
+
+      return typeof payload.exp === "number" ? payload.exp * 1000 : null;
+    } catch {
+      return null;
+    }
+  }, []);
 
   const startHeartbeat = useCallback(() => {
     if (heartbeatIntervalRef.current) {
@@ -356,6 +381,7 @@ export const useWebSocket = (
     }
 
     stopHeartbeat();
+    clearTokenRotationTimer();
 
     if (wsRef.current) {
       wsRef.current.close(1000, "Manual disconnect");
@@ -364,7 +390,7 @@ export const useWebSocket = (
 
     setConnectionState("disconnected");
     reconnectAttemptsRef.current = 0;
-  }, [stopHeartbeat]);
+  }, [stopHeartbeat, clearTokenRotationTimer]);
 
   const sendMessage = useCallback(
     (message: unknown) => {
@@ -422,6 +448,46 @@ export const useWebSocket = (
   const protocolsDeps = Array.isArray(options.protocols)
     ? options.protocols.join(",")
     : options.protocols;
+
+  useEffect(() => {
+    if (connectionState !== "connected") {
+      clearTokenRotationTimer();
+      return;
+    }
+
+    const protocols = callbacksRef.current.protocols;
+    const token = Array.isArray(protocols) ? protocols[0] : protocols;
+    if (!token || typeof token !== "string") {
+      clearTokenRotationTimer();
+      return;
+    }
+
+    const expiryMs = parseJwtExpiryMs(token);
+    if (!expiryMs) {
+      clearTokenRotationTimer();
+      return;
+    }
+
+    // Reconnect shortly before JWT expiry so connect-route auth is re-evaluated.
+    const rotateLeadMs = 30 * 1000;
+    const delay = Math.max(expiryMs - Date.now() - rotateLeadMs, 0);
+
+    clearTokenRotationTimer();
+    tokenRotationTimeoutRef.current = window.setTimeout(() => {
+      console.log("[WebSocket] Token nearing expiry, forcing reconnect");
+      forceReconnect();
+    }, delay);
+
+    return () => {
+      clearTokenRotationTimer();
+    };
+  }, [
+    connectionState,
+    protocolsDeps,
+    forceReconnect,
+    clearTokenRotationTimer,
+    parseJwtExpiryMs,
+  ]);
 
   useEffect(() => {
     let connectTimer: number | undefined;

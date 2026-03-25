@@ -242,6 +242,8 @@ export class ApiGatewayStack extends cdk.Stack {
         custom: true, // Enable custom authentication flows
         userSrp: true, // Enable Secure Remote Password protocol
       },
+      accessTokenValidity: cdk.Duration.minutes(30),
+      idTokenValidity: cdk.Duration.minutes(30),
     });
 
     // Create Cognito identity pool for AWS credential federation
