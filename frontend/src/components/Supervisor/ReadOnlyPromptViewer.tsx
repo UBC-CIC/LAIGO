@@ -198,7 +198,6 @@ const ReadOnlyPromptViewer: React.FC<ReadOnlyPromptViewerProps> = ({
                 alignItems: "flex-start",
                 color: "var(--text)",
                 backgroundColor: "var(--background)",
-                fontFamily: "monospace",
                 fontSize: "0.95rem",
                 "& fieldset": {
                   borderColor: "var(--border)",

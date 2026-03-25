@@ -673,6 +673,7 @@ const SystemPromptSection: React.FC<{
               multiline
               rows={5}
               fullWidth
+              size="small"
               value={config.systemPrompt}
               onChange={(e) => onConfigChange({ systemPrompt: e.target.value })}
               placeholder="Enter your system prompt..."
@@ -680,7 +681,6 @@ const SystemPromptSection: React.FC<{
                 "& .MuiOutlinedInput-root": {
                   color: "var(--text)",
                   backgroundColor: "var(--background)",
-                  fontFamily: "monospace",
                   fontSize: "0.9rem",
                   "& fieldset": { borderColor: "var(--border)" },
                   "&:hover fieldset": { borderColor: "var(--primary)" },
@@ -916,6 +916,7 @@ const AssessmentPromptSection: React.FC<{
               multiline
               rows={5}
               fullWidth
+              size="small"
               value={config.assessmentPrompt}
               onChange={(e) =>
                 onConfigChange({ assessmentPrompt: e.target.value })
@@ -925,7 +926,6 @@ const AssessmentPromptSection: React.FC<{
                 "& .MuiOutlinedInput-root": {
                   color: "var(--text)",
                   backgroundColor: "var(--background)",
-                  fontFamily: "monospace",
                   fontSize: "0.9rem",
                   "& fieldset": { borderColor: "var(--border)" },
                   "&:hover fieldset": { borderColor: "var(--primary)" },

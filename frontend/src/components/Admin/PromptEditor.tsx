@@ -627,7 +627,6 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
                   alignItems: "flex-start",
                   color: "var(--text)",
                   backgroundColor: "var(--background)",
-                  fontFamily: "monospace",
                   fontSize: "0.95rem",
                   "& fieldset": { borderColor: "var(--border)" },
                   "&:hover fieldset": { borderColor: "var(--border)" },
