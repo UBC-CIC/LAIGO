@@ -11,6 +11,7 @@ import { ApiGatewayStack } from "./api-stack";
 
 interface AmplifyStackProps extends cdk.StackProps {
   githubRepo: string;
+  domainName?: string;
 }
 
 export class AmplifyStack extends cdk.Stack {
@@ -25,6 +26,19 @@ export class AmplifyStack extends cdk.Stack {
     super(scope, id, props);
 
     const githubRepoName = props.githubRepo;
+
+    // Build CSP connect-src directive based on whether a custom domain is configured
+    let connectSrc: string;
+    if (props.domainName) {
+      // Lock down connect-src to specific backends when a custom domain is provided
+      const apiEndpoint = apiStack.getEndpointUrl();
+      const wsUrl = apiStack.getWebSocketUrl();
+      const cognitoEndpoint = `https://cognito-idp.${this.region}.amazonaws.com`;
+      connectSrc = `'self' ${apiEndpoint} ${wsUrl} ${cognitoEndpoint}`;
+    } else {
+      // Permissive connect-src when no custom domain is configured
+      connectSrc = "'self' wss: https:";
+    }
 
     const amplifyYaml = yaml.parse(` 
       version: 1
@@ -50,7 +64,7 @@ export class AmplifyStack extends cdk.Stack {
               - pattern: '**/*'
                 headers:
                   - key: Content-Security-Policy
-                    value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' wss: https:; frame-ancestors 'none';"
+                    value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src ${connectSrc}; frame-ancestors 'none';"
                   - key: X-Frame-Options
                     value: DENY
                   - key: X-Content-Type-Options
@@ -99,7 +113,13 @@ export class AmplifyStack extends cdk.Stack {
       status: RedirectStatus.NOT_FOUND_REWRITE,
     });
 
-    amplifyApp.addBranch("main");
+    const mainBranch = amplifyApp.addBranch("main");
+
+    // Configure custom domain when domainName is provided
+    if (props.domainName) {
+      const domain = amplifyApp.addDomain(props.domainName);
+      domain.mapRoot(mainBranch);
+    }
 
     // Export Amplify app ARN for WAF association
     this.appArn = amplifyApp.arn;

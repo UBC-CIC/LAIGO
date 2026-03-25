@@ -617,7 +617,7 @@ const routes = {
 
 exports.handler = async (event, context) => {
   logger.addContext(context);
-  const response = createResponse();
+  const response = createResponse(event);
 
   // Initialize the database connection if not already initialized
   try {

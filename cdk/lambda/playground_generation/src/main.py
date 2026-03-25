@@ -33,6 +33,35 @@ BEDROCK_TEMP = 0.5
 BEDROCK_TOP_P = 0.9
 BEDROCK_MAX_TOKENS = 2048
 
+def get_cors_origin(event):
+    allowed_origin = os.environ.get("ALLOWED_ORIGIN", "")
+    if not allowed_origin:
+        return "*"
+    allowed_origins = [allowed_origin, "http://localhost:5173"]
+    headers = event.get("headers") or {}
+    request_origin = headers.get("origin") or headers.get("Origin") or ""
+    if request_origin in allowed_origins:
+        return request_origin
+    return allowed_origin
+
+def create_response(status_code, body, event=None):
+    origin = get_cors_origin(event or {})
+    serialized_body = body if isinstance(body, str) else json.dumps(body)
+    return {
+        "statusCode": status_code,
+        "headers": {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Methods": "*",
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "DENY",
+            "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none';",
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+        },
+        "body": serialized_body,
+    }
+
 def get_parameter(param_name, cached_var):
     if cached_var is None:
         try:
@@ -98,20 +127,7 @@ def handler(event, context):
     
     if not is_websocket or not connection_id:
         # Fallback for HTTP/Test invoke - mostly simplified for now
-        return {
-            'statusCode': 400,
-            'headers': {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Headers': '*',
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Methods': '*',
-                'X-Content-Type-Options': 'nosniff',
-                'X-Frame-Options': 'DENY',
-                'Content-Security-Policy': "default-src 'none'; frame-ancestors 'none';",
-                'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
-            },
-            'body': "Playground only supports WebSocket interactions currently."
-        }
+        return create_response(400, "Playground only supports WebSocket interactions currently.", event)
 
     logger.info("Playground mode processing...")
     
@@ -144,20 +160,7 @@ def handler(event, context):
     
     if not test_message:
         logger.error("Playground mode requires message_content")
-        return {
-            'statusCode': 400,
-            'headers': {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Headers': '*',
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Methods': '*',
-                'X-Content-Type-Options': 'nosniff',
-                'X-Frame-Options': 'DENY',
-                'Content-Security-Policy': "default-src 'none'; frame-ancestors 'none';",
-                'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
-            },
-            'body': json.dumps("Missing message_content for playground")
-        }
+        return create_response(400, "Missing message_content for playground", event)
     
     # Apply guardrail to test message input
     try:

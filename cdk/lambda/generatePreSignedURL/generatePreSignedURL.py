@@ -22,62 +22,55 @@ def s3_key_exists(bucket, key):
     except:
         return False
 
+
+def get_cors_origin(event):
+    allowed_origin = os.environ.get("ALLOWED_ORIGIN", "")
+    if not allowed_origin:
+        return "*"
+    allowed_origins = [allowed_origin, "http://localhost:5173"]
+    headers = event.get("headers") or {}
+    request_origin = headers.get("origin") or headers.get("Origin") or ""
+    if request_origin in allowed_origins:
+        return request_origin
+    return allowed_origin
+
+
+def create_response(status_code, body, event=None):
+    origin = get_cors_origin(event or {})
+    serialized_body = body if isinstance(body, str) else json.dumps(body)
+    return {
+        "statusCode": status_code,
+        "headers": {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Methods": "*",
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "DENY",
+            "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none';",
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+        },
+        "body": serialized_body,
+    }
+
+
 @logger.inject_lambda_context(log_event=True)
 def lambda_handler(event, context):
     # Use .get() to safely extract query string parameters
     query_params = event.get("queryStringParameters", {})
 
     if not query_params:
-        return {
-            'statusCode': 400,
-            'headers': {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Headers': '*',
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Methods': '*',
-                'X-Content-Type-Options': 'nosniff',
-                'X-Frame-Options': 'DENY',
-                'Content-Security-Policy': "default-src 'none'; frame-ancestors 'none';",
-                'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
-            },
-            'body': json.dumps('Missing queries to generate pre-signed URL')
-        }
+        return create_response(400, "Missing queries to generate pre-signed URL", event)
 
     audio_file_id = query_params.get("audio_file_id", "")
     file_type = query_params.get("file_type", "").lower()
     file_name = query_params.get("file_name", "")
 
     if not audio_file_id:
-        return {
-            'statusCode': 400,
-            'headers': {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Headers': '*',
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Methods': '*',
-                'X-Content-Type-Options': 'nosniff',
-                'X-Frame-Options': 'DENY',
-                'Content-Security-Policy': "default-src 'none'; frame-ancestors 'none';",
-                'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
-            },
-            'body': json.dumps('Missing required parameter: audio_file_id')
-        }
+        return create_response(400, "Missing required parameter: audio_file_id", event)
 
     if not file_name:
-        return {
-            'statusCode': 400,
-            'headers': {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Headers': '*',
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Methods': '*',
-                'X-Content-Type-Options': 'nosniff',
-                'X-Frame-Options': 'DENY',
-                'Content-Security-Policy': "default-src 'none'; frame-ancestors 'none';",
-                'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
-            },
-            'body': json.dumps('Missing required parameter: file_name')
-        }
+        return create_response(400, "Missing required parameter: file_name", event)
 
     # Allowed audio file types for Amazon Transcribe with their corresponding MIME types
     allowed_audio_types = {
@@ -92,20 +85,11 @@ def lambda_handler(event, context):
     }
 
     if file_type not in allowed_audio_types:
-        return {
-            'statusCode': 400,
-            'headers': {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Headers': '*',
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Methods': '*',
-                'X-Content-Type-Options': 'nosniff',
-                'X-Frame-Options': 'DENY',
-                'Content-Security-Policy': "default-src 'none'; frame-ancestors 'none';",
-                'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
-            },
-            'body': json.dumps(f'Unsupported audio file type. Allowed types: {", ".join(allowed_audio_types.keys())}')
-        }
+        return create_response(
+            400,
+            f'Unsupported audio file type. Allowed types: {", ".join(allowed_audio_types.keys())}',
+            event,
+        )
 
     # Modified key path to remove the "audio" subdirectory
     key = f"{audio_file_id}/{file_name}.{file_type}"
@@ -123,34 +107,8 @@ def lambda_handler(event, context):
             HttpMethod="PUT",
         )
 
-        return {
-            "statusCode": 200,
-            "headers": {
-                "Content-Type": "application/json",
-                "Access-Control-Allow-Headers": "*",
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "*",
-                "X-Content-Type-Options": "nosniff",
-                "X-Frame-Options": "DENY",
-                "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none';",
-                "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
-            },
-            "body": json.dumps({"presignedurl": presigned_url}),
-        }
+        return create_response(200, {"presignedurl": presigned_url}, event)
 
     except Exception as e:
         logger.error(f"Error generating presigned URL: {e}")
-        return {
-            'statusCode': 500,
-            'headers': {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Headers': '*',
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Methods': '*',
-                'X-Content-Type-Options': 'nosniff',
-                'X-Frame-Options': 'DENY',
-                'Content-Security-Policy': "default-src 'none'; frame-ancestors 'none';",
-                'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
-            },
-            'body': json.dumps('Internal server error')
-        }
+        return create_response(500, "Internal server error", event)

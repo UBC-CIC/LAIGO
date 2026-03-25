@@ -33,6 +33,7 @@ import * as targets from "aws-cdk-lib/aws-events-targets";
 // Stack properties for API Gateway configuration
 interface ApiGatewayStackProps extends cdk.StackProps {
   ecrRepositories: { [key: string]: ecr.Repository }; // ECR repositories for Lambda Docker images
+  domainName?: string; // Optional custom domain for CORS origin lockdown
 }
 
 /**
@@ -89,6 +90,13 @@ export class ApiGatewayStack extends cdk.Stack {
 
     // Initialize Lambda layers collection
     this.layerList = {};
+
+    // Compute allowed CORS origin from optional domainName prop
+    const allowedOrigin = props.domainName ? `https://${props.domainName}` : "";
+    // Spread into each Lambda's environment when allowedOrigin is set
+    const corsEnv: { [key: string]: string } = allowedOrigin
+      ? { ALLOWED_ORIGIN: allowedOrigin }
+      : {};
 
     // Create Lambda layer for JWT verification (Node.js)
     const jwt = new lambda.LayerVersion(this, "aws-jwt-verify", {
@@ -301,11 +309,22 @@ export class ApiGatewayStack extends cdk.Stack {
     };
 
     // Load OpenAPI specification from file
+    // The spec uses Fn::Sub with ${CorsAllowedOrigin} for Access-Control-Allow-Origin.
+    // A CfnParameter supplies the value at deploy time via AWS::Include resolution.
+    const corsOriginParam = new cdk.CfnParameter(this, "CorsAllowedOrigin", {
+      type: "String",
+      default: "*",
+      description: "Value for Access-Control-Allow-Origin in API Gateway MOCK responses",
+    });
+    if (allowedOrigin) {
+      corsOriginParam.default = allowedOrigin;
+    }
+
     const asset = new Asset(this, "SampleAsset", {
       path: "OpenAPI_Swagger_Definition.yaml",
     });
 
-    // Transform OpenAPI spec for API Gateway
+    // Transform OpenAPI spec for API Gateway (resolves CloudFormation intrinsic functions)
     const data = Fn.transform("AWS::Include", { Location: asset.s3ObjectUrl });
 
     // Create CloudWatch log group for API access logs
@@ -1272,6 +1291,7 @@ export class ApiGatewayStack extends cdk.Stack {
           FILE_SIZE_LIMIT: fileSizeLimitParameter.parameterName,
           NOTIFICATION_EVENT_BUS_NAME: notificationEventBus.eventBusName,
           TABLE_NAME: `${id}-Conversation-Table`,
+          ...corsEnv,
         },
         functionName: `${id}-studentFunction`,
         memorySize: 512,
@@ -1328,6 +1348,7 @@ export class ApiGatewayStack extends cdk.Stack {
           BEDROCK_LLM_PARAM: bedrockLLMParameter.parameterName,
           SIGNUP_MODE_SSM_PARAM: "/LAIGO/SignupMode",
           WHITELIST_TABLE_NAME: `${id}-email-whitelist`,
+          ...corsEnv,
         },
         functionName: `${id}-adminFunction`,
         memorySize: 512,
@@ -1414,6 +1435,7 @@ export class ApiGatewayStack extends cdk.Stack {
           MESSAGE_LIMIT: messageLimitParameter.parameterName,
           FILE_SIZE_LIMIT: fileSizeLimitParameter.parameterName,
           NOTIFICATION_EVENT_BUS_NAME: notificationEventBus.eventBusName,
+          ...corsEnv,
         },
         functionName: `${id}-instructorFunction`,
         memorySize: 512,
@@ -1487,6 +1509,7 @@ export class ApiGatewayStack extends cdk.Stack {
           TABLE_NAME: `${id}-Conversation-Table`,
           GUARDRAIL_ID: textGenGuardrail.attrGuardrailId,
           GUARDRAIL_VERSION: textGenGuardrailVersion.attrVersion,
+          ...corsEnv,
         },
       },
     );
@@ -1560,6 +1583,7 @@ export class ApiGatewayStack extends cdk.Stack {
           TABLE_NAME: `${id}-Conversation-Table`,
           GUARDRAIL_ID: textGenGuardrail.attrGuardrailId,
           GUARDRAIL_VERSION: textGenGuardrailVersion.attrVersion,
+          ...corsEnv,
         },
       },
     );
@@ -1648,6 +1672,7 @@ export class ApiGatewayStack extends cdk.Stack {
           TABLE_NAME: `${id}-Playground-Table`,
           GUARDRAIL_ID: textGenGuardrail.attrGuardrailId,
           GUARDRAIL_VERSION: textGenGuardrailVersion.attrVersion,
+          ...corsEnv,
         },
       },
     );
@@ -1723,6 +1748,7 @@ export class ApiGatewayStack extends cdk.Stack {
           BEDROCK_MAX_TOKENS_PARAM: bedrockMaxTokensParameter.parameterName,
           TABLE_NAME: `${id}-Conversation-Table`,
           PLAYGROUND_TABLE_NAME: playgroundTable.tableName,
+          ...corsEnv,
         },
       },
     );
@@ -1775,7 +1801,9 @@ export class ApiGatewayStack extends cdk.Stack {
               s3.HttpMethods.POST,
               s3.HttpMethods.DELETE,
             ],
-            allowedOrigins: ["*"],
+            allowedOrigins: allowedOrigin
+              ? [allowedOrigin, "http://localhost:5173"]
+              : ["*"],
           },
         ],
         // When deleting the stack, the bucket will be deleted as well
@@ -1798,6 +1826,7 @@ export class ApiGatewayStack extends cdk.Stack {
         environment: {
           BUCKET: audioStorageBucket.bucketName,
           REGION: this.region,
+          ...corsEnv,
         },
         functionName: `${id}-GeneratePreSignedURLFunction`,
         layers: [powertoolsLayer],
@@ -1846,6 +1875,7 @@ export class ApiGatewayStack extends cdk.Stack {
           RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint,
           REGION: this.region,
           FILE_SIZE_LIMIT_PARAM: fileSizeLimitParameter.parameterName,
+          ...corsEnv,
         },
       },
     );
@@ -1946,6 +1976,7 @@ export class ApiGatewayStack extends cdk.Stack {
           BEDROCK_TOP_P_PARAM: bedrockTopPParameter.parameterName,
           BEDROCK_MAX_TOKENS_PARAM: bedrockMaxTokensParameter.parameterName,
           TABLE_NAME: `${id}-Conversation-Table`,
+          ...corsEnv,
         },
       },
     );
@@ -2267,6 +2298,7 @@ export class ApiGatewayStack extends cdk.Stack {
             "wss://",
             "https://",
           ),
+          ...corsEnv,
         },
       },
     );

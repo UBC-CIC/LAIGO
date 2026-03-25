@@ -12,6 +12,7 @@
     - [Step 1: Fork \& Clone The Repository](#step-1-fork--clone-the-repository)
     - [Step 2: Upload Secrets](#step-2-upload-secrets)
     - [Step 3: CDK Deployment](#step-3-cdk-deployment)
+      - [3.4 (Optional) Deploy with a custom domain](#34-optional-deploy-with-a-custom-domain)
   - [Post-Deployment](#post-deployment)
     - [Step 1: Verify Bedrock Model Access](#step-1-verify-bedrock-model-access)
     - [Step 2: Build AWS Amplify App](#step-2-build-aws-amplify-app)
@@ -363,6 +364,35 @@ Example:
 ```bash
 npx cdk deploy --all --context StackPrefix=LegalAidTool --context Environment=dev --context Version=1.2.0 --context GithubRepo=Legal-Aid-Tool --profile <YOUR-PROFILE-NAME>
 ```
+
+#### 3.4 (Optional) Deploy with a custom domain
+
+You can optionally pass a `DomainName` context parameter to lock down CORS origins to your custom domain and configure Amplify to serve the app on that domain.
+
+**Prerequisites:**
+
+- Your domain must be registered and you must have DNS access.
+- Either a Route53 hosted zone for the domain, or the ability to add CNAME records via your DNS provider (for Amplify domain verification).
+
+Add `--context DomainName=<YOUR-DOMAIN>` to the deploy command:
+
+```bash
+npx cdk deploy --all \
+    --context StackPrefix=<YOUR-STACK-PREFIX> \
+    --context Environment=dev \
+    --context Version=1.2.0 \
+    --context GithubRepo="LAIGO" \
+    --context DomainName=app.example.com \
+    --profile <YOUR-PROFILE-NAME>
+```
+
+When `DomainName` is provided:
+
+- CORS origins across all Lambda handlers and the S3 audio bucket are restricted to `https://<DomainName>`.
+- `http://localhost:5173` is automatically included as an additional allowed origin, so developers running the Vite dev server locally can still interact with deployed services.
+- Amplify is configured to serve the app on the custom domain.
+
+Omitting `DomainName` preserves the default wildcard (`*`) CORS behavior and is fully backward compatible.
 
 ## Post-Deployment
 

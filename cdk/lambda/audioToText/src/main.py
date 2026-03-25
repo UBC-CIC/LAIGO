@@ -53,16 +53,12 @@ def send_to_websocket(connection_id, endpoint, request_id, msg_type, content=Non
         logger.error(f"Error sending to WebSocket: {e}")
 
 
-def _error_response(status_code, message, is_websocket=False, connection_id=None, ws_endpoint=None, request_id=None):
+def _error_response(status_code, message, is_websocket=False, connection_id=None, ws_endpoint=None, request_id=None, event=None):
     """Helper for generating error responses for both HTTP and WebSocket modes."""
     if is_websocket and connection_id:
         send_to_websocket(connection_id, ws_endpoint, request_id, "error", content=message)
         return {"statusCode": status_code}
-    return {
-        'statusCode': status_code,
-        "headers": get_cors_headers(),
-        'body': json.dumps({"error": message})
-    }
+    return create_response(status_code, {"error": message}, event)
 
 
 def get_secret(secret_name, expect_json=True):
@@ -245,17 +241,60 @@ def add_audio_to_db(audio_file_id, audio_text):
 
 
 
-def get_cors_headers():
-    """Return standard CORS headers for API responses."""
+def get_cors_origin(event):
+    """
+    Resolve the CORS origin based on the ALLOWED_ORIGIN env var and the
+    incoming request's Origin header.  Mirrors the Node.js getOriginHeader()
+    in cdk/lambda/handlers/utils/utils.js.
+
+    Returns:
+        str: The value for the Access-Control-Allow-Origin response header.
+    """
+    allowed_origin = os.environ.get("ALLOWED_ORIGIN", "")
+    if not allowed_origin:
+        return "*"
+
+    allowed_origins = [allowed_origin, "http://localhost:5173"]
+
+    headers = event.get("headers") or {}
+    request_origin = headers.get("origin") or headers.get("Origin") or ""
+
+    if request_origin in allowed_origins:
+        return request_origin
+
+    return allowed_origin
+
+
+def create_response(status_code, body, event=None):
+    """
+    Build a properly-formatted API Gateway response dict with dynamic CORS
+    headers.  Replaces all hardcoded CORS header dictionaries.
+
+    Args:
+        status_code (int): HTTP status code.
+        body: Response body — will be JSON-serialised if not already a string.
+        event (dict | None): The Lambda event, used for origin resolution.
+                             Pass None for non-HTTP contexts (falls back to
+                             ALLOWED_ORIGIN or "*").
+
+    Returns:
+        dict: API Gateway-compatible response.
+    """
+    origin = get_cors_origin(event or {})
+    serialized_body = body if isinstance(body, str) else json.dumps(body)
     return {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
-        "Access-Control-Allow-Methods": "OPTIONS,GET",
-        "Access-Control-Allow-Credentials": "true",
-        "X-Content-Type-Options": "nosniff",
-        "X-Frame-Options": "DENY",
-        "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none';",
-        "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+        "statusCode": status_code,
+        "headers": {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Methods": "*",
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "DENY",
+            "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none';",
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+        },
+        "body": serialized_body,
     }
 
 def customize_pii_markers(transcript_text):
@@ -368,7 +407,7 @@ def handler(event, context):
     """
     # 1. Handle CORS preflight (HTTP only)
     if event.get("httpMethod") == "OPTIONS":
-        return {"statusCode": 200, "headers": get_cors_headers(), "body": ""}
+        return create_response(200, "", event)
 
     # Detect invocation mode
     is_websocket = event.get("isWebSocket", False)
@@ -422,7 +461,7 @@ def handler(event, context):
             logger.error(f"Missing params: {missing}")
             if user_id:
                 publish_transcription_notification_event(audio_file_id, user_id, file_name, case_title, case_id, success=False, error_message=f"Missing parameters: {missing}")
-            return _error_response(400, f"Missing parameters: {missing}", is_websocket, connection_id, ws_endpoint, request_id)
+            return _error_response(400, f"Missing parameters: {missing}", is_websocket, connection_id, ws_endpoint, request_id, event=event)
 
         # 2a. Validate physical file integrity (Server-side validation)
         object_key = f"{audio_file_id}/{file_name}.{file_type}"
@@ -513,11 +552,7 @@ def handler(event, context):
             })
             return {"statusCode": 200}
 
-        return {
-            "statusCode": 200,
-            "headers": {"Content-Type": "application/json", **get_cors_headers()},
-            "body": json.dumps({"text": formatted_transcript, "audioFileId": audio_file_id, "jobName": job_name})
-        }
+        return create_response(200, {"text": formatted_transcript, "audioFileId": audio_file_id, "jobName": job_name}, event)
 
     except Exception as e:
         logger.error("Handler error: %s", e, exc_info=True)
@@ -536,4 +571,4 @@ def handler(event, context):
                 afid = qs.get("audio_file_id", "unknown")
             publish_transcription_notification_event(afid, user_id_for_notif, file_name=None, case_name=None, case_id=None, success=False, error_message=str(e))
 
-        return _error_response(500, str(e), is_websocket, connection_id, ws_endpoint, request_id)
+        return _error_response(500, str(e), is_websocket, connection_id, ws_endpoint, request_id, event=event)

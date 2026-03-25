@@ -359,20 +359,47 @@ def mark_block_completed(case_id, block_type):
             pass
         return False
         
-def _response(status_code, body):
+def get_cors_origin(event):
+    """
+    Resolve the CORS origin based on the ALLOWED_ORIGIN env var and the
+    incoming request's Origin header.  Mirrors the Node.js getOriginHeader()
+    in cdk/lambda/handlers/utils/utils.js.
+    """
+    allowed_origin = os.environ.get("ALLOWED_ORIGIN", "")
+    if not allowed_origin:
+        return "*"
+
+    allowed_origins = [allowed_origin, "http://localhost:5173"]
+
+    headers = event.get("headers") or {}
+    request_origin = headers.get("origin") or headers.get("Origin") or ""
+
+    if request_origin in allowed_origins:
+        return request_origin
+
+    return allowed_origin
+
+
+def create_response(status_code, body, event=None):
+    """
+    Build a properly-formatted API Gateway response dict with dynamic CORS
+    headers.  Replaces the previous _response() helper.
+    """
+    origin = get_cors_origin(event or {})
+    serialized_body = body if isinstance(body, str) else json.dumps(body)
     return {
-        'statusCode': status_code,
-        'headers': {
+        "statusCode": status_code,
+        "headers": {
             "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "POST, OPTIONS",
             "Access-Control-Allow-Headers": "*",
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Methods": "*",
             "X-Content-Type-Options": "nosniff",
             "X-Frame-Options": "DENY",
             "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none';",
             "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
         },
-        'body': json.dumps(body)
+        "body": serialized_body,
     }
 
 def send_to_websocket(connection_id, endpoint, request_id, msg_type, content=None, data=None):
@@ -423,7 +450,7 @@ def handler(event, context):
         if is_websocket and connection_id:
             send_to_websocket(connection_id, ws_endpoint, request_id, "error", content="Internal server error during initialization")
             return {"statusCode": 500}
-        return _response(500, 'Internal server error during initialization')
+        return create_response(500, 'Internal server error during initialization', event)
     
     # Parse body
     try:
@@ -431,7 +458,7 @@ def handler(event, context):
         logger.debug(f"Request body: {body}")
     except json.JSONDecodeError:
         logger.error("Failed to decode JSON body")
-        return _response(400, 'Invalid JSON body')
+        return create_response(400, 'Invalid JSON body', event)
         
     case_id = body.get("case_id")
     block_type = body.get("block_type")
@@ -453,7 +480,7 @@ def handler(event, context):
             if is_websocket and connection_id:
                 send_to_websocket(connection_id, ws_endpoint, request_id, "error", content=error_msg)
                 return {"statusCode": 400}
-            return _response(400, error_msg)
+            return create_response(400, error_msg, event)
         
         # Fetch chat history from Playground DynamoDB table
         chat_history = fetch_chat_history(playground_session_id, table_name=PLAYGROUND_TABLE_NAME)
@@ -463,7 +490,7 @@ def handler(event, context):
             if is_websocket and connection_id:
                 send_to_websocket(connection_id, ws_endpoint, request_id, "error", content=error_msg)
                 return {"statusCode": 400}
-            return _response(400, error_msg)
+            return create_response(400, error_msg, event)
         
         logger.info(f"Fetched {len(chat_history)} chars of chat history for session {playground_session_id}")
         
@@ -507,7 +534,7 @@ def handler(event, context):
                 if is_websocket and connection_id:
                     send_to_websocket(connection_id, ws_endpoint, request_id, "complete", data=error_data)
                     return {"statusCode": 200}
-                return _response(200, error_data)
+                return create_response(200, error_data, event)
             
             progress = int(result.get("progress", 0))
             reasoning = result.get("reasoning", "No reasoning provided.")
@@ -521,14 +548,14 @@ def handler(event, context):
             if is_websocket and connection_id:
                 send_to_websocket(connection_id, ws_endpoint, request_id, "complete", data=response_data)
                 return {"statusCode": 200}
-            return _response(200, response_data)
+            return create_response(200, response_data, event)
             
         except Exception as e:
             logger.exception(f"Playground assessment error: {e}")
             if is_websocket and connection_id:
                 send_to_websocket(connection_id, ws_endpoint, request_id, "error", content=str(e))
                 return {"statusCode": 500}
-            return _response(500, f"Internal server error: {str(e)}")
+            return create_response(500, f"Internal server error: {str(e)}", event)
     
     # --- Standard mode: requires case_id and authorization ---
     logger.info(f"Processing assessment for Case ID: {case_id}, Block Type: {block_type}")
@@ -539,7 +566,7 @@ def handler(event, context):
         if is_websocket and connection_id:
             send_to_websocket(connection_id, ws_endpoint, request_id, "error", content=error_msg)
             return {"statusCode": 400}
-        return _response(400, error_msg)
+        return create_response(400, error_msg, event)
     
     # Extract user_id (database user_id already translated at boundary)
     user_id = event.get("userId")
@@ -553,7 +580,7 @@ def handler(event, context):
         if is_websocket and connection_id:
             send_to_websocket(connection_id, ws_endpoint, request_id, "error", content=error_msg)
             return {"statusCode": 401}
-        return _response(401, error_msg)
+        return create_response(401, error_msg, event)
     
     # IDOR Protection: Verify user owns the case
     if not check_authorization(user_id, case_id):
@@ -562,19 +589,19 @@ def handler(event, context):
         if is_websocket and connection_id:
             send_to_websocket(connection_id, ws_endpoint, request_id, "error", content=error_msg)
             return {"statusCode": 403}
-        return _response(403, error_msg)
+        return create_response(403, error_msg, event)
 
     session_id = f"{case_id}-{block_type}"
     chat_history = fetch_chat_history(session_id)
     
     if not chat_history:
         logger.info(f"No chat history found for session {session_id}")
-        return _response(200, {'unlocked': False, 'progress': 0, 'reasoning': 'Insufficient chat history.'})
+        return create_response(200, {'unlocked': False, 'progress': 0, 'reasoning': 'Insufficient chat history.'}, event)
         
     prompt_template = get_assessment_prompt_template(block_type)
     if not prompt_template:
         logger.error(f"Assessment prompt not found for {block_type}")
-        return _response(500, 'Configuration error: No assessment prompt found.')
+        return create_response(500, 'Configuration error: No assessment prompt found.', event)
 
     # Construct complete prompt
     system_instructions = f"""
@@ -621,7 +648,7 @@ def handler(event, context):
             if is_websocket and connection_id:
                 send_to_websocket(connection_id, ws_endpoint, request_id, "complete", data=error_data)
                 return {"statusCode": 200}
-            return _response(200, error_data)
+            return create_response(200, error_data, event)
             
         progress = int(result.get("progress", 0))
         reasoning = result.get("reasoning", "No reasoning provided.")
@@ -640,11 +667,11 @@ def handler(event, context):
         if is_websocket and connection_id:
             send_to_websocket(connection_id, ws_endpoint, request_id, "complete", data=response_data)
             return {"statusCode": 200}
-        return _response(200, response_data)
+        return create_response(200, response_data, event)
         
     except Exception as e:
         logger.exception(f"Unexpected error during assessment execution: {e}")
         if is_websocket and connection_id:
             send_to_websocket(connection_id, ws_endpoint, request_id, "error", content=str(e))
             return {"statusCode": 500}
-        return _response(500, f"Internal server error: {str(e)}")
+        return create_response(500, f"Internal server error: {str(e)}", event)

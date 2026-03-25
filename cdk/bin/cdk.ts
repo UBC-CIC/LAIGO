@@ -15,6 +15,7 @@ const StackPrefix = app.node.tryGetContext("StackPrefix");
 const version = app.node.tryGetContext("Version");
 const environment = app.node.tryGetContext("Environment");
 const githubRepo = app.node.tryGetContext("GithubRepo");
+const domainName = app.node.tryGetContext("DomainName") || "";
 
 // grab account and region info
 const env: cdk.Environment = {
@@ -68,6 +69,7 @@ const cicd = new CICDStack(app, `${StackPrefix}-CICDStack`, {
 const api = new ApiGatewayStack(app, `${StackPrefix}-ApiStack`, db, vpc, {
   env,
   ecrRepositories: cicd.ecrRepositories,
+  domainName: domainName,
 });
 // Ensure API waits for database and dbFlow (change to CICD stack later)
 api.addDependency(db);
@@ -77,6 +79,7 @@ api.addDependency(cicd);
 const amplify = new AmplifyStack(app, `${StackPrefix}-AmplifyStack`, api, {
   env,
   githubRepo: githubRepo,
+  domainName: domainName,
 });
 // Ensure Amplify waits for API
 amplify.addDependency(api);

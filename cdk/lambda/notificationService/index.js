@@ -46,7 +46,7 @@ exports.handler = async (event, context) => {
     logger.error("Error in notification service", error);
     return {
       statusCode: 500,
-      headers: getCorsHeaders(),
+      headers: getCorsHeaders(event),
       body: JSON.stringify({ error: "Internal server error" }),
     };
   }
@@ -84,7 +84,7 @@ async function handleRestApiRequest(event) {
   if (!userId) {
     return {
       statusCode: 401,
-      headers: getCorsHeaders(),
+      headers: getCorsHeaders(event),
       body: JSON.stringify({ error: "Unauthorized" }),
     };
   }
@@ -93,33 +93,35 @@ async function handleRestApiRequest(event) {
 
   switch (pathData) {
     case "GET /student/notifications":
-      return await getNotifications(userId, queryStringParameters);
+      return await getNotifications(userId, queryStringParameters, event);
 
     case "PUT /student/notifications/{notificationId}/read":
       return await markNotificationAsRead(
         userId,
         pathParameters.notificationId,
+        event,
       );
 
     case "PUT /student/notifications/read-all":
-      return await markAllNotificationsAsRead(userId);
+      return await markAllNotificationsAsRead(userId, event);
 
     case "PUT /student/notifications/{notificationId}/unread":
       return await markNotificationAsUnread(
         userId,
         pathParameters.notificationId,
+        event,
       );
 
     case "DELETE /student/notifications/{notificationId}":
-      return await deleteNotification(userId, pathParameters.notificationId);
+      return await deleteNotification(userId, pathParameters.notificationId, event);
 
     case "GET /student/notifications/unread-count":
-      return await getUnreadCount(userId);
+      return await getUnreadCount(userId, event);
 
     default:
       return {
         statusCode: 404,
-        headers: getCorsHeaders(),
+        headers: getCorsHeaders(event),
         body: JSON.stringify({ error: "Route not found" }),
       };
   }
@@ -303,7 +305,7 @@ async function cleanupStaleConnection(connectionId, userId) {
 /**
  * Get notifications for a user with pagination
  */
-async function getNotifications(userId, queryParams = {}) {
+async function getNotifications(userId, queryParams = {}, event) {
   const limit = parseInt(queryParams.limit) || 20;
   const lastKey = queryParams.lastKey;
 
@@ -351,14 +353,14 @@ async function getNotifications(userId, queryParams = {}) {
 
     return {
       statusCode: 200,
-      headers: getCorsHeaders(),
+      headers: getCorsHeaders(event),
       body: JSON.stringify(response),
     };
   } catch (error) {
     logger.error("Error getting notifications", error);
     return {
       statusCode: 500,
-      headers: getCorsHeaders(),
+      headers: getCorsHeaders(event),
       body: JSON.stringify({ error: "Failed to get notifications" }),
     };
   }
@@ -367,7 +369,7 @@ async function getNotifications(userId, queryParams = {}) {
 /**
  * Mark a specific notification as read
  */
-async function markNotificationAsRead(userId, notificationId) {
+async function markNotificationAsRead(userId, notificationId, event) {
   try {
     // First, get the notification to verify ownership and get the sort key
     const getResult = await dynamodb.send(
@@ -385,7 +387,7 @@ async function markNotificationAsRead(userId, notificationId) {
     if (!getResult.Items || getResult.Items.length === 0) {
       return {
         statusCode: 404,
-        headers: getCorsHeaders(),
+        headers: getCorsHeaders(event),
         body: JSON.stringify({ error: "Notification not found" }),
       };
     }
@@ -412,14 +414,14 @@ async function markNotificationAsRead(userId, notificationId) {
 
     return {
       statusCode: 200,
-      headers: getCorsHeaders(),
+      headers: getCorsHeaders(event),
       body: JSON.stringify({ success: true }),
     };
   } catch (error) {
     logger.error("Error marking notification as read", error);
     return {
       statusCode: 500,
-      headers: getCorsHeaders(),
+      headers: getCorsHeaders(event),
       body: JSON.stringify({ error: "Failed to mark notification as read" }),
     };
   }
@@ -428,7 +430,7 @@ async function markNotificationAsRead(userId, notificationId) {
 /**
  * Mark a specific notification as unread
  */
-async function markNotificationAsUnread(userId, notificationId) {
+async function markNotificationAsUnread(userId, notificationId, event) {
   try {
     // First, get the notification to verify ownership and get the sort key
     const getResult = await dynamodb.send(
@@ -446,7 +448,7 @@ async function markNotificationAsUnread(userId, notificationId) {
     if (!getResult.Items || getResult.Items.length === 0) {
       return {
         statusCode: 404,
-        headers: getCorsHeaders(),
+        headers: getCorsHeaders(event),
         body: JSON.stringify({ error: "Notification not found" }),
       };
     }
@@ -472,14 +474,14 @@ async function markNotificationAsUnread(userId, notificationId) {
 
     return {
       statusCode: 200,
-      headers: getCorsHeaders(),
+      headers: getCorsHeaders(event),
       body: JSON.stringify({ success: true }),
     };
   } catch (error) {
     logger.error("Error marking notification as unread", error);
     return {
       statusCode: 500,
-      headers: getCorsHeaders(),
+      headers: getCorsHeaders(event),
       body: JSON.stringify({ error: "Failed to mark notification as unread" }),
     };
   }
@@ -488,7 +490,7 @@ async function markNotificationAsUnread(userId, notificationId) {
 /**
  * Delete a specific notification
  */
-async function deleteNotification(userId, notificationId) {
+async function deleteNotification(userId, notificationId, event) {
   try {
     // First, get the notification to verify ownership and get the sort key
     const getResult = await dynamodb.send(
@@ -506,7 +508,7 @@ async function deleteNotification(userId, notificationId) {
     if (!getResult.Items || getResult.Items.length === 0) {
       return {
         statusCode: 404,
-        headers: getCorsHeaders(),
+        headers: getCorsHeaders(event),
         body: JSON.stringify({ error: "Notification not found" }),
       };
     }
@@ -526,14 +528,14 @@ async function deleteNotification(userId, notificationId) {
 
     return {
       statusCode: 200,
-      headers: getCorsHeaders(),
+      headers: getCorsHeaders(event),
       body: JSON.stringify({ success: true }),
     };
   } catch (error) {
     logger.error("Error deleting notification", error);
     return {
       statusCode: 500,
-      headers: getCorsHeaders(),
+      headers: getCorsHeaders(event),
       body: JSON.stringify({ error: "Failed to delete notification" }),
     };
   }
@@ -542,7 +544,7 @@ async function deleteNotification(userId, notificationId) {
 /**
  * Mark all notifications as read for a user
  */
-async function markAllNotificationsAsRead(userId) {
+async function markAllNotificationsAsRead(userId, event) {
   try {
     // Get all unread notifications for the user
     const result = await dynamodb.send(
@@ -560,7 +562,7 @@ async function markAllNotificationsAsRead(userId) {
     if (!result.Items || result.Items.length === 0) {
       return {
         statusCode: 200,
-        headers: getCorsHeaders(),
+        headers: getCorsHeaders(event),
         body: JSON.stringify({ updated: 0 }),
       };
     }
@@ -590,14 +592,14 @@ async function markAllNotificationsAsRead(userId) {
 
     return {
       statusCode: 200,
-      headers: getCorsHeaders(),
+      headers: getCorsHeaders(event),
       body: JSON.stringify({ updated: result.Items.length }),
     };
   } catch (error) {
     logger.error("Error marking all notifications as read", error);
     return {
       statusCode: 500,
-      headers: getCorsHeaders(),
+      headers: getCorsHeaders(event),
       body: JSON.stringify({ error: "Failed to mark notifications as read" }),
     };
   }
@@ -606,7 +608,7 @@ async function markAllNotificationsAsRead(userId) {
 /**
  * Get unread notification count for a user
  */
-async function getUnreadCount(userId) {
+async function getUnreadCount(userId, event) {
   try {
     const result = await dynamodb.send(
       new QueryCommand({
@@ -623,14 +625,14 @@ async function getUnreadCount(userId) {
 
     return {
       statusCode: 200,
-      headers: getCorsHeaders(),
+      headers: getCorsHeaders(event),
       body: JSON.stringify({ count: result.Count || 0 }),
     };
   } catch (error) {
     logger.error("Error getting unread count", error);
     return {
       statusCode: 500,
-      headers: getCorsHeaders(),
+      headers: getCorsHeaders(event),
       body: JSON.stringify({ error: "Failed to get unread count" }),
     };
   }
@@ -644,13 +646,42 @@ function generateNotificationId() {
 }
 
 /**
- * Get CORS headers for API responses
+ * Resolves the CORS origin based on the ALLOWED_ORIGIN env var and the
+ * incoming request's Origin header. Mirrors getOriginHeader() in
+ * cdk/lambda/handlers/utils/utils.js.
+ *
+ * @param {object} event - The Lambda event object (pass {} for non-HTTP contexts)
+ * @returns {string} The value for the Access-Control-Allow-Origin header
  */
-function getCorsHeaders() {
+function getOriginHeader(event) {
+  const allowedOrigin = process.env.ALLOWED_ORIGIN;
+  if (!allowedOrigin) {
+    return "*";
+  }
+
+  const allowedOrigins = [allowedOrigin, "http://localhost:5173"];
+  const headers = (event && event.headers) || {};
+  // API Gateway may normalise header names; check both casings
+  const requestOrigin = headers["origin"] || headers["Origin"] || "";
+
+  if (allowedOrigins.includes(requestOrigin)) {
+    return requestOrigin;
+  }
+
+  return allowedOrigin;
+}
+
+/**
+ * Get CORS headers for API responses
+ * @param {object} [event] - Optional Lambda event for dynamic origin resolution.
+ *                           For EventBridge invocations (no HTTP event), omit or pass undefined
+ *                           to fall back to ALLOWED_ORIGIN or "*".
+ */
+function getCorsHeaders(event) {
   return {
     "Content-Type": "application/json",
     "Access-Control-Allow-Headers": "*",
-    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Origin": getOriginHeader(event || {}),
     "Access-Control-Allow-Methods": "*",
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",

@@ -51,6 +51,36 @@ FULL_CASE_BLOCK_TYPES = ["intake", "legal_analysis", "contrarian", "policy"]
 DISCLAIMER = "\n\n---\n**DISCLAIMER:**\nTHIS SUMMARY MUST NOT BE PROVIDED TO THE CLIENT WITHOUT THE REVIEW AND SIGNATURE OF THE SUPERVISING LAWYER.\nTHE SUMMARY IS BASED SOLELY ON THE FACTS INPUTTED BY THE USER, AS GATHERED FROM THE CLIENT AT THE TIME IT WAS PREPARED. SHOULD ADDITIONAL FACTS COME TO LIGHT, OR SHOULD THE FACTS AS PRESENTED CHANGE, THE APPLICABLE LAW AND ANALYSIS MAY ALSO CHANGE. IN SUCH CIRCUMSTANCES, THIS SUMMARY MUST BE REVISED TO REFLECT THE UPDATED OR ADDITIONAL INFORMATION.\nTHE LAW IS ALSO CONSTANTLY EVOLVING. ALL SUMMARIES MORE THAN SIX (6) MONTHS OLD MUST BE UPDATED.\nTHIS SUMMARY IS SUBJECT TO CLIENT-SOLICITOR PRIVILEGE."
 
 
+def get_cors_origin(event):
+    allowed_origin = os.environ.get("ALLOWED_ORIGIN", "")
+    if not allowed_origin:
+        return "*"
+    allowed_origins = [allowed_origin, "http://localhost:5173"]
+    headers = event.get("headers") or {}
+    request_origin = headers.get("origin") or headers.get("Origin") or ""
+    if request_origin in allowed_origins:
+        return request_origin
+    return allowed_origin
+
+
+def create_response(status_code, body, event=None):
+    origin = get_cors_origin(event or {})
+    serialized_body = body if isinstance(body, str) else json.dumps(body)
+    return {
+        "statusCode": status_code,
+        "headers": {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Methods": "*",
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "DENY",
+            "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none';",
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+        },
+        "body": serialized_body,
+    }
+
 
 def get_secret(secret_name, expect_json=True):
     global db_secret
@@ -198,25 +228,12 @@ def send_to_websocket(connection_id, endpoint, request_id, msg_type, content=Non
         logger.error(f"Error sending to WebSocket: {e}")
 
 
-def _error_response(status_code, message, is_websocket=False, connection_id=None, ws_endpoint=None, request_id=None):
+def _error_response(status_code, message, is_websocket=False, connection_id=None, ws_endpoint=None, request_id=None, event=None):
     """Helper for generating error responses for both HTTP and WebSocket modes."""
     if is_websocket and connection_id:
         send_to_websocket(connection_id, ws_endpoint, request_id, "error", content=message)
         return {"statusCode": status_code}
-    return {
-        'statusCode': status_code,
-        "headers": {
-            "Content-Type": "application/json",
-            "Access-Control-Allow-Headers": "*",
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "*",
-            "X-Content-Type-Options": "nosniff",
-            "X-Frame-Options": "DENY",
-            "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none';",
-            "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
-        },
-        'body': json.dumps(message)
-    }
+    return create_response(status_code, message, event)
 
 
 def get_case_details(case_id):
@@ -565,7 +582,7 @@ def handler(event, context):
     sub_route = query_params.get("sub_route", "intake-facts") 
 
     if not case_id:
-        return _error_response(400, "Missing required parameters: case_id", is_websocket, connection_id, ws_endpoint, request_id)
+        return _error_response(400, "Missing required parameters: case_id", is_websocket, connection_id, ws_endpoint, request_id, event=event)
 
     # Get user_id from event (already translated at boundary)
     user_id = event.get("userId")
@@ -579,17 +596,17 @@ def handler(event, context):
     # Validate user_id is present
     if not user_id:
         logger.error("Authorization failed: Missing userId")
-        return _error_response(401, "Unauthorized: Missing user identity", is_websocket, connection_id, ws_endpoint, request_id)
+        return _error_response(401, "Unauthorized: Missing user identity", is_websocket, connection_id, ws_endpoint, request_id, event=event)
 
     # Check case ownership (IDOR protection)
     if not check_authorization(user_id, case_id):
         logger.error(f"Authorization failed: User {user_id} does not own case {case_id}")
-        return _error_response(403, "Forbidden: You do not own this case", is_websocket, connection_id, ws_endpoint, request_id)
+        return _error_response(403, "Forbidden: You do not own this case", is_websocket, connection_id, ws_endpoint, request_id, event=event)
 
     case_title, case_type, jurisdiction, case_description = get_case_details(case_id)
     if case_title is None or case_type is None or jurisdiction is None or case_description is None:
         logger.error(f"Error fetching case details for case_id: {case_id}")
-        return _error_response(400, 'Unable to retrieve case details. Please try again later.', is_websocket, connection_id, ws_endpoint, request_id)
+        return _error_response(400, 'Unable to retrieve case details. Please try again later.', is_websocket, connection_id, ws_endpoint, request_id, event=event)
 
     try:
         logger.info(f"Creating Bedrock LLM instance with ID: {BEDROCK_LLM_ID}, Temp: {BEDROCK_TEMP}, TopP: {BEDROCK_TOP_P}, MaxTokens: {BEDROCK_MAX_TOKENS}")
@@ -601,7 +618,7 @@ def handler(event, context):
         )
     except Exception as e:
         logger.error(f"Error getting LLM from Bedrock: {e}")
-        return _error_response(500, 'An unexpected error occurred. Please try again later or contact an administrator.', is_websocket, connection_id, ws_endpoint, request_id)
+        return _error_response(500, 'An unexpected error occurred. Please try again later or contact an administrator.', is_websocket, connection_id, ws_endpoint, request_id, event=event)
 
     # --- Full Case Summary Logic ---
     if sub_route == "full-case":
@@ -616,12 +633,13 @@ def handler(event, context):
                 connection_id,
                 ws_endpoint,
                 request_id,
+                event=event,
             )
 
         # 1. Get latest summaries for the canonical interview blocks
         block_summaries = get_latest_block_summaries(case_id, FULL_CASE_BLOCK_TYPES)
         if not block_summaries:
-            return _error_response(400, "No block summaries found to synthesize. Please generate summaries for individual blocks first.", is_websocket, connection_id, ws_endpoint, request_id)
+            return _error_response(400, "No block summaries found to synthesize. Please generate summaries for individual blocks first.", is_websocket, connection_id, ws_endpoint, request_id, event=event)
         
         logger.info(f"Requested full-case blocks: {FULL_CASE_BLOCK_TYPES}")
         logger.info(f"Found {len(block_summaries)} block summaries to synthesize.")
@@ -658,7 +676,7 @@ def handler(event, context):
         except Exception as e:
             logger.error(f"Error generating full case summary: {e}")
             publish_notification_event("full-case", case_id, user_id, success=False, error_message=str(e))
-            return _error_response(500, 'An unexpected error occurred. Please try again later or contact an administrator.', is_websocket, connection_id, ws_endpoint, request_id)
+            return _error_response(500, 'An unexpected error occurred. Please try again later or contact an administrator.', is_websocket, connection_id, ws_endpoint, request_id, event=event)
 
         # 3. Save summary
         try:
@@ -666,7 +684,7 @@ def handler(event, context):
         except Exception as e:
             logger.error(f"Error saving full case summary: {e}")
             publish_notification_event("full-case", case_id, user_id, success=False, error_message=str(e))
-            return _error_response(500, 'An unexpected error occurred. Please try again later or contact an administrator.', is_websocket, connection_id, ws_endpoint, request_id)
+            return _error_response(500, 'An unexpected error occurred. Please try again later or contact an administrator.', is_websocket, connection_id, ws_endpoint, request_id, event=event)
         
         # 4. Publish success notification event
         publish_notification_event("full-case", case_id, user_id, success=True)
@@ -676,22 +694,7 @@ def handler(event, context):
             send_to_websocket(connection_id, ws_endpoint, request_id, "complete", data={"llm_output": response})
             return {"statusCode": 200}
         
-        return {
-            "statusCode": 200,
-            "headers": {
-                "Content-Type": "application/json",
-                "Access-Control-Allow-Headers": "*",
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "*",
-                "X-Content-Type-Options": "nosniff",
-                "X-Frame-Options": "DENY",
-                "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none';",
-                "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
-            },
-            "body": json.dumps({
-                "llm_output": response
-            })
-        }
+        return create_response(200, {"llm_output": response}, event)
 
     # --- Block Specific Summary Logic ---
     else:
@@ -713,6 +716,7 @@ def handler(event, context):
                 connection_id,
                 ws_endpoint,
                 request_id,
+                event=event,
             )
         
         # Construct unique session ID based on case and block type
@@ -723,7 +727,7 @@ def handler(event, context):
             conversation_history = retrieve_dynamodb_history(TABLE_NAME, session_id)
         except Exception as e:
             logger.error(f"Error retrieving dynamo history: {e}")
-            return _error_response(500, 'An unexpected error occurred. Please try again later or contact an administrator.', is_websocket, connection_id, ws_endpoint, request_id)
+            return _error_response(500, 'An unexpected error occurred. Please try again later or contact an administrator.', is_websocket, connection_id, ws_endpoint, request_id, event=event)
         
         try:
             logger.info("Generating response from the LLM.")
@@ -759,7 +763,7 @@ def handler(event, context):
         except Exception as e:
             logger.error(f"Error getting response: {e}")
             publish_notification_event(sub_route, case_id, user_id, success=False, error_message=str(e))
-            return _error_response(500, 'An unexpected error occurred. Please try again later or contact an administrator.', is_websocket, connection_id, ws_endpoint, request_id)
+            return _error_response(500, 'An unexpected error occurred. Please try again later or contact an administrator.', is_websocket, connection_id, ws_endpoint, request_id, event=event)
             
         try:
             logger.info(f"Updating case summary for block_type: {block_type}")
@@ -768,7 +772,7 @@ def handler(event, context):
         except Exception as e:
             logger.error(f"Error updating case summary: {e}")
             publish_notification_event(sub_route, case_id, user_id, success=False, error_message=str(e))
-            return _error_response(500, 'An unexpected error occurred. Please try again later or contact an administrator.', is_websocket, connection_id, ws_endpoint, request_id)
+            return _error_response(500, 'An unexpected error occurred. Please try again later or contact an administrator.', is_websocket, connection_id, ws_endpoint, request_id, event=event)
         
         # Publish success notification event
         publish_notification_event(sub_route, case_id, user_id, success=True)
@@ -778,19 +782,4 @@ def handler(event, context):
             send_to_websocket(connection_id, ws_endpoint, request_id, "complete", data={"llm_output": response})
             return {"statusCode": 200}
             
-        return {
-            "statusCode": 200,
-            "headers": {
-                "Content-Type": "application/json",
-                "Access-Control-Allow-Headers": "*",
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "*",
-                "X-Content-Type-Options": "nosniff",
-                "X-Frame-Options": "DENY",
-                "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none';",
-                "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
-            },
-            "body": json.dumps({
-                "llm_output": response
-            })
-        }
+        return create_response(200, {"llm_output": response}, event)

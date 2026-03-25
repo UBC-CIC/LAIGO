@@ -46,6 +46,37 @@ MESSAGE_LIMIT = None
 
 
 
+def get_cors_origin(event):
+    allowed_origin = os.environ.get("ALLOWED_ORIGIN", "")
+    if not allowed_origin:
+        return "*"
+    allowed_origins = [allowed_origin, "http://localhost:5173"]
+    headers = event.get("headers") or {}
+    request_origin = headers.get("origin") or headers.get("Origin") or ""
+    if request_origin in allowed_origins:
+        return request_origin
+    return allowed_origin
+
+
+def create_response(status_code, body, event=None):
+    origin = get_cors_origin(event or {})
+    serialized_body = body if isinstance(body, str) else json.dumps(body)
+    return {
+        "statusCode": status_code,
+        "headers": {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Methods": "*",
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "DENY",
+            "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none';",
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+        },
+        "body": serialized_body,
+    }
+
+
 def get_secret(secret_name, expect_json=True):
     global db_secret
     if db_secret is None:
@@ -312,38 +343,12 @@ def handler(event, context):
 
     
     if not case_id:
-        return {
-            'statusCode': 400,
-            "headers": {
-                "Content-Type": "application/json",
-                "Access-Control-Allow-Headers": "*",
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "*",
-                "X-Content-Type-Options": "nosniff",
-                "X-Frame-Options": "DENY",
-                "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none';",
-                "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
-            },
-            'body': json.dumps("Missing required parameters: case_id")
-        }
+        return create_response(400, "Missing required parameters: case_id", event)
 
     system_prompt = get_system_prompt(block_type)
     if system_prompt is None:
         logger.error(f"Error fetching system prompt for block_type: {block_type}")
-        return {
-            'statusCode': 400,
-            "headers": {
-                "Content-Type": "application/json",
-                "Access-Control-Allow-Headers": "*",
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "*",
-                "X-Content-Type-Options": "nosniff",
-                "X-Frame-Options": "DENY",
-                "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none';",
-                "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
-            },
-            'body': json.dumps('Error fetching system prompt')
-        }
+        return create_response(400, 'Error fetching system prompt', event)
     
     case_title, case_type, jurisdiction, case_description, province, statute = get_case_details(case_id)
     if case_title is None or case_type is None or jurisdiction is None or case_description is None or province is None or statute is None:
@@ -405,20 +410,7 @@ def handler(event, context):
                     logger.error(f"Failed to send guardrail error to WebSocket: {ws_error}")
                     return {"statusCode": 500}
 
-            return {
-                'statusCode': 400,
-                "headers": {
-                    "Content-Type": "application/json",
-                    "Access-Control-Allow-Headers": "*",
-                    "Access-Control-Allow-Origin": "*",
-                    "Access-Control-Allow-Methods": "*",
-                    "X-Content-Type-Options": "nosniff",
-                    "X-Frame-Options": "DENY",
-                    "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none';",
-                    "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
-                },
-                "body": json.dumps({"error": error_message})
-            }
+            return create_response(400, {"error": error_message}, event)
     try:
         logger.info(f"Creating Bedrock LLM instance with ID: {BEDROCK_LLM_ID}, Temp: {BEDROCK_TEMP}, TopP: {BEDROCK_TOP_P}, MaxTokens: {BEDROCK_MAX_TOKENS}")
         llm = get_bedrock_llm(
@@ -431,20 +423,7 @@ def handler(event, context):
         )
     except Exception as e:
         logger.error(f"Error getting LLM from Bedrock: {e}")
-        return {
-            'statusCode': 500,
-            "headers": {
-                "Content-Type": "application/json",
-                "Access-Control-Allow-Headers": "*",
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "*",
-                "X-Content-Type-Options": "nosniff",
-                "X-Frame-Options": "DENY",
-                "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none';",
-                "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
-            },
-            'body': json.dumps('Error getting LLM from Bedrock')
-        }
+        return create_response(500, 'Error getting LLM from Bedrock', event)
 
     try:
         logger.info("Generating response from the LLM.")
@@ -482,24 +461,10 @@ def handler(event, context):
             logger.error(
                 f"Authorization failed: User {user_id} is not permitted to send messages for case {case_id}"
             )
-            error_body = json.dumps({"error": "Forbidden: Only advocates can send messages for their own cases."})
             if is_websocket:
                  return {"statusCode": 403, "body": "Forbidden"}
             else:
-                 return {
-                    'statusCode': 403,
-                    "headers": {
-                        "Content-Type": "application/json",
-                        "Access-Control-Allow-Headers": "*",
-                        "Access-Control-Allow-Origin": "*",
-                        "Access-Control-Allow-Methods": "*",
-                        "X-Content-Type-Options": "nosniff",
-                        "X-Frame-Options": "DENY",
-                        "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none';",
-                        "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
-                    },
-                    "body": error_body
-                 }
+                 return create_response(403, {"error": "Forbidden: Only advocates can send messages for their own cases."}, event)
 
 
         # Check Message Limit
@@ -524,20 +489,7 @@ def handler(event, context):
                         )
                         return {"statusCode": 200}
                     else:
-                         return {
-                            'statusCode': 429,
-                            "headers": {
-                                "Content-Type": "application/json",
-                                "Access-Control-Allow-Headers": "*",
-                                "Access-Control-Allow-Origin": "*",
-                                "Access-Control-Allow-Methods": "*",
-                                "X-Content-Type-Options": "nosniff",
-                                "X-Frame-Options": "DENY",
-                                "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none';",
-                                "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
-                            },
-                            "body": json.dumps({"error": error_message})
-                         }
+                         return create_response(429, {"error": error_message}, event)
             except Exception as e:
                 logger.error(f"Error checking message limit: {e}")
                 # Log error but allow request to proceed if usage check fails (fail open)
@@ -603,20 +555,7 @@ def handler(event, context):
             except Exception as ws_error:
                 logger.error(f"Failed to send error to WebSocket: {ws_error}")
             return {"statusCode": 500}
-        return {
-            'statusCode': 500,
-            "headers": {
-                "Content-Type": "application/json",
-                "Access-Control-Allow-Headers": "*",
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "*",
-                "X-Content-Type-Options": "nosniff",
-                "X-Frame-Options": "DENY",
-                "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none';",
-                "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
-            },
-            'body': json.dumps('An unexpected error occurred. Please try again later or contact an administrator.')
-        }
+        return create_response(500, 'An unexpected error occurred. Please try again later or contact an administrator.', event)
 
 
     logger.info("Returning the generated response.")

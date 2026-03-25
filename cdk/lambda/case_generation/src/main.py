@@ -146,30 +146,44 @@ def update_title(case_id, title):
         conn.rollback()
 
 
-def _response(status, body):
+def get_cors_origin(event):
+    allowed_origin = os.environ.get("ALLOWED_ORIGIN", "")
+    if not allowed_origin:
+        return "*"
+    allowed_origins = [allowed_origin, "http://localhost:5173"]
+    headers = event.get("headers") or {}
+    request_origin = headers.get("origin") or headers.get("Origin") or ""
+    if request_origin in allowed_origins:
+        return request_origin
+    return allowed_origin
+
+
+def create_response(status_code, body, event=None):
+    origin = get_cors_origin(event or {})
+    serialized_body = body if isinstance(body, str) else json.dumps(body)
     return {
-        'statusCode': status,
-        'headers': {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Headers': '*',
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': '*',
-            'X-Content-Type-Options': 'nosniff',
-            'X-Frame-Options': 'DENY',
-            'Content-Security-Policy': "default-src 'none'; frame-ancestors 'none';",
-            'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+        "statusCode": status_code,
+        "headers": {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Methods": "*",
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "DENY",
+            "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none';",
+            "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
         },
-        'body': json.dumps(body, cls=CustomJSONEncoder)
+        "body": serialized_body,
     }
 
 
-def _handle_guardrail_error(resp):
+def _handle_guardrail_error(resp, event=None):
     message = 'Input blocked by content guardrails.'
     for assessment in resp.get('assessments', []):
         if 'sensitiveInformationPolicy' in assessment:
             message = 'Please remove personal information.'
             break
-    return _response(400, {'error': message})
+    return create_response(400, {'error': message}, event)
 
 
 # def handler(event, context):
@@ -194,7 +208,7 @@ def handler(event, context):
         user_id = authorizer.get('userId')
         if not user_id:
             logger.error("Missing userId from authorizer context")
-            return _response(401, {'error': 'Unauthorized: Missing user identity'})
+            return create_response(401, {'error': 'Unauthorized: Missing user identity'}, event)
 
         body = json.loads(event.get('body', '{}'))
         case_title = body.get('case_title')
@@ -218,7 +232,7 @@ def handler(event, context):
             content=[{'text': {'text': combined, 'qualifiers': ['guard_content']}}]
         )
         if guard_resp.get('action') == 'GUARDRAIL_INTERVENED':
-            return _handle_guardrail_error(guard_resp)
+            return _handle_guardrail_error(guard_resp, event)
 
         # user_id is already supplied by the authorizer so we can skip any
         # database lookup entirely.
@@ -238,14 +252,14 @@ def handler(event, context):
 
         try:
             case_title = handle_generate_title(case_id, case_type, jurisdiction, case_desc, province)
-            return _response(200, {'case_id': str(case_id), 'case_hash': case_hash, 'case_title': capitalize_title(case_title)})
+            return create_response(200, json.dumps({'case_id': str(case_id), 'case_hash': case_hash, 'case_title': capitalize_title(case_title)}, cls=CustomJSONEncoder), event)
         except Exception as e:
             logger.warning(f"Title generation failed: {e}", exc_info=True)
-            return _response(200, {
+            return create_response(200, json.dumps({
                 'case_id': str(case_id),
                 'case_hash': case_hash,
                 'warning': 'Case created but title generation failed.'
-            })
+            }, cls=CustomJSONEncoder), event)
 
     except Exception as err:
         logger.error(f"Error in new_case: {err}", exc_info=True)
@@ -255,7 +269,7 @@ def handler(event, context):
             conn.rollback()
         except:
             pass
-        return _response(500, {'error': 'Internal server error'})
+        return create_response(500, {'error': 'Internal server error'}, event)
 
 
 def handle_generate_title(case_id: str, case_type: str, jurisdiction: str, case_description: str, province: str) -> str:

@@ -11,12 +11,42 @@ const initConnection = async () => {
   }
 };
 
-const createResponse = () => ({
+/**
+ * Resolves the CORS origin for a response based on the ALLOWED_ORIGIN env var
+ * and the incoming request's Origin header.
+ *
+ * - If ALLOWED_ORIGIN is not set, returns "*" (wildcard fallback).
+ * - If ALLOWED_ORIGIN is set, checks the request Origin against
+ *   [ALLOWED_ORIGIN, "http://localhost:5173"] and returns the matching origin,
+ *   or ALLOWED_ORIGIN as the default when no match is found.
+ *
+ * @param {object} event - The Lambda event object (optional, pass {} if unavailable)
+ * @returns {string} The value for the Access-Control-Allow-Origin header
+ */
+const getOriginHeader = (event) => {
+  const allowedOrigin = process.env.ALLOWED_ORIGIN;
+  if (!allowedOrigin) {
+    return "*";
+  }
+
+  const allowedOrigins = [allowedOrigin, "http://localhost:5173"];
+  const headers = (event && event.headers) || {};
+  // API Gateway may normalise header names; check both casings
+  const requestOrigin = headers["origin"] || headers["Origin"] || "";
+
+  if (allowedOrigins.includes(requestOrigin)) {
+    return requestOrigin;
+  }
+
+  return allowedOrigin;
+};
+
+const createResponse = (event) => ({
   statusCode: 200,
   headers: {
     "Access-Control-Allow-Headers":
       "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
-    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Origin": getOriginHeader(event || {}),
     "Access-Control-Allow-Methods": "*",
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
@@ -93,6 +123,7 @@ const getUserMetadata = async (idpId) => {
 module.exports = {
   initConnection,
   createResponse,
+  getOriginHeader,
   parseBody,
   handleError,
   getSqlConnection: () => global.sqlConnection,

@@ -1530,7 +1530,7 @@ exports.handler = async (event, context) => {
   const roles = JSON.parse(event.requestContext?.authorizer?.roles || "[]");
 
   if (!userId) {
-    const resp = createResponse();
+    const resp = createResponse(event);
     resp.statusCode = 401;
     resp.body = JSON.stringify({
       error: "Unauthorized: Missing user identity",
@@ -1538,7 +1538,7 @@ exports.handler = async (event, context) => {
     return resp;
   }
 
-  const response = createResponse();
+  const response = createResponse(event);
 
   // Ensure DB initialized and obtain connection
   await initConnection();
