@@ -12,13 +12,10 @@ const initConnection = async () => {
 };
 
 /**
- * Resolves the CORS origin for a response based on the ALLOWED_ORIGIN env var
- * and the incoming request's Origin header.
+ * Resolves the CORS origin for a response based on the ALLOWED_ORIGIN env var.
  *
  * - If ALLOWED_ORIGIN is not set, returns "*" (wildcard fallback).
- * - If ALLOWED_ORIGIN is set, checks the request Origin against
- *   [ALLOWED_ORIGIN, "http://localhost:5173"] and returns the matching origin,
- *   or ALLOWED_ORIGIN as the default when no match is found.
+ * - If ALLOWED_ORIGIN is set, returns that value.
  *
  * @param {object} event - The Lambda event object (optional, pass {} if unavailable)
  * @returns {string} The value for the Access-Control-Allow-Origin header
@@ -27,15 +24,6 @@ const getOriginHeader = (event) => {
   const allowedOrigin = process.env.ALLOWED_ORIGIN;
   if (!allowedOrigin) {
     return "*";
-  }
-
-  const allowedOrigins = [allowedOrigin, "http://localhost:5173"];
-  const headers = (event && event.headers) || {};
-  // API Gateway may normalise header names; check both casings
-  const requestOrigin = headers["origin"] || headers["Origin"] || "";
-
-  if (allowedOrigins.includes(requestOrigin)) {
-    return requestOrigin;
   }
 
   return allowedOrigin;

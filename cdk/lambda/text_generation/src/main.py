@@ -50,11 +50,6 @@ def get_cors_origin(event):
     allowed_origin = os.environ.get("ALLOWED_ORIGIN", "")
     if not allowed_origin:
         return "*"
-    allowed_origins = [allowed_origin, "http://localhost:5173"]
-    headers = event.get("headers") or {}
-    request_origin = headers.get("origin") or headers.get("Origin") or ""
-    if request_origin in allowed_origins:
-        return request_origin
     return allowed_origin
 
 

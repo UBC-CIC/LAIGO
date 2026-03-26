@@ -81,6 +81,90 @@ Frontend implementation details:
   }
 ```
 
+## Setting Up Local Development
+
+### Overview
+
+Local development uses a Vite proxy to avoid CORS issues when running the frontend on `localhost:5173`. The proxy intercepts API requests and forwards them to the deployed API Gateway endpoint, making requests appear same-origin to the browser.
+
+**Important**: The proxy only affects local development (`npm run dev`). Production builds deployed via Amplify are unaffected and use the actual API endpoint directly.
+
+### Configuration
+
+1. **Create `.env` file in the `frontend/` directory**:
+
+   ```bash
+   cd frontend
+   touch .env
+   ```
+
+2. **Add the following environment variables to `frontend/.env`**:
+
+   ```
+   VITE_API_ENDPOINT=http://localhost:5173/api
+   VITE_API_PROXY_TARGET=https://your-api-endpoint.execute-api.region.amazonaws.com/prod
+   VITE_COGNITO_USER_POOL_ID=your-user-pool-id
+   VITE_COGNITO_USER_POOL_CLIENT_ID=your-client-id
+   VITE_IDENTITY_POOL_ID=your-identity-pool-id
+   VITE_AWS_REGION=your-region
+   VITE_WEBSOCKET_URL=wss://your-websocket-endpoint.execute-api.region.amazonaws.com/prod
+   ```
+
+   Replace the placeholder values with your actual AWS resources from your deployment.
+
+3. **Ensure `.env` is gitignored**:
+
+   The `.env` file is already in `.gitignore` and should not be committed. Each developer configures their own local `.env` file.
+
+### How It Works
+
+- `VITE_API_ENDPOINT` is used by frontend code to make API requests to `http://localhost:5173/api`
+- Vite's dev server intercepts these requests and proxies them to `VITE_API_PROXY_TARGET` (your actual API Gateway endpoint)
+- The proxy rewrites the request path, removing the `/api` prefix before forwarding
+- To the browser, all requests appear same-origin, eliminating CORS preflight issues
+- Backend CORS configuration is not affected by the proxy
+
+### Making API Requests
+
+In your frontend code, use the `VITE_API_ENDPOINT` environment variable:
+
+```typescript
+const response = await fetch(
+  `${import.meta.env.VITE_API_ENDPOINT}/student/profile`,
+  {
+    headers: {
+      Authorization: token,
+    },
+  }
+);
+```
+
+### Production Deployment
+
+When deploying to production via Amplify:
+
+- Amplify uses the `VITE_API_ENDPOINT` environment variable configured in `cdk/lib/amplify-stack.ts`
+- This is set to the actual API Gateway endpoint (e.g., `https://your-api.execute-api.region.amazonaws.com/prod`)
+- No proxy is needed because Amplify serves the frontend from your custom domain, making requests same-origin
+- The `VITE_API_PROXY_TARGET` variable is only used locally and is not deployed
+
+### Troubleshooting
+
+**Still getting CORS errors?**
+- Verify `VITE_API_PROXY_TARGET` points to your actual API Gateway endpoint
+- Check that the endpoint URL is correct (should start with `https://`)
+- Restart the dev server after changing `.env` variables
+
+**API requests returning 500 errors?**
+- Verify your AWS credentials are configured (via AWS CLI or environment variables)
+- Check that the API endpoint is deployed and accessible
+- Review CloudWatch logs for the Lambda functions
+
+**WebSocket not connecting?**
+- Verify `VITE_WEBSOCKET_URL` is correct (should start with `wss://`)
+- WebSocket connections bypass the Vite proxy and connect directly to the endpoint
+- Ensure your JWT token is valid and not expired
+
 ## Customizing the Verification Email
 
 ### Modifying Visual Aspects

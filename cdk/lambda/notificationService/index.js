@@ -646,9 +646,8 @@ function generateNotificationId() {
 }
 
 /**
- * Resolves the CORS origin based on the ALLOWED_ORIGIN env var and the
- * incoming request's Origin header. Mirrors getOriginHeader() in
- * cdk/lambda/handlers/utils/utils.js.
+ * Resolves the CORS origin based on the ALLOWED_ORIGIN env var.
+ * Mirrors getOriginHeader() in cdk/lambda/handlers/utils/utils.js.
  *
  * @param {object} event - The Lambda event object (pass {} for non-HTTP contexts)
  * @returns {string} The value for the Access-Control-Allow-Origin header
@@ -657,15 +656,6 @@ function getOriginHeader(event) {
   const allowedOrigin = process.env.ALLOWED_ORIGIN;
   if (!allowedOrigin) {
     return "*";
-  }
-
-  const allowedOrigins = [allowedOrigin, "http://localhost:5173"];
-  const headers = (event && event.headers) || {};
-  // API Gateway may normalise header names; check both casings
-  const requestOrigin = headers["origin"] || headers["Origin"] || "";
-
-  if (allowedOrigins.includes(requestOrigin)) {
-    return requestOrigin;
   }
 
   return allowedOrigin;

@@ -389,7 +389,7 @@ npx cdk deploy --all \
 When `DomainName` is provided:
 
 - CORS origins across all Lambda handlers and the S3 audio bucket are restricted to `https://<DomainName>`.
-- `http://localhost:5173` is automatically included as an additional allowed origin, so developers running the Vite dev server locally can still interact with deployed services.
+- Local development uses the Vite dev server proxy (configured in `vite.config.ts`) to avoid CORS issues — no localhost origins are added to the backend.
 - Amplify is configured to serve the app on the custom domain.
 
 Omitting `DomainName` preserves the default wildcard (`*`) CORS behavior and is fully backward compatible.

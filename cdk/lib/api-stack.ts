@@ -1802,7 +1802,7 @@ export class ApiGatewayStack extends cdk.Stack {
               s3.HttpMethods.DELETE,
             ],
             allowedOrigins: allowedOrigin
-              ? [allowedOrigin, "http://localhost:5173"]
+              ? [allowedOrigin]
               : ["*"],
           },
         ],

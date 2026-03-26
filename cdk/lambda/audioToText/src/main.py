@@ -243,9 +243,8 @@ def add_audio_to_db(audio_file_id, audio_text):
 
 def get_cors_origin(event):
     """
-    Resolve the CORS origin based on the ALLOWED_ORIGIN env var and the
-    incoming request's Origin header.  Mirrors the Node.js getOriginHeader()
-    in cdk/lambda/handlers/utils/utils.js.
+    Resolve the CORS origin based on the ALLOWED_ORIGIN env var.
+    Mirrors the Node.js getOriginHeader() in cdk/lambda/handlers/utils/utils.js.
 
     Returns:
         str: The value for the Access-Control-Allow-Origin response header.
@@ -253,14 +252,6 @@ def get_cors_origin(event):
     allowed_origin = os.environ.get("ALLOWED_ORIGIN", "")
     if not allowed_origin:
         return "*"
-
-    allowed_origins = [allowed_origin, "http://localhost:5173"]
-
-    headers = event.get("headers") or {}
-    request_origin = headers.get("origin") or headers.get("Origin") or ""
-
-    if request_origin in allowed_origins:
-        return request_origin
 
     return allowed_origin
 
