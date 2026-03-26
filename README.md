@@ -132,7 +132,7 @@ Steps to implement optional modifications such as changing the colours of the ap
 
 ## User Removal
 
-To completely remove a user from the platform (database records, Cognito identity, and DynamoDB data), follow the [User Removal Guide](./docs/userRemovalGuide.md).
+To disable or remove a user from the platform (database records, Cognito identity, and DynamoDB data), follow the [User Disable / Removal Guide](./docs/userDisableRemovalGuide.md).
 
 ## Credits
 

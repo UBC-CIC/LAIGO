@@ -1,34 +1,74 @@
 # User Disable / Removal Guide
 
-This guide documents how to disable or completely remove a user from the LAIGO platform. Because there is no built-in admin UI for user disable/deletion, the process requires manual SQL execution against the database and/or a Cognito console action.
+This guide documents two distinct user-management workflows in LAIGO. Because there is no built-in admin UI for these actions, the process requires manual Cognito and/or SQL steps.
 
-- Option 1: Disable the user (preferred for temporary account suspension or when records must be retained).
-- Option 2: Full deletion (permanent, irreversible removal of user data and Cognito identity).
+- Workflow A: Disable user access (blocks sign-in, keeps all data).
+- Workflow B: Fully remove a user (permanently deletes database data and Cognito identity).
+
+Choose only one workflow based on your goal.
 
 ## Prerequisites
 
-- AWS Console access with permissions to:
-  - Amazon SageMaker AI (to create a notebook instance in the VPC)
-  - Amazon Cognito (to delete the user from the User Pool)
-  - AWS Secrets Manager (to retrieve database credentials from the console)
+- For **Workflow A (Disable access)**:
+  - Amazon Cognito permissions to disable/enable users in the User Pool
+
+- For **Workflow B (Full removal)**:
+  - Amazon SageMaker AI permissions (to create a notebook instance in the VPC)
+  - Amazon Cognito permissions (to delete users from the User Pool)
+  - AWS Secrets Manager permissions (to retrieve database credentials from the console)
+
 - The user's email address or `cognito_id` (UUID)
 
 ## Overview
 
-User data lives in two places:
+- **Workflow A (Disable access)**
+  - Best for: temporary suspension, investigations, or when records must remain intact
+  - Result: user cannot sign in; database data is unchanged
+
+- **Workflow B (Full removal)**
+  - Best for: permanent account removal and data cleanup
+  - Result: user data is deleted from PostgreSQL and user is deleted from Cognito
+
+For full removal, user data lives in two places and both must be cleaned:
 
 1. **PostgreSQL (RDS)** — the `users` table and all related records across multiple tables
 2. **AWS Cognito** — the user's authentication identity and group membership
 
-Both the database and Cognito must be cleaned for a full removal.
-
 ---
 
-## Step 1: Connect to the Database via SageMaker AI
+## Workflow A: Disable User Access (No Data Deletion)
+
+Use this workflow when you only need to block app access.
+
+1. Open the **AWS Console** and navigate to **Amazon Cognito**
+2. Select the LAIGO User Pool (named `{StackPrefix}-ApiStack-pool` or similar)
+![image](./media/select-userpool.png)
+
+3. Go to **Users** and click on the username of the desired user
+![image](./media/select-user.png)
+
+4. CLick on **Actions** and select  **Disable user access**
+![image](./media/disable-user.png)
+
+
+### Verify disable status
+
+- In Cognito, the user status should show as disabled.
+- The user should no longer be able to authenticate.
+
+### Re-enabling Users
+- To re-enable the user, repeat the above steps and select **Enable user access** instead.
+---
+
+## Workflow B: Fully Remove User (Permanent)
+
+Use this workflow only when permanent deletion is required.
+
+### Step 1: Connect to the Database via SageMaker AI
 
 The RDS instance runs inside an isolated VPC with no public access. Use a SageMaker AI notebook instance to connect.
 
-### 1a. Create a Notebook Instance
+#### 1a. Create a Notebook Instance
 
 - Open the **AWS Console** and navigate to **Amazon SageMaker AI** > **Notebooks** > **Notebook instances**
 - Click **Create notebook instance**
@@ -36,25 +76,25 @@ The RDS instance runs inside an isolated VPC with no public access. Use a SageMa
 
 ![Create Notebook](./media/create-notebook-instance.png)
 
-### 1b. Select the VPC
+#### 1b. Select the VPC
 
 - Under **Network**, select the LAIGO VPC (the one created by the `VpcStack`)
 
 ![Select VPC](./media/select-vpc.png)
 
-### 1c. Select the Subnet
+#### 1c. Select the Subnet
 
 - Choose one of the **private subnets** (labeled `private-subnet-1` in the VPC). Do not use the isolated subnets — the notebook needs internet access to install Python packages via pip.
 
-![Select Subnet](./media/isolated-subnet.png)
+![Select Subnet](./media/private-subnet.png)
 
-### 1d. Select the Security Group
+#### 1d. Select the Security Group
 
 - For the security group, select the **RDS database's security group** (not the default VPC security group). You can find it in the AWS Console under **RDS** > **Databases** > select your instance > **Connectivity & security** > **VPC security groups**. It will be named something like `DatabaseStack-database-SecurityGroup-XXXX`. Using this same security group ensures the notebook can reach the RDS Proxy without any additional rules.
 
 ![Select Security Group](./media/security-group.png)
 
-### 1e. Connect to the Database
+#### 1e. Connect to the Database
 
 - Once the notebook instance is running, click **Open Jupyter** and create a new **Python 3** notebook (New > conda_python3).
 
@@ -106,7 +146,7 @@ print("Connected successfully")
 
 ---
 
-## Step 2: Identify the User
+### Step 2: Identify the User
 
 **Cell 5 — Look up the user by email:**
 
@@ -135,7 +175,7 @@ else:
 
 ---
 
-## Step 3: Delete User Data from PostgreSQL
+### Step 3: Delete User Data from PostgreSQL
 
 The tables must be cleaned in the correct order to respect foreign key constraints. Some tables use `ON DELETE CASCADE` from the `cases` table, but the user's direct references need explicit deletion.
 
@@ -208,43 +248,19 @@ print("Connection closed")
 
 ---
 
-## Step 4: Disable the User in Cognito (recommended for access blocking)
-
-If you want to prevent the user from logging into the app while keeping their data intact, disable them in Cognito instead of deleting them.
-
-1. Open the **AWS Console** and navigate to **Amazon Cognito**
-2. Select the LAIGO User Pool (named `{StackPrefix}-ApiStack-pool` or similar)
-3. Go to **Users** and search for the user by email
-4. Select the user and click **Disable user**
-
-Alternatively, use the AWS CLI:
-
-```bash
-aws cognito-idp admin-disable-user \
-  --user-pool-id [user_pool_id] \
-  --username [cognito_username]
-```
-
-> The `cognito_username` is typically the user's email address. The `user_pool_id` can be found in the Cognito console or in the CDK outputs.
-
-
----
-
-## Step 5: Remove the User from Cognito
+### Step 4: Remove the User from Cognito
 
 1. Open the **AWS Console** and navigate to **Amazon Cognito**
 2. Select the LAIGO User Pool (named `{StackPrefix}-ApiStack-pool` or similar)
 3. Go to **Users** and search for the user by email
 4. Select the user and click **Delete user**
 
-Alternatively, use the AWS CLI:
+---
 
-```bash
-aws cognito-idp admin-delete-user \
-  --user-pool-id [user_pool_id] \
-  --username [cognito_username]
-```
+## Important Notes
 
-> The `cognito_username` is typically the user's email address. The `user_pool_id` can be found in the Cognito console or in the CDK outputs.
+- Do not run Workflow A and Workflow B as a single sequence unless you explicitly intend to fully remove the user after a temporary disable period.
+- Workflow A is reversible (`admin-enable-user`).
+- Workflow B is irreversible and should follow your retention/compliance policies.
 
 
