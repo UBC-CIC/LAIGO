@@ -1278,6 +1278,41 @@ export class ApiGatewayStack extends cdk.Stack {
       },
     );
 
+    // S3 bucket for whitelist CSV uploads (avoids WAF body-size restrictions)
+    const whitelistUploadBucket = new s3.Bucket(
+      this,
+      `${id}-WhitelistUploadBucket`,
+      {
+        bucketName: `${id.toLowerCase()}-whitelist-uploads-${this.account}`,
+        versioned: false,
+        encryption: s3.BucketEncryption.S3_MANAGED,
+        blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+        cors: [
+          {
+            allowedHeaders: ["*"],
+            allowedMethods: [
+              s3.HttpMethods.GET,
+              s3.HttpMethods.PUT,
+              s3.HttpMethods.HEAD,
+              s3.HttpMethods.POST,
+              s3.HttpMethods.DELETE,
+            ],
+            allowedOrigins: allowedOrigin
+              ? [allowedOrigin]
+              : ["*"],
+          },
+        ],
+        removalPolicy: cdk.RemovalPolicy.DESTROY,
+        autoDeleteObjects: true,
+        lifecycleRules: [
+          {
+            expiration: cdk.Duration.days(1),
+            id: "cleanup-old-uploads",
+          },
+        ],
+      },
+    );
+
     // SSM parameter to control signup mode: 'public' (default) or 'whitelist'
     const signupModeParameter = new ssm.StringParameter(
       this,
@@ -1373,6 +1408,7 @@ export class ApiGatewayStack extends cdk.Stack {
           BEDROCK_LLM_PARAM: bedrockLLMParameter.parameterName,
           SIGNUP_MODE_SSM_PARAM: "/LAIGO/SignupMode",
           WHITELIST_TABLE_NAME: `${id}-email-whitelist`,
+          WHITELIST_UPLOAD_BUCKET: whitelistUploadBucket.bucketName,
           ...corsEnv,
         },
         functionName: `${id}-adminFunction`,
@@ -1424,6 +1460,18 @@ export class ApiGatewayStack extends cdk.Stack {
         ],
         resources: [
           `arn:aws:dynamodb:${this.region}:${this.account}:table/${id}-email-whitelist`,
+        ],
+      }),
+    );
+
+    // Grant admin function S3 permissions for whitelist upload bucket
+    lambdaAdminFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:ListBucket"],
+        resources: [
+          whitelistUploadBucket.bucketArn,
+          whitelistUploadBucket.arnForObjects("*"),
         ],
       }),
     );

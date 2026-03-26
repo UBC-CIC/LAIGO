@@ -2057,16 +2057,44 @@ curl -X GET "https://api-id.execute-api.us-east-1.amazonaws.com/prod/admin/white
 
 ### Upload Whitelist CSV
 
-Upload a CSV file of emails to whitelist.
+Generate a presigned upload URL, upload your CSV to S3, then process it into whitelist entries.
+
+**Endpoint:** `GET /admin/whitelist/upload`
+
+**Query Parameters:** None
+
+**Response:**
+```json
+{
+  "uploadUrl": "https://bucket.s3.ca-central-1.amazonaws.com/whitelist-1711122334455.csv?...",
+  "s3Key": "whitelist-1711122334455.csv",
+  "expiresIn": 3600
+}
+```
+
+**Example (cURL):**
+```bash
+curl -X GET "https://api-id.execute-api.us-east-1.amazonaws.com/prod/admin/whitelist/upload" \
+  -H "Authorization: eyJraWQiOiJ..."
+```
+
+---
+
+### Process Whitelist CSV
+
+Parse and apply an uploaded CSV to the whitelist.
 
 **Endpoint:** `POST /admin/whitelist/upload`
 
 **Request Body:**
 ```json
 {
-  "csv": "email,role\nstudent1@example.com,student\ninstructor1@example.com,instructor"
+  "s3Key": "whitelist-1711122334455.csv"
 }
 ```
+
+**Request Body Parameters:**
+- `s3Key` (string, required): Key of a CSV previously uploaded to S3 using the presigned URL
 
 **CSV Format:**
 - Column 1: Email address
@@ -2088,7 +2116,7 @@ curl -X POST "https://api-id.execute-api.us-east-1.amazonaws.com/prod/admin/whit
   -H "Authorization: eyJraWQiOiJ..." \
   -H "Content-Type: application/json" \
   -d '{
-  "csv": "email,role\nstudent1@example.com,student\ninstructor1@example.com,instructor"
+  "s3Key": "whitelist-1234567891022.csv"
 }'
 ```
 

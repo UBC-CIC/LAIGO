@@ -46,12 +46,16 @@ x-amazon-apigateway-gateway-responses:
       gatewayresponse.header.Strict-Transport-Security: "'max-age=31536000; includeSubDomains'"
   DEFAULT_4XX:
     responseParameters:
+      gatewayresponse.header.Access-Control-Allow-Origin:
+        Fn::Sub: "'${CorsAllowedOrigin}'"
       gatewayresponse.header.X-Content-Type-Options: "'nosniff'"
       gatewayresponse.header.X-Frame-Options: "'DENY'"
       gatewayresponse.header.Content-Security-Policy: "'default-src 'none'; frame-ancestors 'none';'"
       gatewayresponse.header.Strict-Transport-Security: "'max-age=31536000; includeSubDomains'"
   DEFAULT_5XX:
     responseParameters:
+      gatewayresponse.header.Access-Control-Allow-Origin:
+        Fn::Sub: "'${CorsAllowedOrigin}'"
       gatewayresponse.header.X-Content-Type-Options: "'nosniff'"
       gatewayresponse.header.X-Frame-Options: "'DENY'"
       gatewayresponse.header.Content-Security-Policy: "'default-src 'none'; frame-ancestors 'none';'"
@@ -1837,16 +1841,46 @@ paths:
             statusCode: "200"
             responseParameters:
               method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key'"
-              method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,OPTIONS'"
               method.response.header.Access-Control-Allow-Origin:
                 Fn::Sub: "'${CorsAllowedOrigin}'"
             responseTemplates:
               application/json: "{}"
+    get:
+      tags:
+        - Admin
+      summary: Get presigned S3 upload URL for whitelist CSV
+      description: "Generates a presigned S3 PUT URL for uploading whitelist CSV files."
+      operationId: admin_whitelist_upload_GET
+      security:
+        - adminAuthorizer: []
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  uploadUrl:
+                    type: string
+                  s3Key:
+                    type: string
+                  expiresIn:
+                    type: integer
+        "500":
+          description: Internal Server Error
+      x-amazon-apigateway-integration:
+        uri:
+          Fn::Sub: "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${adminFunction.Arn}/invocations"
+        passthroughBehavior: "when_no_match"
+        httpMethod: "POST"
+        type: "aws_proxy"
     post:
       tags:
         - Admin
       summary: Bulk upload whitelist CSV
-      description: "Parses a CSV file containing email/role mappings and upserts them into DynamoDB. Case-insensitively resolves labels to canonical roles via Postgres."
+      description: "Processes whitelist from uploaded CSV object key and upserts into DynamoDB."
       operationId: admin_whitelist_upload_POST
       security:
         - adminAuthorizer: []
@@ -1856,11 +1890,12 @@ paths:
           application/json:
             schema:
               type: object
-              required: [csv]
+              required:
+                - s3Key
               properties:
-                csv:
+                s3Key:
                   type: string
-                  description: "Full content of the CSV file as a string (Format: email,role_label)"
+                  description: "S3 object key of uploaded CSV"
 
       responses:
         "200":

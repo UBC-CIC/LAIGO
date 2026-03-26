@@ -164,20 +164,40 @@ const AdminWhitelist = () => {
       return;
     }
 
-    const csvText = await file.text();
     setUploading(true);
     try {
       const token = await getToken();
-      const res = await fetch(
+
+      // Step 1: Get presigned URL from backend
+      const urlRes = await fetch(
+        `${import.meta.env.VITE_API_ENDPOINT}/admin/whitelist/upload`,
+        { headers: { Authorization: token } },
+      );
+      const urlData = await urlRes.json();
+      if (!urlRes.ok) throw new Error(urlData.error || "Failed to get upload URL");
+
+      const { uploadUrl, s3Key } = urlData;
+
+      // Step 2: Upload file directly to S3 using presigned URL
+      const fileContent = await file.text();
+      const s3Res = await fetch(uploadUrl, {
+        method: "PUT",
+        headers: { "Content-Type": "text/csv" },
+        body: fileContent,
+      });
+      if (!s3Res.ok) throw new Error("Failed to upload file to S3");
+
+      // Step 3: Trigger backend processing
+      const processRes = await fetch(
         `${import.meta.env.VITE_API_ENDPOINT}/admin/whitelist/upload`,
         {
           method: "POST",
           headers: { Authorization: token, "Content-Type": "application/json" },
-          body: JSON.stringify({ csv: csvText }),
+          body: JSON.stringify({ s3Key }),
         },
       );
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Upload failed");
+      const data = await processRes.json();
+      if (!processRes.ok) throw new Error(data.error || "Processing failed");
 
       const { processed, invalid, invalidRows } = data as {
         processed: number;

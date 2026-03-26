@@ -1509,23 +1509,63 @@ const routes = {
     }
   },
 
+  /** GET /admin/whitelist/upload — returns presigned S3 PUT URL for CSV upload */
+  "GET /admin/whitelist/upload": async (event, env) => {
+    const { response } = env;
+    try {
+      const { S3Client, PutObjectCommand } = await import("@aws-sdk/client-s3");
+      const { getSignedUrl } = await import("@aws-sdk/s3-request-presigner");
+
+      const s3 = new S3Client();
+      const bucketName = process.env.WHITELIST_UPLOAD_BUCKET;
+      const key = `whitelist-${Date.now()}.csv`;
+
+      const cmd = new PutObjectCommand({
+        Bucket: bucketName,
+        Key: key,
+        ContentType: "text/csv",
+      });
+
+      const presignedUrl = await getSignedUrl(s3, cmd, { expiresIn: 3600 });
+      response.statusCode = 200;
+      response.body = JSON.stringify({
+        uploadUrl: presignedUrl,
+        s3Key: key,
+        expiresIn: 3600,
+      });
+    } catch (err) {
+      console.error("Failed to generate presigned URL:", err);
+      response.statusCode = 500;
+      response.body = JSON.stringify({ error: "Internal server error" });
+    }
+  },
+
   /**
    * POST /admin/whitelist/upload — parses CSV and upserts entries into DynamoDB.
-   * Body: { csv: "<csv string>" }
-   * CSV format: email,role  (header row optional, skipped if 2nd col is "role")
-   * Role matched case-insensitively against role_labels in Postgres.
-   * Returns: { processed, invalid, invalidRows }
+   * Body expects: { s3Key: "<uploaded csv object key>" }
    */
   "POST /admin/whitelist/upload": async (event, env) => {
     const { response, sqlConnection } = env;
     try {
       const body = parseBody(event.body);
-      const { csv } = body || {};
-      if (!csv || typeof csv !== "string") {
+      const { s3Key } = body || {};
+
+      if (typeof s3Key !== "string" || s3Key.trim().length === 0) {
         response.statusCode = 400;
-        response.body = JSON.stringify({ error: "Missing 'csv' field in request body" });
+        response.body = JSON.stringify({ error: "Provide 's3Key' in request body" });
         return;
       }
+
+      const { S3Client, GetObjectCommand } = await import("@aws-sdk/client-s3");
+      const s3 = new S3Client();
+      const bucketName = process.env.WHITELIST_UPLOAD_BUCKET;
+      const s3Response = await s3.send(
+        new GetObjectCommand({
+          Bucket: bucketName,
+          Key: s3Key,
+        }),
+      );
+      const csvText = await s3Response.Body.transformToString();
 
       // Fetch role labels from Postgres for label -> canonical_role resolution
       const labels = await sqlConnection`
@@ -1542,7 +1582,7 @@ const routes = {
       }
 
       // Parse CSV lines
-      const lines = csv.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+      const lines = csvText.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
       const validItems = [];
       const invalidRows = [];
 
@@ -1623,6 +1663,15 @@ const routes = {
         processed += chunk.length;
       }
 
+      // Clean up uploaded object after processing.
+      const { DeleteObjectCommand } = await import("@aws-sdk/client-s3");
+      await s3.send(
+        new DeleteObjectCommand({
+          Bucket: bucketName,
+          Key: s3Key,
+        }),
+      );
+
       response.statusCode = 200;
       response.body = JSON.stringify({
         processed,
@@ -1662,6 +1711,7 @@ const routes = {
       response.body = JSON.stringify({ error: "Internal server error" });
     }
   },
+
 };
 
 exports.handler = async (event, context) => {
