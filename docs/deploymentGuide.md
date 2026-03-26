@@ -367,12 +367,13 @@ npx cdk deploy --all --context StackPrefix=LegalAidTool --context Environment=de
 
 #### 3.4 (Optional) Deploy with a custom domain
 
-You can optionally pass a `DomainName` context parameter to lock down CORS origins to your custom domain and configure Amplify to serve the app on that domain.
+You can optionally pass a `DomainName` context parameter to lock down CORS origins to your custom domain, configure Amplify to serve the app on that domain, and configure Cognito to send verification emails through SES.
 
 **Prerequisites:**
 
 - Your domain must be registered and you must have DNS access.
 - Either a Route53 hosted zone for the domain, or the ability to add CNAME records via your DNS provider (for Amplify domain verification).
+- For SES email automation, a **public Route 53 hosted zone must exist in the same AWS account** as this deployment.
 
 Add `--context DomainName=<YOUR-DOMAIN>` to the deploy command:
 
@@ -391,8 +392,19 @@ When `DomainName` is provided:
 - CORS origins across all Lambda handlers and the S3 audio bucket are restricted to `https://<DomainName>`.
 - Local development uses the Vite dev server proxy (configured in `vite.config.ts`) to avoid CORS issues — no localhost origins are added to the backend.
 - Amplify is configured to serve the app on the custom domain.
+- CDK creates an SES domain identity and Route 53 DNS records (DKIM/MAIL FROM) automatically.
+- Cognito switches to SES email sending and uses `noreply@<DomainName>` as the sender.
 
 Omitting `DomainName` preserves the default wildcard (`*`) CORS behavior and is fully backward compatible.
+
+#### 3.5 SES sending limits (sandbox vs production)
+
+New AWS accounts usually start in the SES sandbox. In sandbox mode, SES can only send emails to verified recipients/domains.
+
+- For production sign-up email delivery, request SES production access in the AWS Support Center.
+- This is a one-time, account-level step and is not managed by CDK.
+
+To revert back to Cognito-managed email sending, remove `--context DomainName=...` and redeploy. Cognito will switch back to the built-in sender (`no-reply@verificationemail.com`) without replacing the user pool.
 
 ## Post-Deployment
 

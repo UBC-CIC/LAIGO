@@ -29,6 +29,8 @@ import { WebSocketLambdaAuthorizer } from "aws-cdk-lib/aws-apigatewayv2-authoriz
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import * as events from "aws-cdk-lib/aws-events";
 import * as targets from "aws-cdk-lib/aws-events-targets";
+import * as ses from "aws-cdk-lib/aws-ses";
+import * as route53 from "aws-cdk-lib/aws-route53";
 
 // Stack properties for API Gateway configuration
 interface ApiGatewayStackProps extends cdk.StackProps {
@@ -139,6 +141,28 @@ export class ApiGatewayStack extends cdk.Stack {
     this.layerList["powertools"] = powertoolsLayer;
     this.layerList["javascriptPowertools"] = javascriptPowertoolsLayer;
 
+    if (props.domainName) {
+      const hostedZone = route53.HostedZone.fromLookup(
+        this,
+        `${id}-HostedZone`,
+        {
+          domainName: props.domainName,
+        },
+      );
+
+      new ses.EmailIdentity(this, `${id}-SesIdentity`, {
+        identity: ses.Identity.publicHostedZone(hostedZone),
+      });
+    }
+
+    const emailConfig = props.domainName
+      ? cognito.UserPoolEmail.withSES({
+          fromEmail: `noreply@${props.domainName}`,
+          fromName: "LAIGO AI Assistant",
+          sesVerifiedDomain: props.domainName,
+        })
+      : cognito.UserPoolEmail.withCognito();
+
     // Create Cognito user pool for user authentication
     const userPoolName = `${id}-UserPool`;
     this.userPool = new cognito.UserPool(this, `${id}-pool`, {
@@ -238,6 +262,7 @@ export class ApiGatewayStack extends cdk.Stack {
         requireDigits: true, // Require numbers
         requireSymbols: true, // Require special characters
       },
+      email: emailConfig,
       accountRecovery: cognito.AccountRecovery.EMAIL_ONLY, // Allow password recovery via email
       removalPolicy: cdk.RemovalPolicy.RETAIN, // Delete user pool when stack is destroyed
     });

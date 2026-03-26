@@ -496,6 +496,21 @@ const adminAuthorizerFunction = new lambda.Function(this, `${id}-AdminAuthorizer
 });
 ```
 
+### 9.4 Cognito Email Delivery Security (SES + DKIM)
+
+When `DomainName` is provided to CDK deployment, Cognito email delivery is configured to use Amazon SES with a domain identity.
+
+- CDK creates an SES `EmailIdentity` using the Route 53 hosted zone for the domain.
+- DKIM and MAIL FROM DNS records are managed automatically in Route 53.
+- Verification emails are sent from `noreply@<DomainName>` using the verified domain identity.
+- If `DomainName` is omitted, Cognito falls back to its built-in sender (`no-reply@verificationemail.com`).
+
+Security and operational notes:
+
+- DKIM helps recipient mail servers validate that email content was authorized by the sender domain.
+- Route 53 hosted zone must exist as a public hosted zone in the same AWS account for fully automated verification.
+- In SES sandbox mode, sending is restricted to verified recipients/identities; production workloads require an SES production access request.
+
 ## 10 API Gateway Security
 
 ### 10.1 Purpose
