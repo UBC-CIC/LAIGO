@@ -12,11 +12,12 @@
     - [Step 1: Fork \& Clone The Repository](#step-1-fork--clone-the-repository)
     - [Step 2: Upload Secrets](#step-2-upload-secrets)
     - [Step 3: CDK Deployment](#step-3-cdk-deployment)
-      - [3.4 (Optional) Deploy with a custom domain](#34-optional-deploy-with-a-custom-domain)
+      - [3.4 If you deploy with a custom domain](#34-if-you-deploy-with-a-custom-domain)
   - [Post-Deployment](#post-deployment)
     - [Step 1: Verify Bedrock Model Access](#step-1-verify-bedrock-model-access)
-    - [Step 2: Build AWS Amplify App](#step-2-build-aws-amplify-app)
-    - [Step 3: Visit Web App](#step-3-visit-web-app)
+    - [Step 2: Request SES Production Access (if deployed with `DomainName`)](#step-2-request-ses-production-access-if-deployed-with-domainname)
+    - [Step 3: Build AWS Amplify App](#step-3-build-aws-amplify-app)
+    - [Step 4: Visit Web App](#step-4-visit-web-app)
   - [Cleanup](#cleanup)
     - [Taking down the deployed stack](#taking-down-the-deployed-stack)
   - [Troubleshooting](#troubleshooting)
@@ -339,15 +340,19 @@ Bootstrap `us-east-1`:
 npx cdk bootstrap aws://<YOUR_AWS_ACCOUNT_ID>/us-east-1 --context StackPrefix="<YOUR-STACK-PREFIX>" --context GithubRepo="LAIGO" --profile <YOUR-PROFILE-NAME>
 ```
 
-#### 3.3 Deploy CDK stacks
+#### 3.3 Deploy CDK stacks (choose one command)
 
-Deploy all stacks at once. Replace:
+Deploy all stacks once, using the command that matches your setup. Do **not** run both commands.
+
+Replace:
 
 - `<YOUR-PROFILE-NAME>` with the AWS CLI profile used earlier.
 - `<YOUR-STACK-PREFIX>` with your stack prefix.
 
 The stack prefix is added to physical resource names. `Environment` specifies the deployment environment (`dev`, `test`, `prod`), and `Version` specifies the application version.
 
+**Option A: No custom domain**
+
 ```bash
 npx cdk deploy --all \
     --context StackPrefix=<YOUR-STACK-PREFIX> \
@@ -357,35 +362,37 @@ npx cdk deploy --all \
     --profile <YOUR-PROFILE-NAME>
 ```
 
-If you have trouble running the command with `\`, remove the line breaks and run it as one line.
+**Option B: Custom domain**
+
+Use this if you already have a domain and want domain-based CORS, Amplify domain mapping, and Cognito email via SES.
+
+```bash
+npx cdk deploy --all \
+    --context StackPrefix=<YOUR-STACK-PREFIX> \
+    --context Environment=dev \
+    --context Version=1.2.0 \
+    --context GithubRepo="LAIGO" \
+    --context DomainName="app.example.com" \
+    --profile <YOUR-PROFILE-NAME>
+```
+
+If you have trouble running the commands with `\`, remove the line breaks and run it as one line.
 
 Example:
 
 ```bash
-npx cdk deploy --all --context StackPrefix=LegalAidTool --context Environment=dev --context Version=1.2.0 --context GithubRepo=Legal-Aid-Tool --profile <YOUR-PROFILE-NAME>
+npx cdk deploy --all --context StackPrefix="LAIGO" --context Environment=dev --context Version=1.2.0 --context GithubRepo="LAIGO" --profile <YOUR-PROFILE-NAME>
 ```
 
-#### 3.4 (Optional) Deploy with a custom domain
+#### 3.4 If you deploy with a custom domain
 
-You can optionally pass a `DomainName` context parameter to lock down CORS origins to your custom domain, configure Amplify to serve the app on that domain, and configure Cognito to send verification emails through SES.
+If you used Option B above (`--context DomainName=...`), the following prerequisites and behavior apply.
 
 **Prerequisites:**
 
 - Your domain must be registered and you must have DNS access.
 - Either a Route53 hosted zone for the domain, or the ability to add CNAME records via your DNS provider (for Amplify domain verification).
 - For SES email automation, a **public Route 53 hosted zone must exist in the same AWS account** as this deployment.
-
-Add `--context DomainName=<YOUR-DOMAIN>` to the deploy command:
-
-```bash
-npx cdk deploy --all \
-    --context StackPrefix=<YOUR-STACK-PREFIX> \
-    --context Environment=dev \
-    --context Version=1.2.0 \
-    --context GithubRepo="LAIGO" \
-    --context DomainName=app.example.com \
-    --profile <YOUR-PROFILE-NAME>
-```
 
 When `DomainName` is provided:
 
@@ -397,14 +404,7 @@ When `DomainName` is provided:
 
 Omitting `DomainName` preserves the default wildcard (`*`) CORS behavior and is fully backward compatible.
 
-#### 3.5 SES sending limits (sandbox vs production)
-
-New AWS accounts usually start in the SES sandbox. In sandbox mode, SES can only send emails to verified recipients/domains.
-
-- For production sign-up email delivery, request SES production access in the AWS Support Center.
-- This is a one-time, account-level step and is not managed by CDK.
-
-To revert back to Cognito-managed email sending, remove `--context DomainName=...` and redeploy. Cognito will switch back to the built-in sender (`no-reply@verificationemail.com`) without replacing the user pool.
+To revert to Cognito-managed email sending, remove `--context DomainName=...` and redeploy. Cognito switches back to the built-in sender (`no-reply@verificationemail.com`) without replacing the user pool.
 
 ## Post-Deployment
 
@@ -417,7 +417,15 @@ Anthropic models on Bedrock may require a use-case request before access is gran
 3. If a use-case form appears, fill it out and submit. Wait approximately 15 minutes for approval before using the application.
 4. If you can chat with the model without any prompts, you may continue.
 
-### Step 2: Build AWS Amplify App
+### Step 2: Request SES Production Access (if deployed with `DomainName`)
+
+If you deployed with `--context DomainName=...`, Cognito email verification is sent through SES. New AWS accounts are often in SES sandbox mode, which only allows sending to verified recipients.
+
+1. In the AWS Console, open **Support Center** and create a case to request SES production access for your deployment region. For detailed steps, see [Request production access (Moving out of the Amazon SES sandbox)](https://docs.aws.amazon.com/ses/latest/dg/request-production-access.html).
+2. Wait for AWS approval before expecting sign-up verification emails to be delivered to unverified recipients.
+3. If you did not set `DomainName` during deployment, skip this step.
+
+### Step 3: Build AWS Amplify App
 
 1. Log in to AWS console, and navigate to AWS Amplify. You can do so by typing Amplify in the search bar at the top.
 2. From All apps, click `<stack-prefix>-Amplify-admin`.
@@ -425,7 +433,7 @@ Anthropic models on Bedrock may require a use-case request before access is gran
 4. Click **Run job** and wait for the build to complete.
 5. You now have access to the Amplify App ID and the public domain name to use the web app.
 
-### Step 3: Visit Web App
+### Step 4: Visit Web App
 
 You can now navigate to the web app URL to see your application in action.
 
