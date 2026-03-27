@@ -324,7 +324,7 @@ const Login = () => {
                 ? "Reset Password"
                 : isSignUp
                   ? "Create Account"
-                  : "Legal Aid Tool"}
+                  : "LAIGO"}
             </div>
           </Typography>
 

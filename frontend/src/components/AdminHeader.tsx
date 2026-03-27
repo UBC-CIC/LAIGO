@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Box, Typography, Stack, Menu, MenuItem } from "@mui/material";
+import GavelOutlinedIcon from "@mui/icons-material/GavelOutlined";
 import PeopleAltOutlinedIcon from "@mui/icons-material/PeopleAltOutlined";
 import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
 import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
@@ -76,14 +77,34 @@ const AdminHeader: React.FC = () => {
     <Box
       sx={{
         display: "flex",
-        justifyContent: "flex-end", // Aligns items to the right as per StudentHeader
+        justifyContent: "space-between",
         alignItems: "center",
         padding: "1rem 2rem",
         backgroundColor: "var(--header)",
         height: "80px",
       }}
     >
-      <Box sx={{ display: "flex" }}>
+      <Stack
+        direction="row"
+        alignItems="center"
+        spacing={1}
+        sx={{ cursor: "pointer" }}
+        onClick={() => navigate("/")}
+      >
+        <GavelOutlinedIcon sx={{ color: "var(--primary)", fontSize: 20 }} />
+        <Typography
+          variant="h6"
+          sx={{
+            color: "var(--text)",
+            fontWeight: 700,
+            fontFamily: "var(--font-family)",
+          }}
+        >
+          LAIGO
+        </Typography>
+      </Stack>
+
+      <Box sx={{ display: "flex", alignItems: "center" }}>
         <HeaderItem
           icon={<PeopleAltOutlinedIcon sx={iconStyle} />}
           label={"Users"}
