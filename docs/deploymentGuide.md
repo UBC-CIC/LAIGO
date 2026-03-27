@@ -290,7 +290,7 @@ For example:
 ```bash
 aws secretsmanager create-secret \
     --name LAIGOSecrets \
-    --secret-string "{\"DB_Username\":\"<YOUR-DB-USERNAME>\"}" \
+    --secret-string "{\"DB_Username\":\"LAIGODatabaseUser\"}" \
     --profile <YOUR-PROFILE-NAME>
 ```
 
