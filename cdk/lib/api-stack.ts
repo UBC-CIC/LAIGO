@@ -35,7 +35,8 @@ import * as route53 from "aws-cdk-lib/aws-route53";
 // Stack properties for API Gateway configuration
 interface ApiGatewayStackProps extends cdk.StackProps {
   ecrRepositories: { [key: string]: ecr.Repository }; // ECR repositories for Lambda Docker images
-  domainName?: string; // Optional custom domain for CORS origin lockdown
+  domainName?: string; // Optional custom domain for CORS origin lockdown and Amplify
+  sesVerifiedDomain?: string; // Optional SES verified domain for Cognito email (independent of domainName)
 }
 
 /**
@@ -145,12 +146,12 @@ export class ApiGatewayStack extends cdk.Stack {
     this.layerList["powertools"] = powertoolsLayer;
     this.layerList["javascriptPowertools"] = javascriptPowertoolsLayer;
 
-    if (props.domainName) {
+    if (props.sesVerifiedDomain) {
       const hostedZone = route53.HostedZone.fromLookup(
         this,
         `${id}-HostedZone`,
         {
-          domainName: props.domainName,
+          domainName: props.sesVerifiedDomain,
         },
       );
 
@@ -159,11 +160,11 @@ export class ApiGatewayStack extends cdk.Stack {
       });
     }
 
-    const emailConfig = props.domainName
+    const emailConfig = props.sesVerifiedDomain
       ? cognito.UserPoolEmail.withSES({
-          fromEmail: `noreply@${props.domainName}`,
+          fromEmail: `noreply@${props.sesVerifiedDomain}`,
           fromName: "LAIGO AI Assistant",
-          sesVerifiedDomain: props.domainName,
+          sesVerifiedDomain: props.sesVerifiedDomain,
         })
       : cognito.UserPoolEmail.withCognito();
 

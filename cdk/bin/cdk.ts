@@ -16,6 +16,7 @@ const version = app.node.tryGetContext("Version");
 const environment = app.node.tryGetContext("Environment");
 const githubRepo = app.node.tryGetContext("GithubRepo");
 const domainName = app.node.tryGetContext("DomainName") || "";
+const sesVerifiedDomain = app.node.tryGetContext("SesVerifiedDomain") || "";
 
 // grab account and region info
 const env: cdk.Environment = {
@@ -70,6 +71,7 @@ const api = new ApiGatewayStack(app, `${StackPrefix}-ApiStack`, db, vpc, {
   env,
   ecrRepositories: cicd.ecrRepositories,
   domainName: domainName,
+  sesVerifiedDomain: sesVerifiedDomain,
 });
 // Ensure API waits for database and dbFlow (change to CICD stack later)
 api.addDependency(db);
