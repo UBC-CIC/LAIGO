@@ -1865,6 +1865,7 @@ export class ApiGatewayStack extends cdk.Stack {
       this,
       `${id}-audio-prompt-bucket`,
       {
+        bucketName: `${id.toLowerCase()}-audio-prompt-${this.account}`,
         blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
         cors: [
           {
