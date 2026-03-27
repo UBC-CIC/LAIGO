@@ -33,8 +33,9 @@ export class AmplifyStack extends cdk.Stack {
       // Lock down connect-src to specific backends when a custom domain is provided
       const apiEndpoint = apiStack.getEndpointUrl();
       const wsUrl = apiStack.getWebSocketUrl();
-      const cognitoEndpoint = `https://cognito-idp.${this.region}.amazonaws.com`;
-      connectSrc = `'self' ${apiEndpoint} ${wsUrl} ${cognitoEndpoint}`;
+      const cognitoIdpEndpoint = `https://cognito-idp.${this.region}.amazonaws.com`;
+      const cognitoIdentityEndpoint = `https://cognito-identity.${this.region}.amazonaws.com`;
+      connectSrc = `'self' ${apiEndpoint} ${wsUrl} ${cognitoIdpEndpoint} ${cognitoIdentityEndpoint}`;
     } else {
       // Permissive connect-src when no custom domain is configured
       connectSrc = "'self' wss: https:";
