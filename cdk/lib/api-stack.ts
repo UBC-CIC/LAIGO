@@ -1040,7 +1040,7 @@ export class ApiGatewayStack extends cdk.Stack {
       this,
       `${id}-CaseGenGuardrail`,
       {
-        name: "comprehensive-guardrails",
+        name: `${id}-comprehensive-guardrails`,
         description: "Block financial advice",
         blockedInputMessaging:
           "Sorry, I cannot process inputs that appear to contain financial advice requests.",
