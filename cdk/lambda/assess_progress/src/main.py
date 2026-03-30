@@ -4,6 +4,7 @@ import boto3
 import logging
 import psycopg
 import time
+import re
 from botocore.exceptions import ClientError
 from aws_lambda_powertools import Logger, Metrics
 from aws_lambda_powertools.metrics import MetricUnit
@@ -95,6 +96,100 @@ def invoke_model_text(system_instructions, human_context):
         accept="application/json",
     )
     return _extract_text_from_invoke_response(BEDROCK_LLM_ID, response)
+
+
+def _normalize_assessment_result(result):
+    """Normalize parsed result into a safe {progress, reasoning} shape."""
+    if not isinstance(result, dict):
+        return None
+
+    try:
+        progress = int(result.get("progress", 0))
+    except Exception:
+        progress = 0
+
+    progress = max(0, min(5, progress))
+    reasoning = str(result.get("reasoning", "") or "").strip()
+    if not reasoning:
+        reasoning = "No reasoning provided."
+
+    return {"progress": progress, "reasoning": reasoning}
+
+
+def _try_parse_assessment_json(response_text):
+    """
+    Parse model output into assessment JSON with tolerant fallbacks.
+    Returns normalized dict or None if parsing fails.
+    """
+    if not response_text:
+        return None
+
+    text = response_text.strip()
+
+    # 1) Direct JSON parse.
+    try:
+        parsed = json.loads(text)
+        return _normalize_assessment_result(parsed)
+    except Exception:
+        pass
+
+    # 2) Strip markdown code fences and retry.
+    fenced = re.sub(r"^```(?:json)?\\s*", "", text, flags=re.IGNORECASE)
+    fenced = re.sub(r"\\s*```$", "", fenced)
+    if fenced != text:
+        try:
+            parsed = json.loads(fenced.strip())
+            return _normalize_assessment_result(parsed)
+        except Exception:
+            pass
+
+    # 3) Extract first JSON object span and parse.
+    start = text.find("{")
+    end = text.rfind("}")
+    if start != -1 and end != -1 and end > start:
+        candidate = text[start : end + 1]
+        try:
+            parsed = json.loads(candidate)
+            return _normalize_assessment_result(parsed)
+        except Exception:
+            pass
+
+    # 4) Last resort: regex extraction for near-JSON outputs.
+    progress_match = re.search(r'"?progress"?\\s*[:=]\\s*([0-9]+)', text, flags=re.IGNORECASE)
+    reasoning_match = re.search(r'"?reasoning"?\\s*[:=]\\s*"([\\s\\S]*?)"', text, flags=re.IGNORECASE)
+    if progress_match and reasoning_match:
+        try:
+            parsed = {
+                "progress": int(progress_match.group(1)),
+                "reasoning": reasoning_match.group(1).strip(),
+            }
+            return _normalize_assessment_result(parsed)
+        except Exception:
+            return None
+
+    return None
+
+
+def _invoke_assessment_with_retry(system_instructions, human_context, max_attempts=2):
+    """
+    Invoke model and parse assessment with bounded retries.
+    Returns tuple: (normalized_result_or_none, final_response_text)
+    """
+    last_response_text = ""
+    strict_suffix = "\n\nReturn ONLY strict JSON with exactly these keys: progress (integer 0-5) and reasoning (string)."
+
+    for attempt in range(1, max_attempts + 1):
+        prompt_context = human_context if attempt == 1 else f"{human_context}{strict_suffix}"
+        response_text = invoke_model_text(system_instructions, prompt_context)
+        last_response_text = response_text
+        parsed = _try_parse_assessment_json(response_text)
+        if parsed is not None:
+            if attempt > 1:
+                logger.info(f"Assessment parse succeeded on retry attempt {attempt}")
+            return parsed, response_text
+        logger.warning(f"Assessment parse failed on attempt {attempt}/{max_attempts}")
+
+    return None, last_response_text
 
 def get_secret(secret_name, expect_json=True):
     global db_secret
@@ -507,20 +602,13 @@ def handler(event, context):
         
         try:
             start_time = time.time()
-            response_text = invoke_model_text(system_instructions, human_context)
+            result, response_text = _invoke_assessment_with_retry(system_instructions, human_context, max_attempts=2)
             duration = time.time() - start_time
             logger.info(f"Playground assessment took {duration:.2f}s")
             logger.info(f"Playground LLM Response: {response_text}")
             
-            # Parse JSON from response
-            try:
-                start = response_text.find('{')
-                end = response_text.rfind('}') + 1
-                if start == -1 or end == 0:
-                    raise ValueError("No JSON found in response")
-                result = json.loads(response_text[start:end])
-            except Exception as e:
-                logger.error(f"Failed to parse playground LLM response: {e}")
+            if result is None:
+                logger.error(f"Failed to parse playground LLM response after retries: {response_text}")
                 error_data = {'unlocked': False, 'progress': 0, 'reasoning': 'Error parsing assessment result.'}
                 if is_websocket and connection_id:
                     send_to_websocket(connection_id, ws_endpoint, request_id, "complete", data=error_data)
@@ -619,22 +707,13 @@ def handler(event, context):
         start_time = time.time()
         
         # Invoke Bedrock
-        response_text = invoke_model_text(system_instructions, human_context)
+        result, response_text = _invoke_assessment_with_retry(system_instructions, human_context, max_attempts=2)
         duration = time.time() - start_time
         logger.info(f"Bedrock invocation took {duration:.2f}s")
         logger.info(f"LLM Assessment Response: {response_text}")
         
-        # Parse response 
-        # Find start and end of JSON
-        try:
-            start = response_text.find('{')
-            end = response_text.rfind('}') + 1
-            if start == -1 or end == 0:
-                 raise ValueError("No JSON found in response")
-            json_str = response_text[start:end]
-            result = json.loads(json_str)
-        except Exception as e:
-            logger.error(f"Failed to parse LLM response as JSON: {response_text}. Error: {e}")
+        if result is None:
+            logger.error(f"Failed to parse LLM response as JSON after retries: {response_text}")
             error_data = {'unlocked': False, 'progress': 0, 'reasoning': 'Error parsing assessment result.'}
             if is_websocket and connection_id:
                 send_to_websocket(connection_id, ws_endpoint, request_id, "complete", data=error_data)
