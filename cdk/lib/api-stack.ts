@@ -99,7 +99,7 @@ export class ApiGatewayStack extends cdk.Stack {
     const localDevOrigin = "http://localhost:5173";
     const s3CorsAllowedOrigins = allowedOrigin
       ? [allowedOrigin, localDevOrigin]
-      : [localDevOrigin];
+      : ["*"];
     // Spread into each Lambda's environment when allowedOrigin is set
     const corsEnv: { [key: string]: string } = allowedOrigin
       ? { ALLOWED_ORIGIN: allowedOrigin }
