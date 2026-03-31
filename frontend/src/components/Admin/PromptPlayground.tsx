@@ -1311,26 +1311,30 @@ const PromptPlayground: React.FC = () => {
         if (!response.ok) return;
         const data = await response.json();
 
-        const parsedModels = Array.isArray(data.model_options)
-          ? data.model_options
-              .filter(
-                (option: unknown): option is {
-                  label: string;
-                  value: string;
-                  constraints?: ModelOption["constraints"];
-                } =>
-                  typeof option === "object" &&
-                  option !== null &&
-                  typeof (option as { label?: unknown }).label === "string" &&
-                  typeof (option as { value?: unknown }).value === "string",
-              )
-              .map((option) => ({
-                id: option.value,
-                name: option.label,
-                constraints: option.constraints,
-              }))
-              .filter((option) => option.id.length > 0)
+        const rawModelOptions: unknown[] = Array.isArray(data.model_options)
+          ? (data.model_options as unknown[])
           : [];
+
+        const parsedModels: ModelOption[] = rawModelOptions
+          .filter(
+            (
+              option: unknown,
+            ): option is {
+              label: string;
+              value: string;
+              constraints?: ModelOption["constraints"];
+            } =>
+              typeof option === "object" &&
+              option !== null &&
+              typeof (option as { label?: unknown }).label === "string" &&
+              typeof (option as { value?: unknown }).value === "string",
+          )
+          .map((option: { label: string; value: string; constraints?: ModelOption["constraints"] }) => ({
+            id: option.value,
+            name: option.label,
+            constraints: option.constraints,
+          }))
+          .filter((option: ModelOption) => option.id.length > 0);
 
         const nextModels =
           parsedModels.length > 0 ? parsedModels : FALLBACK_AVAILABLE_MODELS;
@@ -1338,11 +1342,13 @@ const PromptPlayground: React.FC = () => {
 
         const selectedModelId =
           typeof data.bedrock_llm_id === "string" &&
-          nextModels.some((model) => model.id === data.bedrock_llm_id)
+          nextModels.some((model: ModelOption) => model.id === data.bedrock_llm_id)
             ? data.bedrock_llm_id
             : nextModels[0].id;
 
-        const selectedModel = nextModels.find((model) => model.id === selectedModelId);
+        const selectedModel = nextModels.find(
+          (model: ModelOption) => model.id === selectedModelId,
+        );
         const defaultMaxTokens = selectedModel?.constraints?.defaultMaxOutputTokens;
 
         setConfigA((prev) => ({
