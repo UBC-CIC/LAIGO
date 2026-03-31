@@ -78,13 +78,38 @@ interface PromptVersion {
   is_active: boolean;
 }
 
-// Available models (same as ModelConfig)
-const AVAILABLE_MODELS = [
+interface ModelOption {
+  id: string;
+  name: string;
+  constraints?: {
+    maxOutputTokens: number;
+    defaultMaxOutputTokens: number;
+    temperatureRange: [number, number];
+    topPRange: [number, number];
+  };
+}
+
+const FALLBACK_AVAILABLE_MODELS: ModelOption[] = [
   {
     id: "anthropic.claude-3-sonnet-20240229-v1:0",
     name: "Claude 3 Sonnet",
+    constraints: {
+      maxOutputTokens: 2048,
+      defaultMaxOutputTokens: 1500,
+      temperatureRange: [0, 1.0],
+      topPRange: [0, 1.0],
+    },
   },
-  { id: "meta.llama3-70b-instruct-v1:0", name: "Llama 3 70b Instruct" },
+  {
+    id: "meta.llama3-70b-instruct-v1:0",
+    name: "Llama 3 70b Instruct",
+    constraints: {
+      maxOutputTokens: 8192,
+      defaultMaxOutputTokens: 2000,
+      temperatureRange: [0, 1.0],
+      topPRange: [0, 1.0],
+    },
+  },
 ];
 
 // Block types for prompt selection
@@ -120,9 +145,10 @@ const generateTestId = () => Math.random().toString(36).slice(2, 10);
 
 const createDefaultConfig = (
   blockType: string = "intake",
+  defaultModelId: string = FALLBACK_AVAILABLE_MODELS[0].id,
 ): ConfigurationState => ({
   blockType,
-  modelId: "anthropic.claude-3-sonnet-20240229-v1:0",
+  modelId: defaultModelId,
   temperature: 0.5,
   topP: 0.9,
   maxTokens: 2048,
@@ -142,9 +168,16 @@ const createDefaultConfig = (
 const ModelConfigSection: React.FC<{
   config: ConfigurationState;
   onConfigChange: (updates: Partial<ConfigurationState>) => void;
+  availableModels: ModelOption[];
   label?: string;
-}> = React.memo(({ config, onConfigChange, label }) => {
+}> = React.memo(({ config, onConfigChange, availableModels, label }) => {
   const [isExpanded, setIsExpanded] = useState(false);
+  const selectedModel = availableModels.find((m) => m.id === config.modelId);
+  const temperatureMin = selectedModel?.constraints?.temperatureRange[0] ?? 0;
+  const temperatureMax = selectedModel?.constraints?.temperatureRange[1] ?? 1;
+  const topPMin = selectedModel?.constraints?.topPRange[0] ?? 0;
+  const topPMax = selectedModel?.constraints?.topPRange[1] ?? 1;
+  const maxTokensLimit = selectedModel?.constraints?.maxOutputTokens ?? 8192;
 
   return (
     <Box
@@ -201,7 +234,17 @@ const ModelConfigSection: React.FC<{
             <Select
               value={config.modelId}
               label="Model"
-              onChange={(e) => onConfigChange({ modelId: e.target.value })}
+              onChange={(e) => {
+                const newModelId = e.target.value;
+                const selectedModel = availableModels.find(
+                  (m) => m.id === newModelId,
+                );
+                const updates: Partial<ConfigurationState> = { modelId: newModelId };
+                if (selectedModel?.constraints) {
+                  updates.maxTokens = selectedModel.constraints.defaultMaxOutputTokens;
+                }
+                onConfigChange(updates);
+              }}
               sx={{
                 color: "var(--text)",
                 backgroundColor: "var(--background)",
@@ -213,7 +256,7 @@ const ModelConfigSection: React.FC<{
                 },
               }}
             >
-              {AVAILABLE_MODELS.map((model) => (
+              {availableModels.map((model) => (
                 <MenuItem key={model.id} value={model.id}>
                   {model.name}
                 </MenuItem>
@@ -232,8 +275,8 @@ const ModelConfigSection: React.FC<{
             <Slider
               value={config.temperature}
               onChange={(_, v) => onConfigChange({ temperature: v as number })}
-              min={0}
-              max={1}
+              min={temperatureMin}
+              max={temperatureMax}
               step={0.01}
               size="small"
               sx={{ color: "var(--primary)", py: 1 }}
@@ -251,8 +294,8 @@ const ModelConfigSection: React.FC<{
             <Slider
               value={config.topP}
               onChange={(_, v) => onConfigChange({ topP: v as number })}
-              min={0}
-              max={1}
+              min={topPMin}
+              max={topPMax}
               step={0.01}
               size="small"
               sx={{ color: "var(--primary)", py: 1 }}
@@ -261,13 +304,18 @@ const ModelConfigSection: React.FC<{
 
           {/* Max Tokens */}
           <TextField
-            label="Max Tokens"
+            label={`Max Tokens (Max: ${maxTokensLimit})`}
             type="number"
             size="small"
+            inputProps={{
+              min: 1,
+              max: maxTokensLimit,
+            }}
             value={config.maxTokens}
-            onChange={(e) =>
-              onConfigChange({ maxTokens: parseInt(e.target.value) || 2048 })
-            }
+            onChange={(e) => {
+              const value = parseInt(e.target.value) || 2048;
+              onConfigChange({ maxTokens: Math.min(value, maxTokensLimit) });
+            }}
             sx={{
               width: 100,
               "& .MuiInputLabel-root": { color: "var(--text-secondary)" },
@@ -1199,11 +1247,14 @@ const PromptPlayground: React.FC = () => {
   const [playgroundMode, setPlaygroundMode] =
     useState<PlaygroundMode>("reasoning");
   const [compareMode, setCompareMode] = useState(false);
+  const [availableModels, setAvailableModels] = useState<ModelOption[]>(
+    FALLBACK_AVAILABLE_MODELS,
+  );
   const [configA, setConfigA] = useState<ConfigurationState>(
-    createDefaultConfig("intake"),
+    createDefaultConfig("intake", FALLBACK_AVAILABLE_MODELS[0].id),
   );
   const [configB, setConfigB] = useState<ConfigurationState>(
-    createDefaultConfig("intake"),
+    createDefaultConfig("intake", FALLBACK_AVAILABLE_MODELS[0].id),
   );
   const [inputMessage, setInputMessage] = useState("");
   const [promptVersions, setPromptVersions] = useState<PromptVersion[]>([]);
@@ -1241,6 +1292,75 @@ const PromptPlayground: React.FC = () => {
       }
     };
     setupWebSocket();
+  }, []);
+
+  useEffect(() => {
+    const fetchAiConfig = async () => {
+      try {
+        const session = await fetchAuthSession();
+        const token = session.tokens?.idToken?.toString();
+        if (!token) return;
+
+        const response = await fetch(
+          `${import.meta.env.VITE_API_ENDPOINT}/admin/ai_config`,
+          {
+            headers: { Authorization: token },
+          },
+        );
+
+        if (!response.ok) return;
+        const data = await response.json();
+
+        const parsedModels = Array.isArray(data.model_options)
+          ? data.model_options
+              .filter(
+                (option: unknown): option is {
+                  label: string;
+                  value: string;
+                  constraints?: ModelOption["constraints"];
+                } =>
+                  typeof option === "object" &&
+                  option !== null &&
+                  typeof (option as { label?: unknown }).label === "string" &&
+                  typeof (option as { value?: unknown }).value === "string",
+              )
+              .map((option) => ({
+                id: option.value,
+                name: option.label,
+                constraints: option.constraints,
+              }))
+              .filter((option) => option.id.length > 0)
+          : [];
+
+        const nextModels =
+          parsedModels.length > 0 ? parsedModels : FALLBACK_AVAILABLE_MODELS;
+        setAvailableModels(nextModels);
+
+        const selectedModelId =
+          typeof data.bedrock_llm_id === "string" &&
+          nextModels.some((model) => model.id === data.bedrock_llm_id)
+            ? data.bedrock_llm_id
+            : nextModels[0].id;
+
+        const selectedModel = nextModels.find((model) => model.id === selectedModelId);
+        const defaultMaxTokens = selectedModel?.constraints?.defaultMaxOutputTokens;
+
+        setConfigA((prev) => ({
+          ...prev,
+          modelId: selectedModelId,
+          ...(defaultMaxTokens ? { maxTokens: defaultMaxTokens } : {}),
+        }));
+        setConfigB((prev) => ({
+          ...prev,
+          modelId: selectedModelId,
+          ...(defaultMaxTokens ? { maxTokens: defaultMaxTokens } : {}),
+        }));
+      } catch (error) {
+        console.error("Failed to fetch AI model options:", error);
+      }
+    };
+
+    fetchAiConfig();
   }, []);
 
   const { sendStreamingRequest, isConnected } = useWebSocket(wsUrl, {
@@ -1957,6 +2077,7 @@ const PromptPlayground: React.FC = () => {
           <ModelConfigSection
             config={configA}
             onConfigChange={handleConfigAChange}
+            availableModels={availableModels}
             label={compareMode ? "Config A" : undefined}
           />
           {playgroundMode === "reasoning" ? (
@@ -2016,6 +2137,7 @@ const PromptPlayground: React.FC = () => {
             <ModelConfigSection
               config={configB}
               onConfigChange={handleConfigBChange}
+              availableModels={availableModels}
               label="Config B"
             />
             {playgroundMode === "reasoning" ? (

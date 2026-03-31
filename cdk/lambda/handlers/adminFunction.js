@@ -18,10 +18,130 @@ let {
   MESSAGE_LIMIT,
   FILE_SIZE_LIMIT,
   BEDROCK_LLM_PARAM,
+  BEDROCK_MODEL_OPTIONS_PARAM,
   BEDROCK_TEMP_PARAM,
   BEDROCK_TOP_P_PARAM,
   BEDROCK_MAX_TOKENS_PARAM,
 } = process.env;
+
+const FALLBACK_MODEL_OPTIONS = [
+  {
+    label: "Claude 3 Sonnet",
+    value: "anthropic.claude-3-sonnet-20240229-v1:0",
+    constraints: {
+      maxOutputTokens: 2048,
+      defaultMaxOutputTokens: 1500,
+      temperatureRange: [0, 1.0],
+      topPRange: [0, 1.0],
+    },
+  },
+  {
+    label: "Llama 3 70b Instruct",
+    value: "meta.llama3-70b-instruct-v1:0",
+    constraints: {
+      maxOutputTokens: 8192,
+      defaultMaxOutputTokens: 2000,
+      temperatureRange: [0, 1.0],
+      topPRange: [0, 1.0],
+    },
+  },
+];
+
+const parseModelOptions = (rawValue) => {
+  if (!rawValue) {
+    return FALLBACK_MODEL_OPTIONS;
+  }
+
+  try {
+    const parsed = JSON.parse(rawValue);
+    if (!Array.isArray(parsed)) {
+      return FALLBACK_MODEL_OPTIONS;
+    }
+
+    const cleaned = parsed
+      .filter((item) => item && typeof item === "object")
+      .map((item) => ({
+        label: typeof item.label === "string" ? item.label : String(item.value || "Model"),
+        value: typeof item.value === "string" ? item.value : "",
+        ...(item.constraints && typeof item.constraints === "object" && {
+          constraints: item.constraints,
+        }),
+      }))
+      .filter((item) => item.value.length > 0);
+
+    return cleaned.length > 0 ? cleaned : FALLBACK_MODEL_OPTIONS;
+  } catch (error) {
+    logger.warn("Failed to parse Bedrock model options parameter", {
+      error: error.message,
+    });
+    return FALLBACK_MODEL_OPTIONS;
+  }
+};
+
+const isValidModelOptionsPayload = (modelOptions) => {
+  if (!Array.isArray(modelOptions) || modelOptions.length === 0) {
+    return false;
+  }
+  const seen = new Set();
+  for (const option of modelOptions) {
+    if (!option || typeof option !== "object") return false;
+    if (typeof option.label !== "string" || typeof option.value !== "string") {
+      return false;
+    }
+    const label = option.label.trim();
+    const value = option.value.trim();
+    if (!label || !value || seen.has(value)) return false;
+    seen.add(value);
+  }
+  return true;
+};
+
+const validateConfigAgainstModelConstraints = (modelId, config, modelOptions) => {
+  const model = modelOptions.find((m) => m.value === modelId);
+  if (!model || !model.constraints) {
+    return { valid: true };
+  }
+
+  const constraints = model.constraints;
+  const errors = [];
+
+  if (
+    config.max_tokens !== undefined &&
+    (!Number.isFinite(config.max_tokens) ||
+      config.max_tokens < 1 ||
+      config.max_tokens > constraints.maxOutputTokens)
+  ) {
+    errors.push(
+      `max_tokens must be between 1 and ${constraints.maxOutputTokens} for ${model.label}`,
+    );
+  }
+
+  if (
+    config.temperature !== undefined &&
+    (config.temperature < constraints.temperatureRange[0] ||
+      config.temperature > constraints.temperatureRange[1])
+  ) {
+    errors.push(
+      `temperature must be between ${constraints.temperatureRange[0]} and ${constraints.temperatureRange[1]} for ${model.label}`,
+    );
+  }
+
+  if (
+    config.top_p !== undefined &&
+    (config.top_p < constraints.topPRange[0] ||
+      config.top_p > constraints.topPRange[1])
+  ) {
+    errors.push(
+      `top_p must be between ${constraints.topPRange[0]} and ${constraints.topPRange[1]} for ${model.label}`,
+    );
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors: errors,
+    constraints: constraints,
+  };
+};
 
 const routes = {
   "GET /admin/instructors": async (event, env) => {
@@ -637,9 +757,22 @@ const routes = {
         await import("@aws-sdk/client-ssm");
       const ssm = new SSMClient();
 
-      const [llmRes, tempRes, topPRes, maxTokensRes, msgLimitRes, fileSizeRes] =
+      const [
+        llmRes,
+        modelOptionsRes,
+        tempRes,
+        topPRes,
+        maxTokensRes,
+        msgLimitRes,
+        fileSizeRes,
+      ] =
         await Promise.all([
           ssm.send(new GetParameterCommand({ Name: BEDROCK_LLM_PARAM })),
+          BEDROCK_MODEL_OPTIONS_PARAM
+            ? ssm
+                .send(new GetParameterCommand({ Name: BEDROCK_MODEL_OPTIONS_PARAM }))
+                .catch(() => null)
+            : Promise.resolve(null),
           ssm.send(new GetParameterCommand({ Name: BEDROCK_TEMP_PARAM })),
           ssm.send(new GetParameterCommand({ Name: BEDROCK_TOP_P_PARAM })),
           ssm.send(new GetParameterCommand({ Name: BEDROCK_MAX_TOKENS_PARAM })),
@@ -647,9 +780,14 @@ const routes = {
           ssm.send(new GetParameterCommand({ Name: FILE_SIZE_LIMIT })),
         ]);
 
+      const modelOptions = parseModelOptions(
+        modelOptionsRes?.Parameter?.Value,
+      );
+
       response.statusCode = 200;
       response.body = JSON.stringify({
         bedrock_llm_id: llmRes.Parameter.Value,
+        model_options: modelOptions,
         temperature: tempRes.Parameter.Value,
         top_p: topPRes.Parameter.Value,
         max_tokens: maxTokensRes.Parameter.Value,
@@ -664,10 +802,81 @@ const routes = {
   "POST /admin/ai_config": async (event, env) => {
     const { response, user, user_id, sqlConnection } = env;
     try {
-      const { SSMClient, PutParameterCommand } =
+      const { SSMClient, PutParameterCommand, GetParameterCommand } =
         await import("@aws-sdk/client-ssm");
       const ssm = new SSMClient();
       const body = parseBody(event.body);
+
+      const modelOptionsRes = BEDROCK_MODEL_OPTIONS_PARAM
+        ? await ssm
+            .send(
+              new GetParameterCommand({
+                Name: BEDROCK_MODEL_OPTIONS_PARAM,
+              }),
+            )
+            .catch(() => null)
+        : null;
+
+      const modelOptions = parseModelOptions(modelOptionsRes?.Parameter?.Value);
+      const allowedModelIds = new Set(modelOptions.map((option) => option.value));
+
+      const llmRes = await ssm.send(
+        new GetParameterCommand({ Name: BEDROCK_LLM_PARAM }),
+      );
+      const tempRes = await ssm.send(
+        new GetParameterCommand({ Name: BEDROCK_TEMP_PARAM }),
+      );
+      const topPRes = await ssm.send(
+        new GetParameterCommand({ Name: BEDROCK_TOP_P_PARAM }),
+      );
+      const maxTokensRes = await ssm.send(
+        new GetParameterCommand({ Name: BEDROCK_MAX_TOKENS_PARAM }),
+      );
+
+      const selectedModelId = body.bedrock_llm_id
+        ? String(body.bedrock_llm_id)
+        : llmRes.Parameter.Value;
+
+      if (!allowedModelIds.has(selectedModelId)) {
+        response.statusCode = 400;
+        response.body = JSON.stringify({
+          error:
+            "Invalid bedrock_llm_id. Value must match one of the configured model options.",
+          allowed_model_ids: [...allowedModelIds],
+        });
+        return;
+      }
+
+      const effectiveConfig = {
+        temperature:
+          body.temperature !== undefined
+            ? Number(body.temperature)
+            : Number(tempRes.Parameter.Value),
+        top_p:
+          body.top_p !== undefined
+            ? Number(body.top_p)
+            : Number(topPRes.Parameter.Value),
+        max_tokens:
+          body.max_tokens !== undefined
+            ? Number(body.max_tokens)
+            : Number(maxTokensRes.Parameter.Value),
+      };
+
+      const constraintCheck = validateConfigAgainstModelConstraints(
+        selectedModelId,
+        effectiveConfig,
+        modelOptions,
+      );
+
+      if (!constraintCheck.valid) {
+        response.statusCode = 400;
+        response.body = JSON.stringify({
+          error: "Configuration values exceed model limits for selected model",
+          validation_errors: constraintCheck.errors,
+          model_constraints: constraintCheck.constraints,
+        });
+        return;
+      }
 
       const promises = [];
       if (body.bedrock_llm_id) {
@@ -682,7 +891,7 @@ const routes = {
           ),
         );
       }
-      if (body.temperature) {
+      if (body.temperature !== undefined) {
         promises.push(
           ssm.send(
             new PutParameterCommand({
@@ -694,7 +903,7 @@ const routes = {
           ),
         );
       }
-      if (body.top_p) {
+      if (body.top_p !== undefined) {
         promises.push(
           ssm.send(
             new PutParameterCommand({
@@ -706,7 +915,7 @@ const routes = {
           ),
         );
       }
-      if (body.max_tokens) {
+      if (body.max_tokens !== undefined) {
         promises.push(
           ssm.send(
             new PutParameterCommand({
@@ -718,7 +927,7 @@ const routes = {
           ),
         );
       }
-      if (body.message_limit) {
+      if (body.message_limit !== undefined) {
         promises.push(
           ssm.send(
             new PutParameterCommand({
@@ -730,7 +939,7 @@ const routes = {
           ),
         );
       }
-      if (body.file_size_limit) {
+      if (body.file_size_limit !== undefined) {
         promises.push(
           ssm.send(
             new PutParameterCommand({
@@ -749,6 +958,28 @@ const routes = {
       response.body = JSON.stringify({ success: true });
     } catch (err) {
       console.error("Failed to update AI config:", err);
+      handleError(err, response);
+    }
+  },
+  "GET /admin/model_options": async (event, env) => {
+    const { response } = env;
+    try {
+      const { SSMClient, GetParameterCommand } =
+        await import("@aws-sdk/client-ssm");
+      const ssm = new SSMClient();
+
+      const modelOptionsRes = BEDROCK_MODEL_OPTIONS_PARAM
+        ? await ssm
+            .send(new GetParameterCommand({ Name: BEDROCK_MODEL_OPTIONS_PARAM }))
+            .catch(() => null)
+        : null;
+
+      response.statusCode = 200;
+      response.body = JSON.stringify({
+        model_options: parseModelOptions(modelOptionsRes?.Parameter?.Value),
+      });
+    } catch (err) {
+      console.error("Failed to fetch model options:", err);
       handleError(err, response);
     }
   },

@@ -17,12 +17,38 @@ import {
 import SaveIcon from "@mui/icons-material/Save";
 import { fetchAuthSession } from "aws-amplify/auth";
 
-const MODEL_OPTIONS = [
+interface ModelOption {
+  label: string;
+  value: string;
+  constraints?: {
+    maxOutputTokens: number;
+    defaultMaxOutputTokens: number;
+    temperatureRange: [number, number];
+    topPRange: [number, number];
+  };
+}
+
+const FALLBACK_MODEL_OPTIONS: ModelOption[] = [
   {
     label: "Claude 3 Sonnet",
     value: "anthropic.claude-3-sonnet-20240229-v1:0",
+    constraints: {
+      maxOutputTokens: 2048,
+      defaultMaxOutputTokens: 1500,
+      temperatureRange: [0, 1.0],
+      topPRange: [0, 1.0],
+    },
   },
-  { label: "Llama 3 70b Instruct", value: "meta.llama3-70b-instruct-v1:0" },
+  {
+    label: "Llama 3 70b Instruct",
+    value: "meta.llama3-70b-instruct-v1:0",
+    constraints: {
+      maxOutputTokens: 8192,
+      defaultMaxOutputTokens: 2000,
+      temperatureRange: [0, 1.0],
+      topPRange: [0, 1.0],
+    },
+  },
 ];
 
 const ModelConfig = () => {
@@ -32,6 +58,10 @@ const ModelConfig = () => {
   const [maxTokens, setMaxTokens] = useState(2048);
   const [messageLimit, setMessageLimit] = useState("Infinity");
   const [fileSizeLimit, setFileSizeLimit] = useState("500");
+  const [modelOptions, setModelOptions] = useState<ModelOption[]>(
+    FALLBACK_MODEL_OPTIONS,
+  );
+  const [maxTokensLimit, setMaxTokensLimit] = useState(2048);
   const [isAiConfigLoading, setIsAiConfigLoading] = useState(false);
   const [isSavingConfig, setIsSavingConfig] = useState(false);
 
@@ -51,6 +81,13 @@ const ModelConfig = () => {
     severity: "success" | "error";
   }>({ open: false, message: "", severity: "success" });
 
+  const selectedModelConstraints =
+    modelOptions.find((option) => option.value === bedrockLlmId)?.constraints;
+  const temperatureMin = selectedModelConstraints?.temperatureRange[0] ?? 0;
+  const temperatureMax = selectedModelConstraints?.temperatureRange[1] ?? 1;
+  const topPMin = selectedModelConstraints?.topPRange[0] ?? 0;
+  const topPMax = selectedModelConstraints?.topPRange[1] ?? 1;
+
   const fetchAiConfig = useCallback(async () => {
     setIsAiConfigLoading(true);
     try {
@@ -64,6 +101,24 @@ const ModelConfig = () => {
       );
       if (!response.ok) throw new Error("Failed to fetch AI config");
       const data = await response.json();
+
+      const parsedModelOptions = Array.isArray(data.model_options)
+        ? data.model_options
+            .filter(
+              (option: unknown): option is ModelOption =>
+                typeof option === "object" &&
+                option !== null &&
+                typeof (option as ModelOption).label === "string" &&
+                typeof (option as ModelOption).value === "string",
+            )
+            .filter((option: ModelOption) => option.value.length > 0)
+        : [];
+
+      setModelOptions(
+        parsedModelOptions.length > 0
+          ? parsedModelOptions
+          : FALLBACK_MODEL_OPTIONS,
+      );
       setBedrockLlmId(data.bedrock_llm_id || "");
       setTemperature(parseFloat(data.temperature) || 0.5);
       setTopP(parseFloat(data.top_p) || 0.9);
@@ -90,20 +145,20 @@ const ModelConfig = () => {
     let hasValidationErrors = false;
 
     // Validate Temperature
-    if (temperature < 0 || temperature > 1) {
-      setTemperatureError("Must be between 0 and 1");
+    if (temperature < temperatureMin || temperature > temperatureMax) {
+      setTemperatureError(`Must be between ${temperatureMin} and ${temperatureMax}`);
       hasValidationErrors = true;
     }
 
     // Validate Top P
-    if (topP < 0 || topP > 1) {
-      setTopPError("Must be between 0 and 1");
+    if (topP < topPMin || topP > topPMax) {
+      setTopPError(`Must be between ${topPMin} and ${topPMax}`);
       hasValidationErrors = true;
     }
 
     // Validate Max Tokens
-    if (maxTokens <= 0) {
-      setMaxTokensError("Must be a positive number");
+    if (maxTokens <= 0 || maxTokens > maxTokensLimit) {
+      setMaxTokensError(`Must be between 1 and ${maxTokensLimit}`);
       hasValidationErrors = true;
     }
 
@@ -166,28 +221,38 @@ const ModelConfig = () => {
 
   // Real-time validation effects
   useEffect(() => {
-    if (isNaN(temperature) || temperature < 0 || temperature > 1) {
-      setTemperatureError("Must be between 0 and 1");
+    if (
+      isNaN(temperature) ||
+      temperature < temperatureMin ||
+      temperature > temperatureMax
+    ) {
+      setTemperatureError(`Must be between ${temperatureMin} and ${temperatureMax}`);
     } else {
       setTemperatureError(null);
     }
-  }, [temperature]);
+  }, [temperature, temperatureMin, temperatureMax]);
 
   useEffect(() => {
-    if (isNaN(topP) || topP < 0 || topP > 1) {
-      setTopPError("Must be between 0 and 1");
+    if (isNaN(topP) || topP < topPMin || topP > topPMax) {
+      setTopPError(`Must be between ${topPMin} and ${topPMax}`);
     } else {
       setTopPError(null);
     }
-  }, [topP]);
+  }, [topP, topPMin, topPMax]);
 
   useEffect(() => {
-    if (isNaN(maxTokens) || maxTokens <= 0) {
-      setMaxTokensError("Must be a positive number");
+    if (isNaN(maxTokens) || maxTokens <= 0 || maxTokens > maxTokensLimit) {
+      setMaxTokensError(`Must be between 1 and ${maxTokensLimit}`);
     } else {
       setMaxTokensError(null);
     }
-  }, [maxTokens]);
+  }, [maxTokens, maxTokensLimit]);
+
+  useEffect(() => {
+    const selectedModel = modelOptions.find((option) => option.value === bedrockLlmId);
+    const limit = selectedModel?.constraints?.maxOutputTokens ?? 2048;
+    setMaxTokensLimit(limit);
+  }, [bedrockLlmId, modelOptions]);
 
   useEffect(() => {
     const isInfinity = messageLimit === "Infinity";
@@ -268,12 +333,24 @@ const ModelConfig = () => {
                 <Select
                   labelId="model-select-label"
                   value={
-                    MODEL_OPTIONS.some((o) => o.value === bedrockLlmId)
+                    modelOptions.some((o) => o.value === bedrockLlmId)
                       ? bedrockLlmId
                       : ""
                   }
                   label="Bedrock Model"
-                  onChange={(e) => setBedrockLlmId(e.target.value)}
+                  onChange={(e) => {
+                                      const newModelId = e.target.value;
+                                      setBedrockLlmId(newModelId);
+                                      const selectedModel = modelOptions.find(
+                                        (m) => m.value === newModelId,
+                                      );
+                                      if (selectedModel?.constraints) {
+                                        setMaxTokensLimit(selectedModel.constraints.maxOutputTokens);
+                                        setMaxTokens(
+                                          selectedModel.constraints.defaultMaxOutputTokens,
+                                        );
+                                      }
+                                    }}
                   sx={{
                     color: "var(--text)",
                     backgroundColor: "var(--background)",
@@ -290,7 +367,7 @@ const ModelConfig = () => {
                     "& .MuiSvgIcon-root": { color: "var(--text)" },
                   }}
                 >
-                  {MODEL_OPTIONS.map((option) => (
+                  {modelOptions.map((option) => (
                     <MenuItem key={option.value} value={option.value}>
                       {option.label}
                     </MenuItem>
@@ -302,7 +379,7 @@ const ModelConfig = () => {
                 <TextField
                   label="Temperature"
                   type="number"
-                  inputProps={{ step: 0.1, min: 0, max: 1 }}
+                  inputProps={{ step: 0.1, min: temperatureMin, max: temperatureMax }}
                   value={temperature}
                   onChange={(e) => setTemperature(parseFloat(e.target.value))}
                   error={!!temperatureError}
@@ -329,7 +406,7 @@ const ModelConfig = () => {
                 <TextField
                   label="Top P"
                   type="number"
-                  inputProps={{ step: 0.1, min: 0, max: 1 }}
+                  inputProps={{ step: 0.1, min: topPMin, max: topPMax }}
                   value={topP}
                   onChange={(e) => setTopP(parseFloat(e.target.value))}
                   error={!!topPError}
@@ -357,6 +434,7 @@ const ModelConfig = () => {
                 <TextField
                   label="Max Tokens"
                   type="number"
+                  inputProps={{ min: 1, max: maxTokensLimit }}
                   value={maxTokens}
                   onChange={(e) => setMaxTokens(parseInt(e.target.value))}
                   error={!!maxTokensError}

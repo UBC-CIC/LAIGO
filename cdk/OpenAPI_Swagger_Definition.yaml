@@ -1071,6 +1071,40 @@ paths:
                 properties:
                   bedrock_llm_id:
                     type: string
+                  model_options:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        label:
+                          type: string
+                          description: "Display name for the model"
+                        value:
+                          type: string
+                          description: "Bedrock model ID"
+                        constraints:
+                          type: object
+                          properties:
+                            maxOutputTokens:
+                              type: integer
+                              description: "Maximum allowed output tokens for this model"
+                            defaultMaxOutputTokens:
+                              type: integer
+                              description: "Recommended default output tokens for this model"
+                            temperatureRange:
+                              type: array
+                              items:
+                                type: number
+                              minItems: 2
+                              maxItems: 2
+                              description: "Allowed temperature range [min, max]"
+                            topPRange:
+                              type: array
+                              items:
+                                type: number
+                              minItems: 2
+                              maxItems: 2
+                              description: "Allowed top_p range [min, max]"
                   temperature:
                     type: string
                   top_p:

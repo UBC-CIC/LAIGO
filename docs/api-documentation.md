@@ -1581,6 +1581,28 @@ Retrieve current AI model configuration parameters.
 ```json
 {
   "bedrock_llm_id": "meta.llama3-70b-instruct-v1:0",
+  "model_options": [
+    {
+      "label": "Claude 3 Sonnet",
+      "value": "anthropic.claude-3-sonnet-20240229-v1:0",
+      "constraints": {
+        "maxOutputTokens": 2048,
+        "defaultMaxOutputTokens": 1500,
+        "temperatureRange": [0, 1.0],
+        "topPRange": [0, 1.0]
+      }
+    },
+    {
+      "label": "Llama 3 70b Instruct",
+      "value": "meta.llama3-70b-instruct-v1:0",
+      "constraints": {
+        "maxOutputTokens": 8192,
+        "defaultMaxOutputTokens": 2000,
+        "temperatureRange": [0, 1.0],
+        "topPRange": [0, 1.0]
+      }
+    }
+  ],
   "temperature": "0.7",
   "top_p": "0.9",
   "max_tokens": "2048",
@@ -1594,6 +1616,7 @@ Retrieve current AI model configuration parameters.
 curl -X GET "https://api-id.execute-api.us-east-1.amazonaws.com/prod/admin/ai_config" \
   -H "Authorization: eyJraWQiOiJ..."
 ```
+
 ---
 
 ### Update AI Configuration
@@ -1621,6 +1644,10 @@ Update AI model configuration parameters.
 - `max_tokens` (integer, optional): Maximum tokens in response (minimum: 1)
 - `message_limit` (string, optional): Daily message limit per user (>= 10 or "Infinity")
 - `file_size_limit` (string, optional): Max audio file size in MB (1-500)
+
+**Validation note:** If `bedrock_llm_id` is provided, it must match one of the configured model options. If `temperature`, `top_p`, or `max_tokens` are provided, they are validated against the selected model's `constraints`.
+
+**Model constraints note:** `max_tokens` is the maximum output tokens. It does not limit input tokens.
 
 **Response:** `200 OK`
 

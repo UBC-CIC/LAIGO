@@ -1073,6 +1073,29 @@ export class ApiGatewayStack extends cdk.Stack {
       },
     );
 
+    const defaultBedrockModelOptions = [
+      {
+        label: "Claude 3 Sonnet",
+        value: "anthropic.claude-3-sonnet-20240229-v1:0",
+        constraints: {
+          maxOutputTokens: 2048,
+          defaultMaxOutputTokens: 1500,
+          temperatureRange: [0, 1.0],
+          topPRange: [0, 1.0],
+        },
+      },
+      {
+        label: "Llama 3 70b Instruct",
+        value: "meta.llama3-70b-instruct-v1:0",
+        constraints: {
+          maxOutputTokens: 8192,
+          defaultMaxOutputTokens: 2000,
+          temperatureRange: [0, 1.0],
+          topPRange: [0, 1.0],
+        },
+      },
+    ];
+
     // Create parameters for Bedrock LLM ID and Table Name in Parameter Store
     const bedrockLLMParameter = new ssm.StringParameter(
       this,
@@ -1081,6 +1104,16 @@ export class ApiGatewayStack extends cdk.Stack {
         parameterName: `/${id}/LAIGO/BedrockLLMId`,
         description: "Parameter containing the Bedrock LLM ID",
         stringValue: "meta.llama3-70b-instruct-v1:0",
+      },
+    );
+
+    const bedrockModelOptionsParameter = new ssm.StringParameter(
+      this,
+      "BedrockModelOptionsParameter",
+      {
+        parameterName: `/${id}/LAIGO/BedrockModelOptions`,
+        description: "JSON array of selectable Bedrock model options for admin UIs",
+        stringValue: JSON.stringify(defaultBedrockModelOptions),
       },
     );
 
@@ -1409,6 +1442,7 @@ export class ApiGatewayStack extends cdk.Stack {
           BEDROCK_TOP_P_PARAM: bedrockTopPParameter.parameterName,
           BEDROCK_MAX_TOKENS_PARAM: bedrockMaxTokensParameter.parameterName,
           BEDROCK_LLM_PARAM: bedrockLLMParameter.parameterName,
+          BEDROCK_MODEL_OPTIONS_PARAM: bedrockModelOptionsParameter.parameterName,
           SIGNUP_MODE_SSM_PARAM: "/LAIGO/SignupMode",
           WHITELIST_TABLE_NAME: `${id}-email-whitelist`,
           WHITELIST_UPLOAD_BUCKET: whitelistUploadBucket.bucketName,
@@ -1448,6 +1482,7 @@ export class ApiGatewayStack extends cdk.Stack {
     bedrockMaxTokensParameter.grantWrite(lambdaAdminFunction);
     bedrockLLMParameter.grantRead(lambdaAdminFunction);
     bedrockLLMParameter.grantWrite(lambdaAdminFunction);
+    bedrockModelOptionsParameter.grantRead(lambdaAdminFunction);
 
     // Grant admin function read/write access to the email whitelist DynamoDB table
     // Note: emailWhitelistTable is defined later in the constructor but CDK resolves this at synth time
@@ -1553,11 +1588,7 @@ export class ApiGatewayStack extends cdk.Stack {
     const bedrockPolicyStatement = new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
       actions: ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"],
-      resources: [
-        `arn:aws:bedrock:${this.region}::foundation-model/meta.llama3-70b-instruct-v1`,
-        `arn:aws:bedrock:${this.region}::foundation-model/meta.llama3-70b-instruct-v1:0`, // Explicitly add the versioned model
-        `arn:aws:bedrock:${this.region}::foundation-model/anthropic.claude-3-sonnet-20240229-v1:0`, // Add Claude 3 Sonnet
-      ],
+      resources: [`arn:aws:bedrock:${this.region}::foundation-model/*`],
     });
 
     const caseGenLambdaDockerFunc = new lambda.Function(
