@@ -2003,12 +2003,12 @@ exports.handler = async (event, context) => {
       await handlerConfig(event, env);
     } else {
       response.statusCode = 404;
-      response.body = JSON.stringify({ error: `Route not found: ${pathData}` });
+      response.body = JSON.stringify({ error: "Route not found" });
     }
   } catch (error) {
-    response.statusCode = 400;
+    response.statusCode = 500;
     logger.error("Handler error", error);
-    response.body = JSON.stringify(error.message);
+    response.body = JSON.stringify({ error: "Internal server error" });
   }
   logger.info("Admin Response", { statusCode: response.statusCode });
   return response;

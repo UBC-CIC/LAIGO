@@ -618,7 +618,7 @@ exports.handler = async (event, context) => {
       await handlerConfig(event, env);
     } else {
       response.statusCode = 404;
-      response.body = JSON.stringify({ error: `Route not found: ${pathData}` });
+      response.body = JSON.stringify({ error: "Route not found" });
     }
   } catch (error) {
     logger.error("Critical Handler Error:", error);

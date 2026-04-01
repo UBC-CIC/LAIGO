@@ -54,9 +54,12 @@ const parseBody = (body) => {
 
 const handleError = (error, response) => {
   response.statusCode = 500;
-  logger.error("Request failed", error);
+  logger.error("Request failed", {
+    message: error?.message,
+    stack: error?.stack,
+  });
   response.body = JSON.stringify({
-    error: error.message || "Internal server error",
+    error: "Internal server error",
   });
 };
 
