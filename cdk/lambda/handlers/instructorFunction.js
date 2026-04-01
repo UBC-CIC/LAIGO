@@ -416,36 +416,18 @@ const routes = {
     }
     const deleteCaseId = event.queryStringParameters.case_id;
     try {
-      const instructorId = user.user_id;
+      // BOLA: Check if instructor can access this case
+      const authResult = await authorizeCaseAccess(
+        user.user_id,
+        deleteCaseId,
+        PERMISSION_MODELS.OWNER_OR_INSTRUCTOR,
+        sqlConnection
+      );
 
-      // Get case owner
-      const caseResult = await sqlConnection`
-            SELECT student_id FROM "cases" WHERE case_id = ${deleteCaseId};
-          `;
-      if (caseResult.length === 0) {
-        response.statusCode = 404;
-        response.body = JSON.stringify({ error: "Case not found" });
+      if (!authResult.authorized) {
+        response.statusCode = authResult.code === "NOT_FOUND" ? 404 : 403;
+        response.body = JSON.stringify({ error: authResult.reason });
         return;
-      }
-      const studentId = caseResult[0].student_id;
-
-      // Check permission:
-      // 1. Instructor is the owner (studentId === instructorId)
-      // 2. Instructor is assigned to the student
-      if (studentId !== instructorId) {
-        const isAssigned = await sqlConnection`
-              SELECT 1 FROM "instructor_students"
-              WHERE instructor_id = ${instructorId} AND student_id = ${studentId};
-            `;
-
-        if (isAssigned.length === 0) {
-          response.statusCode = 403;
-          response.body = JSON.stringify({
-            error:
-              "Permission denied: Instructor is not assigned to this student and does not own this case.",
-          });
-          return;
-        }
       }
 
       // Delete case_reviewers first because it lacks ON DELETE CASCADE
@@ -477,36 +459,18 @@ const routes = {
     }
     const archiveCaseId = event.queryStringParameters.case_id;
     try {
-      const instructorId = user.user_id;
+      // BOLA: Check if instructor can access this case
+      const authResult = await authorizeCaseAccess(
+        user.user_id,
+        archiveCaseId,
+        PERMISSION_MODELS.OWNER_OR_INSTRUCTOR,
+        sqlConnection
+      );
 
-      // Get case owner
-      const caseResult = await sqlConnection`
-            SELECT student_id FROM "cases" WHERE case_id = ${archiveCaseId};
-          `;
-      if (caseResult.length === 0) {
-        response.statusCode = 404;
-        response.body = JSON.stringify({ error: "Case not found" });
+      if (!authResult.authorized) {
+        response.statusCode = authResult.code === "NOT_FOUND" ? 404 : 403;
+        response.body = JSON.stringify({ error: authResult.reason });
         return;
-      }
-      const studentId = caseResult[0].student_id;
-
-      // Check permission:
-      // 1. Instructor is the owner (studentId === instructorId)
-      // 2. Instructor is assigned to the student
-      if (studentId !== instructorId) {
-        const isAssigned = await sqlConnection`
-              SELECT 1 FROM "instructor_students"
-              WHERE instructor_id = ${instructorId} AND student_id = ${studentId};
-            `;
-
-        if (isAssigned.length === 0) {
-          response.statusCode = 403;
-          response.body = JSON.stringify({
-            error:
-              "Permission denied: Instructor is not assigned to this student and does not own this case.",
-          });
-          return;
-        }
       }
 
       // Archive case
@@ -535,36 +499,18 @@ const routes = {
     }
     const unarchiveCaseId = event.queryStringParameters.case_id;
     try {
-      const instructorId = user.user_id;
+      // BOLA: Check if instructor can access this case
+      const authResult = await authorizeCaseAccess(
+        user.user_id,
+        unarchiveCaseId,
+        PERMISSION_MODELS.OWNER_OR_INSTRUCTOR,
+        sqlConnection
+      );
 
-      // Get case owner
-      const caseResult = await sqlConnection`
-            SELECT student_id FROM "cases" WHERE case_id = ${unarchiveCaseId};
-          `;
-      if (caseResult.length === 0) {
-        response.statusCode = 404;
-        response.body = JSON.stringify({ error: "Case not found" });
+      if (!authResult.authorized) {
+        response.statusCode = authResult.code === "NOT_FOUND" ? 404 : 403;
+        response.body = JSON.stringify({ error: authResult.reason });
         return;
-      }
-      const studentId = caseResult[0].student_id;
-
-      // Check permission:
-      // 1. Instructor is the owner (studentId === instructorId)
-      // 2. Instructor is assigned to the student
-      if (studentId !== instructorId) {
-        const isAssigned = await sqlConnection`
-              SELECT 1 FROM "instructor_students"
-              WHERE instructor_id = ${instructorId} AND student_id = ${studentId};
-            `;
-
-        if (isAssigned.length === 0) {
-          response.statusCode = 403;
-          response.body = JSON.stringify({
-            error:
-              "Permission denied: Instructor is not assigned to this student and does not own this case.",
-          });
-          return;
-        }
       }
 
       // Unarchive case
