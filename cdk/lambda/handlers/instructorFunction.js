@@ -5,6 +5,7 @@ const {
   handleError,
   getSqlConnection,
 } = require("./utils/utils");
+const { PERMISSION_MODELS, authorizeCaseAccess } = require("./utils/authorization");
 const { Logger } = require("@aws-lambda-powertools/logger");
 const logger = new Logger({ serviceName: "InstructorFunction" });
 
@@ -151,6 +152,20 @@ const routes = {
     try {
       const user_id = user.user_id;
       const instructorName = `${user.first_name} ${user.last_name}`;
+
+      // BOLA: Check if instructor is assigned to the student for this case
+      const authResult = await authorizeCaseAccess(
+        user_id,
+        case_id,
+        PERMISSION_MODELS.INSTRUCTOR_ONLY,
+        sqlConnection
+      );
+
+      if (!authResult.authorized) {
+        response.statusCode = authResult.code === "NOT_FOUND" ? 404 : 403;
+        response.body = JSON.stringify({ error: authResult.reason });
+        return;
+      }
 
       // Get student_id and case_title from the case
       const caseResult = await sqlConnection`

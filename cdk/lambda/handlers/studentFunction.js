@@ -6,6 +6,7 @@ const {
   handleError,
   getSqlConnection,
 } = require("./utils/utils");
+const { PERMISSION_MODELS, authorizeCaseAccess, authorizeObjectAccess } = require("./utils/authorization");
 const { Logger } = require("@aws-lambda-powertools/logger");
 const logger = new Logger({ serviceName: "StudentFunction" });
 let { MESSAGE_LIMIT, FILE_SIZE_LIMIT, TABLE_NAME } = process.env;
@@ -116,6 +117,20 @@ const routes = {
     if (event.queryStringParameters && event.queryStringParameters.case_id) {
       const case_id = event.queryStringParameters.case_id;
       try {
+        // BOLA: Check if user can access this case
+        const authResult = await authorizeCaseAccess(
+          user_id,
+          case_id,
+          PERMISSION_MODELS.OWNER_OR_INSTRUCTOR,
+          sqlConnection
+        );
+
+        if (!authResult.authorized) {
+          response.statusCode = authResult.code === "NOT_FOUND" ? 404 : 403;
+          response.body = JSON.stringify({ error: authResult.reason });
+          return;
+        }
+
         const data = await sqlConnection`
             SELECT * 
             FROM "summaries" WHERE case_id = ${case_id};
@@ -135,7 +150,7 @@ const routes = {
       }
     } else {
       response.statusCode = 400;
-      response.body = JSON.stringify({ error: "User email is required" });
+      response.body = JSON.stringify({ error: "case_id is required" });
     }
   },
   "DELETE /student/delete_summary": async (event, env) => {
@@ -148,6 +163,21 @@ const routes = {
       const summaryId = event.queryStringParameters.summary_id;
 
       try {
+        // BOLA: Check if user owns the summary's case
+        const authResult = await authorizeObjectAccess(
+          user_id,
+          summaryId,
+          "summaries",
+          PERMISSION_MODELS.OWNER_ONLY,
+          sqlConnection
+        );
+
+        if (!authResult.authorized) {
+          response.statusCode = authResult.code === "NOT_FOUND" ? 404 : 403;
+          response.body = JSON.stringify({ error: authResult.reason });
+          return;
+        }
+
         await sqlConnection`
                     DELETE FROM "summaries"
                     WHERE summary_id = ${summaryId};
@@ -413,6 +443,20 @@ const routes = {
       const case_id = event.queryStringParameters.case_id;
 
       try {
+        // BOLA: Check if user can access this case
+        const authResult = await authorizeCaseAccess(
+          user_id,
+          case_id,
+          PERMISSION_MODELS.OWNER_ONLY,
+          sqlConnection
+        );
+
+        if (!authResult.authorized) {
+          response.statusCode = authResult.code === "NOT_FOUND" ? 404 : 403;
+          response.body = JSON.stringify({ error: authResult.reason });
+          return;
+        }
+
         await sqlConnection`
         UPDATE "cases"
         SET last_viewed = NOW()
@@ -430,7 +474,7 @@ const routes = {
     } else {
       response.statusCode = 400;
       response.body = JSON.stringify({
-        error: "Missing case_id or user_id",
+        error: "Missing case_id",
       });
     }
   },
@@ -441,36 +485,17 @@ const routes = {
       const caseId = event.queryStringParameters.case_id;
 
       try {
-        // Get the case and its owner
-        const caseResult = await sqlConnection`
-              SELECT * FROM "cases" WHERE case_id = ${caseId};
-            `;
-        if (caseResult.length === 0) {
-          response.statusCode = 404;
-          response.body = JSON.stringify({ error: "Case not found" });
-          return;
-        }
-        const caseOwnerId = caseResult[0].student_id;
+        // BOLA: Check if user can access this case
+        const authResult = await authorizeCaseAccess(
+          user_id,
+          caseId,
+          PERMISSION_MODELS.OWNER_OR_INSTRUCTOR,
+          sqlConnection
+        );
 
-        // Check access — either owner OR an instructor of the owner
-        let hasAccess = false;
-
-        if (user_id === caseOwnerId) {
-          hasAccess = true; // User owns the case
-        } else {
-          // Check if requesting user is an instructor of the student who owns the case
-          const instructorCheck = await sqlConnection`
-                SELECT 1 FROM "instructor_students"
-                WHERE instructor_id = ${user_id} AND student_id = ${caseOwnerId};
-              `;
-          if (instructorCheck.length > 0) {
-            hasAccess = true;
-          }
-        }
-
-        if (!hasAccess) {
-          response.statusCode = 403;
-          response.body = JSON.stringify({ error: "Access denied" });
+        if (!authResult.authorized) {
+          response.statusCode = authResult.code === "NOT_FOUND" ? 404 : 403;
+          response.body = JSON.stringify({ error: authResult.reason });
           return;
         }
 
@@ -505,39 +530,18 @@ const routes = {
       const audioFileId = event.queryStringParameters.audio_file_id;
 
       try {
-        // Get case + owner for the audio file
-        const caseResult = await sqlConnection`
-              SELECT af.case_id, c.student_id AS case_owner_id
-              FROM "audio_files" af
-              JOIN "cases" c ON af.case_id = c.case_id
-              WHERE af.audio_file_id = ${audioFileId};
-            `;
-        if (caseResult.length === 0) {
-          response.statusCode = 404;
-          response.body = JSON.stringify({ error: "Audio file not found" });
-          return;
-        }
+        // BOLA: Check if user can access this audio file (via case ownership or instructor relationship)
+        const authResult = await authorizeObjectAccess(
+          user_id,
+          audioFileId,
+          "audio_files",
+          PERMISSION_MODELS.OWNER_OR_INSTRUCTOR,
+          sqlConnection
+        );
 
-        const caseId = caseResult[0].case_id;
-        const caseOwnerId = caseResult[0].case_owner_id;
-
-        // Check access (owner or assigned instructor)
-        let hasAccess = false;
-        if (user_id === caseOwnerId) {
-          hasAccess = true;
-        } else {
-          const instructorCheck = await sqlConnection`
-                SELECT 1 FROM "instructor_students"
-                WHERE instructor_id = ${user_id} AND student_id = ${caseOwnerId};
-              `;
-          if (instructorCheck.length > 0) {
-            hasAccess = true;
-          }
-        }
-
-        if (!hasAccess) {
-          response.statusCode = 403;
-          response.body = JSON.stringify({ error: "Access denied" });
+        if (!authResult.authorized) {
+          response.statusCode = authResult.code === "NOT_FOUND" ? 404 : 403;
+          response.body = JSON.stringify({ error: authResult.reason });
           return;
         }
 
@@ -575,40 +579,25 @@ const routes = {
       const case_id = event.queryStringParameters.case_id;
 
       try {
-        // Get the case and its owner
+        // BOLA: Check if user can access this case (owner or assigned instructor)
+        const authResult = await authorizeCaseAccess(
+          user_id,
+          case_id,
+          PERMISSION_MODELS.OWNER_OR_INSTRUCTOR,
+          sqlConnection
+        );
+
+        if (!authResult.authorized) {
+          response.statusCode = authResult.code === "NOT_FOUND" ? 404 : 403;
+          response.body = JSON.stringify({ error: authResult.reason });
+          return;
+        }
+
+        // Fetch case, messages and summaries
         const caseResult = await sqlConnection`
               SELECT * FROM "cases" WHERE case_id = ${case_id};
             `;
-        if (caseResult.length === 0) {
-          response.statusCode = 404;
-          response.body = JSON.stringify({ error: "Case not found" });
-          return;
-        }
-        const caseOwnerId = caseResult[0].student_id;
 
-        // Check access — either owner OR an instructor of the owner
-        let hasAccess = false;
-
-        if (user_id === caseOwnerId) {
-          hasAccess = true; // User owns the case
-        } else {
-          // Check if requesting user is an instructor of the student who owns the case
-          const instructorCheck = await sqlConnection`
-                SELECT 1 FROM "instructor_students"
-                WHERE instructor_id = ${user_id} AND student_id = ${caseOwnerId};
-              `;
-          if (instructorCheck.length > 0) {
-            hasAccess = true;
-          }
-        }
-
-        if (!hasAccess) {
-          response.statusCode = 403;
-          response.body = JSON.stringify({ error: "Access denied" });
-          return;
-        }
-
-        // Fetch messages and summaries
         const messages = await sqlConnection`
               SELECT m.*, u.first_name, u.last_name
               FROM "messages" m
@@ -705,34 +694,17 @@ const routes = {
       const caseId = event.queryStringParameters.case_id;
 
       try {
-        // Get case owner
-        const caseResult = await sqlConnection`
-              SELECT * FROM "cases" WHERE case_id = ${caseId};
-            `;
-        if (caseResult.length === 0) {
-          response.statusCode = 404;
-          response.body = JSON.stringify({ error: "Case not found" });
-          return;
-        }
-        const caseOwnerId = caseResult[0].student_id;
+        // BOLA: Check if user can access this case (owner or assigned instructor)
+        const authResult = await authorizeCaseAccess(
+          user_id,
+          caseId,
+          PERMISSION_MODELS.OWNER_OR_INSTRUCTOR,
+          sqlConnection
+        );
 
-        // Check access (Owner or Assigned Instructor)
-        let hasAccess = false;
-        if (user_id === caseOwnerId) {
-          hasAccess = true;
-        } else {
-          const instructorCheck = await sqlConnection`
-                SELECT 1 FROM "instructor_students"
-                WHERE instructor_id = ${user_id} AND student_id = ${caseOwnerId};
-              `;
-          if (instructorCheck.length > 0) {
-            hasAccess = true;
-          }
-        }
-
-        if (!hasAccess) {
-          response.statusCode = 403;
-          response.body = JSON.stringify({ error: "Access denied" });
+        if (!authResult.authorized) {
+          response.statusCode = authResult.code === "NOT_FOUND" ? 404 : 403;
+          response.body = JSON.stringify({ error: authResult.reason });
           return;
         }
 
@@ -791,6 +763,20 @@ const routes = {
         event.queryStringParameters;
 
       try {
+        // BOLA: Check if user owns the case
+        const authResult = await authorizeCaseAccess(
+          user_id,
+          case_id,
+          PERMISSION_MODELS.OWNER_ONLY,
+          sqlConnection
+        );
+
+        if (!authResult.authorized) {
+          response.statusCode = authResult.code === "NOT_FOUND" ? 404 : 403;
+          response.body = JSON.stringify({ error: authResult.reason });
+          return;
+        }
+
         // Insert into audio_files table
         const insertResult = await sqlConnection`
                   INSERT INTO "audio_files" (audio_file_id, case_id, s3_file_path, file_title)
@@ -803,6 +789,9 @@ const routes = {
       } catch (err) {
         handleError(err, response);
       }
+    } else {
+      response.statusCode = 400;
+      response.body = JSON.stringify({ error: "Missing required query parameters" });
     }
   },
   "GET /student/message_counter": async (event, env) => {
@@ -889,6 +878,21 @@ const routes = {
     if (event.queryStringParameters && event.queryStringParameters.message_id) {
       const message_id = event.queryStringParameters.message_id;
       try {
+        // BOLA: Check if user can access the message (must own the case)
+        const authResult = await authorizeObjectAccess(
+          user_id,
+          message_id,
+          "messages",
+          PERMISSION_MODELS.OWNER_ONLY,
+          sqlConnection
+        );
+
+        if (!authResult.authorized) {
+          response.statusCode = authResult.code === "NOT_FOUND" ? 404 : 403;
+          response.body = JSON.stringify({ error: authResult.reason });
+          return;
+        }
+
         // Mark the message as read
         await sqlConnection`
                   UPDATE messages SET is_read = true WHERE message_id = ${message_id};
@@ -947,6 +951,20 @@ const routes = {
       const session_id = `${case_id}-${block_type}`;
 
       try {
+        // BOLA: Check if user can access this case (owner or assigned instructor)
+        const authResult = await authorizeCaseAccess(
+          user_id,
+          case_id,
+          PERMISSION_MODELS.OWNER_OR_INSTRUCTOR,
+          sqlConnection
+        );
+
+        if (!authResult.authorized) {
+          response.statusCode = authResult.code === "NOT_FOUND" ? 404 : 403;
+          response.body = JSON.stringify({ error: authResult.reason });
+          return;
+        }
+
         logger.info(
           "Received case_id: ",
           case_id,
@@ -1019,7 +1037,21 @@ const routes = {
     if (event.queryStringParameters && event.queryStringParameters.case_id) {
       const case_id = event.queryStringParameters.case_id;
       try {
-        // Get case with student_notes and ownership check
+        // BOLA: Check if user can access this case (owner or assigned instructor)
+        const authResult = await authorizeCaseAccess(
+          user_id,
+          case_id,
+          PERMISSION_MODELS.OWNER_OR_INSTRUCTOR,
+          sqlConnection
+        );
+
+        if (!authResult.authorized) {
+          response.statusCode = authResult.code === "NOT_FOUND" ? 404 : 403;
+          response.body = JSON.stringify({ error: authResult.reason });
+          return;
+        }
+
+        // Get case notes
         const caseData = await sqlConnection`
               SELECT student_notes, student_id FROM "cases" WHERE case_id = ${case_id};
             `;
@@ -1027,27 +1059,6 @@ const routes = {
         if (caseData.length === 0) {
           response.statusCode = 404;
           response.body = JSON.stringify({ error: "Case not found" });
-          return;
-        }
-
-        // Check ownership or instructor relationship
-        const caseOwnerId = caseData[0].student_id;
-        let hasAccess = false;
-        if (user_id === caseOwnerId) {
-          hasAccess = true;
-        } else {
-          const instructorCheck = await sqlConnection`
-                SELECT 1 FROM "instructor_students"
-                WHERE instructor_id = ${user_id} AND student_id = ${caseOwnerId};
-              `;
-          if (instructorCheck.length > 0) {
-            hasAccess = true;
-          }
-        }
-
-        if (!hasAccess) {
-          response.statusCode = 403;
-          response.body = JSON.stringify({ error: "Access denied" });
           return;
         }
 
@@ -1073,22 +1084,17 @@ const routes = {
       const { notes } = parseBody(event.body);
 
       try {
-        // Get the case and verify ownership
-        const caseResult = await sqlConnection`
-              SELECT student_id FROM "cases" WHERE case_id = ${case_id};
-            `;
-        if (caseResult.length === 0) {
-          response.statusCode = 404;
-          response.body = JSON.stringify({ error: "Case not found" });
-          return;
-        }
+        // BOLA: Check if user owns this case
+        const authResult = await authorizeCaseAccess(
+          user_id,
+          case_id,
+          PERMISSION_MODELS.OWNER_ONLY,
+          sqlConnection
+        );
 
-        // Only owner can update notes
-        if (user_id !== caseResult[0].student_id) {
-          response.statusCode = 403;
-          response.body = JSON.stringify({
-            error: "Access denied - only the case owner can update notes",
-          });
+        if (!authResult.authorized) {
+          response.statusCode = authResult.code === "NOT_FOUND" ? 404 : 403;
+          response.body = JSON.stringify({ error: authResult.reason });
           return;
         }
 
@@ -1130,22 +1136,17 @@ const routes = {
         statute,
       } = parseBody(event.body);
       try {
-        // Get the case and verify ownership
-        const caseResult = await sqlConnection`
-              SELECT student_id FROM "cases" WHERE case_id = ${case_id};
-            `;
-        if (caseResult.length === 0) {
-          response.statusCode = 404;
-          response.body = JSON.stringify({ error: "Case not found" });
-          return;
-        }
+        // BOLA: Check if user owns this case
+        const authResult = await authorizeCaseAccess(
+          user_id,
+          case_id,
+          PERMISSION_MODELS.OWNER_ONLY,
+          sqlConnection
+        );
 
-        // Only owner can edit case
-        if (user_id !== caseResult[0].student_id) {
-          response.statusCode = 403;
-          response.body = JSON.stringify({
-            error: "Access denied - only the case owner can edit",
-          });
+        if (!authResult.authorized) {
+          response.statusCode = authResult.code === "NOT_FOUND" ? 404 : 403;
+          response.body = JSON.stringify({ error: authResult.reason });
           return;
         }
 
@@ -1184,26 +1185,18 @@ const routes = {
       const audioFileId = event.queryStringParameters.audio_file_id;
 
       try {
-        // Get the audio file's case and verify ownership
-        const audioResult = await sqlConnection`
-              SELECT a.case_id, c.student_id 
-              FROM "audio_files" a
-              JOIN "cases" c ON a.case_id = c.case_id
-              WHERE a.audio_file_id = ${audioFileId};
-            `;
-        if (audioResult.length === 0) {
-          response.statusCode = 404;
-          response.body = JSON.stringify({ error: "Audio file not found" });
-          return;
-        }
+        // BOLA: Check if user owns this audio file (via case ownership)
+        const authResult = await authorizeObjectAccess(
+          user_id,
+          audioFileId,
+          "audio_files",
+          PERMISSION_MODELS.OWNER_ONLY,
+          sqlConnection
+        );
 
-        // Only owner can delete transcription
-        if (user_id !== audioResult[0].student_id) {
-          response.statusCode = 403;
-          response.body = JSON.stringify({
-            error:
-              "Access denied - only the case owner can delete transcriptions",
-          });
+        if (!authResult.authorized) {
+          response.statusCode = authResult.code === "NOT_FOUND" ? 404 : 403;
+          response.body = JSON.stringify({ error: authResult.reason });
           return;
         }
 
@@ -1248,23 +1241,17 @@ const routes = {
       }
 
       try {
-        // Get the case and its owner
-        const caseResult = await sqlConnection`
-              SELECT student_id FROM "cases" WHERE case_id = ${case_id};
-            `;
-        if (caseResult.length === 0) {
-          response.statusCode = 404;
-          response.body = JSON.stringify({ error: "Case not found" });
-          return;
-        }
-        const caseOwnerId = caseResult[0].student_id;
+        // BOLA: Check if user owns this case
+        const authResult = await authorizeCaseAccess(
+          user_id,
+          case_id,
+          PERMISSION_MODELS.OWNER_ONLY,
+          sqlConnection
+        );
 
-        // Check ownership — only owner can submit for review
-        if (user_id !== caseOwnerId) {
-          response.statusCode = 403;
-          response.body = JSON.stringify({
-            error: "Access denied - only the case owner can submit for review",
-          });
+        if (!authResult.authorized) {
+          response.statusCode = authResult.code === "NOT_FOUND" ? 404 : 403;
+          response.body = JSON.stringify({ error: authResult.reason });
           return;
         }
 
@@ -1369,23 +1356,17 @@ const routes = {
     ) {
       const case_id = event.queryStringParameters.case_id;
       try {
-        // Get the case and its owner
-        const caseResult = await sqlConnection`
-              SELECT student_id FROM "cases" WHERE case_id = ${case_id};
-            `;
-        if (caseResult.length === 0) {
-          response.statusCode = 404;
-          response.body = JSON.stringify({ error: "Case not found" });
-          return;
-        }
-        const caseOwnerId = caseResult[0].student_id;
+        // BOLA: Check if user can access this case (owner or assigned instructor)
+        const authResult = await authorizeCaseAccess(
+          user_id,
+          case_id,
+          PERMISSION_MODELS.OWNER_OR_INSTRUCTOR,
+          sqlConnection
+        );
 
-        // Check ownership — only owner can archive
-        if (user_id !== caseOwnerId) {
-          response.statusCode = 403;
-          response.body = JSON.stringify({
-            error: "Access denied - only the case owner can archive",
-          });
+        if (!authResult.authorized) {
+          response.statusCode = authResult.code === "NOT_FOUND" ? 404 : 403;
+          response.body = JSON.stringify({ error: authResult.reason });
           return;
         }
 
@@ -1419,23 +1400,17 @@ const routes = {
     ) {
       const case_id = event.queryStringParameters.case_id;
       try {
-        // Get the case and its owner
-        const caseResult = await sqlConnection`
-              SELECT student_id FROM "cases" WHERE case_id = ${case_id};
-            `;
-        if (caseResult.length === 0) {
-          response.statusCode = 404;
-          response.body = JSON.stringify({ error: "Case not found" });
-          return;
-        }
-        const caseOwnerId = caseResult[0].student_id;
+        // BOLA: Check if user can access this case (owner or assigned instructor)
+        const authResult = await authorizeCaseAccess(
+          user_id,
+          case_id,
+          PERMISSION_MODELS.OWNER_OR_INSTRUCTOR,
+          sqlConnection
+        );
 
-        // Check ownership — only owner can unarchive
-        if (user_id !== caseOwnerId) {
-          response.statusCode = 403;
-          response.body = JSON.stringify({
-            error: "Access denied - only the case owner can unarchive",
-          });
+        if (!authResult.authorized) {
+          response.statusCode = authResult.code === "NOT_FOUND" ? 404 : 403;
+          response.body = JSON.stringify({ error: authResult.reason });
           return;
         }
 
@@ -1471,6 +1446,20 @@ const routes = {
       const { case_id, block_type } = event.queryStringParameters;
 
       try {
+        // BOLA: Check if user owns this case
+        const authResult = await authorizeCaseAccess(
+          user_id,
+          case_id,
+          PERMISSION_MODELS.OWNER_ONLY,
+          sqlConnection
+        );
+
+        if (!authResult.authorized) {
+          response.statusCode = authResult.code === "NOT_FOUND" ? 404 : 403;
+          response.body = JSON.stringify({ error: authResult.reason });
+          return;
+        }
+
         // First, get current completed_blocks
         const caseData = await sqlConnection`
                 SELECT completed_blocks FROM "cases" WHERE case_id = ${case_id};
