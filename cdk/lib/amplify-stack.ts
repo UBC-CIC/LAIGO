@@ -35,7 +35,9 @@ export class AmplifyStack extends cdk.Stack {
       const wsUrl = apiStack.getWebSocketUrl();
       const cognitoIdpEndpoint = `https://cognito-idp.${this.region}.amazonaws.com`;
       const cognitoIdentityEndpoint = `https://cognito-identity.${this.region}.amazonaws.com`;
-      connectSrc = `'self' ${apiEndpoint} ${wsUrl} ${cognitoIdpEndpoint} ${cognitoIdentityEndpoint}`;
+      const audioPromptBucketEndpoint = `https://${apiStack.getAudioPromptBucketName()}.s3.${this.region}.amazonaws.com`;
+      const whitelistUploadBucketEndpoint = `https://${apiStack.getWhitelistUploadBucketName()}.s3.${this.region}.amazonaws.com`;
+      connectSrc = `'self' ${apiEndpoint} ${wsUrl} ${cognitoIdpEndpoint} ${cognitoIdentityEndpoint} ${audioPromptBucketEndpoint} ${whitelistUploadBucketEndpoint}`;
     } else {
       // Permissive connect-src when no custom domain is configured
       connectSrc = "'self' wss: https:";

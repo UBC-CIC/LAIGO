@@ -69,6 +69,9 @@ export class ApiGatewayStack extends cdk.Stack {
   public readonly connectionTable!: dynamodb.Table;
   // EventBridge bus for notification events
   public readonly notificationEventBus!: events.EventBus;
+  // S3 bucket names used by frontend direct browser uploads
+  public readonly audioPromptBucketName!: string;
+  public readonly whitelistUploadBucketName!: string;
   // Getter methods for accessing stack resources
   public getEndpointUrl = () => this.api.url;
   public getUserPoolId = () => this.userPool.userPoolId;
@@ -76,6 +79,8 @@ export class ApiGatewayStack extends cdk.Stack {
   public getUserPoolClientId = () => this.appClient.userPoolClientId;
   public getIdentityPoolId = () => this.identityPool.ref;
   public getWebSocketUrl = () => this.wsStage.url;
+  public getAudioPromptBucketName = () => this.audioPromptBucketName;
+  public getWhitelistUploadBucketName = () => this.whitelistUploadBucketName;
   public getNotificationTable = () => this.notificationTable;
   public getConnectionTable = () => this.connectionTable;
   public addLayer = (name: string, layer: lambda.ILayerVersion) =>
@@ -1348,6 +1353,7 @@ export class ApiGatewayStack extends cdk.Stack {
         ],
       },
     );
+    this.whitelistUploadBucketName = whitelistUploadBucket.bucketName;
 
     // SSM parameter to control signup mode: 'public' (default) or 'whitelist'
     const signupModeParameter = new ssm.StringParameter(
@@ -1919,6 +1925,7 @@ export class ApiGatewayStack extends cdk.Stack {
         encryption: s3.BucketEncryption.S3_MANAGED, // Explicit encryption at rest with AWS-managed keys
       },
     );
+    this.audioPromptBucketName = audioStorageBucket.bucketName;
 
     const generatePreSignedURL = new lambda.Function(
       this,
