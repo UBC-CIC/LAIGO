@@ -46,11 +46,24 @@ const SUB_ROUTE_TO_BLOCK: Record<string, string> = {
 
 const InterviewAssistant: React.FC = () => {
   const { caseId, section } = useParams();
-  const { refreshUnlockedBlocks, caseStatus, completedBlocks } =
-    useOutletContext<CaseOutletContext>();
-  const { activePerspective } = useUser();
-  const isInstructorPerspective =
+  const {
+    refreshUnlockedBlocks,
+    caseStatus,
+    completedBlocks,
+    caseStudentId,
+  } = useOutletContext<CaseOutletContext>();
+  const { activePerspective, userInfo } = useUser();
+  
+  // Determine if user is in instructor perspective
+  const isInstructorRole =
     activePerspective === "instructor" || activePerspective === "admin";
+  
+  // Check if instructor owns this case (instructor created the case, not just assigned to it)
+  const instructorOwnCase =
+    isInstructorRole && userInfo?.userId === caseStudentId;
+  
+  // Only disable messaging if they're an instructor AND don't own the case
+  const isInstructorPerspective = isInstructorRole && !instructorOwnCase;
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);

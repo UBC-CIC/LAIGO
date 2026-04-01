@@ -17,6 +17,7 @@ export interface CaseOutletContext {
   caseStatus: string;
   refreshCaseData: () => Promise<void>;
   caseTitle: string;
+  caseStudentId: string | null;
 }
 
 const CaseLayout: React.FC = () => {
@@ -25,6 +26,7 @@ const CaseLayout: React.FC = () => {
   const isInstructor = activePerspective === "instructor" || activePerspective === "admin";
   const [caseTitle, setCaseTitle] = useState<string>("");
   const [caseStatus, setCaseStatus] = useState<string>("");
+  const [caseStudentId, setCaseStudentId] = useState<string | null>(null);
   const [unlockedBlocks, setUnlockedBlocks] = useState<string[]>([]);
   const [completedBlocks, setCompletedBlocks] = useState<string[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -71,6 +73,7 @@ const CaseLayout: React.FC = () => {
         ]);
         // Also update status if it changed
         if (cData.status) setCaseStatus(cData.status);
+        if (cData.student_id) setCaseStudentId(cData.student_id);
       }
     } catch (err) {
       console.error("Error refreshing unlocked blocks:", err);
@@ -119,6 +122,7 @@ const CaseLayout: React.FC = () => {
           "policy",
         ]);
         setNotepadContent(cData.student_notes || "");
+        if (cData.student_id) setCaseStudentId(cData.student_id);
       }
 
       // Update view_case if student
@@ -233,6 +237,7 @@ const CaseLayout: React.FC = () => {
               caseStatus,
               refreshCaseData: init,
               caseTitle,
+              caseStudentId,
             } satisfies CaseOutletContext
           }
         />
