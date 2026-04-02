@@ -200,13 +200,17 @@ def handler(event, context):
         # Continue processing even if guardrail check fails (fail open for admins/instructors)
     
     try:
-        # Create LLM with custom configuration (guardrail applied to user input only via apply_guardrail above)
-        logger.info(f"Playground: Creating LLM with model={custom_model_id}, temp={custom_temperature}, top_p={custom_top_p}, max_tokens={custom_max_tokens}")
+         # Create LLM with custom configuration and guardrails
+        guardrail_id = os.environ.get("GUARDRAIL_ID")
+        guardrail_version = os.environ.get("GUARDRAIL_VERSION")
+        logger.info(f"Playground: Creating LLM with model={custom_model_id}, temp={custom_temperature}, top_p={custom_top_p}, max_tokens={custom_max_tokens}, guardrail={guardrail_id}")
         llm = get_bedrock_llm(
             bedrock_llm_id=custom_model_id,
             temperature=custom_temperature,
             top_p=custom_top_p,
             max_tokens=custom_max_tokens,
+            guardrail_id=guardrail_id,
+            guardrail_version=guardrail_version
         )
         
         websocket_endpoint = os.environ.get("WEBSOCKET_API_ENDPOINT")
