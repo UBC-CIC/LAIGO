@@ -413,8 +413,6 @@ def handler(event, context):
             temperature=BEDROCK_TEMP,
             top_p=BEDROCK_TOP_P,
             max_tokens=BEDROCK_MAX_TOKENS,
-            guardrail_id=GUARDRAIL_ID,
-            guardrail_version=GUARDRAIL_VERSION
         )
     except Exception as e:
         logger.error(f"Error getting LLM from Bedrock: {e}")
