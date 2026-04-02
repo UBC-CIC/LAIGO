@@ -43,6 +43,21 @@ BEDROCK_TEMP = 0.7
 BEDROCK_TOP_P = 0.9
 BEDROCK_MAX_TOKENS = 150
 
+ALLOWED_CASE_TYPES = {
+    "Criminal Law",
+    "Civil Law",
+    "Family Law",
+    "Business Law",
+    "Environmental Law",
+    "Health Law",
+    "Immigration Law",
+    "Labour Law",
+    "Personal Injury Law",
+    "Tax Law",
+    "Intellectual Property Law",
+    "Other",
+}
+
 class CustomJSONEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, uuid.UUID):
@@ -212,6 +227,9 @@ def handler(event, context):
         case_desc = body.get('case_description')
         province = body.get('province')
         statute = body.get('statute')
+
+        if case_type not in ALLOWED_CASE_TYPES:
+            return create_response(400, {'error': 'Please select a valid broad area of law.'}, event)
 
         combined = f"{case_title} {case_type} {jurisdiction} {case_desc}"
         

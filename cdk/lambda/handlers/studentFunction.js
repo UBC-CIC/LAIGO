@@ -17,6 +17,21 @@ const {
 
 const eventBridge = new EventBridgeClient({});
 
+const ALLOWED_CASE_TYPES = new Set([
+  "Criminal Law",
+  "Civil Law",
+  "Family Law",
+  "Business Law",
+  "Environmental Law",
+  "Health Law",
+  "Immigration Law",
+  "Labour Law",
+  "Personal Injury Law",
+  "Tax Law",
+  "Intellectual Property Law",
+  "Other",
+]);
+
 // SQL connection will be set after init
 let sqlConnection;
 
@@ -1147,6 +1162,14 @@ const routes = {
         if (!authResult.authorized) {
           response.statusCode = authResult.code === "NOT_FOUND" ? 404 : 403;
           response.body = JSON.stringify({ error: authResult.reason });
+          return;
+        }
+
+        if (!ALLOWED_CASE_TYPES.has(case_type)) {
+          response.statusCode = 400;
+          response.body = JSON.stringify({
+            error: "Please select a valid broad area of law.",
+          });
           return;
         }
 

@@ -2796,6 +2796,7 @@ paths:
         - Student
       summary: Create a case for a student
       operationId: student_create_case_POST
+      x-amazon-apigateway-request-validator: all
       parameters:
         - in: query
           name: user_id
@@ -2824,6 +2825,19 @@ paths:
                   type: string
                   description: Broad Area of Law
                   minLength: 1
+                  enum:
+                    - Criminal Law
+                    - Civil Law
+                    - Family Law
+                    - Business Law
+                    - Environmental Law
+                    - Health Law
+                    - Immigration Law
+                    - Labour Law
+                    - Personal Injury Law
+                    - Tax Law
+                    - Intellectual Property Law
+                    - Other
                 jurisdiction:
                   type: array
                   items:
@@ -2906,6 +2920,7 @@ paths:
         - Student
       summary: Update notes in a session
       operationId: update_case_PUT
+      x-amazon-apigateway-request-validator: all
       parameters:
         - in: query
           name: case_id
@@ -2941,6 +2956,19 @@ paths:
                   type: string
                   minLength: 1
                   description: "Broad Area of Law"
+                  enum:
+                    - Criminal Law
+                    - Civil Law
+                    - Family Law
+                    - Business Law
+                    - Environmental Law
+                    - Health Law
+                    - Immigration Law
+                    - Labour Law
+                    - Personal Injury Law
+                    - Tax Law
+                    - Intellectual Property Law
+                    - Other
                 status:
                   type: string
                   enum:
