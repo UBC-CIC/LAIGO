@@ -1022,7 +1022,6 @@ export class ApiGatewayStack extends cdk.Stack {
             { type: "EMAIL", action: "BLOCK" },
             { type: "PHONE", action: "BLOCK" },
             { type: "NAME", action: "BLOCK" },
-            { type: "ADDRESS", action: "BLOCK" },
             { type: "CA_SOCIAL_INSURANCE_NUMBER", action: "BLOCK" },
             { type: "CA_HEALTH_NUMBER", action: "BLOCK" },
           ],
