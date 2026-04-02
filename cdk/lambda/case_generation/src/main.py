@@ -44,18 +44,7 @@ BEDROCK_TOP_P = 0.9
 BEDROCK_MAX_TOKENS = 150
 
 ALLOWED_CASE_TYPES = {
-    "Criminal Law",
-    "Civil Law",
-    "Family Law",
-    "Business Law",
-    "Environmental Law",
-    "Health Law",
-    "Immigration Law",
-    "Labour Law",
-    "Personal Injury Law",
-    "Tax Law",
-    "Intellectual Property Law",
-    "Other",
+    "Tort Law",
 }
 
 class CustomJSONEncoder(json.JSONEncoder):

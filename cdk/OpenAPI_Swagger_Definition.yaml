@@ -2826,18 +2826,7 @@ paths:
                   description: Broad Area of Law
                   minLength: 1
                   enum:
-                    - Criminal Law
-                    - Civil Law
-                    - Family Law
-                    - Business Law
-                    - Environmental Law
-                    - Health Law
-                    - Immigration Law
-                    - Labour Law
-                    - Personal Injury Law
-                    - Tax Law
-                    - Intellectual Property Law
-                    - Other
+                    - Tort Law
                 jurisdiction:
                   type: array
                   items:
@@ -2957,18 +2946,7 @@ paths:
                   minLength: 1
                   description: "Broad Area of Law"
                   enum:
-                    - Criminal Law
-                    - Civil Law
-                    - Family Law
-                    - Business Law
-                    - Environmental Law
-                    - Health Law
-                    - Immigration Law
-                    - Labour Law
-                    - Personal Injury Law
-                    - Tax Law
-                    - Intellectual Property Law
-                    - Other
+                    - Tort Law
                 status:
                   type: string
                   enum:

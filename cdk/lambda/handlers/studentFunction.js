@@ -17,20 +17,7 @@ const {
 
 const eventBridge = new EventBridgeClient({});
 
-const ALLOWED_CASE_TYPES = new Set([
-  "Criminal Law",
-  "Civil Law",
-  "Family Law",
-  "Business Law",
-  "Environmental Law",
-  "Health Law",
-  "Immigration Law",
-  "Labour Law",
-  "Personal Injury Law",
-  "Tax Law",
-  "Intellectual Property Law",
-  "Other",
-]);
+const ALLOWED_CASE_TYPES = new Set(["Tort Law"]);
 
 // SQL connection will be set after init
 let sqlConnection;

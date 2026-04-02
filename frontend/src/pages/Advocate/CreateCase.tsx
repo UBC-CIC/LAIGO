@@ -32,7 +32,7 @@ const CreateCase: React.FC = () => {
   const [isProvincial, setIsProvincial] = useState(false);
   const [province, setProvince] = useState<string>("");
   const [statuteApplicable, setStatuteApplicable] = useState(false);
-  const [broadLaw, setBroadLaw] = useState<string>("");
+  const [broadLaw, setBroadLaw] = useState<string>("Tort Law");
   const [statuteDetails, setStatuteDetails] = useState<string>("");
   const [overview, setOverview] = useState<string>("");
   const [submitting, setSubmitting] = useState<boolean>(false);
@@ -46,20 +46,7 @@ const CreateCase: React.FC = () => {
 
   const MAX_OVERVIEW_LENGTH = 4000;
 
-  const broadLawOptions = [
-    "Criminal Law",
-    "Civil Law",
-    "Family Law",
-    "Business Law",
-    "Environmental Law",
-    "Health Law",
-    "Immigration Law",
-    "Labour Law",
-    "Personal Injury Law",
-    "Tax Law",
-    "Intellectual Property Law",
-    "Other",
-  ];
+  const broadLawOptions = ["Tort Law"];
 
   const canadianProvinces = [
     "Alberta",
