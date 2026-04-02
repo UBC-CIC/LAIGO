@@ -42,6 +42,13 @@ const Login = () => {
   const [newPassword, setNewPassword] = useState("");
   const [step, setStep] = useState("requestReset");
   const [isConfirmingSignUp, setIsConfirmingSignUp] = useState(false);
+  const [signUpErrors, setSignUpErrors] = useState<{
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    password?: string;
+    confirmPassword?: string;
+  }>({});
 
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
@@ -80,20 +87,64 @@ const Login = () => {
     return message.replace(/^\w+ failed with error\s+/, "");
   };
 
+  const validateSignUpForm = () => {
+    const errors: {
+      firstName?: string;
+      lastName?: string;
+      email?: string;
+      password?: string;
+      confirmPassword?: string;
+    } = {};
+
+    if (!firstName.trim()) {
+      errors.firstName = "First name is required";
+    }
+
+    if (!lastName.trim()) {
+      errors.lastName = "Last name is required";
+    }
+
+    if (!email.trim()) {
+      errors.email = "Email is required";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      errors.email = "Enter a valid email address";
+    }
+
+    if (!password) {
+      errors.password = "Password is required";
+    } else {
+      const passwordMeetsRequirements =
+        password.length >= 12 &&
+        /[a-z]/.test(password) &&
+        /[A-Z]/.test(password) &&
+        /\d/.test(password) &&
+        /[!@#$%^&*(),.?":{}|<>]/.test(password);
+
+      if (!passwordMeetsRequirements) {
+        errors.password = "Password does not meet the required complexity";
+      }
+    }
+
+    if (!confirmPassword) {
+      errors.confirmPassword = "Please confirm your password";
+    } else if (password !== confirmPassword) {
+      errors.confirmPassword = "Passwords do not match";
+    }
+
+    setSignUpErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
       if (isSignUp) {
-        if (password !== confirmPassword) {
-          setSnackbar({
-            open: true,
-            message: "Passwords do not match",
-            severity: "error",
-          });
+        if (!validateSignUpForm()) {
           setLoading(false);
           return;
         }
+
         await signUp({
           username: email,
           password,
@@ -331,6 +382,7 @@ const Login = () => {
           {/* Conditional rendering of forms based on state */}
           <Box
             component="form"
+            noValidate
             onSubmit={
               isReset && step === "confirmReset"
                 ? handleConfirmReset
@@ -496,7 +548,15 @@ const Login = () => {
                           margin="normal"
                           required
                           value={firstName}
-                          onChange={(e) => setFirstName(e.target.value)}
+                          onChange={(e) => {
+                            setFirstName(e.target.value);
+                            setSignUpErrors((prev) => ({
+                              ...prev,
+                              firstName: undefined,
+                            }));
+                          }}
+                          error={!!signUpErrors.firstName}
+                          helperText={signUpErrors.firstName}
                           sx={{ ...inputStyles, flex: 1 }}
                         />
                         <TextField
@@ -505,7 +565,15 @@ const Login = () => {
                           margin="normal"
                           required
                           value={lastName}
-                          onChange={(e) => setLastName(e.target.value)}
+                          onChange={(e) => {
+                            setLastName(e.target.value);
+                            setSignUpErrors((prev) => ({
+                              ...prev,
+                              lastName: undefined,
+                            }));
+                          }}
+                          error={!!signUpErrors.lastName}
+                          helperText={signUpErrors.lastName}
                           sx={{ ...inputStyles, flex: 1 }}
                         />
                       </Box>
@@ -520,7 +588,17 @@ const Login = () => {
                       required
                       autoComplete="email"
                       value={email}
-                      onChange={(e) => setEmail(e.target.value)}
+                      onChange={(e) => {
+                        setEmail(e.target.value);
+                        if (isSignUp) {
+                          setSignUpErrors((prev) => ({
+                            ...prev,
+                            email: undefined,
+                          }));
+                        }
+                      }}
+                      error={isSignUp && !!signUpErrors.email}
+                      helperText={isSignUp ? signUpErrors.email : undefined}
                       InputProps={{
                         startAdornment: (
                           <InputAdornment position="start">
@@ -541,8 +619,16 @@ const Login = () => {
                       value={password}
                       onChange={(e) => {
                         setPassword(e.target.value);
-                        if (isSignUp) checkPasswordRequirements(e.target.value);
+                        if (isSignUp) {
+                          checkPasswordRequirements(e.target.value);
+                          setSignUpErrors((prev) => ({
+                            ...prev,
+                            password: undefined,
+                          }));
+                        }
                       }}
+                      error={isSignUp && !!signUpErrors.password}
+                      helperText={isSignUp ? signUpErrors.password : undefined}
                       InputProps={{
                         startAdornment: (
                           <InputAdornment position="start">
@@ -835,7 +921,13 @@ const Login = () => {
                           setConfirmPassword(e.target.value);
                           if (password)
                             checkPasswordRequirements(password, e.target.value);
+                          setSignUpErrors((prev) => ({
+                            ...prev,
+                            confirmPassword: undefined,
+                          }));
                         }}
+                        error={!!signUpErrors.confirmPassword}
+                        helperText={signUpErrors.confirmPassword}
                         InputProps={{
                           startAdornment: (
                             <InputAdornment position="start">
@@ -969,6 +1061,7 @@ const Login = () => {
                         onClick={(e) => {
                           e.preventDefault();
                           setIsSignUp((prev) => !prev);
+                          setSignUpErrors({});
                         }}
                         underline="hover"
                         sx={{ fontSize: 14, color: "var(--primary)" }}
