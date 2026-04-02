@@ -55,39 +55,6 @@ const routes = {
       handleError(err, response);
     }
   },
-  "POST /student/create_user": async (event, env) => {
-    const { response, user, user_id, sqlConnection } = env;
-    if (event.queryStringParameters) {
-      const { user_email, username, first_name, last_name } =
-        event.queryStringParameters;
-
-      try {
-        // Sync user information based on user_id from authorizer
-        const updatedUser = await sqlConnection`
-                    UPDATE "users"
-                    SET
-                        username = ${username},
-                        user_email = ${user_email},
-                        first_name = ${first_name},
-                        last_name = ${last_name},
-                        last_sign_in = CURRENT_TIMESTAMP
-                    WHERE user_id = ${user_id}
-                    RETURNING *;
-                `;
-        if (updatedUser.length > 0) {
-          response.body = JSON.stringify(updatedUser[0]);
-        } else {
-          response.statusCode = 404;
-          response.body = JSON.stringify({ error: "User not found" });
-        }
-      } catch (err) {
-        handleError(err, response);
-      }
-    } else {
-      response.statusCode = 400;
-      response.body = JSON.stringify({ error: "User data is required" });
-    }
-  },
   "GET /student/get_name": async (event, env) => {
     const { response, user, user_id, userEmail, sqlConnection } = env;
     if (event.queryStringParameters && event.queryStringParameters.user_email) {
@@ -133,8 +100,11 @@ const routes = {
           return;
         }
 
+        // Explicit columns for summaries (OWASP API3:2023)
+        const SUMMARY_COLUMNS = `summary_id, case_id, scope, block_context, title, content, time_created`;
+
         const data = await sqlConnection`
-            SELECT * 
+            SELECT ${sqlConnection.unsafe(SUMMARY_COLUMNS)}
             FROM "summaries" WHERE case_id = ${case_id};
           `;
 
@@ -283,6 +253,9 @@ const routes = {
     const { response, user, user_id, userEmail, sqlConnection } = env;
     // Use user_id from database user metadata
     try {
+      // Explicit columns for case listings (OWASP API3:2023)
+      const CASE_COLUMNS = `case_id, case_hash, case_title, status, jurisdiction, last_updated`;
+
       const params = event.queryStringParameters || {};
       const page = parseInt(params.page || "0", 10);
       const limit = parseInt(params.limit || "10", 10);
@@ -301,7 +274,7 @@ const routes = {
           AND status::text = ${status};
         `;
         dataQuery = sqlConnection`
-          SELECT * FROM "cases"
+          SELECT ${sqlConnection.unsafe(CASE_COLUMNS)} FROM "cases"
           WHERE student_id = ${user_id}
           AND (case_title ILIKE ${search} OR CAST(jurisdiction AS TEXT) ILIKE ${search} OR case_id::text ILIKE ${search})
           AND status::text = ${status}
@@ -315,7 +288,7 @@ const routes = {
           AND (case_title ILIKE ${search} OR CAST(jurisdiction AS TEXT) ILIKE ${search} OR case_id::text ILIKE ${search});
         `;
         dataQuery = sqlConnection`
-          SELECT * FROM "cases"
+          SELECT ${sqlConnection.unsafe(CASE_COLUMNS)} FROM "cases"
           WHERE student_id = ${user_id}
           AND (case_title ILIKE ${search} OR CAST(jurisdiction AS TEXT) ILIKE ${search} OR case_id::text ILIKE ${search})
           ORDER BY last_updated DESC
@@ -328,7 +301,7 @@ const routes = {
           AND status::text = ${status};
         `;
         dataQuery = sqlConnection`
-          SELECT * FROM "cases"
+          SELECT ${sqlConnection.unsafe(CASE_COLUMNS)} FROM "cases"
           WHERE student_id = ${user_id}
           AND status::text = ${status}
           ORDER BY last_updated DESC
@@ -340,7 +313,7 @@ const routes = {
           WHERE student_id = ${user_id};
         `;
         dataQuery = sqlConnection`
-          SELECT * FROM "cases"
+          SELECT ${sqlConnection.unsafe(CASE_COLUMNS)} FROM "cases"
           WHERE student_id = ${user_id}
           ORDER BY last_updated DESC
           LIMIT ${limit} OFFSET ${offset};
@@ -413,29 +386,6 @@ const routes = {
       });
     } catch (err) {
       logger.error("Error accepting disclaimer:", err);
-      handleError(err, response);
-    }
-  },
-  "GET /student/recent_cases": async (event, env) => {
-    const { response, user, user_id, userEmail, sqlConnection } = env;
-    // Use user_id from database user metadata
-    try {
-      const data = await sqlConnection`
-            SELECT * 
-            FROM "cases"
-            WHERE student_id = ${user_id}
-            ORDER BY last_viewed DESC
-            LIMIT 6;
-          `;
-
-      if (data.length === 0) {
-        response.statusCode = 404;
-        response.body = JSON.stringify({ message: "No cases found" });
-      } else {
-        response.statusCode = 200;
-        response.body = JSON.stringify(data);
-      }
-    } catch (err) {
       handleError(err, response);
     }
   },
@@ -595,20 +545,24 @@ const routes = {
           return;
         }
 
+        const CASE_COLUMNS = `case_id, case_hash, case_title, status, student_id, completed_blocks, student_notes, jurisdiction, province, statute, case_type, case_description, last_updated`;
+        const MESSAGE_COLUMNS = `message_id, message_content, time_sent, instructor_id`;
+        const SUMMARY_COLUMNS = `summary_id, case_id, scope, block_context, title, content, time_created`;
+
         // Fetch case, messages and summaries
         const caseResult = await sqlConnection`
-              SELECT * FROM "cases" WHERE case_id = ${case_id};
+              SELECT ${sqlConnection.unsafe(CASE_COLUMNS)} FROM "cases" WHERE case_id = ${case_id};
             `;
 
         const messages = await sqlConnection`
-              SELECT m.*, u.first_name, u.last_name
+              SELECT ${sqlConnection.unsafe(MESSAGE_COLUMNS)}, u.first_name, u.last_name
               FROM "messages" m
               LEFT JOIN "users" u ON m.instructor_id = u.user_id
               WHERE m.case_id = ${case_id};
             `;
 
         const summaries = await sqlConnection`
-              SELECT * FROM "summaries" WHERE case_id = ${case_id};
+              SELECT ${sqlConnection.unsafe(SUMMARY_COLUMNS)} FROM "summaries" WHERE case_id = ${case_id};
             `;
 
         const combinedData = {

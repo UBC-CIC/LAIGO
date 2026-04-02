@@ -178,7 +178,7 @@ Update case details.
 - `case_title` (string, required): Title of the case
 - `case_description` (string, required): Detailed description (1-4000 characters)
 - `case_type` (string, required): Broad area of law
-- `status` (string, required): Case status (`in_progress`, `completed`, or `archived`)
+- `status` (string, required): Case status (`in_progress`, `submitted`, `reviewed`, or `archived`)
 - `jurisdiction` (array, required): Jurisdiction list
 - `province` (string, required): Province/Territory
 - `statute` (string, required): Relevant statute details
@@ -220,33 +220,37 @@ Get comprehensive case data including messages and summaries.
 {
   "caseData": {
     "case_id": "uuid",
+    "case_hash": "abc123def456",
     "case_title": "Employment Dispute",
-    "case_type": "Employment Law",
     "status": "in_progress",
+    "student_id": "uuid",
+    "completed_blocks": ["intake"],
+    "student_notes": "Student notes...",
     "jurisdiction": ["Provincial"],
     "province": "Ontario",
     "statute": "Employment Standards Act, 2000",
+    "case_type": "Employment Law",
     "case_description": "Client was terminated...",
-    "notes": "Student notes...",
-    "time_created": "2024-01-15T10:30:00.000Z"
+    "last_updated": "2024-01-20T14:22:00.000Z"
   },
   "messages": [
     {
-      "type": "human",
-      "content": "What are the key issues in this case?"
-    },
-    {
-      "type": "ai",
-      "content": "The key issues include wrongful dismissal..."
+      "message_id": "uuid",
+      "message_content": "Great work on the intake section.",
+      "time_sent": "2024-01-18T09:15:00.000Z",
+      "instructor_id": "uuid",
+      "first_name": "Jane",
+      "last_name": "Smith"
     }
   ],
   "summaries": [
     {
-      "summary_id": 1,
-      "content": "Summary of intake facts...",
+      "summary_id": "uuid",
+      "case_id": "uuid",
       "scope": "block",
       "block_context": "intake",
       "title": "Intake Facts Summary",
+      "content": "Summary of intake facts...",
       "time_created": "2024-01-16T12:00:00.000Z"
     }
   ]
@@ -369,12 +373,10 @@ Get all cases for the authenticated student with server-side pagination, search,
   "cases": [
     {
       "case_id": "uuid",
+      "case_hash": "abc123def456",
       "case_title": "Employment Dispute",
-      "case_type": "Employment Law",
       "status": "in_progress",
       "jurisdiction": ["Provincial"],
-      "province": "Ontario",
-      "time_created": "2024-01-15T10:30:00.000Z",
       "last_updated": "2024-01-20T14:22:00.000Z"
     }
   ],
@@ -576,7 +578,7 @@ Get all summaries for a case.
 ```json
 [
   {
-    "summary_id": 1,
+    "summary_id": "uuid",
     "case_id": "uuid",
     "content": "## Intake Facts Summary\n\nThe client was employed...",
     "scope": "block",
