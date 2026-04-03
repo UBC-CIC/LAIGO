@@ -27,6 +27,14 @@ const CreateCase: React.FC = () => {
   const { userInfo } = useUser();
   const isSupervisor = userInfo?.groups.includes("instructor");
 
+  type ApiFieldErrors = Partial<{
+    broadLaw: string;
+    province: string;
+    statute: string;
+    statuteDetails: string;
+    overview: string;
+  }>;
+
   // ... existing state ...
   const [isFederal, setIsFederal] = useState(false);
   const [isProvincial, setIsProvincial] = useState(false);
@@ -38,6 +46,7 @@ const CreateCase: React.FC = () => {
   const [submitting, setSubmitting] = useState<boolean>(false);
 
   // Form alert state
+  const [piiError, setPiiError] = useState<string | null>(null);
   const [genericError, setGenericError] = useState<string | null>(null);
   const [broadLawError, setBroadLawError] = useState<string | null>(null);
   const [provinceError, setProvinceError] = useState<string | null>(null);
@@ -93,6 +102,59 @@ const CreateCase: React.FC = () => {
 
   const navigate = useNavigate();
 
+  const applyApiFieldErrors = (fieldErrors?: ApiFieldErrors) => {
+    if (!fieldErrors) return false;
+
+    let hasFieldError = false;
+
+    if (fieldErrors.broadLaw) {
+      setBroadLawError(fieldErrors.broadLaw);
+      hasFieldError = true;
+    }
+
+    if (fieldErrors.province) {
+      setProvinceError(fieldErrors.province);
+      hasFieldError = true;
+    }
+
+    if (fieldErrors.statuteDetails || fieldErrors.statute) {
+      setStatuteError(fieldErrors.statuteDetails || fieldErrors.statute || null);
+      hasFieldError = true;
+    }
+
+    if (fieldErrors.overview) {
+      setOverviewError(fieldErrors.overview);
+      hasFieldError = true;
+    }
+
+    return hasFieldError;
+  };
+
+  const isPiiErrorMessage = (message?: string | null) => {
+    if (!message) return false;
+    return /(personal information|pii|guardrail|content guardrails)/i.test(
+      message,
+    );
+  };
+
+  const isInlineValidationFailure = (
+    status: number,
+    body: unknown,
+  ): body is { error?: string; field_errors?: ApiFieldErrors } => {
+    if (!body || typeof body !== "object") return false;
+
+    const responseBody = body as {
+      error?: string;
+      field_errors?: ApiFieldErrors;
+    };
+
+    if (responseBody.field_errors && Object.keys(responseBody.field_errors).length > 0) {
+      return true;
+    }
+
+    return status === 400 || status === 422;
+  };
+
   // Real-time validation effects
   useEffect(() => {
     if (broadLaw) setBroadLawError(null);
@@ -124,9 +186,16 @@ const CreateCase: React.FC = () => {
     }
   }, [overview]);
 
+  useEffect(() => {
+    if (piiError && overview.trim().length > 0) {
+      setPiiError(null);
+    }
+  }, [overview, piiError]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
+    setPiiError(null);
     setGenericError(null);
     setBroadLawError(null);
     setProvinceError(null);
@@ -206,15 +275,48 @@ const CreateCase: React.FC = () => {
         },
       );
 
+      const newCaseBody = await newCaseResp
+        .json()
+        .catch(() => null as unknown);
+
       if (!newCaseResp.ok) {
-        const text = await newCaseResp.text();
-        throw new Error(
-          `Failed to generate case: ${newCaseResp.status} ${text}`,
-        );
+        if (isInlineValidationFailure(newCaseResp.status, newCaseBody)) {
+          const responseBody = newCaseBody as {
+            error?: string;
+            field_errors?: ApiFieldErrors;
+          } | null;
+
+          const hasFieldErrors = applyApiFieldErrors(responseBody?.field_errors);
+          const message = responseBody?.error;
+
+          if (
+            isPiiErrorMessage(message) ||
+            isPiiErrorMessage(responseBody?.field_errors?.overview)
+          ) {
+            const piiFriendlyMessage =
+              "Please remove names or other personal information from the case overview, then try again.";
+            setPiiError(piiFriendlyMessage);
+            setOverviewError(piiFriendlyMessage);
+          } else if (!hasFieldErrors && message) {
+            setOverviewError(message);
+          }
+
+          setSubmitting(false);
+          return;
+        }
+
+        throw new Error("CASE_GENERATION_SYSTEM_ERROR");
       }
 
-      const newCaseData = await newCaseResp.json();
+      const newCaseData = newCaseBody as {
+        case_id?: string;
+        case_title?: string;
+      };
       console.log("case generation response", newCaseData);
+
+      if (!newCaseData?.case_id) {
+        throw new Error("Case generation did not return a case ID.");
+      }
 
       // Step 2: Call /student/edit_case to save the generated case to the database
       const editCasePayload = {
@@ -240,12 +342,39 @@ const CreateCase: React.FC = () => {
         },
       );
 
+      const editCaseBody = await editCaseResp
+        .json()
+        .catch(() => null as unknown);
+
       if (!editCaseResp.ok) {
-        const text = await editCaseResp.text();
-        throw new Error(`Failed to save case: ${editCaseResp.status} ${text}`);
+        if (isInlineValidationFailure(editCaseResp.status, editCaseBody)) {
+          const responseBody = editCaseBody as {
+            error?: string;
+            field_errors?: ApiFieldErrors;
+          } | null;
+
+          const hasFieldErrors = applyApiFieldErrors(responseBody?.field_errors);
+          const message = responseBody?.error;
+
+          if (
+            isPiiErrorMessage(message) ||
+            isPiiErrorMessage(responseBody?.field_errors?.overview)
+          ) {
+            const piiFriendlyMessage =
+              "Please remove names or other personal information from the case overview, then try again.";
+            setPiiError(piiFriendlyMessage);
+            setOverviewError(piiFriendlyMessage);
+          } else if (!hasFieldErrors && message) {
+            setOverviewError(message);
+          }
+
+          return;
+        }
+
+        throw new Error("CASE_SAVE_SYSTEM_ERROR");
       }
 
-      const editCaseData = await editCaseResp.json();
+      const editCaseData = editCaseBody;
       console.log("case save response", editCaseData);
 
       /* Success snackbar removed as we navigate away immediately */
@@ -263,8 +392,15 @@ const CreateCase: React.FC = () => {
       navigate(`/case/${newCaseData.case_id}/interview/intake-facts`);
     } catch (err) {
       console.error("Failed to submit case", err);
-      const msg = err instanceof Error ? err.message : "Failed to submit case";
-      setGenericError(msg);
+      const msg = err instanceof Error ? err.message : "UNKNOWN_ERROR";
+
+      if (msg === "No auth token or user ID available") {
+        setGenericError("Your session has expired. Please sign in again.");
+      } else {
+        setGenericError(
+          "We could not create your case right now. Please try again in a moment.",
+        );
+      }
     } finally {
       setSubmitting(false);
     }
@@ -449,6 +585,12 @@ const CreateCase: React.FC = () => {
                 error={!!overviewError}
                 helperText={overviewError}
               />
+
+              {piiError && (
+                <Alert severity="error" sx={{ width: "100%" }}>
+                  {piiError}
+                </Alert>
+              )}
 
               {/* Start Chat Button */}
               <Button

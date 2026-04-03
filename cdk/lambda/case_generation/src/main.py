@@ -47,6 +47,13 @@ ALLOWED_CASE_TYPES = {
     "Tort Law",
 }
 
+
+def validation_error(message, event=None, field_errors=None):
+    payload = {"error": message}
+    if field_errors:
+        payload["field_errors"] = field_errors
+    return create_response(400, payload, event)
+
 class CustomJSONEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, uuid.UUID):
@@ -180,9 +187,13 @@ def _handle_guardrail_error(resp, event=None):
     message = 'Input blocked by content guardrails.'
     for assessment in resp.get('assessments', []):
         if 'sensitiveInformationPolicy' in assessment:
-            message = 'Please remove personal information.'
+            message = 'Please remove personal information from the case overview.'
             break
-    return create_response(400, {'error': message}, event)
+    return validation_error(
+        message,
+        event,
+        field_errors={"overview": message},
+    )
 
 
 # def handler(event, context):
@@ -209,7 +220,23 @@ def handler(event, context):
             logger.error("Missing userId from authorizer context")
             return create_response(401, {'error': 'Unauthorized: Missing user identity'}, event)
 
-        body = json.loads(event.get('body', '{}'))
+        raw_body = event.get('body', '{}')
+        try:
+            body = json.loads(raw_body) if raw_body else {}
+        except json.JSONDecodeError:
+            return validation_error(
+                'Request body must be valid JSON.',
+                event,
+                field_errors={"overview": 'Please check the case details you entered.'},
+            )
+
+        if not isinstance(body, dict):
+            return validation_error(
+                'Request body must be a JSON object.',
+                event,
+                field_errors={"overview": 'Please check the case details you entered.'},
+            )
+
         case_title = body.get('case_title')
         case_type = body.get('case_type')
         jurisdiction = body.get('jurisdiction')
@@ -217,8 +244,25 @@ def handler(event, context):
         province = body.get('province')
         statute = body.get('statute')
 
-        if case_type not in ALLOWED_CASE_TYPES:
-            return create_response(400, {'error': 'Please select a valid broad area of law.'}, event)
+        field_errors = {}
+
+        if not case_type:
+            field_errors['broadLaw'] = 'Please select a Broad Area of Law.'
+        elif case_type not in ALLOWED_CASE_TYPES:
+            field_errors['broadLaw'] = 'Please select a valid broad area of law.'
+
+        if not case_desc or not str(case_desc).strip():
+            field_errors['overview'] = 'Please provide a case overview.'
+
+        if isinstance(jurisdiction, list) and 'Provincial' in jurisdiction and not province:
+            field_errors['province'] = 'Please select a Province/Territory.'
+
+        if field_errors:
+            return validation_error(
+                'Please review the highlighted fields and try again.',
+                event,
+                field_errors=field_errors,
+            )
 
         combined = f"{case_title} {case_type} {jurisdiction} {case_desc}"
         
