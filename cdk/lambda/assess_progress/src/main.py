@@ -191,6 +191,194 @@ def _invoke_assessment_with_retry(system_instructions, human_context, max_attemp
 
     return None, last_response_text
 
+
+LOW_EFFORT_PATTERNS = [
+    re.compile(r"^\s*(please\s+)?(analy[sz]e|summari[sz]e|review|evaluate|assess)\b", flags=re.IGNORECASE),
+    re.compile(r"^\s*(what\s+are|tell\s+me|give\s+me)\b.*\b(facts|issues|summary|analysis)\b", flags=re.IGNORECASE),
+]
+
+SUBSTANTIVE_HINT_TOKENS = {
+    "evidence",
+    "timeline",
+    "missing",
+    "contradiction",
+    "inconsisten",
+    "source",
+    "corroborat",
+    "bias",
+    "jurisdiction",
+    "issue",
+    "element",
+    "counter",
+    "assumption",
+    "policy",
+    "charter",
+    "fairness",
+    "standard",
+    "burden",
+    "liability",
+    "defence",
+    "defense",
+    "damages",
+}
+
+
+def _parse_chat_history_lines(chat_history):
+    """Parse formatted chat history into an ordered list of messages."""
+    messages = []
+    if not chat_history:
+        return messages
+
+    chunks = re.split(r"\n\n(?=(?:HUMAN|AI):)", chat_history)
+    for raw in chunks:
+        line = (raw or "").strip()
+        if not line or ":" not in line:
+            continue
+        role, content = line.split(":", 1)
+        role = role.strip().upper()
+        content = content.strip()
+        if role in {"HUMAN", "AI"} and content:
+            messages.append({"role": role, "content": content})
+    return messages
+
+
+def _is_low_effort_prompt(message):
+    text = (message or "").strip()
+    if not text:
+        return True
+
+    lowered = text.lower()
+    if len(lowered.split()) <= 3:
+        return True
+
+    return any(pattern.search(lowered) for pattern in LOW_EFFORT_PATTERNS)
+
+
+def _is_substantive_human_message(message):
+    text = (message or "").strip()
+    if not text:
+        return False
+
+    if _is_low_effort_prompt(text):
+        return False
+
+    lowered = text.lower()
+    word_count = len(lowered.split())
+    has_question = "?" in text
+    has_hint_token = any(token in lowered for token in SUBSTANTIVE_HINT_TOKENS)
+
+    if word_count >= 12:
+        return True
+    if word_count >= 6 and (has_question or has_hint_token):
+        return True
+    return False
+
+
+def _build_assessment_context(chat_history):
+    """
+    Build an assessment payload that preserves chronology while separating
+    creditable human effort from assistant context.
+    """
+    parsed = _parse_chat_history_lines(chat_history)
+    if not parsed:
+        return {
+            "formatted_context": "",
+            "signals": {
+                "total_turns": 0,
+                "human_turns": 0,
+                "assistant_turns": 0,
+                "substantive_human_turns": 0,
+                "has_meaningful_human_effort": False,
+            },
+        }
+
+    ordered_lines = []
+    human_lines = []
+    assistant_lines = []
+    substantive_human_turns = 0
+
+    for idx, msg in enumerate(parsed, start=1):
+        role = msg["role"]
+        content = msg["content"]
+        ordered_lines.append(f"{idx}. {role}: {content}")
+
+        if role == "HUMAN":
+            human_lines.append(f"{len(human_lines) + 1}. {content}")
+            if _is_substantive_human_message(content):
+                substantive_human_turns += 1
+        else:
+            assistant_lines.append(f"{len(assistant_lines) + 1}. {content}")
+
+    has_meaningful_human_effort = substantive_human_turns > 0
+
+    formatted_context = (
+        "ORDERED CONVERSATION TIMELINE (chronological):\n"
+        + "\n".join(ordered_lines)
+        + "\n\n"
+        + "CREDITABLE HUMAN TURNS (for scoring):\n"
+        + ("\n".join(human_lines) if human_lines else "None")
+        + "\n\n"
+        + "ASSISTANT TURNS (context only, non-creditable):\n"
+        + ("\n".join(assistant_lines) if assistant_lines else "None")
+    )
+
+    return {
+        "formatted_context": formatted_context,
+        "signals": {
+            "total_turns": len(parsed),
+            "human_turns": len(human_lines),
+            "assistant_turns": len(assistant_lines),
+            "substantive_human_turns": substantive_human_turns,
+            "has_meaningful_human_effort": has_meaningful_human_effort,
+        },
+    }
+
+
+def _build_assessment_system_instructions(block_type, prompt_criteria):
+    return f"""
+    You are an expert legal instruction assistant. Your goal is to assess whether the student has sufficiently completed the objectives of the current '{block_type}' phase based on the conversation history.
+
+    PROMPT CRITERIA:
+    {prompt_criteria}
+
+    SCORING RULES (NON-NEGOTIABLE):
+    - Keep chronology in mind using the ordered timeline.
+    - Only HUMAN turns are creditable evidence of student effort.
+    - AI turns are context only and must NEVER be counted as student effort.
+    - If HUMAN turns are mostly requests like "analyze" or "summarize" without substantive follow-up, the score must stay low.
+
+    INSTRUCTIONS:
+    - Analyze the detailed history against the criteria.
+    - Result MUST be a JSON object: {{ "progress": int, "reasoning": "brief explanation" }}
+    - "progress": A number between 0 and 5, returning 0 if they have not met the main goals and are not ready to move on. Returning 5 if they have met the main goals and are ready to move on.
+    - "reasoning": 3-4 sentences explaining what they have done well and what areas they specifically need to improve or focus on in order to move on. Address the user directly in the second person. You must NEVER explicitly mention the 0-5 progress scale in your feedback, it is for your internal information.
+    - Output ONLY the JSON object.
+    """
+
+
+def _apply_human_effort_cap(result, signals):
+    """Apply a conservative cap when no meaningful human effort is present."""
+    if not result or not isinstance(result, dict):
+        return result
+
+    if signals.get("has_meaningful_human_effort"):
+        return result
+
+    capped_progress = min(int(result.get("progress", 0)), 1)
+    reasoning = (result.get("reasoning") or "").strip()
+    cap_note = (
+        "To advance, you need to add your own substantive analysis through targeted follow-up questions,"
+        " evidence probing, or issue-focused reasoning."
+    )
+
+    if cap_note not in reasoning:
+        reasoning = f"{reasoning} {cap_note}".strip()
+
+    return {
+        "progress": capped_progress,
+        "reasoning": reasoning,
+    }
+
 def get_secret(secret_name, expect_json=True):
     global db_secret
     if db_secret is None:
@@ -580,24 +768,15 @@ def handler(event, context):
         
         logger.info(f"Fetched {len(chat_history)} chars of chat history for session {playground_session_id}")
         
+        assessment_context = _build_assessment_context(chat_history)
+        signals = assessment_context["signals"]
+
         # Construct system instruction
-        system_instructions = f"""
-        You are an expert legal instruction assistant. Your goal is to assess whether the student has sufficiently completed the objectives of the current '{block_type}' phase based on the conversation history.
-        
-        PROMPT CRITERIA:
-        {custom_prompt}
-        
-        INSTRUCTIONS:
-        - Analyze the detailed history against the criteria.
-        - Result MUST be a JSON object: {{ "progress": int, "reasoning": string }}
-        - "progress": A number between 0 and 5, returning 0 if they have not met the main goals and are not ready to move on. Returning 5 if they have met the main goals and are ready to move on.
-        - "reasoning": 3-4 sentences explaining what they have done well and what areas they specifically need to improve or focus on in order to move on. Address the user directly in the second person. You must NEVER explicitly mention the 0-5 progress scale in your feedback, it is for your internal information.
-        - Output ONLY the JSON object.
-        """
+        system_instructions = _build_assessment_system_instructions(block_type, custom_prompt)
 
         human_context = f"""
-        CONVERSATION HISTORY:
-        {chat_history}
+        CONVERSATION HISTORY PACKAGE:
+        {assessment_context["formatted_context"]}
         """
         
         try:
@@ -615,6 +794,7 @@ def handler(event, context):
                     return {"statusCode": 200}
                 return create_response(200, error_data, event)
             
+            result = _apply_human_effort_cap(result, signals)
             progress = int(result.get("progress", 0))
             reasoning = result.get("reasoning", "No reasoning provided.")
             
@@ -682,24 +862,15 @@ def handler(event, context):
         logger.error(f"Assessment prompt not found for {block_type}")
         return create_response(500, 'Configuration error: No assessment prompt found.', event)
 
+    assessment_context = _build_assessment_context(chat_history)
+    signals = assessment_context["signals"]
+
     # Construct complete prompt
-    system_instructions = f"""
-    You are an expert legal instruction assistant. Your goal is to assess whether the student has sufficiently completed the objectives of the current '${block_type}' phase based on the conversation history.
-    
-    PROMPT CRITERIA:
-    {prompt_template}
-    
-    INSTRUCTIONS:
-    - Analyze the detailed history against the criteria.
-    - Result MUST be a JSON object: {{ "progress": int, "reasoning": "brief explanation" }}
-    - "progress": A number between 0 and 5, returning 0 if they have not met the main goals and are not ready to move on. Returning 5 if they have met the main goals and are ready to move on.
-    - "reasoning": 3-4 sentences explaining what they have done well and what areas they specifically need to improve or focus on in order to move on. Address the user directly in the second person.
-    - Output ONLY the JSON object.
-    """
+    system_instructions = _build_assessment_system_instructions(block_type, prompt_template)
 
     human_context = f"""
-    CONVERSATION HISTORY:
-    {chat_history}
+    CONVERSATION HISTORY PACKAGE:
+    {assessment_context["formatted_context"]}
     """
     
     try:
@@ -720,6 +891,7 @@ def handler(event, context):
                 return {"statusCode": 200}
             return create_response(200, error_data, event)
             
+        result = _apply_human_effort_cap(result, signals)
         progress = int(result.get("progress", 0))
         reasoning = result.get("reasoning", "No reasoning provided.")
         

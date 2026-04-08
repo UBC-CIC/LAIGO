@@ -318,7 +318,15 @@ Evaluates a student's progress within a specific interview block by analyzing th
 ### Assessment Prompt Structure
 The LLM receives:
 - **System instructions**: Assessment criteria from the database prompt template, with instructions to output a JSON object containing `progress` (0-5) and `reasoning` (3-4 sentences in second person)
-- **Human context**: The full conversation history for the session
+- **Conversation history package**:
+    - Ordered full timeline of all turns (chronological)
+    - Human-only turn list used as the creditable evidence lane
+    - Assistant-only turn list marked as context-only, non-creditable
+
+### Human-Effort Guardrails
+- Progress scoring is based on human-authored effort; assistant-generated analysis or summaries cannot be counted as student work.
+- If human participation is mostly low-effort requests (for example, asking the assistant to "analyze" or "summarize" without substantive follow-up), a conservative score cap is applied.
+- This logic is applied consistently in both standard assessment mode and playground assessment mode.
 
 ### Response Parsing
 - Extracts JSON from the LLM response by finding the first `{` and last `}`
