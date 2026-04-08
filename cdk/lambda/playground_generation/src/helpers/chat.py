@@ -1,5 +1,5 @@
 import boto3, re, time
-from langchain_aws import ChatBedrock
+from langchain_aws import ChatBedrockConverse
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables.history import RunnableWithMessageHistory
@@ -14,9 +14,7 @@ def get_bedrock_llm(
     temperature: float = 0,
     max_tokens: int = 4096,
     top_p: float = 0.9,
-    guardrail_id: str = None,
-    guardrail_version: str = None,
-) -> ChatBedrock:
+) -> ChatBedrockConverse:
     """
     Retrieve a Bedrock LLM instance based on the provided model ID.
 
@@ -25,29 +23,15 @@ def get_bedrock_llm(
     temperature (float, optional): The temperature parameter for the LLM. Defaults to 0.
     max_tokens (int, optional): The maximum number of tokens to generate. Defaults to 4096.
     top_p (float, optional): The top_p parameter for the LLM. Defaults to 0.9.
-    guardrail_id (str, optional): The Bedrock Guardrail ID. Defaults to None.
-    guardrail_version (str, optional): The Bedrock Guardrail version. Defaults to None.
 
     Returns:
-    ChatBedrock: An instance of the Bedrock LLM corresponding to the provided model ID.
+    ChatBedrockConverse: An instance of the Bedrock LLM corresponding to the provided model ID.
     """
-    model_kwargs = {
-        "temperature": temperature,
-        "max_tokens": max_tokens,
-        "top_p": top_p,
-    }
-    
-    guardrails = {}
-    if guardrail_id and guardrail_version:
-        guardrails = {
-            "guardrailIdentifier": guardrail_id,
-            "guardrailVersion": guardrail_version,
-        }
-    
-    return ChatBedrock(
-        model_id=bedrock_llm_id,
-        model_kwargs=model_kwargs,
-        guardrails=guardrails if guardrails else None,
+    return ChatBedrockConverse(
+        model=bedrock_llm_id,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        top_p=top_p,
     )
 
 
@@ -112,7 +96,7 @@ def get_response(
     query: str,
     province: str,
     statute:  str,
-    llm: ChatBedrock,
+    llm: ChatBedrockConverse,
     table_name: str,
     case_id: str,
     system_prompt: str,
@@ -126,7 +110,7 @@ def get_response(
     Args:
     query (str): The student's query string for which a response is needed.
     case_name (str): The specific case that the student needs to analyze.
-    llm (ChatBedrock): The language model instance used to generate the response.
+    llm (ChatBedrockConverse): The language model instance used to generate the response.
     table_name (str): The DynamoDB table name used to store and retrieve the chat history.
     session_id (str): The unique identifier for the chat session to manage history.
 
@@ -216,7 +200,7 @@ def get_streaming_response(
     query: str,
     province: str,
     statute: str,
-    llm: ChatBedrock,
+    llm: ChatBedrockConverse,
     table_name: str,
     case_id: str,
     system_prompt: str,
@@ -325,7 +309,7 @@ def get_streaming_response(
  
 def get_playground_streaming_response(
     query: str,
-    llm: ChatBedrock,
+    llm: ChatBedrockConverse,
     table_name: str,
     session_id: str,
     system_prompt: str,
@@ -342,7 +326,7 @@ def get_playground_streaming_response(
     
     Args:
     query (str): The user's test message.
-    llm (ChatBedrock): The language model instance.
+    llm (ChatBedrockConverse): The language model instance.
     table_name (str): DynamoDB table name for chat history.
     session_id (str): Unique session ID for playground conversation.
     system_prompt (str): Custom system prompt to test.
