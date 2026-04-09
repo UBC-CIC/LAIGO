@@ -1,6 +1,8 @@
 import { useEffect, useState, useCallback } from "react";
 import { Amplify } from "aws-amplify";
 import { getCurrentUser, fetchAuthSession } from "aws-amplify/auth";
+import { cognitoUserPoolsTokenProvider } from "aws-amplify/auth/cognito";
+import { sessionStorage as amplifySessionStorage } from "aws-amplify/utils";
 import { Routes, Route, Navigate } from "react-router-dom";
 import Login from "./pages/Login";
 import SupervisorDashboard from "./pages/Supervisor/SupervisorDashboard";
@@ -55,6 +57,7 @@ const amplifyConfig = {
 
 // Configure Amplify
 Amplify.configure(amplifyConfig);
+cognitoUserPoolsTokenProvider.setKeyValueStorage(amplifySessionStorage);
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -63,6 +66,9 @@ function App() {
   const [showDisclaimer, setShowDisclaimer] = useState(false);
   const [disclaimerText, setDisclaimerText] = useState("");
   const [activePerspective, setActivePerspectiveState] = useState<string | null>(null);
+
+  const getActivePerspectiveStorageKey = (userId: string | undefined) =>
+    userId ? `activePerspective:${userId}` : "activePerspective";
 
   useEffect(() => {
     const checkAuthState = async () => {
@@ -111,7 +117,8 @@ function App() {
           setIsAuthenticated(true);
 
           // Restore saved perspective or fall back to highest-priority available role
-          const savedPerspective = localStorage.getItem("activePerspective");
+          const perspectiveStorageKey = getActivePerspectiveStorageKey(userInfo.userId);
+          const savedPerspective = sessionStorage.getItem(perspectiveStorageKey);
           const roles: string[] = profile.roles;
           const priorityOrder = ["admin", "instructor", "student"];
           const defaultPerspective = priorityOrder.find((r) => roles.includes(r)) ?? null;
@@ -199,12 +206,13 @@ function App() {
 
   const setActivePerspective = useCallback((perspective: string | null) => {
     setActivePerspectiveState(perspective);
+    const storageKey = getActivePerspectiveStorageKey(userInfo?.userId);
     if (perspective) {
-      localStorage.setItem("activePerspective", perspective);
+      sessionStorage.setItem(storageKey, perspective);
     } else {
-      localStorage.removeItem("activePerspective");
+      sessionStorage.removeItem(storageKey);
     }
-  }, []);
+  }, [userInfo?.userId]);
 
   const availablePerspectives = userInfo?.groups ?? [];
 
