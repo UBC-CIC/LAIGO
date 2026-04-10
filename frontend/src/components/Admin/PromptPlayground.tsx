@@ -141,7 +141,20 @@ const DEFAULT_CASE_CONTEXT: CaseContext = {
   statute: "Criminal Code of Canada",
 };
 
-const generateTestId = () => Math.random().toString(36).slice(2, 10);
+const generateTestId = () => {
+  if (typeof globalThis.crypto !== "undefined") {
+    if (typeof globalThis.crypto.randomUUID === "function") {
+      return globalThis.crypto.randomUUID().replace(/-/g, "").slice(0, 8);
+    }
+
+    const bytes = new Uint8Array(4);
+    globalThis.crypto.getRandomValues(bytes);
+    return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  }
+
+  // Non-random fallback for environments without Web Crypto.
+  return `${Date.now().toString(36)}${performance.now().toString(36).replace(".", "")}`.slice(-8);
+};
 
 const createDefaultConfig = (
   blockType: string = "intake",
