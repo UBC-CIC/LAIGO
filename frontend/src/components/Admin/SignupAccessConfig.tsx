@@ -79,7 +79,6 @@ const SignupAccessConfig = () => {
       const data = await res.json();
       setSignupMode(data.mode === "whitelist" ? "whitelist" : "public");
     } catch (err) {
-      console.error("Failed to load signup mode:", err);
     } finally {
       setModeLoading(false);
     }
@@ -127,7 +126,6 @@ const SignupAccessConfig = () => {
       setEntries(data.entries || []);
       setPage(0);
     } catch (err) {
-      console.error("Failed to load whitelist:", err);
     } finally {
       setListLoading(false);
     }

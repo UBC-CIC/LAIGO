@@ -140,7 +140,6 @@ const SupervisorDashboard = ({ userInfo: _userInfo }: SupervisorDashboardProps) 
           }
         }
       } catch (err) {
-        console.error("Error fetching my cases", err);
         if (!append) {
           setMyCases([]);
           setMyTotalCount(0);
@@ -191,7 +190,6 @@ const SupervisorDashboard = ({ userInfo: _userInfo }: SupervisorDashboardProps) 
           }
         }
       } catch (err) {
-        console.error("Error fetching student cases", err);
         if (!append) {
           setAllStudentCases([]);
           setAllTotalCount(0);
@@ -301,7 +299,6 @@ const SupervisorDashboard = ({ userInfo: _userInfo }: SupervisorDashboardProps) 
         showSnackbar(data.error || "Failed to delete case", "error");
       }
     } catch (err) {
-      console.error("Error deleting case", err);
       showSnackbar("Failed to delete case", "error");
     }
   };
@@ -342,7 +339,6 @@ const SupervisorDashboard = ({ userInfo: _userInfo }: SupervisorDashboardProps) 
         showSnackbar(data.error || "Failed to update case archive status", "error");
       }
     } catch (err) {
-      console.error("Error archiving case", err);
       showSnackbar("Failed to update case archive status", "error");
     }
   };

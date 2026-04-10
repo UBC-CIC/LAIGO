@@ -72,7 +72,6 @@ const AdvocateHeader: React.FC = () => {
 
       // Optionally, you can add navigation or other logic here
     } catch (error) {
-      console.error("Error signing out:", error);
     }
   };
 

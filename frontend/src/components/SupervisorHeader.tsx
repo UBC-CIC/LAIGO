@@ -72,7 +72,6 @@ const SupervisorHeader: React.FC = () => {
       // Reload or navigate to root to trigger auth state change
       window.location.href = "/";
     } catch (error) {
-      console.error("Error signing out:", error);
     }
   };
 

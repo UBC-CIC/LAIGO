@@ -312,7 +312,6 @@ const CreateCase: React.FC = () => {
         case_id?: string;
         case_title?: string;
       };
-      console.log("case generation response", newCaseData);
 
       if (!newCaseData?.case_id) {
         throw new Error("Case generation did not return a case ID.");
@@ -374,9 +373,6 @@ const CreateCase: React.FC = () => {
         throw new Error("CASE_SAVE_SYSTEM_ERROR");
       }
 
-      const editCaseData = editCaseBody;
-      console.log("case save response", editCaseData);
-
       /* Success snackbar removed as we navigate away immediately */
 
       // reset form
@@ -391,7 +387,6 @@ const CreateCase: React.FC = () => {
       // Navigate to the new case's interview page (start at intake section)
       navigate(`/case/${newCaseData.case_id}/interview/intake-facts`);
     } catch (err) {
-      console.error("Failed to submit case", err);
       const msg = err instanceof Error ? err.message : "UNKNOWN_ERROR";
 
       if (msg === "No auth token or user ID available") {

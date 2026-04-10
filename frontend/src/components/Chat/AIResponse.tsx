@@ -46,16 +46,6 @@ const AiResponse: React.FC<AiResponseProps> = ({
     }
   };
 
-  // Debug: Log when isStreaming changes
-  React.useEffect(() => {
-    console.log(
-      "AIResponse isStreaming:",
-      isStreaming,
-      "message length:",
-      message.length,
-    );
-  }, [isStreaming, message]);
-
   return (
     <Box
       sx={{

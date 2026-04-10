@@ -1287,8 +1287,7 @@ const PromptPlayground: React.FC = () => {
             `${import.meta.env.VITE_WEBSOCKET_URL}?playground_mode=true`,
           );
         }
-      } catch (error) {
-        console.error("Error setting up WebSocket:", error);
+      } catch {
       }
     };
     setupWebSocket();
@@ -1361,8 +1360,7 @@ const PromptPlayground: React.FC = () => {
           modelId: selectedModelId,
           ...(defaultMaxTokens ? { maxTokens: defaultMaxTokens } : {}),
         }));
-      } catch (error) {
-        console.error("Failed to fetch AI model options:", error);
+      } catch {
       }
     };
 
@@ -1389,8 +1387,7 @@ const PromptPlayground: React.FC = () => {
         const data = await response.json();
         setPromptVersions(data);
       }
-    } catch (error) {
-      console.error("Failed to fetch prompt versions:", error);
+    } catch {
     }
   }, []);
 
@@ -1410,8 +1407,7 @@ const PromptPlayground: React.FC = () => {
         const data = await response.json();
         setAssessmentVersions(data);
       }
-    } catch (error) {
-      console.error("Failed to fetch assessment versions:", error);
+    } catch {
     }
   }, []);
 
@@ -1670,7 +1666,6 @@ const PromptPlayground: React.FC = () => {
             }));
           },
           onError: (errorMsg) => {
-            console.error("Assessment error:", errorMsg);
             setConfig((prev) => ({ ...prev, isAssessing: false }));
             setSnackbar({
               open: true,
@@ -1850,8 +1845,7 @@ const PromptPlayground: React.FC = () => {
               return updated;
             });
           },
-          onError: (errorMsg) => {
-            console.error("Error in Config B stream:", errorMsg);
+          onError: () => {
             setConfigB((prev) => ({ ...prev, isLoading: false }));
           },
         },

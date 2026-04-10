@@ -91,7 +91,6 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
       setNotifications(notificationResponse.notifications);
       setUnreadCount(count);
     } catch (err) {
-      console.error("Failed to fetch notifications:", err);
       setError("Failed to load notifications");
     } finally {
       setIsLoading(false);
@@ -125,7 +124,6 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
         // Call API in background
         await markNotificationAsRead(notificationId);
       } catch (err) {
-        console.error("Failed to mark notification as read:", err);
         // Revert optimistic update on error
         setNotifications(previousNotifications);
         setUnreadCount(previousUnreadCount);
@@ -161,7 +159,6 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
       // Call API in background
       await markAllNotificationsAsRead();
     } catch (err) {
-      console.error("Failed to mark all notifications as read:", err);
       // Revert optimistic update on error
       setNotifications(previousNotifications);
       setUnreadCount(previousUnreadCount);
@@ -195,7 +192,6 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
         // Call API in background
         await markNotificationAsUnread(notificationId);
       } catch (err) {
-        console.error("Failed to mark notification as unread:", err);
         // Revert optimistic update on error
         setNotifications(previousNotifications);
         setUnreadCount(previousUnreadCount);
@@ -229,7 +225,6 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
         // Call API in background
         await deleteNotificationService(notificationId);
       } catch (err) {
-        console.error("Failed to delete notification:", err);
         // Revert optimistic update on error
         setNotifications(previousNotifications);
         setUnreadCount(previousUnreadCount);
@@ -246,10 +241,6 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
       // Check if this is a notification delivery message
       if (data.action === "notification_delivery") {
         const wsMessage = data as WebSocketNotificationMessage;
-        console.log(
-          "[Notifications] Received real-time notification:",
-          wsMessage,
-        );
 
         // Add new notification to the beginning of the list
         setNotifications((prev) => [wsMessage.notification, ...prev]);
@@ -261,7 +252,6 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
         setNotificationSnackbarQueue((prev) => [...prev, wsMessage.notification]);
       }
     } catch (err) {
-      console.error("[Notifications] Error parsing WebSocket message:", err);
     }
   }, []);
 
@@ -272,7 +262,6 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
       const token = session.tokens?.idToken?.toString();
 
       if (!token || !import.meta.env.VITE_WEBSOCKET_URL) {
-        console.warn("[Notifications] Missing token or WebSocket URL");
         return;
       }
 
@@ -282,31 +271,26 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
       }
 
       const wsUrl = import.meta.env.VITE_WEBSOCKET_URL;
-      console.log("[Notifications] Connecting to WebSocket...");
 
       wsRef.current = new WebSocket(wsUrl, [token]);
 
       wsRef.current.onopen = () => {
-        console.log("[Notifications] WebSocket connected");
         setIsConnected(true);
         reconnectAttemptsRef.current = 0;
       };
 
       wsRef.current.onmessage = handleWebSocketMessage;
 
-      wsRef.current.onclose = (event) => {
-        console.log("[Notifications] WebSocket disconnected:", event.code);
+      wsRef.current.onclose = () => {
         setIsConnected(false);
 
         // Attempt reconnection for abnormal closures (handled in useEffect)
       };
 
-      wsRef.current.onerror = (wsError) => {
-        console.error("[Notifications] WebSocket error:", wsError);
+      wsRef.current.onerror = () => {
         setIsConnected(false);
       };
     } catch (err) {
-      console.error("[Notifications] Failed to connect WebSocket:", err);
     }
   }, [handleWebSocketMessage]);
 
@@ -318,7 +302,6 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
     // Handle reconnection on disconnect
     const handleReconnect = () => {
       if (reconnectAttemptsRef.current >= 5) {
-        console.log("[Notifications] Max reconnection attempts reached");
         return;
       }
 
@@ -326,7 +309,6 @@ export function NotificationProvider({ children }: NotificationProviderProps) {
         1000 * Math.pow(2, reconnectAttemptsRef.current),
         30000,
       );
-      console.log(`[Notifications] Scheduling reconnect in ${delay}ms`);
 
       reconnectTimeoutRef.current = window.setTimeout(() => {
         reconnectAttemptsRef.current++;

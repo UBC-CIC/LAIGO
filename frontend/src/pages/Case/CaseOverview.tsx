@@ -127,7 +127,6 @@ const CaseOverview: React.FC = () => {
         severity: "success",
       });
     } catch (error) {
-      console.error("Error sending case for review:", error);
       setSnackbar({
         open: true,
         message: "Failed to send case for review.",
@@ -167,7 +166,6 @@ const CaseOverview: React.FC = () => {
         severity: "success",
       });
     } catch (error) {
-      console.error("Error archiving case:", error);
       setSnackbar({
         open: true,
         message: "Failed to archive case.",
@@ -206,7 +204,6 @@ const CaseOverview: React.FC = () => {
         severity: "success",
       });
     } catch (error) {
-      console.error("Error unarchiving case:", error);
       setSnackbar({
         open: true,
         message: "Failed to unarchive case.",
@@ -261,7 +258,6 @@ const CaseOverview: React.FC = () => {
         const payload = data.caseData ?? data;
         setCaseData(payload);
       } catch (error) {
-        console.error("Error fetching case data:", error);
         setCaseData(null);
       } finally {
         setLoading(false);
@@ -279,7 +275,6 @@ const CaseOverview: React.FC = () => {
       const token = session.tokens?.idToken?.toString() ?? null;
       const cognitoId = session.tokens?.idToken?.payload?.sub ?? null;
       if (!token || !cognitoId) {
-        console.error("Authentication required");
         return;
       }
 
@@ -290,7 +285,6 @@ const CaseOverview: React.FC = () => {
         },
       );
       if (!res.ok) {
-        console.error("Failed to fetch supervisors:", res.statusText);
         return;
       }
 
@@ -363,7 +357,6 @@ const CaseOverview: React.FC = () => {
       );
       setEditMode(false);
     } catch (error) {
-      console.error("Error editing case:", error);
       setSnackbar({
         open: true,
         message: "Failed to edit case.",

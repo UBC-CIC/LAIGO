@@ -76,7 +76,6 @@ const ReadOnlyPromptViewer: React.FC<ReadOnlyPromptViewerProps> = ({
         setPrompt(null);
       }
     } catch (err) {
-      console.error("Error fetching prompt:", err);
       setError(err instanceof Error ? err.message : "Failed to load prompt");
     } finally {
       setIsLoading(false);

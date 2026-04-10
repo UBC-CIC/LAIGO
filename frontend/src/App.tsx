@@ -91,7 +91,6 @@ function App() {
 
           if (response.status === 403) {
             // User not found in database - sign out and redirect to login
-            console.error("User not found in database");
             await signOut();
             setIsAuthenticated(false);
             setUserInfo(null);
@@ -135,8 +134,7 @@ function App() {
             checkDisclaimer();
           }
         }
-      } catch (error) {
-        console.log("User not authenticated:", error);
+      } catch {
         setIsAuthenticated(false);
         setUserInfo(null);
       } finally {
@@ -166,7 +164,6 @@ function App() {
         }
       }
     } catch (error) {
-      console.error("Error checking disclaimer:", error);
     }
   };
 
@@ -188,7 +185,6 @@ function App() {
         setShowDisclaimer(false);
       }
     } catch (error) {
-      console.error("Error accepting disclaimer:", error);
     }
   };
 
@@ -200,7 +196,6 @@ function App() {
       setShowDisclaimer(false);
       window.location.reload();
     } catch (error) {
-      console.error("Error signing out:", error);
     }
   };
 

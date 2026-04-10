@@ -89,7 +89,6 @@ const UserManagementDialog: React.FC<UserManagementDialogProps> = ({
       const data = await response.json();
       setAssignedStudents(data);
     } catch (err) {
-      console.error("Error fetching students:", err);
       setAssignedStudents([]);
     } finally {
       setStudentsLoading(false);
@@ -150,7 +149,6 @@ const UserManagementDialog: React.FC<UserManagementDialogProps> = ({
         setStudentOptions(options);
       } catch (err) {
         if ((err as any)?.name !== "AbortError") {
-          console.error("Error fetching student suggestions:", err);
         }
         setStudentOptions([]);
       } finally {
@@ -214,7 +212,6 @@ const UserManagementDialog: React.FC<UserManagementDialogProps> = ({
       );
       onSuccess();
     } catch (err) {
-      console.error("Error updating role:", err);
       setRoleError(err instanceof Error ? err.message : "An error occurred.");
     } finally {
       setRoleLoading(null);
@@ -260,7 +257,6 @@ const UserManagementDialog: React.FC<UserManagementDialogProps> = ({
       setStudentEmailInput("");
       fetchAssignedStudents();
     } catch (err) {
-      console.error("Error assigning student:", err);
       setAssignmentError(
         err instanceof Error ? err.message : "Failed to assign student.",
       );
@@ -297,7 +293,6 @@ const UserManagementDialog: React.FC<UserManagementDialogProps> = ({
 
       fetchAssignedStudents();
     } catch (err) {
-      console.error("Error removing student:", err);
       setAssignmentError(
         err instanceof Error ? err.message : "Failed to remove assignment.",
       );

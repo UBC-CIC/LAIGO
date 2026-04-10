@@ -126,7 +126,6 @@ const ModelConfig = () => {
       setMessageLimit(data.message_limit || "Infinity");
       setFileSizeLimit(data.file_size_limit || "500");
     } catch (err) {
-      console.error("Error fetching AI config:", err);
       setGenericError("Failed to load configuration");
     } finally {
       setIsAiConfigLoading(false);
@@ -208,7 +207,6 @@ const ModelConfig = () => {
         severity: "success",
       });
     } catch (err) {
-      console.error("Error saving config:", err);
       setGenericError("Failed to save configuration");
     } finally {
       setIsSavingConfig(false);

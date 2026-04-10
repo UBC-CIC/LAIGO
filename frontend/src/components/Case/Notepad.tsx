@@ -82,7 +82,6 @@ const Notepad: React.FC<NotepadProps> = ({
           }, 2000);
         }
       } catch (error) {
-        console.error("Notepad save error:", error);
       } finally {
         if (isMountedFn.current) setIsSaving(false);
       }

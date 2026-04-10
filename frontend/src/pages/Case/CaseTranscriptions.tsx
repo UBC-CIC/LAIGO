@@ -100,8 +100,7 @@ const CaseTranscriptions: React.FC = () => {
           setToken(token);
           setWsUrl(import.meta.env.VITE_WEBSOCKET_URL);
         }
-      } catch (error) {
-        console.error("Error setting up WebSocket:", error);
+      } catch {
       }
     };
     setupWebSocket();
@@ -126,8 +125,7 @@ const CaseTranscriptions: React.FC = () => {
         const data = await response.json();
         setMaxFileSizeMB(parseInt(data.value));
       }
-    } catch (error) {
-      console.error("Error fetching file size limit:", error);
+    } catch {
     }
   };
 
@@ -153,8 +151,7 @@ const CaseTranscriptions: React.FC = () => {
       if (!response.ok) throw new Error("Transcriptions not found");
       const data = await response.json();
       setTranscriptions(data);
-    } catch (error) {
-      console.error("Error fetching transcriptions:", error);
+    } catch {
     }
   };
 
@@ -181,8 +178,7 @@ const CaseTranscriptions: React.FC = () => {
         if (!response.ok) throw new Error("Case not found");
         const data = await response.json();
         setCaseData(data.caseData);
-      } catch (error) {
-        console.error("Error fetching case data:", error);
+      } catch {
         setCaseData(null);
       }
       setIsLoading(false);
@@ -286,25 +282,21 @@ const CaseTranscriptions: React.FC = () => {
           },
           {
             onStart: () => {
-              console.log("Transcription started (WebSocket)");
               closeUploadDialog();
             },
-            onChunk: (content) => {
-              console.log("Transcription status:", content);
+            onChunk: () => {
               setSnackbarSeverity("info");
               setSnackbarMessage(
                 "Transcription in progress, check back momentarily",
               );
             },
             onComplete: async () => {
-              console.log("Transcription completed via WebSocket");
               await fetchTranscriptions();
               setSnackbarSeverity("success");
               setSnackbarMessage("Transcription complete!");
               setIsUploading(false);
             },
             onError: (msg) => {
-              console.error("Transcription error:", msg);
               setSnackbarSeverity("error");
               setSnackbarMessage("An error occurred during transcription");
               setError(msg || "Transcription failed");
@@ -336,9 +328,7 @@ const CaseTranscriptions: React.FC = () => {
               "Content-Type": "application/json",
             },
           },
-        ).catch((err) =>
-          console.error("HTTP fallback transcription error:", err),
-        );
+        ).catch(() => undefined);
       }
 
       setSnackbarMessage(
@@ -346,7 +336,6 @@ const CaseTranscriptions: React.FC = () => {
       );
       closeUploadDialog();
     } catch (error: unknown) {
-      console.error("Upload error:", error);
       setError((error as Error).message || "Failed to upload audio file");
     } finally {
       setIsUploading(false);
@@ -446,7 +435,6 @@ const CaseTranscriptions: React.FC = () => {
       const data = await response.json();
       return data.audio_text;
     } catch (error) {
-      console.error("Error fetching transcription:", error);
       return "Error loading transcription.";
     }
   };
@@ -558,7 +546,6 @@ const CaseTranscriptions: React.FC = () => {
         prev.filter((t) => t.audio_file_id !== deleteTranscriptionId),
       );
     } catch (error) {
-      console.error("Error deleting transcription:", error);
     } finally {
       setConfirmDeleteOpen(false);
       setDeleteTranscriptionId(null);

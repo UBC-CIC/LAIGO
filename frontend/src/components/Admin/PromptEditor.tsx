@@ -110,7 +110,6 @@ const PromptEditor: React.FC<PromptEditorProps> = ({
       const data = await response.json();
       setPrompts(data);
     } catch (err) {
-      console.error("Error fetching prompts:", err);
       setError(err instanceof Error ? err.message : "Failed to load prompts");
     } finally {
       setIsLoading(false);

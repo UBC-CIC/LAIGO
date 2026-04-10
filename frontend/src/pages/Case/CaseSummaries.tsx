@@ -157,8 +157,7 @@ const CaseSummaries: React.FC = () => {
           setToken(token);
           setWsUrl(import.meta.env.VITE_WEBSOCKET_URL);
         }
-      } catch (error) {
-        console.error("Error setting up WebSocket:", error);
+      } catch {
       }
     };
     setupWebSocket();
@@ -174,7 +173,6 @@ const CaseSummaries: React.FC = () => {
       const token = session.tokens?.idToken?.toString();
 
       if (!token) {
-        console.error("No auth token found");
         setIsLoading(false);
         return;
       }
@@ -196,11 +194,8 @@ const CaseSummaries: React.FC = () => {
         if (Array.isArray(data)) {
           setSummaries(data);
         }
-      } else {
-        console.error("Failed to fetch summaries", response.statusText);
       }
-    } catch (error) {
-      console.error("Error fetching summaries:", error);
+    } catch {
     } finally {
       setIsLoading(false);
     }
@@ -230,22 +225,16 @@ const CaseSummaries: React.FC = () => {
         { case_id: caseId, sub_route: "full-case" },
         {
           onStart: () => {
-            console.log("Full case summary generation started (streaming)");
           },
-          onChunk: (content) => {
+          onChunk: () => {
             // Summary is being streamed - could display progress if desired
-            console.log("Summary chunk received:", content.substring(0, 50));
           },
           onComplete: async () => {
-            console.log(
-              "Full case summary generated successfully via WebSocket",
-            );
             // Refresh summaries to show the new one
             await fetchSummaries();
             setIsGenerating(false);
           },
           onError: (msg) => {
-            console.error("Summary generation error:", msg);
             setIsGenerating(false);
             setShowGenerateSnackbar(false);
             setErrorSnackbar({
@@ -266,7 +255,6 @@ const CaseSummaries: React.FC = () => {
       const token = session.tokens?.idToken?.toString();
 
       if (!token) {
-        console.error("No auth token found");
         setIsGenerating(false);
         return;
       }
@@ -288,12 +276,9 @@ const CaseSummaries: React.FC = () => {
         // Refresh messages to show the new one
         await fetchSummaries();
       } else {
-        const errorData = await response.json();
-        console.error("Failed to generate summary", errorData);
         // Could implement a snackbar here
       }
-    } catch (error) {
-      console.error("Error generating summary:", error);
+    } catch {
     } finally {
       setIsGenerating(false);
     }
@@ -416,13 +401,10 @@ const CaseSummaries: React.FC = () => {
       jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
     };
 
-    console.log("Starting PDF generation...");
     try {
       // @ts-expect-error html2pdf types are missing
       await html2pdf().set(opt).from(element).save();
-      console.log("PDF generated successfully.");
-    } catch (error) {
-      console.error("Error generating PDF:", error);
+    } catch {
     }
   };
 
@@ -458,7 +440,6 @@ const CaseSummaries: React.FC = () => {
       const token = session.tokens?.idToken?.toString();
 
       if (!token) {
-        console.error("No auth token found");
         return;
       }
 
@@ -481,11 +462,8 @@ const CaseSummaries: React.FC = () => {
         if (selectedSummaryId === summaryId) {
           setSelectedSummaryId(null);
         }
-      } else {
-        console.error("Failed to delete summary", response.statusText);
       }
-    } catch (error) {
-      console.error("Error deleting summary:", error);
+    } catch {
     }
   };
 

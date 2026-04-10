@@ -77,7 +77,6 @@ const AdminDisclaimer = () => {
       const data = await response.json();
       setAllDisclaimers(data);
     } catch (err) {
-      console.error("Error fetching disclaimers:", err);
       setError(
         err instanceof Error ? err.message : "Failed to load disclaimers",
       );

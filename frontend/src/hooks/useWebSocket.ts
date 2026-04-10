@@ -95,9 +95,7 @@ export const useWebSocket = (
       if (wsRef.current?.readyState === WebSocket.OPEN) {
         try {
           wsRef.current.send(JSON.stringify({ type: "ping" }));
-          console.log("[WebSocket] Sent ping");
         } catch (error) {
-          console.error("[WebSocket] Error sending ping:", error);
         }
       }
     }, 30000);
@@ -115,12 +113,10 @@ export const useWebSocket = (
 
   const scheduleReconnect = useCallback(() => {
     if (isManualDisconnectRef.current) {
-      console.log("[WebSocket] Manual disconnect, not reconnecting");
       return;
     }
 
     if (reconnectAttemptsRef.current >= 10) {
-      console.log("[WebSocket] Max reconnection attempts reached");
       setConnectionState("error");
       return;
     }
@@ -133,11 +129,6 @@ export const useWebSocket = (
       1000 * Math.pow(2, reconnectAttemptsRef.current),
       30000,
     );
-    console.log(
-      `[WebSocket] Scheduling reconnect attempt ${
-        reconnectAttemptsRef.current + 1
-      }/10 in ${delay}ms`,
-    );
 
     reconnectTimeoutRef.current = window.setTimeout(async () => {
       reconnectAttemptsRef.current++;
@@ -145,7 +136,6 @@ export const useWebSocket = (
       // Refresh token before reconnecting
       if (callbacksRef.current.protocols) {
         try {
-          console.log("[WebSocket] Refreshing auth token before reconnect");
           const session = await fetchAuthSession();
           const freshToken = session.tokens?.idToken?.toString();
 
@@ -156,14 +146,11 @@ export const useWebSocket = (
             )
               ? [freshToken, ...callbacksRef.current.protocols.slice(1)]
               : [freshToken];
-            console.log("[WebSocket] Token refreshed successfully");
           } else {
-            console.error("[WebSocket] No token available - cannot reconnect");
             setConnectionState("error");
             return; // Abort reconnection - user needs to re-authenticate
           }
         } catch (error) {
-          console.error("[WebSocket] Failed to refresh token:", error);
           setConnectionState("error");
           return; // Abort reconnection - auth is broken
         }
@@ -184,11 +171,6 @@ export const useWebSocket = (
       return;
     }
 
-    console.log(
-      `[WebSocket] Connecting to: ${url} (attempt ${
-        reconnectAttemptsRef.current + 1
-      })`,
-    );
     setConnectionState("connecting");
 
     try {
@@ -199,7 +181,6 @@ export const useWebSocket = (
         : new WebSocket(url);
 
       wsRef.current.onopen = () => {
-        console.log("[WebSocket] Connected successfully");
         setConnectionState("connected");
         reconnectAttemptsRef.current = 0;
 
@@ -214,15 +195,10 @@ export const useWebSocket = (
       wsRef.current.onmessage = (event) => {
         try {
           const message: WebSocketMessage = JSON.parse(event.data);
-          console.log("[WebSocket] Received message:", message);
 
           // Validation pipeline - Step 1: Basic structure validation
           const basicValidation = validateBasicStructure(message);
           if (!basicValidation.valid) {
-            console.error(
-              "[WebSocket] Basic structure validation failed:",
-              basicValidation.error,
-            );
             // Try to extract requestId to provide error feedback
             const requestId =
               "requestId" in message
@@ -242,10 +218,6 @@ export const useWebSocket = (
           // Validation pipeline - Step 2: Message type validation
           const typeValidation = validateMessageType(message.type || "");
           if (!typeValidation.valid) {
-            console.error(
-              "[WebSocket] Message type validation failed:",
-              typeValidation.error,
-            );
             // Try to provide error feedback if requestId exists
             const { requestId } = message;
             if (requestId) {
@@ -263,10 +235,6 @@ export const useWebSocket = (
             message as unknown as Record<string, unknown>,
           );
           if (!fieldValidation.valid) {
-            console.error(
-              "[WebSocket] Type-specific field validation failed:",
-              fieldValidation.error,
-            );
             // Call onError callback if requestId exists with pending request
             const { requestId } = message;
             if (requestId) {
@@ -280,7 +248,6 @@ export const useWebSocket = (
           }
 
           if (message.type === "pong") {
-            console.log("[WebSocket] Received pong");
             return;
           }
 
@@ -304,10 +271,6 @@ export const useWebSocket = (
                       data as Record<string, unknown>,
                     );
                     if (!dataValidation.valid) {
-                      console.error(
-                        "[WebSocket] Action-specific data validation failed:",
-                        dataValidation.error,
-                      );
                       pending.onError?.("An error occurred");
                       pendingRequestsRef.current.delete(requestId);
                       return;
@@ -327,16 +290,11 @@ export const useWebSocket = (
 
           // Fallback to legacy callback for messages without requestId
           callbacksRef.current.onMessage?.(message);
-        } catch (error) {
-          console.error("[WebSocket] Error parsing message:", error);
+        } catch {
         }
       };
 
       wsRef.current.onclose = (event) => {
-        console.log(
-          `[WebSocket] Disconnected - Code: ${event.code}, Reason: ${event.reason}`,
-        );
-
         wsRef.current = null;
         setConnectionState("disconnected");
         stopHeartbeat();
@@ -344,23 +302,16 @@ export const useWebSocket = (
 
         if (!isManualDisconnectRef.current) {
           if (event.code !== 1000 && event.code !== 1001) {
-            console.log(
-              "[WebSocket] Abnormal closure, attempting to reconnect...",
-            );
             scheduleReconnect();
-          } else {
-            console.log("[WebSocket] Normal closure, not reconnecting");
           }
         }
       };
 
       wsRef.current.onerror = (error) => {
-        console.error("[WebSocket] Connection error:", error);
         setConnectionState("error");
         callbacksRef.current.onError?.(error);
       };
-    } catch (error) {
-      console.error("[WebSocket] Error creating WebSocket:", error);
+    } catch {
       setConnectionState("error");
       scheduleReconnect();
     }
@@ -372,7 +323,6 @@ export const useWebSocket = (
   }, [connect]);
 
   const disconnect = useCallback(() => {
-    console.log("[WebSocket] Manual disconnect requested");
     isManualDisconnectRef.current = true;
 
     if (reconnectTimeoutRef.current) {
@@ -404,34 +354,25 @@ export const useWebSocket = (
         }
 
         if (messageCountRef.current >= maxMessages) {
-          console.warn(
-            `[WebSocket] Rate limit exceeded (${maxMessages} msgs / ${windowMs}ms). Message dropped.`,
-          );
           return false;
         }
 
         try {
           const messageStr = JSON.stringify(message);
-          console.log("[WebSocket] Sending message:", message);
           wsRef.current.send(messageStr);
           messageCountRef.current++;
           return true;
-        } catch (error) {
-          console.error("[WebSocket] Error sending message:", error);
+        } catch {
           return false;
         }
       }
 
-      console.warn(
-        `[WebSocket] Cannot send message - Connection state: ${connectionState}`,
-      );
       return false;
     },
     [connectionState, maxMessages, windowMs],
   );
 
   const forceReconnect = useCallback(() => {
-    console.log("[WebSocket] Force reconnect requested");
     isManualDisconnectRef.current = false;
     reconnectAttemptsRef.current = 0;
 
@@ -474,7 +415,6 @@ export const useWebSocket = (
 
     clearTokenRotationTimer();
     tokenRotationTimeoutRef.current = window.setTimeout(() => {
-      console.log("[WebSocket] Token nearing expiry, forcing reconnect");
       forceReconnect();
     }, delay);
 

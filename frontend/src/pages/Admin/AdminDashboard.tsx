@@ -101,7 +101,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = () => {
       setUsers(data.users || []);
       setTotalCount(data.totalCount || 0);
     } catch (error) {
-      console.error("Error fetching users:", error);
     } finally {
       setLoading(false);
     }

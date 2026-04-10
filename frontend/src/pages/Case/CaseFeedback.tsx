@@ -57,7 +57,6 @@ const CaseFeedback: React.FC = () => {
       const token = session.tokens?.idToken?.toString();
 
       if (!token) {
-        console.error("No auth token found");
         return;
       }
 
@@ -86,7 +85,6 @@ const CaseFeedback: React.FC = () => {
 
       setMessages(normalizedMessages);
     } catch (err) {
-      console.error("Failed to load feedback", err);
       showSnackbar("Failed to load feedback.", "error");
     } finally {
       setLoading(false);
@@ -142,7 +140,6 @@ const CaseFeedback: React.FC = () => {
       setNewFeedback("");
       loadFeedback(); // Refresh list
     } catch (err) {
-      console.error("Error sending feedback:", err);
       showSnackbar("Failed to send feedback", "error");
     } finally {
       setSubmitting(false);
@@ -177,7 +174,6 @@ const CaseFeedback: React.FC = () => {
       showSnackbar("Feedback deleted successfully", "success");
       loadFeedback(); // Refresh list
     } catch (err) {
-      console.error("Error deleting feedback:", err);
       const message =
         err instanceof Error ? err.message : "Failed to delete feedback";
       showSnackbar(message, "error");

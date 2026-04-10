@@ -69,7 +69,6 @@ const AdminHeader: React.FC = () => {
       handleProfileClose();
       window.location.href = "/";
     } catch (error) {
-      console.error("Error signing out:", error);
     }
   };
 

@@ -76,7 +76,6 @@ const CaseLayout: React.FC = () => {
         if (cData.student_id) setCaseStudentId(cData.student_id);
       }
     } catch (err) {
-      console.error("Error refreshing unlocked blocks:", err);
     }
   }, [caseId]);
 
@@ -89,7 +88,6 @@ const CaseLayout: React.FC = () => {
       if (cId) setCognitoId(cId);
 
       if (!token || !cId) {
-        console.error("Authentication required");
         return;
       }
 
@@ -141,11 +139,9 @@ const CaseLayout: React.FC = () => {
         );
 
         if (!viewRes.ok) {
-          console.warn("Failed to record case view:", viewRes.statusText);
         }
       }
     } catch (err) {
-      console.error("Error in CaseLayout init:", err);
     } finally {
       setLoading(false);
     }
@@ -184,7 +180,6 @@ const CaseLayout: React.FC = () => {
 
         setNotepadContent(content);
       } catch (e) {
-        console.error("Failed to save notes", e);
       }
     },
     [caseId, cognitoId],

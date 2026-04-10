@@ -152,7 +152,6 @@ const InterviewAssistant: React.FC = () => {
   // Handle incoming WebSocket messages
   const handleWebSocketMessage = useCallback(
     (message: WebSocketMessage) => {
-      console.log("WebSocket message received:", message.type, message);
       if (message.type === "start") {
         // Add an empty AI message that will be filled with chunks
         setMessages((prev) => {
@@ -179,31 +178,20 @@ const InterviewAssistant: React.FC = () => {
         });
       } else if (message.type === "complete") {
         // Mark streaming as complete
-        console.log(
-          "WebSocket COMPLETE message received, streamingIndexRef:",
-          streamingIndexRef.current,
-        );
-
         // Capture the index before the setState to avoid closure issues
         const completedIndex = streamingIndexRef.current;
 
         setMessages((prev) => {
           if (completedIndex === null) {
-            console.log("completedIndex is null, returning prev");
             return prev;
           }
           const updated = [...prev];
-          console.log(
-            "Setting isStreaming to false for message at index:",
-            completedIndex,
-          );
           if (updated[completedIndex]) {
             updated[completedIndex] = {
               type: updated[completedIndex].type,
               content: updated[completedIndex].content,
               isStreaming: false,
             };
-            console.log("Updated message:", updated[completedIndex]);
           }
           return updated;
         });
@@ -283,8 +271,7 @@ const InterviewAssistant: React.FC = () => {
             }
             setIsAssessingProgress(false);
           },
-          onError: (msg) => {
-            console.error("assess_progress error:", msg);
+          onError: () => {
             setIsAssessingProgress(false);
           },
         },
@@ -332,7 +319,6 @@ const InterviewAssistant: React.FC = () => {
         }
       }
     } catch (error) {
-      console.error("Error calling assess_progress:", error);
     } finally {
       setIsAssessingProgress(false);
     }
@@ -360,7 +346,6 @@ const InterviewAssistant: React.FC = () => {
           setWsUrl(import.meta.env.VITE_WEBSOCKET_URL);
         }
       } catch (error) {
-        console.error("Error setting up WebSocket:", error);
       }
     };
     setupWebSocket();
@@ -384,18 +369,14 @@ const InterviewAssistant: React.FC = () => {
         { case_id: caseId, sub_route: section },
         {
           onStart: () => {
-            console.log("Summary generation started (streaming)");
           },
-          onChunk: (content) => {
+          onChunk: () => {
             // Summary is being streamed - could display progress if desired
-            console.log("Summary chunk received:", content.substring(0, 50));
           },
-          onComplete: (data) => {
-            console.log("Summary generated successfully via WebSocket", data);
+          onComplete: () => {
             setIsGeneratingSummary(false);
           },
-          onError: (msg) => {
-            console.error("Summary generation error:", msg);
+          onError: () => {
             setIsGeneratingSummary(false);
           },
         },
@@ -409,7 +390,6 @@ const InterviewAssistant: React.FC = () => {
       const token = session.tokens?.idToken?.toString();
 
       if (!token) {
-        console.error("No auth token found");
         setIsGeneratingSummary(false);
         return;
       }
@@ -427,12 +407,9 @@ const InterviewAssistant: React.FC = () => {
       );
 
       if (response.ok) {
-        console.log("Summary generated successfully");
       } else {
-        console.error("Failed to generate summary", response.statusText);
       }
-    } catch (error) {
-      console.error("Error generating summary:", error);
+    } catch {
     } finally {
       setIsGeneratingSummary(false);
     }
@@ -482,7 +459,6 @@ const InterviewAssistant: React.FC = () => {
         const token = session.tokens?.idToken?.toString();
 
         if (!token) {
-          console.error("No auth token found");
           setMessages([DEFAULT_GREETING]);
           return;
         }
@@ -512,13 +488,9 @@ const InterviewAssistant: React.FC = () => {
             assessProgress();
           }
         } else {
-          if (response.status !== 404) {
-            console.error("Failed to fetch chat history", response.statusText);
-          }
           setMessages([DEFAULT_GREETING]);
         }
-      } catch (error) {
-        console.error("Error fetching chat history", error);
+      } catch {
         setMessages([DEFAULT_GREETING]);
       } finally {
         setIsLoadingHistory(false);
@@ -623,7 +595,6 @@ const InterviewAssistant: React.FC = () => {
       );
 
       if (!requestId) {
-        console.error("Failed to send WebSocket message");
         setMessages((prev) => [
           ...prev,
           { type: "ai", content: "Failed to send message. Please try again." },
@@ -637,7 +608,6 @@ const InterviewAssistant: React.FC = () => {
         const token = session.tokens?.idToken?.toString();
 
         if (!token) {
-          console.error("No auth token found");
           return;
         }
 
@@ -676,11 +646,9 @@ const InterviewAssistant: React.FC = () => {
             try {
               const errorData = await response.json();
               errorMsg = errorData.error || errorMsg;
-            } catch (e) {
-              console.error("Failed to parse error response", e);
+            } catch {
             }
           }
-          console.error("API Error", response.status, response.statusText);
           setMessages((prev) => [
             ...prev,
             {
@@ -689,8 +657,7 @@ const InterviewAssistant: React.FC = () => {
             },
           ]);
         }
-      } catch (error) {
-        console.error("Network Error", error);
+      } catch {
         setMessages((prev) => [
           ...prev,
           { type: "ai", content: "Sorry, I encountered a network error." },

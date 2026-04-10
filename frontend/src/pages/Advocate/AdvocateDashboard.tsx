@@ -141,7 +141,6 @@ const AdvocateDashboard: React.FC = () => {
         }
         setTotalCount(data.totalCount || 0);
       } catch (error) {
-        console.error("Error fetching cases:", error);
       } finally {
         setLoading(false);
         setInitialLoad(false);
@@ -216,7 +215,6 @@ const AdvocateDashboard: React.FC = () => {
       setPage(0);
       fetchCases(0, false);
     } catch (err) {
-      console.error("Archive failed", err);
       const msg =
         err instanceof Error ? err.message : "Failed to update case archive status";
       showSnackbar(msg, "error");
