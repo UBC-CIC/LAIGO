@@ -12,7 +12,7 @@ import AdminHeader from "../../components/AdminHeader";
 import ModelConfig from "../../components/Admin/ModelConfig";
 import PromptEditor from "../../components/Admin/PromptEditor";
 import PromptPlayground from "../../components/Admin/PromptPlayground";
-import RoleLabelsConfig from "../../components/Admin/RoleLabelsConfig";
+import TerminologyConfig from "../../components/Admin/TerminologyConfig";
 import SignupAccessConfig from "../../components/Admin/SignupAccessConfig";
 
 // --- Types based on DB Schema & Requirements ---
@@ -92,9 +92,9 @@ const SECTIONS: SidebarSection[] = [
       },
       {
         id: "role-labels",
-        label: "Role Labels",
+        label: "Terminology",
         description:
-          "Customise the display names shown in the UI for each user role (e.g. change \"Advocate\" to \"Client\").",
+          "Manage role display labels and allowed case types used across the platform.",
       },
       {
         id: "signup-access",
@@ -349,7 +349,7 @@ const AIConfiguration = () => {
             ) : selectedBlockId === "playground" ? (
               <PromptPlayground />
             ) : selectedBlockId === "role-labels" ? (
-              <RoleLabelsConfig />
+              <TerminologyConfig />
             ) : selectedBlockId === "signup-access" ? (
               <SignupAccessConfig />
             ) : target && (target.block_type || target.prompt_scope) ? (

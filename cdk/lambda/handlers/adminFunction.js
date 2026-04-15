@@ -17,6 +17,7 @@ const {
 let {
   MESSAGE_LIMIT,
   FILE_SIZE_LIMIT,
+  CASE_TYPES_PARAM,
   BEDROCK_LLM_PARAM,
   BEDROCK_MODEL_OPTIONS_PARAM,
   BEDROCK_TEMP_PARAM,
@@ -47,6 +48,8 @@ const FALLBACK_MODEL_OPTIONS = [
   },
 ];
 
+const FALLBACK_CASE_TYPES = ["Other"];
+
 const parseModelOptions = (rawValue) => {
   if (!rawValue) {
     return FALLBACK_MODEL_OPTIONS;
@@ -76,6 +79,50 @@ const parseModelOptions = (rawValue) => {
     });
     return FALLBACK_MODEL_OPTIONS;
   }
+};
+
+const parseCaseTypes = (rawValue) => {
+  if (!rawValue) {
+    return FALLBACK_CASE_TYPES;
+  }
+
+  try {
+    const parsed = JSON.parse(rawValue);
+    if (!Array.isArray(parsed)) {
+      return FALLBACK_CASE_TYPES;
+    }
+
+    const cleaned = parsed
+      .map((item) => (typeof item === "string" ? item.trim() : ""))
+      .filter((item) => item.length > 0);
+
+    const unique = [...new Set(cleaned)];
+    return unique.length > 0 ? unique : FALLBACK_CASE_TYPES;
+  } catch (error) {
+    logger.warn("Failed to parse allowed case types parameter", {
+      error: error.message,
+    });
+    return FALLBACK_CASE_TYPES;
+  }
+};
+
+const isValidCaseTypesPayload = (caseTypes) => {
+  if (!Array.isArray(caseTypes) || caseTypes.length === 0) {
+    return false;
+  }
+
+  const seen = new Set();
+  for (const caseType of caseTypes) {
+    if (typeof caseType !== "string") {
+      return false;
+    }
+    const normalized = caseType.trim();
+    if (!normalized || seen.has(normalized)) {
+      return false;
+    }
+    seen.add(normalized);
+  }
+  return true;
 };
 
 const isValidModelOptionsPayload = (modelOptions) => {
@@ -765,6 +812,7 @@ const routes = {
         maxTokensRes,
         msgLimitRes,
         fileSizeRes,
+        caseTypesRes,
       ] =
         await Promise.all([
           ssm.send(new GetParameterCommand({ Name: BEDROCK_LLM_PARAM })),
@@ -778,6 +826,11 @@ const routes = {
           ssm.send(new GetParameterCommand({ Name: BEDROCK_MAX_TOKENS_PARAM })),
           ssm.send(new GetParameterCommand({ Name: MESSAGE_LIMIT })),
           ssm.send(new GetParameterCommand({ Name: FILE_SIZE_LIMIT })),
+          CASE_TYPES_PARAM
+            ? ssm
+                .send(new GetParameterCommand({ Name: CASE_TYPES_PARAM }))
+                .catch(() => null)
+            : Promise.resolve(null),
         ]);
 
       const modelOptions = parseModelOptions(
@@ -793,6 +846,7 @@ const routes = {
         max_tokens: maxTokensRes.Parameter.Value,
         message_limit: msgLimitRes.Parameter.Value,
         file_size_limit: fileSizeRes.Parameter.Value,
+        case_types: parseCaseTypes(caseTypesRes?.Parameter?.Value),
       });
     } catch (err) {
       console.error("Failed to fetch AI config:", err);
@@ -945,6 +999,39 @@ const routes = {
             new PutParameterCommand({
               Name: FILE_SIZE_LIMIT,
               Value: String(body.file_size_limit),
+              Overwrite: true,
+              Type: "String",
+            }),
+          ),
+        );
+      }
+      if (body.case_types !== undefined) {
+        if (!isValidCaseTypesPayload(body.case_types)) {
+          response.statusCode = 400;
+          response.body = JSON.stringify({
+            error:
+              "Invalid case_types. Provide a non-empty array of unique, non-empty strings.",
+          });
+          return;
+        }
+
+        const cleanedCaseTypes = body.case_types.map((caseType) =>
+          String(caseType).trim(),
+        );
+
+        if (!CASE_TYPES_PARAM) {
+          response.statusCode = 500;
+          response.body = JSON.stringify({
+            error: "CASE_TYPES_PARAM is not configured",
+          });
+          return;
+        }
+
+        promises.push(
+          ssm.send(
+            new PutParameterCommand({
+              Name: CASE_TYPES_PARAM,
+              Value: JSON.stringify(cleanedCaseTypes),
               Overwrite: true,
               Type: "String",
             }),

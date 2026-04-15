@@ -17,7 +17,52 @@ const {
 
 const eventBridge = new EventBridgeClient({});
 
-const ALLOWED_CASE_TYPES = new Set(["Tort Law"]);
+let { CASE_TYPES_PARAM } = process.env;
+
+const DEFAULT_ALLOWED_CASE_TYPES = ["Other"];
+
+const parseCaseTypes = (rawValue) => {
+  if (!rawValue) return DEFAULT_ALLOWED_CASE_TYPES;
+
+  try {
+    const parsed = JSON.parse(rawValue);
+    if (!Array.isArray(parsed)) {
+      return DEFAULT_ALLOWED_CASE_TYPES;
+    }
+
+    const cleaned = parsed
+      .map((item) => (typeof item === "string" ? item.trim() : ""))
+      .filter((item) => item.length > 0);
+    const unique = [...new Set(cleaned)];
+
+    return unique.length > 0 ? unique : DEFAULT_ALLOWED_CASE_TYPES;
+  } catch (err) {
+    logger.warn("Failed to parse configured case types", { error: err?.message });
+    return DEFAULT_ALLOWED_CASE_TYPES;
+  }
+};
+
+const getAllowedCaseTypes = async () => {
+  if (!CASE_TYPES_PARAM) {
+    return DEFAULT_ALLOWED_CASE_TYPES;
+  }
+
+  try {
+    const { SSMClient, GetParameterCommand } = await import("@aws-sdk/client-ssm");
+    const ssm = new SSMClient();
+    const result = await ssm.send(
+      new GetParameterCommand({ Name: CASE_TYPES_PARAM }),
+    );
+
+    return parseCaseTypes(result?.Parameter?.Value);
+  } catch (err) {
+    logger.warn("Failed to fetch configured case types from SSM", {
+      parameterName: CASE_TYPES_PARAM,
+      error: err?.message,
+    });
+    return DEFAULT_ALLOWED_CASE_TYPES;
+  }
+};
 
 // SQL connection will be set after init
 let sqlConnection;
@@ -100,11 +145,8 @@ const routes = {
           return;
         }
 
-        // Explicit columns for summaries (OWASP API3:2023)
-        const SUMMARY_COLUMNS = `summary_id, case_id, scope, block_context, title, content, time_created`;
-
         const data = await sqlConnection`
-            SELECT ${sqlConnection.unsafe(SUMMARY_COLUMNS)}
+            SELECT * 
             FROM "summaries" WHERE case_id = ${case_id};
           `;
 
@@ -249,13 +291,21 @@ const routes = {
       handleError(err, response);
     }
   },
+  "GET /student/case_types": async (event, env) => {
+    const { response } = env;
+    try {
+      const caseTypes = await getAllowedCaseTypes();
+      response.statusCode = 200;
+      response.body = JSON.stringify({ case_types: caseTypes });
+    } catch (err) {
+      console.error("Failed to fetch case types:", err);
+      handleError(err, response);
+    }
+  },
   "GET /student/get_cases": async (event, env) => {
     const { response, user, user_id, userEmail, sqlConnection } = env;
     // Use user_id from database user metadata
     try {
-      // Explicit columns for case listings (OWASP API3:2023)
-      const CASE_COLUMNS = `case_id, case_hash, case_title, status, jurisdiction, last_updated`;
-
       const params = event.queryStringParameters || {};
       const page = parseInt(params.page || "0", 10);
       const limit = parseInt(params.limit || "10", 10);
@@ -266,6 +316,8 @@ const routes = {
       let dataQuery;
       let countQuery;
 
+      const caseColumns = `case_id, student_id, case_hash, case_title, case_type, case_description, jurisdiction, province, statute, status, completed_blocks, last_updated, last_viewed, time_submitted, time_reviewed, sent_to_review, student_notes`;
+
       if (search && status) {
         countQuery = sqlConnection`
           SELECT COUNT(*) as exact_count FROM "cases"
@@ -274,7 +326,7 @@ const routes = {
           AND status::text = ${status};
         `;
         dataQuery = sqlConnection`
-          SELECT ${sqlConnection.unsafe(CASE_COLUMNS)} FROM "cases"
+          SELECT case_id, student_id, case_hash, case_title, case_type, case_description, jurisdiction, province, statute, status, completed_blocks, last_updated, last_viewed, time_submitted, time_reviewed, sent_to_review, student_notes FROM "cases"
           WHERE student_id = ${user_id}
           AND (case_title ILIKE ${search} OR CAST(jurisdiction AS TEXT) ILIKE ${search} OR case_id::text ILIKE ${search})
           AND status::text = ${status}
@@ -288,7 +340,7 @@ const routes = {
           AND (case_title ILIKE ${search} OR CAST(jurisdiction AS TEXT) ILIKE ${search} OR case_id::text ILIKE ${search});
         `;
         dataQuery = sqlConnection`
-          SELECT ${sqlConnection.unsafe(CASE_COLUMNS)} FROM "cases"
+          SELECT case_id, student_id, case_hash, case_title, case_type, case_description, jurisdiction, province, statute, status, completed_blocks, last_updated, last_viewed, time_submitted, time_reviewed, sent_to_review, student_notes FROM "cases"
           WHERE student_id = ${user_id}
           AND (case_title ILIKE ${search} OR CAST(jurisdiction AS TEXT) ILIKE ${search} OR case_id::text ILIKE ${search})
           ORDER BY last_updated DESC
@@ -301,7 +353,7 @@ const routes = {
           AND status::text = ${status};
         `;
         dataQuery = sqlConnection`
-          SELECT ${sqlConnection.unsafe(CASE_COLUMNS)} FROM "cases"
+          SELECT case_id, student_id, case_hash, case_title, case_type, case_description, jurisdiction, province, statute, status, completed_blocks, last_updated, last_viewed, time_submitted, time_reviewed, sent_to_review, student_notes FROM "cases"
           WHERE student_id = ${user_id}
           AND status::text = ${status}
           ORDER BY last_updated DESC
@@ -313,7 +365,7 @@ const routes = {
           WHERE student_id = ${user_id};
         `;
         dataQuery = sqlConnection`
-          SELECT ${sqlConnection.unsafe(CASE_COLUMNS)} FROM "cases"
+          SELECT case_id, student_id, case_hash, case_title, case_type, case_description, jurisdiction, province, statute, status, completed_blocks, last_updated, last_viewed, time_submitted, time_reviewed, sent_to_review, student_notes FROM "cases"
           WHERE student_id = ${user_id}
           ORDER BY last_updated DESC
           LIMIT ${limit} OFFSET ${offset};
@@ -386,6 +438,29 @@ const routes = {
       });
     } catch (err) {
       logger.error("Error accepting disclaimer:", err);
+      handleError(err, response);
+    }
+  },
+  "GET /student/recent_cases": async (event, env) => {
+    const { response, user, user_id, userEmail, sqlConnection } = env;
+    // Use user_id from database user metadata
+    try {
+      const data = await sqlConnection`
+            SELECT * 
+            FROM "cases"
+            WHERE student_id = ${user_id}
+            ORDER BY last_viewed DESC
+            LIMIT 6;
+          `;
+
+      if (data.length === 0) {
+        response.statusCode = 404;
+        response.body = JSON.stringify({ message: "No cases found" });
+      } else {
+        response.statusCode = 200;
+        response.body = JSON.stringify(data);
+      }
+    } catch (err) {
       handleError(err, response);
     }
   },
@@ -545,24 +620,24 @@ const routes = {
           return;
         }
 
-        const CASE_COLUMNS = `case_id, case_hash, case_title, status, student_id, completed_blocks, student_notes, jurisdiction, province, statute, case_type, case_description, last_updated`;
-        const MESSAGE_COLUMNS = `message_id, message_content, time_sent, instructor_id`;
-        const SUMMARY_COLUMNS = `summary_id, case_id, scope, block_context, title, content, time_created`;
-
         // Fetch case, messages and summaries
         const caseResult = await sqlConnection`
-              SELECT ${sqlConnection.unsafe(CASE_COLUMNS)} FROM "cases" WHERE case_id = ${case_id};
+              SELECT case_id, student_id, case_hash, case_title, case_type, case_description, jurisdiction, province, statute, status, completed_blocks, last_updated, last_viewed, time_submitted, time_reviewed, sent_to_review, student_notes
+              FROM "cases"
+              WHERE case_id = ${case_id};
             `;
 
         const messages = await sqlConnection`
-              SELECT ${sqlConnection.unsafe(MESSAGE_COLUMNS)}, u.first_name, u.last_name
+              SELECT m.message_id, m.instructor_id, m.message_content, m.case_id, m.time_sent, m.is_read, u.first_name AS instructor_first_name, u.last_name AS instructor_last_name
               FROM "messages" m
               LEFT JOIN "users" u ON m.instructor_id = u.user_id
               WHERE m.case_id = ${case_id};
             `;
 
         const summaries = await sqlConnection`
-              SELECT ${sqlConnection.unsafe(SUMMARY_COLUMNS)} FROM "summaries" WHERE case_id = ${case_id};
+              SELECT summary_id, case_id, scope, block_context, title, content, version, time_created
+              FROM "summaries"
+              WHERE case_id = ${case_id};
             `;
 
         const combinedData = {
@@ -1106,7 +1181,19 @@ const routes = {
           return;
         }
 
-        if (!ALLOWED_CASE_TYPES.has(case_type)) {
+        const allowedCaseTypes = await getAllowedCaseTypes();
+        const existingCaseRows = await sqlConnection`
+              SELECT case_type
+              FROM "cases"
+              WHERE case_id = ${case_id}
+              LIMIT 1;
+            `;
+        const existingCaseType = existingCaseRows[0]?.case_type;
+
+        // Keep legacy cases editable even if admins later remove that type.
+        const isConfiguredCaseType = new Set(allowedCaseTypes).has(case_type);
+        const isExistingLegacyType = existingCaseType === case_type;
+        if (!isConfiguredCaseType && !isExistingLegacyType) {
           response.statusCode = 400;
           response.body = JSON.stringify({
             error: "Please select a valid broad area of law.",

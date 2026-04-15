@@ -1100,6 +1100,22 @@ export class ApiGatewayStack extends cdk.Stack {
       },
     ];
 
+    const defaultCaseTypes = [
+      "Criminal Law",
+      "Civil Law",
+      "Family Law",
+      "Business Law",
+      "Environmental Law",
+      "Health Law",
+      "Immigration Law",
+      "Labour Law",
+      "Personal Injury Law",
+      "Tax Law",
+      "Intellectual Property Law",
+      "Tort Law",
+      "Other",
+    ];
+
     // Create parameters for Bedrock LLM ID and Table Name in Parameter Store
     const bedrockLLMParameter = new ssm.StringParameter(
       this,
@@ -1151,6 +1167,17 @@ export class ApiGatewayStack extends cdk.Stack {
         description:
           "Parameter containing the file size limit for audio uploads (in MB)",
         stringValue: "500",
+      },
+    );
+
+    const caseTypesParameter = new ssm.StringParameter(
+      this,
+      "CaseTypesParameter",
+      {
+        parameterName: `/${id}/LAIGO/CaseTypes`,
+        description:
+          "JSON array of allowed case types configurable by admins",
+        stringValue: JSON.stringify(defaultCaseTypes),
       },
     );
 
@@ -1390,6 +1417,7 @@ export class ApiGatewayStack extends cdk.Stack {
           USER_POOL: this.userPool.userPoolId,
           MESSAGE_LIMIT: messageLimitParameter.parameterName,
           FILE_SIZE_LIMIT: fileSizeLimitParameter.parameterName,
+          CASE_TYPES_PARAM: caseTypesParameter.parameterName,
           NOTIFICATION_EVENT_BUS_NAME: notificationEventBus.eventBusName,
           TABLE_NAME: `${id}-Conversation-Table`,
           ...corsEnv,
@@ -1422,6 +1450,7 @@ export class ApiGatewayStack extends cdk.Stack {
     );
     messageLimitParameter.grantRead(lambdaStudentFunction);
     fileSizeLimitParameter.grantRead(lambdaStudentFunction);
+    caseTypesParameter.grantRead(lambdaStudentFunction);
 
     // Override logical ID to reference from OpenAPI document
     const apiGW_studentCasesFunction = lambdaStudentFunction.node
@@ -1442,6 +1471,7 @@ export class ApiGatewayStack extends cdk.Stack {
           RDS_PROXY_ENDPOINT: db.rdsProxyEndpoint,
           MESSAGE_LIMIT: messageLimitParameter.parameterName,
           FILE_SIZE_LIMIT: fileSizeLimitParameter.parameterName,
+          CASE_TYPES_PARAM: caseTypesParameter.parameterName,
           USER_POOL_ID: this.userPool.userPoolId,
           BEDROCK_TEMP_PARAM: bedrockTemperatureParameter.parameterName,
           BEDROCK_TOP_P_PARAM: bedrockTopPParameter.parameterName,
@@ -1477,6 +1507,10 @@ export class ApiGatewayStack extends cdk.Stack {
     // Allow access for lambda to read and write to file size limit parameter
     fileSizeLimitParameter.grantWrite(lambdaAdminFunction);
     fileSizeLimitParameter.grantRead(lambdaAdminFunction);
+
+    // Allow access for lambda to read and write allowed case types
+    caseTypesParameter.grantRead(lambdaAdminFunction);
+    caseTypesParameter.grantWrite(lambdaAdminFunction);
 
     // Allow access for lambda to read and write to bedrock parameters
     bedrockTemperatureParameter.grantRead(lambdaAdminFunction);
@@ -1618,6 +1652,7 @@ export class ApiGatewayStack extends cdk.Stack {
           BEDROCK_TEMP_PARAM: bedrockTemperatureParameter.parameterName,
           BEDROCK_TOP_P_PARAM: bedrockTopPParameter.parameterName,
           BEDROCK_MAX_TOKENS_PARAM: bedrockMaxTokensParameter.parameterName,
+          CASE_TYPES_PARAM: caseTypesParameter.parameterName,
           TABLE_NAME: `${id}-Conversation-Table`,
           GUARDRAIL_ID: textGenGuardrail.attrGuardrailId,
           GUARDRAIL_VERSION: textGenGuardrailVersion.attrVersion,
@@ -1663,6 +1698,7 @@ export class ApiGatewayStack extends cdk.Stack {
           bedrockTemperatureParameter.parameterArn,
           bedrockTopPParameter.parameterArn,
           bedrockMaxTokensParameter.parameterArn,
+          caseTypesParameter.parameterArn,
         ],
       }),
     );

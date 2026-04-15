@@ -26,6 +26,7 @@ TABLE_NAME_PARAM = os.environ["TABLE_NAME_PARAM"]
 BEDROCK_TEMP_PARAM = os.environ.get("BEDROCK_TEMP_PARAM")
 BEDROCK_TOP_P_PARAM = os.environ.get("BEDROCK_TOP_P_PARAM")
 BEDROCK_MAX_TOKENS_PARAM = os.environ.get("BEDROCK_MAX_TOKENS_PARAM")
+CASE_TYPES_PARAM = os.environ.get("CASE_TYPES_PARAM")
 GUARDRAIL_ID = os.environ["GUARDRAIL_ID"]
 GUARDRAIL_VERSION = os.environ["GUARDRAIL_VERSION"]
 
@@ -43,9 +44,9 @@ BEDROCK_TEMP = 0.7
 BEDROCK_TOP_P = 0.9
 BEDROCK_MAX_TOKENS = 150
 
-ALLOWED_CASE_TYPES = {
-    "Tort Law",
-}
+DEFAULT_ALLOWED_CASE_TYPES = ["Other"]
+
+ALLOWED_CASE_TYPES = set(DEFAULT_ALLOWED_CASE_TYPES)
 
 
 def validation_error(message, event=None, field_errors=None):
@@ -84,8 +85,30 @@ def get_parameter(param_name, cached_var):
     return cached_var
 
 
+def parse_case_types(raw_value):
+    if not raw_value:
+        return DEFAULT_ALLOWED_CASE_TYPES
+
+    try:
+        parsed = json.loads(raw_value)
+        if not isinstance(parsed, list):
+            return DEFAULT_ALLOWED_CASE_TYPES
+
+        cleaned = []
+        for item in parsed:
+            if isinstance(item, str):
+                normalized = item.strip()
+                if normalized and normalized not in cleaned:
+                    cleaned.append(normalized)
+
+        return cleaned if cleaned else DEFAULT_ALLOWED_CASE_TYPES
+    except Exception as error:
+        logger.warning(f"Failed to parse case types configuration: {error}")
+        return DEFAULT_ALLOWED_CASE_TYPES
+
+
 def initialize_constants():
-    global BEDROCK_LLM_ID, TABLE_NAME, BEDROCK_TEMP, BEDROCK_TOP_P, BEDROCK_MAX_TOKENS
+    global BEDROCK_LLM_ID, TABLE_NAME, BEDROCK_TEMP, BEDROCK_TOP_P, BEDROCK_MAX_TOKENS, ALLOWED_CASE_TYPES
     BEDROCK_LLM_ID = get_parameter(BEDROCK_LLM_PARAM, BEDROCK_LLM_ID)
     TABLE_NAME = get_parameter(TABLE_NAME_PARAM, TABLE_NAME)
 
@@ -103,6 +126,24 @@ def initialize_constants():
         max_tokens_val = get_parameter(BEDROCK_MAX_TOKENS_PARAM, None)
         if max_tokens_val:
             BEDROCK_MAX_TOKENS = int(max_tokens_val)
+
+    if CASE_TYPES_PARAM:
+        case_types_val = get_parameter(CASE_TYPES_PARAM, None)
+        ALLOWED_CASE_TYPES = set(parse_case_types(case_types_val))
+    else:
+        ALLOWED_CASE_TYPES = set(DEFAULT_ALLOWED_CASE_TYPES)
+
+
+def initialize_case_types():
+    global ALLOWED_CASE_TYPES
+    if CASE_TYPES_PARAM:
+        try:
+            case_types_val = get_parameter(CASE_TYPES_PARAM, None)
+            ALLOWED_CASE_TYPES = set(parse_case_types(case_types_val))
+            return
+        except Exception as error:
+            logger.warning(f"Falling back to default case types: {error}")
+    ALLOWED_CASE_TYPES = set(DEFAULT_ALLOWED_CASE_TYPES)
 
 
 def connect_to_db():
@@ -212,6 +253,8 @@ def _handle_guardrail_error(resp, event=None):
 @logger.inject_lambda_context(log_event=True)
 def handler(event, context):
     try:
+        initialize_case_types()
+
         # Extract idp_id from authorizer context (passed from REST API authorizer)
         # extract the database user id that was injected by the authorizer
         authorizer = event.get('requestContext', {}).get('authorizer', {})

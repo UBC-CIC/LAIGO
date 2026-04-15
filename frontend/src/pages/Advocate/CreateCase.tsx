@@ -23,6 +23,8 @@ import { useNavigate } from "react-router-dom";
 import { useUser } from "../../contexts/UserContext";
 import SupervisorHeader from "../../components/SupervisorHeader";
 
+const DEFAULT_CASE_TYPES = ["Other"];
+
 const CreateCase: React.FC = () => {
   const { userInfo } = useUser();
   const isSupervisor = userInfo?.groups.includes("instructor");
@@ -40,7 +42,10 @@ const CreateCase: React.FC = () => {
   const [isProvincial, setIsProvincial] = useState(false);
   const [province, setProvince] = useState<string>("");
   const [statuteApplicable, setStatuteApplicable] = useState(false);
-  const [broadLaw, setBroadLaw] = useState<string>("Tort Law");
+  const [broadLawOptions, setBroadLawOptions] = useState<string[]>(
+    DEFAULT_CASE_TYPES,
+  );
+  const [broadLaw, setBroadLaw] = useState<string>(DEFAULT_CASE_TYPES[0]);
   const [statuteDetails, setStatuteDetails] = useState<string>("");
   const [overview, setOverview] = useState<string>("");
   const [submitting, setSubmitting] = useState<boolean>(false);
@@ -54,8 +59,6 @@ const CreateCase: React.FC = () => {
   const [overviewError, setOverviewError] = useState<string | null>(null);
 
   const MAX_OVERVIEW_LENGTH = 4000;
-
-  const broadLawOptions = ["Tort Law"];
 
   const canadianProvinces = [
     "Alberta",
@@ -159,6 +162,42 @@ const CreateCase: React.FC = () => {
   useEffect(() => {
     if (broadLaw) setBroadLawError(null);
   }, [broadLaw]);
+
+  useEffect(() => {
+    const fetchCaseTypes = async () => {
+      try {
+        const session = await fetchAuthSession();
+        const token = session.tokens?.idToken?.toString();
+        if (!token) return;
+
+        const response = await fetch(
+          `${import.meta.env.VITE_API_ENDPOINT}/student/case_types`,
+          {
+            headers: { Authorization: token },
+            cache: "no-store",
+          },
+        );
+
+        if (!response.ok) return;
+
+        const data = await response.json();
+        const caseTypes = Array.isArray(data.case_types)
+          ? data.case_types
+              .filter((item: unknown): item is string => typeof item === "string")
+              .map((item: string) => item.trim())
+              .filter((item: string) => item.length > 0)
+          : [];
+
+        if (caseTypes.length > 0) {
+          setBroadLawOptions(caseTypes);
+          setBroadLaw((prev) => (caseTypes.includes(prev) ? prev : caseTypes[0]));
+        }
+      } catch {
+      }
+    };
+
+    fetchCaseTypes();
+  }, []);
 
   useEffect(() => {
     if (isProvincial && province) {
