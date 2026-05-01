@@ -12,7 +12,7 @@ Once you have deployed the solution, the following user guide will help you navi
 | [Supervisor View](#supervisor-view) | The supervisor can view advocates cases and provide feedback.                                                |
 | [Advocate View](#advocate-view)     | The advocate can start a case, interact with AI Assistant, create summaries and transcribe audio interviews. |
 
-All users start by filling their information at the sign up page.  
+All users start by filling their information at the sign up page.
 ![image](./media/create-account.png)
 
 You then get a confirmation email to verify your email and are registered as a user.
@@ -41,10 +41,16 @@ Clicking on the settings icon in the header opens the main settings page. The le
 The General Configurations tab allows administrators to modify the configuration of the default model used across the application, message limits for users, and file upload limits:
 ![image](media/admin-general-configs.png)
 
-#### Role Labels
+#### Terminology
 
-The Role Labels tab allows administrators to modify the user terminology displayed across the application.
-![image](media/admin-role-labels.png)
+The Terminology tab allows administrators to modify the user terminology displayed across the application and manage available case type.
+
+The panel includes:
+
+- Role Labels: update how user roles are named across the app.
+  ![image](./media/admin-role-labels.png)
+- Case Types: manage allowed case types during case creation.
+  ![image](./media/admin-case-types.png)
 
 #### Signup Access
 
