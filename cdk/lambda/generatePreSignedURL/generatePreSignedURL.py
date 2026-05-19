@@ -26,6 +26,7 @@ def s3_key_exists(bucket, key):
 def get_cors_origin(event):
     allowed_origin = os.environ.get("ALLOWED_ORIGIN", "")
     if not allowed_origin:
+        logger.warning("ALLOWED_ORIGIN not set; CORS will allow all origins (*)")
         return "*"
     return allowed_origin
 

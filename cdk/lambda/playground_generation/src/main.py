@@ -36,8 +36,15 @@ BEDROCK_MAX_TOKENS = 2048
 def get_cors_origin(event):
     allowed_origin = os.environ.get("ALLOWED_ORIGIN", "")
     if not allowed_origin:
+        logger.warning("ALLOWED_ORIGIN not set; CORS will allow all origins (*)")
         return "*"
     return allowed_origin
+
+
+def _caller_is_staff(event):
+    """Defense-in-depth: playground is staff-only (admin or instructor)."""
+    roles = event.get("callerRoles") or []
+    return "admin" in roles or "instructor" in roles
 
 def create_response(status_code, body, event=None):
     origin = get_cors_origin(event or {})
@@ -123,6 +130,10 @@ def handler(event, context):
     if not is_websocket or not connection_id:
         # Fallback for HTTP/Test invoke - mostly simplified for now
         return create_response(400, "Playground only supports WebSocket interactions currently.", event)
+
+    if not _caller_is_staff(event):
+        logger.warning("Unauthorized playground invocation", extra={"callerRoles": event.get("callerRoles")})
+        return create_response(403, {"error": "Forbidden: Administrative access required"}, event)
 
     logger.info("Playground mode processing...")
     

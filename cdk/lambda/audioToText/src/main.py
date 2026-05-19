@@ -103,6 +103,19 @@ def connect_to_db():
     Uses credentials stored in Secrets Manager.
     """
     global connection
+    if connection is not None and not connection.closed:
+        try:
+            with connection.cursor() as cur:
+                cur.execute("SELECT 1")
+            return connection
+        except Exception:
+            logger.warning("Stale database connection detected, reconnecting...")
+            try:
+                connection.close()
+            except Exception:
+                pass
+            connection = None
+
     if connection is None or connection.closed:
         secret = get_secret(DB_SECRET_NAME)
         try:
@@ -249,6 +262,7 @@ def get_cors_origin(event):
     """
     allowed_origin = os.environ.get("ALLOWED_ORIGIN", "")
     if not allowed_origin:
+        logger.warning("ALLOWED_ORIGIN not set; CORS will allow all origins (*)")
         return "*"
 
     return allowed_origin

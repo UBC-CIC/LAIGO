@@ -82,7 +82,7 @@ def construct_case_context_prompt(system_prompt: str, case_context: dict) -> str
         {system_prompt}
         Pay close attention to the latest system prompt I've given you, as it may have been updated since the last message, but don't entirely discard the previous system prompts unless they conflict. This is for your behaviour, you do not need to include it in the response.
 
-        Additional case detials that are relevant:
+        Additional case details that are relevant:
         Case type: {case_type}
         Jurisdiction: {jurisdiction}
         Case description: {case_description}
@@ -146,15 +146,20 @@ def get_response(
         history_messages_key="chat_history",
     )
     
-    # Generate the response until it's not empty
+    max_retries = 3
     response = ""
-    while not response:
+    for _ in range(max_retries):
         response = generate_response(
             conversational_chain,
             query,
             case_id
         )
-    
+        if response:
+            break
+
+    if not response:
+        raise RuntimeError("LLM returned empty response after retries")
+
     return get_llm_output(response)
 
 def generate_response(conversational_rag_chain: object, query: str, case_id: str) -> str:

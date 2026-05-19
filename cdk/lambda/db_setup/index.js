@@ -109,7 +109,7 @@ async function createAppUsers(
   // Safe quoting for DB identifier inside SQL
   const dbIdent = adminDb.dbname.replace(/"/g, '""');
 
-  const sql = `
+  const grantsSql = `
     DO $$
     BEGIN
       IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'readwrite') THEN
@@ -138,29 +138,26 @@ async function createAppUsers(
 
     ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE ON SEQUENCES TO readwrite;
     ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE ON SEQUENCES TO tablecreator;
-
-    DO $$
-    BEGIN
-      IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${RW_NAME}') THEN
-        EXECUTE format('CREATE USER ${RW_NAME} WITH PASSWORD %L', '${rwPass}');
-      ELSE
-        EXECUTE format('ALTER USER ${RW_NAME} WITH PASSWORD %L', '${rwPass}');
-      END IF;
-
-      IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${TC_NAME}') THEN
-        EXECUTE format('CREATE USER ${TC_NAME} WITH PASSWORD %L', '${tcPass}');
-      ELSE
-        EXECUTE format('ALTER USER ${TC_NAME} WITH PASSWORD %L', '${tcPass}');
-      END IF;
-    END$$;
-
-    GRANT readwrite TO ${RW_NAME};
-    GRANT tablecreator TO ${TC_NAME};
   `;
+
+  async function ensureDbUser(client, username, password, grantRole) {
+    const exists = await client.query(
+      "SELECT 1 FROM pg_roles WHERE rolname = $1",
+      [username]
+    );
+    if (exists.rowCount === 0) {
+      await client.query(`CREATE USER ${username} WITH PASSWORD $1`, [password]);
+    } else {
+      await client.query(`ALTER USER ${username} WITH PASSWORD $1`, [password]);
+    }
+    await client.query(`GRANT ${grantRole} TO ${username}`);
+  }
 
   await adminClient.query("BEGIN");
   try {
-    await adminClient.query(sql);
+    await adminClient.query(grantsSql);
+    await ensureDbUser(adminClient, RW_NAME, rwPass, "readwrite");
+    await ensureDbUser(adminClient, TC_NAME, tcPass, "tablecreator");
     await adminClient.query("COMMIT");
   } catch (e) {
     await adminClient.query("ROLLBACK");

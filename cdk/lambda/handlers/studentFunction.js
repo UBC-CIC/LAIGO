@@ -835,18 +835,20 @@ const routes = {
       if (activityData.length > 0) {
         let activity_counter = parseInt(activityData[0].activity_counter, 10);
         const last_activity = activityData[0].last_activity;
-        if (activity_counter > 0) {
-          const currentTime = new Date();
-          const lastActivityTime = new Date(last_activity);
-          const timeDifference = Math.abs(currentTime - lastActivityTime);
-          const hoursDifference = Math.floor(timeDifference / (1000 * 60 * 60));
-
-          // Check if 24 hours have passed since the last activity
-          if (hoursDifference >= 24) {
+        if (activity_counter > 0 && last_activity) {
+          // Align with Python rate limiting: reset on UTC calendar day change
+          const [{ should_reset }] = await sqlConnection`
+            SELECT (
+              last_activity IS NULL
+              OR last_activity::date != (NOW() AT TIME ZONE 'UTC')::date
+            ) AS should_reset
+            FROM "users"
+            WHERE user_id = ${user_id}
+          `;
+          if (should_reset) {
             await sqlConnection`
-                  UPDATE "users" SET activity_counter = 0 WHERE user_id = ${user_id};
-                `;
-
+              UPDATE "users" SET activity_counter = 0 WHERE user_id = ${user_id}
+            `;
             activity_counter = 0;
           }
         }
@@ -869,15 +871,22 @@ const routes = {
 
       if (activityData.length > 0) {
         let activity_counter = parseInt(activityData[0].activity_counter, 10);
-        const last_activity = new Date(activityData[0].last_activity);
-        const now = new Date();
-        const hoursSinceLast = (now - last_activity) / (1000 * 60 * 60);
+        const last_activity = activityData[0].last_activity;
+        const [{ should_reset }] = await sqlConnection`
+          SELECT (
+            last_activity IS NULL
+            OR last_activity::date != (NOW() AT TIME ZONE 'UTC')::date
+          ) AS should_reset
+          FROM "users"
+          WHERE user_id = ${user_id}
+        `;
 
-        if (hoursSinceLast >= 24) {
-          // Reset counter and last_activity
+        if (should_reset) {
           await sqlConnection`
-                UPDATE "users" SET activity_counter = 1, last_activity = CURRENT_TIMESTAMP WHERE user_id = ${user_id};
-              `;
+            UPDATE "users"
+            SET activity_counter = 1, last_activity = NOW() AT TIME ZONE 'UTC'
+            WHERE user_id = ${user_id}
+          `;
           activity_counter = 1;
           // HARDCODED TO 10 RIGHT NOW, CHANGE TO BE FROM SECRETS MANAGER OR PARAM STORE
         } else if (activity_counter < 10) {

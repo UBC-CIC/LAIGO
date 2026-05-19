@@ -273,7 +273,7 @@ export class ApiGatewayStack extends cdk.Stack {
       },
       email: emailConfig,
       accountRecovery: cognito.AccountRecovery.EMAIL_ONLY, // Allow password recovery via email
-      removalPolicy: cdk.RemovalPolicy.RETAIN, // Delete user pool when stack is destroyed
+      removalPolicy: cdk.RemovalPolicy.RETAIN, // Retain user pool to prevent accidental user data loss
     });
 
     // Create user pool client for application authentication

@@ -8,6 +8,16 @@ let sqlConnection;
 const initConnection = async () => {
   if (!global.sqlConnection) {
     await initializeConnection(SM_DB_CREDENTIALS, RDS_PROXY_ENDPOINT);
+    return;
+  }
+  try {
+    await global.sqlConnection`SELECT 1`;
+  } catch (error) {
+    logger.warn("Stale database connection detected, reconnecting", {
+      error: error.message,
+    });
+    global.sqlConnection = null;
+    await initializeConnection(SM_DB_CREDENTIALS, RDS_PROXY_ENDPOINT);
   }
 };
 
@@ -23,6 +33,7 @@ const initConnection = async () => {
 const getOriginHeader = (event) => {
   const allowedOrigin = process.env.ALLOWED_ORIGIN;
   if (!allowedOrigin) {
+    logger.warn("ALLOWED_ORIGIN not set; CORS will allow all origins (*)");
     return "*";
   }
 

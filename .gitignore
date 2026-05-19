@@ -12,3 +12,8 @@ coverage/
 *.key
 
 .aws/
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+
