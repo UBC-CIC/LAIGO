@@ -6,6 +6,7 @@ import logging
 import psycopg
 import time
 import uuid
+import functools
 from aws_lambda_powertools import Logger, Metrics
 from aws_lambda_powertools.metrics import MetricUnit
 
@@ -43,61 +44,6 @@ BEDROCK_TOP_P = 0.9
 BEDROCK_MAX_TOKENS = 2048
 MESSAGE_LIMIT = None
 
-
-
-def apply_guardrail_check(content, guardrail_id, guardrail_version,
-                          is_websocket, connection_id, domain_name,
-                          stage, request_id, event):
-    """
-    Apply Bedrock guardrail to any user-influenced content.
-    Returns None if content passes, or a response dict if blocked.
-    """
-    logger.info(f"Using guardrail ID: {guardrail_id}, version: {guardrail_version}")
-
-    guard_response = bedrock_runtime.apply_guardrail(
-        guardrailIdentifier=guardrail_id,
-        guardrailVersion=guardrail_version,
-        source="INPUT",
-        content=[{"text": {"text": content, "qualifiers": ["guard_content"]}}]
-    )
-
-    if guard_response.get("action") == "GUARDRAIL_INTERVENED":
-        logger.info(f"Guardrail response: {json.dumps(guard_response)}")
-
-        # Check if it's a PII issue or prompt attack
-        error_message = "Sorry, I cannot process your request."
-        for assessment in guard_response.get('assessments', []):
-            if 'sensitiveInformationPolicy' in assessment:
-                error_message = (
-                    "Sorry, I cannot process your request because it appears to contain personal information. "
-                    "Please submit your query without including personal identifiable information (Names, Phone Numbers, Addresses, etc.)."
-                )
-                break
-            else:
-                error_message = (
-                    "Sorry, I cannot process your request because it appears to contain prompt manipulation attempts. "
-                    "Please submit a query without any instructions attempting to manipulate the system."
-                )
-
-        if is_websocket and connection_id:
-            try:
-                websocket_endpoint = os.environ.get("WEBSOCKET_API_ENDPOINT")
-                if not websocket_endpoint:
-                    websocket_endpoint = f"https://{domain_name}/{stage}"
-
-                apigw_client = boto3.client('apigatewaymanagementapi', endpoint_url=websocket_endpoint)
-                apigw_client.post_to_connection(
-                    ConnectionId=connection_id,
-                    Data=json.dumps({"type": "error", "requestId": request_id, "action": "generate_text", "content": error_message}).encode('utf-8')
-                )
-                return {"statusCode": 200}
-            except Exception as ws_error:
-                logger.error(f"Failed to send guardrail error to WebSocket: {ws_error}")
-                return {"statusCode": 500}
-
-        return create_response(400, {"error": error_message}, event)
-
-    return None  # Content passed guardrail
 
 
 def get_cors_origin(event):
@@ -186,14 +132,15 @@ def connect_to_db():
     if connection is None or connection.closed:
         try:
             secret = get_secret(DB_SECRET_NAME)
-            connection = psycopg.connect(
-                dbname=secret["dbname"],
-                user=secret["username"],
-                password=secret["password"],
-                host=RDS_PROXY_ENDPOINT,
-                port=secret["port"],
-                sslmode="require",
-            )
+            connection_params = {
+                'dbname': secret["dbname"],
+                'user': secret["username"],
+                'password': secret["password"],
+                'host': RDS_PROXY_ENDPOINT,
+                'port': secret["port"]
+            }
+            connection_string = " ".join([f"{key}={value}" for key, value in connection_params.items()])
+            connection = psycopg.connect(connection_string)
             logger.info("Connected to the database!")
         except Exception as e:
             logger.error(f"Failed to connect to database: {e}")
@@ -203,6 +150,7 @@ def connect_to_db():
             raise
     return connection
 
+@functools.lru_cache(maxsize=128)
 def check_authorization(user_id, case_id):
     """
     Verify that the user (identified by user_id) owns the specified case.
@@ -415,13 +363,49 @@ def handler(event, context):
         logger.info(f"Processing student question: {question}")
         student_query = question.strip()
 
-    # Apply Bedrock guardrail to ALL user-influenced content (both initial query and direct messages)
-    guardrail_result = apply_guardrail_check(
-        student_query, GUARDRAIL_ID, GUARDRAIL_VERSION,
-        is_websocket, connection_id, domain_name, stage, request_id, event
-    )
-    if guardrail_result:
-        return guardrail_result
+        # Use guardrail from CDK environment variables
+        guardrail_id = GUARDRAIL_ID
+        guardrail_version = GUARDRAIL_VERSION
+        logger.info(f"Using guardrail ID: {guardrail_id}, version: {guardrail_version}")
+
+        guard_response = bedrock_runtime.apply_guardrail(
+            guardrailIdentifier=guardrail_id,
+            guardrailVersion=guardrail_version,
+            source="INPUT",
+            content=[{"text": {"text": question, "qualifiers": ["guard_content"]}}]
+        )
+        if guard_response.get("action") == "GUARDRAIL_INTERVENED":
+            # Add debug logging to see the full guardrail response
+            logger.info(f"Guardrail response: {json.dumps(guard_response)}")
+            
+            # Check if it's a PII issue or prompt attack
+            error_message = "Sorry, I cannot process your request."
+            for assessment in guard_response.get('assessments', []):
+                if 'sensitiveInformationPolicy' in assessment:
+                    error_message = ("Sorry, I cannot process your request because it appears to contain personal information. "
+                                    "Please submit your query without including personal identifiable information (Names, Phone Numbers, Addresses, etc.).")
+                    break
+                else:
+                    error_message = ("Sorry, I cannot process your request because it appears to contain prompt manipulation attempts. "
+                                    "Please submit a query without any instructions attempting to manipulate the system.")
+            
+            if is_websocket and connection_id:
+                try:
+                    websocket_endpoint = os.environ.get("WEBSOCKET_API_ENDPOINT")
+                    if not websocket_endpoint:
+                         websocket_endpoint = f"https://{domain_name}/{stage}"
+                    
+                    apigw_client = boto3.client('apigatewaymanagementapi', endpoint_url=websocket_endpoint)
+                    apigw_client.post_to_connection(
+                        ConnectionId=connection_id,
+                        Data=json.dumps({"type": "error", "requestId": request_id, "action": "generate_text", "content": error_message}).encode('utf-8')
+                    )
+                    return {"statusCode": 200} # Return 200 to acknowledge processing
+                except Exception as ws_error:
+                    logger.error(f"Failed to send guardrail error to WebSocket: {ws_error}")
+                    return {"statusCode": 500}
+
+            return create_response(400, {"error": error_message}, event)
     try:
         logger.info(f"Creating Bedrock LLM instance with ID: {BEDROCK_LLM_ID}, Temp: {BEDROCK_TEMP}, TopP: {BEDROCK_TOP_P}, MaxTokens: {BEDROCK_MAX_TOKENS}")
         llm = get_bedrock_llm(
@@ -500,21 +484,9 @@ def handler(event, context):
                     else:
                          return create_response(429, {"error": error_message}, event)
             except Exception as e:
-                logger.error(f"Rate limit check failed: {e}")
-                error_message = "Service temporarily unavailable. Please try again later."
-                if is_websocket and connection_id:
-                    websocket_endpoint = os.environ.get("WEBSOCKET_API_ENDPOINT")
-                    if not websocket_endpoint:
-                        websocket_endpoint = f"https://{domain_name}/{stage}"
-                    apigw_client = boto3.client('apigatewaymanagementapi',
-                                                endpoint_url=websocket_endpoint)
-                    apigw_client.post_to_connection(
-                        ConnectionId=connection_id,
-                        Data=json.dumps({"type": "error", "requestId": request_id,
-                                         "content": error_message}).encode('utf-8')
-                    )
-                    return {"statusCode": 200}
-                return create_response(503, {"error": error_message}, event)
+                logger.error(f"Error checking message limit: {e}")
+                # Log error but allow request to proceed if usage check fails (fail open)
+                pass
 
         # Request Processing
         if is_websocket and connection_id:

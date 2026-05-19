@@ -432,14 +432,16 @@ def connect_to_db():
         try:
             logger.info("Connecting to database with SSL/TLS...")
             secret = get_secret(DB_SECRET_NAME)
-            connection = psycopg.connect(
-                dbname=secret["dbname"],
-                user=secret["username"],
-                password=secret["password"],
-                host=RDS_PROXY_ENDPOINT,
-                port=secret["port"],
-                sslmode="require",
-            )
+            connection_params = {
+                'dbname': secret["dbname"],
+                'user': secret["username"],
+                'password': secret["password"],
+                'host': RDS_PROXY_ENDPOINT,
+                'port': secret["port"],
+                'sslmode': 'require'  # Require SSL connection
+            }
+            connection_string = " ".join([f"{key}={value}" for key, value in connection_params.items()])
+            connection = psycopg.connect(connection_string)
             logger.info("Successfully connected to database with SSL/TLS")
         except psycopg.OperationalError as e:
             logger.error(f"SSL/TLS connection failed: {e}")
@@ -496,7 +498,7 @@ def get_assessment_prompt_template(block_type):
         logger.exception(f"Error fetching assessment prompt for block_type '{block_type}': {e}")
         try:
             connection.rollback()
-        except Exception:
+        except:
             pass
         return None
 
@@ -636,7 +638,7 @@ def mark_block_completed(case_id, block_type):
         logger.exception(f"Error marking block '{block_type}' as completed for case '{case_id}': {e}")
         try:
             connection.rollback()
-        except Exception:
+        except:
             pass
         return False
         
