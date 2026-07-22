@@ -83,13 +83,13 @@ describe("ApiGatewayStack Bedrock model options array", () => {
     expect(opts).toHaveLength(2);
   });
 
-  test("first entry has label 'Claude Sonnet 4.6'", () => {
+  test("first entry has label 'Claude Sonnet 5'", () => {
     const props = findSsmParameter(
       template,
       "/TestApiStack/LAIGO/BedrockModelOptions",
     );
     const opts = JSON.parse(props!.Value!);
-    expect(opts[0].label).toBe("Claude Sonnet 4.6");
+    expect(opts[0].label).toBe("Claude Sonnet 5");
   });
 
   test("first entry value contains cross-region inference profile ARN", () => {
@@ -99,17 +99,17 @@ describe("ApiGatewayStack Bedrock model options array", () => {
     );
     const opts = JSON.parse(props!.Value!);
     expect(opts[0].value).toContain(
-      "inference-profile/us.anthropic.claude-sonnet-4-6-20250514-v1:0",
+      "inference-profile/us.anthropic.claude-sonnet-5",
     );
   });
 
-  test("first entry constraints has maxOutputTokens 8192 and defaultMaxOutputTokens 4096", () => {
+  test("first entry constraints has maxOutputTokens 128000 and defaultMaxOutputTokens 4096", () => {
     const props = findSsmParameter(
       template,
       "/TestApiStack/LAIGO/BedrockModelOptions",
     );
     const opts = JSON.parse(props!.Value!);
-    expect(opts[0].constraints.maxOutputTokens).toBe(8192);
+    expect(opts[0].constraints.maxOutputTokens).toBe(128000);
     expect(opts[0].constraints.defaultMaxOutputTokens).toBe(4096);
   });
 
@@ -145,7 +145,7 @@ describe("ApiGatewayStack Bedrock model options array", () => {
     expect(opts[1].constraints.topPRange).toEqual([0, 1.0]);
   });
 
-  test("BedrockLLMParameter default remains as Llama 3 (not Sonnet 4.6)", () => {
+  test("BedrockLLMParameter default remains as Llama 3 (not Sonnet 5)", () => {
     const props = findSsmParameter(
       template,
       "/TestApiStack/LAIGO/BedrockLLMId",

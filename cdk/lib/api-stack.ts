@@ -1120,10 +1120,10 @@ export class ApiGatewayStack extends cdk.Stack {
 
     const defaultBedrockModelOptions = [
       {
-        label: "Claude Sonnet 4.6",
-        value: `arn:aws:bedrock:${this.region}:${this.account}:inference-profile/us.anthropic.claude-sonnet-4-6-20250514-v1:0`,
+        label: "Claude Sonnet 5",
+        value: `arn:aws:bedrock:${this.region}:${this.account}:inference-profile/us.anthropic.claude-sonnet-5`,
         constraints: {
-          maxOutputTokens: 8192,
+          maxOutputTokens: 128000,
           defaultMaxOutputTokens: 4096,
           temperatureRange: [0, 1.0],
           topPRange: [0, 1.0],

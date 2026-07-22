@@ -91,11 +91,11 @@ interface ModelOption {
 
 const FALLBACK_AVAILABLE_MODELS: ModelOption[] = [
   {
-    id: "us.anthropic.claude-sonnet-4-6-20250514-v1:0",
-    name: "Claude Sonnet 4.6",
+    id: "us.anthropic.claude-sonnet-5",
+    name: "Claude Sonnet 5",
     constraints: {
-      maxOutputTokens: 2048,
-      defaultMaxOutputTokens: 1500,
+      maxOutputTokens: 128000,
+      defaultMaxOutputTokens: 4096,
       temperatureRange: [0, 1.0],
       topPRange: [0, 1.0],
     },

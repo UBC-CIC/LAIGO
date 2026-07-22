@@ -1585,11 +1585,11 @@ Retrieve current AI model configuration parameters.
   "bedrock_llm_id": "meta.llama3-70b-instruct-v1:0",
   "model_options": [
     {
-      "label": "Claude 3 Sonnet",
-      "value": "anthropic.claude-3-sonnet-20240229-v1:0",
+      "label": "Claude Sonnet 5",
+      "value": "us.anthropic.claude-sonnet-5",
       "constraints": {
-        "maxOutputTokens": 2048,
-        "defaultMaxOutputTokens": 1500,
+        "maxOutputTokens": 128000,
+        "defaultMaxOutputTokens": 4096,
         "temperatureRange": [0, 1.0],
         "topPRange": [0, 1.0]
       }
