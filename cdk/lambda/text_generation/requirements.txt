@@ -19,16 +19,16 @@ attrs==25.4.0
     #   aws-encryption-sdk
 aws-encryption-sdk==4.0.7
     # via aws-lambda-powertools
-aws-lambda-powertools[all]==3.36.0
+aws-lambda-powertools[all]==3.37.0
     # via -r requirements.in
 aws-xray-sdk==2.15.0
     # via aws-lambda-powertools
-boto3==1.43.114
+boto3==1.43.118
     # via
     #   -r requirements.in
     #   aws-encryption-sdk
     #   langchain-aws
-botocore==1.43.116
+botocore==1.43.121
     # via
     #   aws-xray-sdk
     #   boto3
@@ -91,7 +91,7 @@ jsonpath-ng==1.8.0
     # via aws-lambda-powertools
 jsonpointer==3.0.0
     # via jsonpatch
-langchain==1.4.6
+langchain==1.4.7
     # via -r requirements.in
 langchain-aws==1.9.0
     # via -r requirements.in
@@ -101,7 +101,7 @@ langchain-classic==1.0.8
     #   langchain-community
 langchain-community==0.4.2
     # via -r requirements.in
-langchain-core==1.6.12
+langchain-core==1.7.1
     # via
     #   langchain
     #   langchain-aws
