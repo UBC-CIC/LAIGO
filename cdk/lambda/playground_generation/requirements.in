@@ -5,6 +5,6 @@ langchain_community
 langchain-classic
 psycopg[binary]
 python-dotenv
-numpy>=2.5.4
+numpy>=2.5.5
 aws-lambda-powertools[all]
 idna>=3.20
